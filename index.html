@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>照片勇者</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar" aria-label="游戏标题">
+        <div>
+          <p class="eyebrow">Photo Hero</p>
+          <h1>照片勇者</h1>
+        </div>
+        <button class="ghost-button" id="resetGameBtn" type="button">重置</button>
+      </section>
+
+      <section class="status-grid" aria-label="战斗状态">
+        <article class="fighter-panel player-panel">
+          <div class="panel-head">
+            <span>勇者</span>
+            <strong id="playerLevel">Lv.1</strong>
+          </div>
+          <div class="hp-row">
+            <span id="playerHpText">30 / 30</span>
+            <div class="hp-track"><span id="playerHpBar"></span></div>
+          </div>
+          <dl class="stat-list">
+            <div><dt>攻击</dt><dd id="playerAtk">5</dd></div>
+            <div><dt>防御</dt><dd id="playerDef">1</dd></div>
+            <div><dt>装备</dt><dd id="equipCount">0/3</dd></div>
+          </dl>
+        </article>
+
+        <article class="fighter-panel monster-panel">
+          <div class="panel-head">
+            <span id="monsterName">纸壳史莱姆</span>
+            <strong id="monsterLevel">Lv.1</strong>
+          </div>
+          <div class="hp-row">
+            <span id="monsterHpText">18 / 18</span>
+            <div class="hp-track danger"><span id="monsterHpBar"></span></div>
+          </div>
+          <dl class="stat-list">
+            <div><dt>攻击</dt><dd id="monsterAtk">4</dd></div>
+            <div><dt>防御</dt><dd id="monsterDef">0</dd></div>
+            <div><dt>进度</dt><dd id="winCount">0</dd></div>
+          </dl>
+        </article>
+      </section>
+
+      <section class="action-strip" aria-label="战斗操作">
+        <button class="primary-button" id="attackBtn" type="button">攻击</button>
+        <button class="secondary-button" id="nextMonsterBtn" type="button">下一只</button>
+        <button class="secondary-button" id="healBtn" type="button">休整</button>
+      </section>
+
+      <section class="camera-panel" aria-label="相机鉴定">
+        <div class="section-title">
+          <div>
+            <h2>拍照鉴定</h2>
+          <p id="cameraHint">拍照或从相册选择现实物品，鉴定成可装备道具。</p>
+          </div>
+          <span class="badge" id="photoStateBadge">未拍照</span>
+        </div>
+
+        <div class="camera-frame" id="cameraFrame">
+          <img id="photoPreview" alt="拍摄预览">
+          <div class="camera-empty" id="cameraEmpty">
+            <strong>等待照片</strong>
+            <span>点击取物照片，使用相机或相册。</span>
+          </div>
+        </div>
+
+        <div class="camera-actions">
+          <button class="primary-button" id="photoBtn" type="button">取物照片</button>
+          <button class="primary-button" id="analyzeBtn" type="button" disabled>鉴定</button>
+          <input id="fileInput" type="file" accept="image/*">
+        </div>
+      </section>
+
+      <section class="config-panel" aria-label="API 配置">
+        <details open>
+          <summary>大模型 API</summary>
+          <div class="config-grid">
+            <label>
+              <span>API Base URL</span>
+              <input id="baseUrlInput" type="url" autocomplete="off" placeholder="https://api.example.com/v1">
+            </label>
+            <label>
+              <span>Model</span>
+              <input id="modelInput" type="text" autocomplete="off" placeholder="gpt-4o-mini">
+            </label>
+            <label class="wide-field">
+              <span>API Key</span>
+              <input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-...">
+            </label>
+          </div>
+          <p class="privacy-note">配置只保存在当前浏览器，不会上传到本站服务器。</p>
+          <div class="config-actions">
+            <button class="secondary-button" id="saveConfigBtn" type="button">保存配置</button>
+            <button class="primary-button" id="testChatBtn" type="button">测试对话</button>
+            <button class="ghost-button" id="mockBtn" type="button">模拟鉴定</button>
+          </div>
+          <div class="chat-test">
+            <label>
+              <span>测试消息</span>
+              <textarea id="chatPromptInput" rows="3">请用一句中文回复：照片勇者 API 测试成功。</textarea>
+            </label>
+            <div class="chat-result" id="chatResult">还没有测试结果。</div>
+          </div>
+        </details>
+      </section>
+
+      <section class="loot-panel" aria-label="装备结果">
+        <div class="section-title">
+          <h2>装备</h2>
+          <span id="loadingState"></span>
+        </div>
+        <div class="loot-card empty" id="lootCard">
+          <strong>还没有新装备</strong>
+          <span>拍照鉴定后会出现在这里。</span>
+        </div>
+        <div class="inventory-list" id="inventoryList"></div>
+      </section>
+
+      <section class="log-panel" aria-label="战斗记录">
+        <h2>记录</h2>
+        <ol id="battleLog"></ol>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
