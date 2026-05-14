@@ -32,3 +32,7 @@ Original prompt: 继续和我讨论游戏事宜，我们到时候上传github和
 - Added player-facing guidance that photo identification requires vision/multimodal support, OpenAI-compatible chat/completions, and browser CORS.
 - Verified with `node --check app.js`, local page load through the web-game Playwright client, and a mobile Playwright flow covering preset locking, custom restore, refresh persistence, and API key eye-toggle behavior.
 - Added official provider links for preset APIs: Ali Bailian console/key docs, SiliconFlow console/docs, and DeepSeek platform/docs; verified link switching and mobile overflow.
+- Reworked the game UI into a one-panel, desktop-first control board: API settings are hidden behind a top button, the hero area owns attributes/equipment/photo identification, and the enemy area owns combat actions and battle report.
+- Replaced the three-slot RPG equipment model with a Mota-style stat model: HP bar, EXP bar, level, speed, attack, defense, and shield.
+- Equipment is now an unlimited collection: all identified items contribute stats, the UI shows 10 thumbnail slots per page, supports paging, and clicking a slot shows a larger image plus description and stat pills.
+- Verified desktop 1440x900 and laptop 1366x768 fit in one page without document scrolling; mobile has no horizontal overflow and keeps natural vertical browsing.

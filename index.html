@@ -8,152 +8,202 @@
   </head>
   <body>
     <main class="app-shell">
-      <section class="topbar" aria-label="游戏标题">
-        <div>
-          <p class="eyebrow">Photo Hero</p>
-          <h1>照片勇者</h1>
-          <p class="tagline">拍下现实物品，让它变成下一件战斗装备。</p>
-        </div>
-        <button class="ghost-button" id="resetGameBtn" type="button">重置</button>
-      </section>
+      <section class="game-panel" aria-label="照片勇者游戏面板">
+        <header class="panel-topbar">
+          <div class="brand-block">
+            <p class="eyebrow">Photo Hero</p>
+            <h1>照片勇者</h1>
+            <p class="tagline">上传或拍下现实物品，鉴定成装备，立刻投入战斗。</p>
+          </div>
+          <div class="panel-tools" aria-label="面板工具">
+            <span class="api-status" id="apiStatusBadge">API 未配置</span>
+            <button class="tool-button" type="button" data-panel-target="config" aria-pressed="false">API 设置</button>
+            <button class="ghost-button" id="resetGameBtn" type="button">重置</button>
+          </div>
+        </header>
 
-      <section class="arena-panel" aria-label="战斗状态">
-        <div class="arena-stage">
-          <article class="fighter-panel player-panel">
-            <div class="avatar-ring hero-avatar">勇</div>
-            <div class="panel-head">
-              <span>勇者</span>
-              <strong id="playerLevel">Lv.1</strong>
+        <div class="game-board">
+          <section class="hero-zone" aria-label="勇者属性和装备">
+            <div class="zone-head hero-head">
+              <div class="avatar-ring hero-avatar">勇</div>
+              <div>
+                <p class="zone-kicker">勇者装备工坊</p>
+                <h2>勇者</h2>
+              </div>
+              <strong class="level-pill" id="playerLevel">Lv.1</strong>
             </div>
-            <div class="hp-row">
+
+            <div class="hp-row hero-hp">
               <span id="playerHpText">30 / 30</span>
               <div class="hp-track"><span id="playerHpBar"></span></div>
             </div>
-            <dl class="stat-list">
+
+            <div class="hp-row exp-row">
+              <span id="playerExpText">0 / 12</span>
+              <div class="hp-track exp-track"><span id="playerExpBar"></span></div>
+            </div>
+
+            <dl class="stat-list hero-stats">
+              <div><dt>等级</dt><dd id="playerLevelStat">1</dd></div>
+              <div><dt>速度</dt><dd id="playerSpeed">3</dd></div>
               <div><dt>攻击</dt><dd id="playerAtk">5</dd></div>
               <div><dt>防御</dt><dd id="playerDef">1</dd></div>
-              <div><dt>装备</dt><dd id="equipCount">0/3</dd></div>
+              <div><dt>护盾</dt><dd id="playerShield">0</dd></div>
             </dl>
-          </article>
 
-          <div class="versus-mark">VS</div>
+            <section class="camera-panel" aria-label="图片鉴定">
+              <div class="section-title compact-title">
+                <div>
+                  <h3>拍照/上传鉴定</h3>
+                  <p id="cameraHint">电脑上传图片，手机拍照或从相册选择。</p>
+                </div>
+                <span class="badge" id="photoStateBadge">未选择</span>
+              </div>
 
-          <article class="fighter-panel monster-panel">
-            <div class="avatar-ring monster-avatar">怪</div>
-            <div class="panel-head">
-              <span id="monsterName">纸壳史莱姆</span>
-              <strong id="monsterLevel">Lv.1</strong>
+              <div class="camera-frame" id="cameraFrame">
+                <img id="photoPreview" alt="拍摄预览">
+                <div class="camera-empty" id="cameraEmpty">
+                  <strong>等待图片</strong>
+                  <span>选择现实物品照片，鉴定成装备。</span>
+                </div>
+              </div>
+
+              <div class="camera-actions">
+                <button class="primary-button" id="photoBtn" type="button">选择图片/拍照</button>
+                <button class="secondary-button" id="analyzeBtn" type="button" disabled>鉴定</button>
+                <input id="fileInput" type="file" accept="image/*">
+              </div>
+            </section>
+
+            <section class="loot-panel" aria-label="鉴定结果和背包">
+              <div class="section-title compact-title">
+                <div>
+                  <h3>装备库</h3>
+                  <p>不限位置，所有装备都会计入属性。</p>
+                </div>
+                <span id="loadingState"></span>
+              </div>
+              <div class="equipment-layout">
+                <div>
+                  <div class="equipment-grid" id="equipmentGrid" aria-label="装备格子"></div>
+                  <div class="equipment-pager" aria-label="装备翻页">
+                    <button class="ghost-button" id="equipPrevBtn" type="button">上一页</button>
+                    <span id="equipPageText">0 / 0</span>
+                    <button class="ghost-button" id="equipNextBtn" type="button">下一页</button>
+                  </div>
+                </div>
+                <article class="equipment-detail" id="equipmentDetail" aria-label="装备详情">
+                  <div class="detail-image-frame">
+                    <img id="equipmentDetailImage" alt="装备图片预览">
+                    <span id="equipmentDetailEmpty">选择装备查看大图</span>
+                  </div>
+                  <div class="detail-copy">
+                    <strong id="equipmentDetailName">未选择装备</strong>
+                    <div class="detail-meta" id="equipmentDetailMeta">上传或拍照后生成装备。</div>
+                    <div class="detail-stats" id="equipmentDetailStats"></div>
+                    <p id="equipmentDetailDesc">装备会显示缩略图，点击格子后在这里查看图片和描述。</p>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </section>
+
+          <section class="enemy-zone" aria-label="敌人和战报">
+            <div class="zone-head enemy-head">
+              <div class="avatar-ring monster-avatar">怪</div>
+              <div>
+                <p class="zone-kicker">当前敌人</p>
+                <h2 id="monsterName">纸壳史莱姆</h2>
+              </div>
+              <strong class="level-pill" id="monsterLevel">Lv.1</strong>
             </div>
-            <div class="hp-row">
+
+            <div class="hp-row enemy-hp">
               <span id="monsterHpText">18 / 18</span>
               <div class="hp-track danger"><span id="monsterHpBar"></span></div>
             </div>
-            <dl class="stat-list">
+
+            <dl class="stat-list enemy-stats">
               <div><dt>攻击</dt><dd id="monsterAtk">4</dd></div>
               <div><dt>防御</dt><dd id="monsterDef">0</dd></div>
               <div><dt>进度</dt><dd id="winCount">0</dd></div>
             </dl>
-          </article>
-        </div>
 
-        <div class="action-strip" aria-label="战斗操作">
-          <button class="primary-button" id="attackBtn" type="button">攻击</button>
-          <button class="secondary-button" id="nextMonsterBtn" type="button">下一只</button>
-          <button class="secondary-button" id="healBtn" type="button">休整</button>
-        </div>
-      </section>
+            <div class="action-strip" aria-label="战斗操作">
+              <button class="primary-button" id="attackBtn" type="button">攻击</button>
+              <button class="secondary-button" id="nextMonsterBtn" type="button">下一只</button>
+              <button class="secondary-button" id="healBtn" type="button">休整</button>
+            </div>
 
-      <section class="camera-panel" aria-label="相机鉴定">
-        <div class="section-title">
-          <div>
-            <h2>拍照鉴定</h2>
-            <p id="cameraHint">拍照或从相册选择现实物品，鉴定成可装备道具。</p>
-          </div>
-          <span class="badge" id="photoStateBadge">未拍照</span>
-        </div>
-        <p class="support-note">图片鉴定需要多模态/视觉模型，并且 API 必须允许浏览器 CORS 直连。</p>
-
-        <div class="camera-frame" id="cameraFrame">
-          <img id="photoPreview" alt="拍摄预览">
-          <div class="camera-empty" id="cameraEmpty">
-            <strong>等待照片</strong>
-            <span>点击取物照片，使用相机或相册。</span>
-          </div>
-        </div>
-
-        <div class="camera-actions">
-          <button class="primary-button" id="photoBtn" type="button">取物照片</button>
-          <button class="primary-button" id="analyzeBtn" type="button" disabled>鉴定</button>
-          <input id="fileInput" type="file" accept="image/*">
-        </div>
-      </section>
-
-      <section class="config-panel" aria-label="API 配置">
-        <details open>
-          <summary>API 测试与配置</summary>
-          <div class="preset-row" aria-label="模型预设">
-            <button class="preset-button" type="button" data-preset="qwen-vl">阿里 Qwen-VL</button>
-            <button class="preset-button" type="button" data-preset="siliconflow">硅基流动</button>
-            <button class="preset-button" type="button" data-preset="deepseek-text">DeepSeek 文本</button>
-            <button class="preset-button" type="button" data-preset="custom">自定义</button>
-          </div>
-          <p class="preset-note" id="presetNote">请选择支持图片输入和浏览器 CORS 的模型；或切到自定义手动填写。</p>
-          <div class="provider-links" id="providerLinks" aria-label="官方 API 链接"></div>
-          <div class="config-grid">
-            <label>
-              <span>API Base URL</span>
-              <input id="baseUrlInput" type="url" autocomplete="off" placeholder="选择预设或手动填写">
-            </label>
-            <label>
-              <span>Model</span>
-              <input id="modelInput" type="text" autocomplete="off" placeholder="选择预设或手动填写">
-            </label>
-            <label class="wide-field">
-              <span>API Key</span>
-              <div class="secret-field">
-                <input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-...">
-                <button class="secret-toggle" id="toggleKeyBtn" type="button" aria-label="显示 API Key">
-                  <svg class="eye-icon" aria-hidden="true" viewBox="0 0 24 24">
-                    <path class="eye-outline" d="M2.2 12s3.5-6 9.8-6 9.8 6 9.8 6-3.5 6-9.8 6-9.8-6-9.8-6Z"></path>
-                    <circle class="eye-pupil" cx="12" cy="12" r="2.7"></circle>
-                    <path class="eye-slash" d="M4.5 20 19.5 4"></path>
-                  </svg>
-                  <span class="visually-hidden">显示 API Key</span>
-                </button>
+            <section class="battle-report" aria-label="图文战报">
+              <div class="section-title compact-title">
+                <h3>图文战报</h3>
+                <span class="battle-chip">实时</span>
               </div>
-            </label>
-          </div>
-          <p class="privacy-note">API Key 只保存在当前浏览器。照片鉴定需要模型支持图片输入、OpenAI-compatible 格式和浏览器 CORS。</p>
-          <div class="config-actions">
-            <button class="secondary-button" id="saveConfigBtn" type="button">保存配置</button>
-            <button class="primary-button" id="testChatBtn" type="button">测试对话</button>
-            <button class="ghost-button" id="mockBtn" type="button">模拟鉴定</button>
-          </div>
-          <div class="chat-test">
-            <label>
-              <span>测试消息</span>
-              <textarea id="chatPromptInput" rows="3">请用一句中文回复：照片勇者 API 测试成功。</textarea>
-            </label>
-            <div class="chat-result" id="chatResult">还没有测试结果。</div>
-          </div>
-        </details>
-      </section>
-
-      <section class="loot-panel" aria-label="装备结果">
-        <div class="section-title">
-          <h2>装备</h2>
-          <span id="loadingState"></span>
+              <ol id="battleLog"></ol>
+            </section>
+          </section>
         </div>
-        <div class="loot-card empty" id="lootCard">
-          <strong>还没有新装备</strong>
-          <span>拍照鉴定后会出现在这里。</span>
-        </div>
-        <div class="inventory-list" id="inventoryList"></div>
-      </section>
 
-      <section class="log-panel" aria-label="战斗记录">
-        <h2>记录</h2>
-        <ol id="battleLog"></ol>
+        <section class="secondary-area is-collapsed" id="secondaryArea" aria-label="次要面板">
+          <section class="config-panel secondary-content" data-secondary-panel="config" aria-label="API 配置">
+            <div class="secondary-head">
+              <div>
+                <h2>API 设置</h2>
+                <p>开始鉴定前配置一次。API Key 只保存在当前浏览器。</p>
+              </div>
+              <button class="ghost-button" type="button" data-panel-target="none">收起</button>
+            </div>
+
+            <div class="preset-row" aria-label="模型预设">
+              <button class="preset-button" type="button" data-preset="qwen-vl">阿里 Qwen-VL</button>
+              <button class="preset-button" type="button" data-preset="siliconflow">硅基流动</button>
+              <button class="preset-button" type="button" data-preset="deepseek-text">DeepSeek 文本</button>
+              <button class="preset-button" type="button" data-preset="custom">自定义</button>
+            </div>
+            <p class="preset-note" id="presetNote">请选择支持图片输入和浏览器 CORS 的模型；或切到自定义手动填写。</p>
+            <div class="provider-links" id="providerLinks" aria-label="官方 API 链接"></div>
+
+            <div class="config-grid">
+              <label>
+                <span>API Base URL</span>
+                <input id="baseUrlInput" type="url" autocomplete="off" placeholder="选择预设或手动填写">
+              </label>
+              <label>
+                <span>Model</span>
+                <input id="modelInput" type="text" autocomplete="off" placeholder="选择预设或手动填写">
+              </label>
+              <label class="wide-field">
+                <span>API Key</span>
+                <div class="secret-field">
+                  <input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-...">
+                  <button class="secret-toggle" id="toggleKeyBtn" type="button" aria-label="显示 API Key">
+                    <svg class="eye-icon" aria-hidden="true" viewBox="0 0 24 24">
+                      <path class="eye-outline" d="M2.2 12s3.5-6 9.8-6 9.8 6 9.8 6-3.5 6-9.8 6-9.8-6-9.8-6Z"></path>
+                      <circle class="eye-pupil" cx="12" cy="12" r="2.7"></circle>
+                      <path class="eye-slash" d="M4.5 20 19.5 4"></path>
+                    </svg>
+                    <span class="visually-hidden">显示 API Key</span>
+                  </button>
+                </div>
+              </label>
+            </div>
+
+            <p class="privacy-note">照片鉴定需要模型支持图片输入、OpenAI-compatible 格式和浏览器 CORS。</p>
+            <div class="config-actions">
+              <button class="secondary-button" id="saveConfigBtn" type="button">保存配置</button>
+              <button class="primary-button" id="testChatBtn" type="button">测试对话</button>
+              <button class="ghost-button" id="mockBtn" type="button">模拟鉴定</button>
+            </div>
+            <div class="chat-test">
+              <label>
+                <span>测试消息</span>
+                <textarea id="chatPromptInput" rows="3">请用一句中文回复：照片勇者 API 测试成功。</textarea>
+              </label>
+              <div class="chat-result" id="chatResult">还没有测试结果。</div>
+            </div>
+          </section>
+        </section>
       </section>
     </main>
 

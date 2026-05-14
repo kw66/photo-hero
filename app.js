@@ -52,16 +52,20 @@ const customDraft = {
   model: "",
 };
 
-const slotNames = {
-  weapon: "武器",
-  armor: "防具",
-  accessory: "饰品",
-};
-
 const rarityNames = {
   common: "普通",
   uncommon: "精良",
   rare: "稀有",
+};
+
+const equipmentPageSize = 10;
+
+const statLabels = {
+  attack: "攻",
+  defense: "防",
+  hp: "血",
+  speed: "速",
+  shield: "盾",
 };
 
 const monsters = [
@@ -73,11 +77,15 @@ const monsters = [
 
 const els = {
   playerLevel: byId("playerLevel"),
+  playerLevelStat: byId("playerLevelStat"),
   playerHpText: byId("playerHpText"),
   playerHpBar: byId("playerHpBar"),
+  playerExpText: byId("playerExpText"),
+  playerExpBar: byId("playerExpBar"),
   playerAtk: byId("playerAtk"),
   playerDef: byId("playerDef"),
-  equipCount: byId("equipCount"),
+  playerSpeed: byId("playerSpeed"),
+  playerShield: byId("playerShield"),
   monsterName: byId("monsterName"),
   monsterLevel: byId("monsterLevel"),
   monsterHpText: byId("monsterHpText"),
@@ -95,6 +103,8 @@ const els = {
   cameraFrame: byId("cameraFrame"),
   photoPreview: byId("photoPreview"),
   photoStateBadge: byId("photoStateBadge"),
+  apiStatusBadge: byId("apiStatusBadge"),
+  secondaryArea: byId("secondaryArea"),
   presetNote: byId("presetNote"),
   providerLinks: byId("providerLinks"),
   baseUrlInput: byId("baseUrlInput"),
@@ -106,8 +116,17 @@ const els = {
   chatPromptInput: byId("chatPromptInput"),
   chatResult: byId("chatResult"),
   mockBtn: byId("mockBtn"),
-  lootCard: byId("lootCard"),
-  inventoryList: byId("inventoryList"),
+  equipmentGrid: byId("equipmentGrid"),
+  equipPrevBtn: byId("equipPrevBtn"),
+  equipNextBtn: byId("equipNextBtn"),
+  equipPageText: byId("equipPageText"),
+  equipmentDetail: byId("equipmentDetail"),
+  equipmentDetailImage: byId("equipmentDetailImage"),
+  equipmentDetailEmpty: byId("equipmentDetailEmpty"),
+  equipmentDetailName: byId("equipmentDetailName"),
+  equipmentDetailMeta: byId("equipmentDetailMeta"),
+  equipmentDetailStats: byId("equipmentDetailStats"),
+  equipmentDetailDesc: byId("equipmentDetailDesc"),
   loadingState: byId("loadingState"),
   battleLog: byId("battleLog"),
 };
@@ -115,24 +134,24 @@ const els = {
 const state = {
   player: {
     level: 1,
+    exp: 0,
     baseHp: 30,
     hp: 30,
     baseAtk: 5,
     baseDef: 1,
+    baseSpeed: 3,
+    baseShield: 0,
     wins: 0,
-    equipment: {
-      weapon: null,
-      armor: null,
-      accessory: null,
-    },
   },
   monsterIndex: 0,
   monster: makeMonster(0, 1),
   inventory: [],
+  equipmentPage: 0,
+  selectedItemId: "",
   lastPhoto: "",
   latestItem: null,
   lootError: "",
-  log: ["拍照或选择一件现实物品，把它变成第一件装备。"],
+  log: ["上传图片或拍一件现实物品，把它变成第一件装备。"],
 };
 
 loadConfig();
@@ -141,6 +160,10 @@ bindEvents();
 render();
 
 function bindEvents() {
+  document.querySelectorAll("[data-panel-target]").forEach((button) => {
+    button.addEventListener("click", () => setSecondaryPanel(button.dataset.panelTarget || "none"));
+  });
+
   document.querySelectorAll(".preset-button").forEach((button) => {
     button.addEventListener("click", () => applyPreset(button.dataset.preset || "custom", true));
   });
@@ -150,6 +173,8 @@ function bindEvents() {
       if (getActivePresetId() === "custom") {
         rememberCustomDraft();
       }
+
+      renderApiStatus();
 
       if (els.chatResult.dataset.state === "missing") {
         setChatResult("配置已更新，可以重新测试。");
@@ -171,9 +196,9 @@ function bindEvents() {
       state.lastPhoto = await compressImage(file);
       els.photoPreview.src = state.lastPhoto;
       els.cameraFrame.classList.add("has-photo");
-      els.photoStateBadge.textContent = "已拍照";
+      els.photoStateBadge.textContent = "已选择";
       els.analyzeBtn.disabled = false;
-      addLog("照片已准备好，可以鉴定。");
+      addLog("图片已准备好，可以鉴定。");
     } catch (error) {
       addLog(`照片读取失败：${error.message || "无法处理该图片"}`);
     } finally {
@@ -185,13 +210,12 @@ function bindEvents() {
   els.analyzeBtn.addEventListener("click", analyzePhoto);
   els.mockBtn.addEventListener("click", () => {
     const item = balanceItem({
-      itemName: "练习用照片护符",
-      slot: "accessory",
+      itemName: "练习用蓝纹护符",
       rarity: "common",
-      stats: { attack: 1, defense: 1, hp: 6 },
+      stats: { attack: 1, defense: 1, hp: 6, speed: 1, shield: 2 },
       description: "没有调用模型，用于测试装备流程。",
       confidence: 1,
-    });
+    }, state.lastPhoto || makePlaceholderImage());
     receiveItem(item, "模拟鉴定完成。");
   });
 
@@ -202,6 +226,8 @@ function bindEvents() {
   els.nextMonsterBtn.addEventListener("click", nextMonster);
   els.healBtn.addEventListener("click", restPlayer);
   els.resetGameBtn.addEventListener("click", resetGame);
+  els.equipPrevBtn.addEventListener("click", () => changeEquipmentPage(-1));
+  els.equipNextBtn.addEventListener("click", () => changeEquipmentPage(1));
 }
 
 function toggleApiKeyVisibility() {
@@ -211,6 +237,19 @@ function toggleApiKeyVisibility() {
   els.toggleKeyBtn.classList.toggle("is-visible", !showing);
   els.toggleKeyBtn.setAttribute("aria-label", label);
   els.toggleKeyBtn.querySelector(".visually-hidden").textContent = label;
+}
+
+function setSecondaryPanel(panelId) {
+  const target = panelId === "config" ? "config" : "";
+  els.secondaryArea.classList.toggle("is-collapsed", !target);
+
+  document.querySelectorAll(".secondary-content").forEach((panel) => {
+    panel.hidden = panel.dataset.secondaryPanel !== target;
+  });
+
+  document.querySelectorAll("[data-panel-target]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.panelTarget === target));
+  });
 }
 
 function applyPreset(presetId, persist = false) {
@@ -245,6 +284,8 @@ function applyPreset(presetId, persist = false) {
   if (persist) {
     saveConfig(false);
     setChatResult(`${preset.label} 已选中。`);
+  } else {
+    renderApiStatus();
   }
 }
 
@@ -387,7 +428,7 @@ async function analyzePhoto() {
 
   try {
     const item = await analyzeDirectly(config, state.lastPhoto);
-    receiveItem(balanceItem(item), "鉴定完成。");
+    receiveItem(balanceItem(item, state.lastPhoto), "鉴定完成。");
   } catch (error) {
     const message = normalizeAnalyzeError(error);
     showLootError(`鉴定失败：${message}`);
@@ -451,7 +492,7 @@ async function analyzeDirectly(config, image) {
               {
                 type: "text",
                 text:
-                  "根据图片里的真实物品，生成一件低数值装备。只能返回 JSON，格式为 {\"itemName\":\"\",\"slot\":\"weapon|armor|accessory\",\"rarity\":\"common|uncommon|rare\",\"stats\":{\"attack\":0,\"defense\":0,\"hp\":0},\"description\":\"\",\"confidence\":0.0}。数值必须克制：attack/defense 不超过 8，hp 不超过 20。",
+                  "根据图片里的真实物品，生成一件低数值魔塔式装备。只能返回 JSON，格式为 {\"itemName\":\"\",\"rarity\":\"common|uncommon|rare\",\"stats\":{\"hp\":0,\"attack\":0,\"defense\":0,\"speed\":0,\"shield\":0},\"description\":\"\",\"confidence\":0.0}。数值必须克制：attack/defense/speed/shield 不超过 8，hp 不超过 30。",
               },
               {
                 type: "image_url",
@@ -522,20 +563,11 @@ function receiveItem(item, message) {
   state.latestItem = fullItem;
   state.lootError = "";
   state.inventory.unshift(fullItem);
-  autoEquip(fullItem);
+  state.selectedItemId = fullItem.id;
+  state.equipmentPage = 0;
   addLog(`${message} 获得 ${fullItem.itemName}。`);
   saveGame();
   render();
-}
-
-function autoEquip(item) {
-  const current = state.player.equipment[item.slot];
-  if (!current || scoreItem(item) > scoreItem(current)) {
-    state.player.equipment[item.slot] = item;
-    addLog(`${item.itemName} 已装备到${slotNames[item.slot]}。`);
-    const stats = getPlayerStats();
-    state.player.hp = Math.min(stats.maxHp, state.player.hp + item.stats.hp);
-  }
 }
 
 function attackMonster() {
@@ -553,22 +585,30 @@ function attackMonster() {
     return;
   }
 
-  const playerDamage = Math.max(1, stats.atk - state.monster.def);
+  const playerDamage = Math.max(1, stats.atk + Math.floor(stats.speed / 3) - state.monster.def);
   state.monster.hp = Math.max(0, state.monster.hp - playerDamage);
   addLog(`勇者造成 ${playerDamage} 点伤害。`);
 
   if (state.monster.hp <= 0) {
     state.player.wins += 1;
-    state.player.level = 1 + Math.floor(state.player.wins / 3);
+    state.player.exp += 4 + state.monster.level * 2;
+    while (state.player.exp >= getNextExp(state.player.level)) {
+      state.player.exp -= getNextExp(state.player.level);
+      state.player.level += 1;
+      state.player.hp = getPlayerStats().maxHp;
+      addLog(`勇者升到 Lv.${state.player.level}。`);
+    }
     addLog(`${state.monster.name} 被击败。`);
     saveGame();
     render();
     return;
   }
 
-  const monsterDamage = Math.max(1, state.monster.atk - stats.def);
+  const rawDamage = Math.max(1, state.monster.atk - stats.def);
+  const shieldBlock = Math.min(stats.shield, rawDamage);
+  const monsterDamage = Math.max(0, rawDamage - shieldBlock);
   state.player.hp = Math.max(0, state.player.hp - monsterDamage);
-  addLog(`${state.monster.name} 反击 ${monsterDamage} 点伤害。`);
+  addLog(`${state.monster.name} 反击 ${monsterDamage} 点伤害，护盾抵消 ${shieldBlock}。`);
 
   if (state.player.hp <= 0) {
     addLog("勇者倒下了，休整可以恢复生命。");
@@ -604,16 +644,20 @@ function resetGame() {
   localStorage.removeItem(STORAGE_KEYS.save);
   state.player = {
     level: 1,
+    exp: 0,
     baseHp: 30,
     hp: 30,
     baseAtk: 5,
     baseDef: 1,
+    baseSpeed: 3,
+    baseShield: 0,
     wins: 0,
-    equipment: { weapon: null, armor: null, accessory: null },
   };
   state.monsterIndex = 0;
   state.monster = makeMonster(0, 1);
   state.inventory = [];
+  state.equipmentPage = 0;
+  state.selectedItemId = "";
   state.latestItem = null;
   state.lootError = "";
   state.log = ["进度已重置。"];
@@ -634,14 +678,15 @@ function makeMonster(index, level) {
 }
 
 function getPlayerStats() {
-  const equipment = Object.values(state.player.equipment).filter(Boolean);
-  const bonus = equipment.reduce(
+  const bonus = state.inventory.reduce(
     (sum, item) => ({
       attack: sum.attack + item.stats.attack,
       defense: sum.defense + item.stats.defense,
       hp: sum.hp + item.stats.hp,
+      speed: sum.speed + item.stats.speed,
+      shield: sum.shield + item.stats.shield,
     }),
-    { attack: 0, defense: 0, hp: 0 },
+    { attack: 0, defense: 0, hp: 0, speed: 0, shield: 0 },
   );
 
   return {
@@ -649,36 +694,46 @@ function getPlayerStats() {
     maxHp: state.player.baseHp + (state.player.level - 1) * 5 + bonus.hp,
     atk: state.player.baseAtk + (state.player.level - 1) * 2 + bonus.attack,
     def: state.player.baseDef + Math.floor((state.player.level - 1) / 2) + bonus.defense,
+    speed: state.player.baseSpeed + bonus.speed,
+    shield: state.player.baseShield + bonus.shield,
+    nextExp: getNextExp(state.player.level),
   };
 }
 
-function balanceItem(item) {
+function getNextExp(level) {
+  return 12 + (level - 1) * 6;
+}
+
+function balanceItem(item, image = "") {
   const safe = item && typeof item === "object" ? item : {};
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
   const rarityCap = { common: 6, uncommon: 9, rare: 12 }[rarity];
-  const slot = ["weapon", "armor", "accessory"].includes(safe.slot) ? safe.slot : "accessory";
   const stats = safe.stats || {};
-  const attack = clampInt(stats.attack, 0, slot === "weapon" ? rarityCap : Math.ceil(rarityCap / 2));
-  const defense = clampInt(stats.defense, 0, slot === "armor" ? rarityCap : Math.ceil(rarityCap / 2));
-  const hp = clampInt(stats.hp, 0, rarityCap * 3);
+  const attack = clampInt(stats.attack, 0, rarityCap);
+  const defense = clampInt(stats.defense, 0, rarityCap);
+  const hp = clampInt(stats.hp, 0, rarityCap * 4);
+  const speed = clampInt(stats.speed, 0, rarityCap);
+  const shield = clampInt(stats.shield, 0, rarityCap);
 
   return {
     itemName: cleanText(safe.itemName, "照片装备", 18),
-    slot,
     rarity,
     stats: {
       attack,
       defense,
       hp,
+      speed,
+      shield,
     },
     description: cleanText(safe.description, "由照片鉴定出的装备。", 56),
     confidence: clampNumber(safe.confidence, 0, 1),
+    image,
   };
 }
 
 function scoreItem(item) {
   if (!item) return 0;
-  return item.stats.attack * 3 + item.stats.defense * 3 + item.stats.hp;
+  return item.stats.attack * 3 + item.stats.defense * 3 + item.stats.speed * 2 + item.stats.shield * 2 + item.stats.hp;
 }
 
 async function compressImage(file) {
@@ -715,16 +770,19 @@ function loadImage(src) {
 
 function render() {
   const stats = getPlayerStats();
-  const equipped = Object.values(state.player.equipment).filter(Boolean);
 
   state.player.hp = Math.min(state.player.hp, stats.maxHp);
 
   els.playerLevel.textContent = `Lv.${state.player.level}`;
+  els.playerLevelStat.textContent = state.player.level;
   els.playerHpText.textContent = `${state.player.hp} / ${stats.maxHp}`;
   els.playerHpBar.style.width = `${percent(state.player.hp, stats.maxHp)}%`;
+  els.playerExpText.textContent = `${state.player.exp} / ${stats.nextExp}`;
+  els.playerExpBar.style.width = `${percent(state.player.exp, stats.nextExp)}%`;
   els.playerAtk.textContent = stats.atk;
   els.playerDef.textContent = stats.def;
-  els.equipCount.textContent = `${equipped.length}/3`;
+  els.playerSpeed.textContent = stats.speed;
+  els.playerShield.textContent = stats.shield;
 
   els.monsterName.textContent = state.monster.name;
   els.monsterLevel.textContent = `Lv.${state.monster.level}`;
@@ -735,83 +793,158 @@ function render() {
   els.winCount.textContent = state.player.wins;
 
   els.nextMonsterBtn.disabled = state.monster.hp > 0;
-  renderLoot();
-  renderInventory();
+  renderApiStatus();
+  renderEquipmentGrid();
+  renderEquipmentDetail();
   renderLog();
   renderGameTextOnly();
 }
 
-function renderLoot() {
-  if (state.lootError) {
-    els.lootCard.className = "loot-card error";
-    els.lootCard.innerHTML = `<strong>${escapeHtml(state.lootError)}</strong>`;
+function renderApiStatus() {
+  const config = getConfigFromInputs();
+  const missing = getMissingConfigFields(config);
+  const activePreset = API_PRESETS[config.presetId] || API_PRESETS.custom;
+
+  if (missing.length) {
+    els.apiStatusBadge.textContent = "API 未配置";
+    els.apiStatusBadge.dataset.state = "missing";
     return;
   }
 
-  const item = state.latestItem;
-  if (!item) {
-    els.lootCard.className = "loot-card empty";
-    els.lootCard.innerHTML = "<strong>还没有新装备</strong><span>拍照鉴定后会出现在这里。</span>";
+  if (activePreset.supportsVision === false || !isLikelyVisionModel(config)) {
+    els.apiStatusBadge.textContent = "仅文本测试";
+    els.apiStatusBadge.dataset.state = "text-only";
     return;
   }
 
-  els.lootCard.className = "loot-card";
-  els.lootCard.innerHTML = `
-    <strong>${escapeHtml(item.itemName)}</strong>
-    <div class="loot-meta">
-      <span>${slotNames[item.slot]}</span>
-      <span>${rarityNames[item.rarity]}</span>
-      <span>攻 +${item.stats.attack}</span>
-      <span>防 +${item.stats.defense}</span>
-      <span>血 +${item.stats.hp}</span>
-    </div>
-    <span>${escapeHtml(item.description)}</span>
-  `;
+  els.apiStatusBadge.textContent = "可鉴定图片";
+  els.apiStatusBadge.dataset.state = "ready";
 }
 
-function renderInventory() {
-  els.inventoryList.innerHTML = "";
-  for (const item of state.inventory.slice(0, 8)) {
-    const row = document.createElement("div");
-    row.className = "inventory-item";
-    row.innerHTML = `
-      <div>
-        <strong>${escapeHtml(item.itemName)}</strong>
-        <span>${slotNames[item.slot]} · 攻 ${item.stats.attack} / 防 ${item.stats.defense} / 血 ${item.stats.hp}</span>
-      </div>
-      <button class="ghost-button" type="button">装备</button>
-    `;
-    row.querySelector("button").addEventListener("click", () => {
-      state.player.equipment[item.slot] = item;
-      addLog(`${item.itemName} 已装备。`);
-      saveGame();
-      render();
-    });
-    els.inventoryList.append(row);
+function renderEquipmentGrid() {
+  const totalPages = Math.max(1, Math.ceil(state.inventory.length / equipmentPageSize));
+  state.equipmentPage = Math.min(Math.max(0, state.equipmentPage), totalPages - 1);
+  const start = state.equipmentPage * equipmentPageSize;
+  const pageItems = state.inventory.slice(start, start + equipmentPageSize);
+
+  els.equipmentGrid.innerHTML = "";
+  for (let i = 0; i < equipmentPageSize; i += 1) {
+    const item = pageItems[i];
+    const button = document.createElement("button");
+    button.className = `equipment-slot${item ? " has-item" : ""}${item?.id === state.selectedItemId ? " is-selected" : ""}`;
+    button.type = "button";
+    button.disabled = !item;
+    button.setAttribute("aria-label", item ? `查看${item.itemName}` : "空装备格");
+
+    if (item) {
+      button.innerHTML = `
+        <img src="${item.image || makePlaceholderImage()}" alt="">
+        <span>${escapeHtml(item.itemName)}</span>
+      `;
+      button.addEventListener("click", () => {
+        state.selectedItemId = item.id;
+        saveGame();
+        render();
+      });
+    } else {
+      button.innerHTML = `<span class="empty-slot">+</span>`;
+    }
+
+    els.equipmentGrid.append(button);
   }
+
+  els.equipPrevBtn.disabled = state.equipmentPage <= 0;
+  els.equipNextBtn.disabled = state.equipmentPage >= totalPages - 1;
+  els.equipPageText.textContent = `${state.inventory.length ? state.equipmentPage + 1 : 0} / ${state.inventory.length ? totalPages : 0}`;
+}
+
+function renderEquipmentDetail() {
+  if (state.lootError) {
+    els.equipmentDetail.classList.add("is-error");
+    els.equipmentDetailImage.removeAttribute("src");
+    els.equipmentDetailImage.hidden = true;
+    els.equipmentDetailEmpty.hidden = false;
+    els.equipmentDetailEmpty.textContent = "鉴定失败";
+    els.equipmentDetailName.textContent = "鉴定失败";
+    els.equipmentDetailMeta.textContent = state.lootError;
+    els.equipmentDetailStats.innerHTML = "";
+    els.equipmentDetailDesc.textContent = "请检查模型是否支持图片输入和浏览器 CORS。";
+    return;
+  }
+
+  els.equipmentDetail.classList.remove("is-error");
+  const selected = state.inventory.find((item) => item.id === state.selectedItemId) || state.latestItem || state.inventory[0];
+  if (!selected) {
+    els.equipmentDetailImage.removeAttribute("src");
+    els.equipmentDetailImage.hidden = true;
+    els.equipmentDetailEmpty.hidden = false;
+    els.equipmentDetailEmpty.textContent = "选择装备查看大图";
+    els.equipmentDetailName.textContent = "未选择装备";
+    els.equipmentDetailMeta.textContent = "上传或拍照后生成装备。";
+    els.equipmentDetailStats.innerHTML = "";
+    els.equipmentDetailDesc.textContent = "装备会显示缩略图，点击格子后在这里查看图片和描述。";
+    return;
+  }
+
+  els.equipmentDetailImage.src = selected.image || makePlaceholderImage();
+  els.equipmentDetailImage.hidden = false;
+  els.equipmentDetailEmpty.hidden = true;
+  els.equipmentDetailName.textContent = selected.itemName;
+  els.equipmentDetailMeta.textContent = `${rarityNames[selected.rarity]} · 第 ${state.inventory.findIndex((item) => item.id === selected.id) + 1} 件装备`;
+  els.equipmentDetailStats.innerHTML = renderStatPills(selected.stats);
+  els.equipmentDetailDesc.textContent = selected.description;
+}
+
+function renderStatPills(stats) {
+  return Object.entries(statLabels)
+    .map(([key, label]) => `<span>${label} +${stats[key] || 0}</span>`)
+    .join("");
+}
+
+function changeEquipmentPage(delta) {
+  const totalPages = Math.max(1, Math.ceil(state.inventory.length / equipmentPageSize));
+  state.equipmentPage = Math.min(Math.max(0, state.equipmentPage + delta), totalPages - 1);
+  saveGame();
+  render();
 }
 
 function renderLog() {
   els.battleLog.innerHTML = "";
   for (const entry of state.log.slice(0, 10)) {
     const li = document.createElement("li");
-    li.textContent = entry;
+    const mark = document.createElement("span");
+    mark.className = `log-mark ${getLogMarkType(entry)}`;
+    mark.textContent = getLogMarkText(entry);
+    const text = document.createElement("span");
+    text.textContent = entry;
+    li.append(mark, text);
     els.battleLog.append(li);
   }
+}
+
+function getLogMarkType(entry) {
+  if (entry.includes("鉴定") || entry.includes("装备") || entry.includes("获得")) return "item";
+  if (entry.includes("勇者") || entry.includes("休整")) return "hero";
+  if (entry.includes("反击") || entry.includes("出现") || entry.includes("击败")) return "";
+  return "info";
+}
+
+function getLogMarkText(entry) {
+  if (entry.includes("鉴定") || entry.includes("装备") || entry.includes("获得")) return "装";
+  if (entry.includes("勇者") || entry.includes("休整")) return "勇";
+  if (entry.includes("反击") || entry.includes("出现") || entry.includes("击败")) return "战";
+  return "记";
 }
 
 function renderGameTextOnly() {
   window.__photoHeroState = {
     player: {
       level: state.player.level,
+      exp: state.player.exp,
       hp: state.player.hp,
       stats: getPlayerStats(),
-      equipment: Object.fromEntries(
-        Object.entries(state.player.equipment).map(([slot, item]) => [
-          slot,
-          item ? item.itemName : null,
-        ]),
-      ),
+      equipmentCount: state.inventory.length,
+      selectedEquipment: state.inventory.find((item) => item.id === state.selectedItemId)?.itemName || null,
     },
     monster: state.monster,
     hasPhoto: Boolean(state.lastPhoto),
@@ -864,6 +997,8 @@ function saveGame() {
     monsterIndex: state.monsterIndex,
     monster: state.monster,
     inventory: state.inventory,
+    equipmentPage: state.equipmentPage,
+    selectedItemId: state.selectedItemId,
     latestItem: state.latestItem,
     log: state.log,
   };
@@ -874,12 +1009,28 @@ function loadSave() {
   const save = readJson(STORAGE_KEYS.save, null);
   if (!save) return;
 
-  state.player = save.player || state.player;
+  state.player = normalizePlayer(save.player || state.player);
   state.monsterIndex = Number.isFinite(save.monsterIndex) ? save.monsterIndex : 0;
   state.monster = save.monster || makeMonster(0, 1);
-  state.inventory = Array.isArray(save.inventory) ? save.inventory : [];
-  state.latestItem = save.latestItem || null;
+  state.inventory = Array.isArray(save.inventory) ? save.inventory.map((item) => balanceItem(item, item.image || makePlaceholderImage())) : [];
+  state.equipmentPage = Number.isFinite(save.equipmentPage) ? save.equipmentPage : 0;
+  state.selectedItemId = save.selectedItemId || state.inventory[0]?.id || "";
+  state.latestItem = save.latestItem ? balanceItem(save.latestItem, save.latestItem.image || makePlaceholderImage()) : state.inventory[0] || null;
   state.log = Array.isArray(save.log) ? save.log : state.log;
+}
+
+function normalizePlayer(player) {
+  return {
+    level: Number.isFinite(player.level) ? player.level : 1,
+    exp: Number.isFinite(player.exp) ? player.exp : 0,
+    baseHp: Number.isFinite(player.baseHp) ? player.baseHp : 30,
+    hp: Number.isFinite(player.hp) ? player.hp : 30,
+    baseAtk: Number.isFinite(player.baseAtk) ? player.baseAtk : 5,
+    baseDef: Number.isFinite(player.baseDef) ? player.baseDef : 1,
+    baseSpeed: Number.isFinite(player.baseSpeed) ? player.baseSpeed : 3,
+    baseShield: Number.isFinite(player.baseShield) ? player.baseShield : 0,
+    wins: Number.isFinite(player.wins) ? player.wins : 0,
+  };
 }
 
 function readJson(key, fallback) {
@@ -923,6 +1074,17 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function makePlaceholderImage() {
+  return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+      <rect width="120" height="120" rx="12" fill="#f5ebd7"/>
+      <circle cx="60" cy="48" r="22" fill="#245f9a"/>
+      <path d="M28 92c10-24 54-24 64 0" fill="#bd3d36"/>
+      <text x="60" y="109" text-anchor="middle" font-size="14" font-family="Arial" font-weight="700" fill="#17130f">PHOTO</text>
+    </svg>
+  `);
 }
 
 window.render_game_to_text = () => JSON.stringify(window.__photoHeroState || {});
