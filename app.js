@@ -93,6 +93,14 @@ bindEvents();
 render();
 
 function bindEvents() {
+  [els.baseUrlInput, els.modelInput, els.apiKeyInput].forEach((input) => {
+    input.addEventListener("input", () => {
+      if (els.chatResult.dataset.state === "missing") {
+        setChatResult("配置已更新，可以重新测试。");
+      }
+    });
+  });
+
   els.photoBtn.addEventListener("click", () => {
     els.fileInput.value = "";
     els.fileInput.click();
@@ -142,9 +150,10 @@ function bindEvents() {
 async function testChatApi() {
   const config = getConfigFromInputs();
   const prompt = els.chatPromptInput.value.trim();
+  const missing = getMissingConfigFields(config);
 
-  if (!config.baseUrl || !config.apiKey || !config.model) {
-    setChatResult("先填写 API 地址、Key 和模型名。", true);
+  if (missing.length) {
+    setChatResult(`缺少配置：${missing.join("、")}。`, true, "missing");
     addLog("API 测试缺少配置。");
     render();
     return;
@@ -208,9 +217,18 @@ async function callChatText(config, prompt) {
   return JSON.stringify(payload, null, 2);
 }
 
-function setChatResult(message, isError = false) {
+function setChatResult(message, isError = false, stateName = "") {
   els.chatResult.textContent = message;
   els.chatResult.style.color = isError ? "var(--red)" : "var(--ink)";
+  els.chatResult.dataset.state = stateName || (isError ? "error" : "ok");
+}
+
+function getMissingConfigFields(config) {
+  const missing = [];
+  if (!config.baseUrl) missing.push("API Base URL");
+  if (!config.model) missing.push("Model");
+  if (!config.apiKey) missing.push("API Key");
+  return missing;
 }
 
 async function analyzePhoto() {
