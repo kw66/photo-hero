@@ -31,3 +31,4 @@ Original prompt: 继续和我讨论游戏事宜，我们到时候上传github和
 - Custom mode preserves the user's manually typed URL/model while switching between presets.
 - Added player-facing guidance that photo identification requires vision/multimodal support, OpenAI-compatible chat/completions, and browser CORS.
 - Verified with `node --check app.js`, local page load through the web-game Playwright client, and a mobile Playwright flow covering preset locking, custom restore, refresh persistence, and API key eye-toggle behavior.
+- Added official provider links for preset APIs: Ali Bailian console/key docs, SiliconFlow console/docs, and DeepSeek platform/docs; verified link switching and mobile overflow.

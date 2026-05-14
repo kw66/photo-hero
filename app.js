@@ -9,6 +9,10 @@ const API_PRESETS = {
     baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
     model: "qwen-vl-plus",
     note: "推荐用于图片鉴定：支持图片输入，OpenAI-compatible，已通过 GitHub Pages CORS 预检。",
+    links: [
+      { label: "阿里百炼控制台", url: "https://bailian.console.aliyun.com/" },
+      { label: "获取 API Key", url: "https://help.aliyun.com/zh/model-studio/get-api-key" },
+    ],
     supportsVision: true,
   },
   siliconflow: {
@@ -16,6 +20,10 @@ const API_PRESETS = {
     baseUrl: "https://api.siliconflow.cn/v1",
     model: "Qwen/Qwen2.5-VL-72B-Instruct",
     note: "适合低成本尝试。具体视觉模型名可能随平台变化，若失败请在硅基流动后台复制当前可用模型名。",
+    links: [
+      { label: "硅基流动控制台", url: "https://cloud.siliconflow.cn/" },
+      { label: "API 文档", url: "https://docs.siliconflow.cn/" },
+    ],
     supportsVision: true,
   },
   "deepseek-text": {
@@ -23,6 +31,10 @@ const API_PRESETS = {
     baseUrl: "https://api.deepseek.com",
     model: "deepseek-v4-flash",
     note: "只适合测试文本对话；DeepSeek 官方 API 当前不支持照片鉴定所需的 image_url 图片输入。",
+    links: [
+      { label: "DeepSeek 平台", url: "https://platform.deepseek.com/" },
+      { label: "官方文档", url: "https://api-docs.deepseek.com/zh-cn/" },
+    ],
     supportsVision: false,
   },
   custom: {
@@ -30,6 +42,7 @@ const API_PRESETS = {
     baseUrl: "",
     model: "",
     note: "自定义 API 必须支持图片输入、OpenAI-compatible /chat/completions，以及浏览器 CORS 直连。",
+    links: [],
     supportsVision: true,
   },
 };
@@ -83,6 +96,7 @@ const els = {
   photoPreview: byId("photoPreview"),
   photoStateBadge: byId("photoStateBadge"),
   presetNote: byId("presetNote"),
+  providerLinks: byId("providerLinks"),
   baseUrlInput: byId("baseUrlInput"),
   apiKeyInput: byId("apiKeyInput"),
   toggleKeyBtn: byId("toggleKeyBtn"),
@@ -220,6 +234,7 @@ function applyPreset(presetId, persist = false) {
   els.baseUrlInput.classList.toggle("is-locked", !isCustom);
   els.modelInput.classList.toggle("is-locked", !isCustom);
   els.presetNote.textContent = preset.note;
+  renderProviderLinks(preset);
 
   document.querySelectorAll(".preset-button").forEach((button) => {
     const isActive = button.dataset.preset === presetId;
@@ -230,6 +245,26 @@ function applyPreset(presetId, persist = false) {
   if (persist) {
     saveConfig(false);
     setChatResult(`${preset.label} 已选中。`);
+  }
+}
+
+function renderProviderLinks(preset) {
+  els.providerLinks.innerHTML = "";
+
+  if (!preset.links?.length) {
+    const hint = document.createElement("span");
+    hint.textContent = "自定义接口请优先使用服务商官网提供的 API Key 和文档。";
+    els.providerLinks.append(hint);
+    return;
+  }
+
+  for (const link of preset.links) {
+    const anchor = document.createElement("a");
+    anchor.href = link.url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    anchor.textContent = link.label;
+    els.providerLinks.append(anchor);
   }
 }
 
