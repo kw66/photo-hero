@@ -15,6 +15,18 @@
 
 最终目标是像研究生模拟器一样：上传 GitHub 后，通过 GitHub Pages 得到一个网址，玩家打开即可玩。
 
+目标仓库名：
+
+```text
+photo-hero
+```
+
+目标游玩网址：
+
+```text
+https://kw66.github.io/photo-hero/
+```
+
 因此玩家路径必须是纯静态网页：
 
 ```text
