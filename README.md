@@ -51,9 +51,17 @@ http://localhost:3000
 
 ## API 要求
 
-第一版只支持 OpenAI-compatible 的聊天接口。当前页面已经提供“测试对话”按钮，可先验证浏览器能否直连 API；确认文本对话可用后，再测试图片鉴定。
+第一版只支持 OpenAI-compatible 的聊天接口。当前页面提供模型预设按钮，也可以切到自定义手动填写。可先用“测试对话”验证浏览器能否直连 API；确认文本对话可用后，再测试图片鉴定。
 
 注意：DeepSeek V4 Flash 当前适合测试文本对话；照片鉴定需要换成支持图片输入的视觉模型。
+
+图片鉴定至少需要：
+
+```text
+支持图片输入 / 多模态 / vision
+支持 OpenAI-compatible /chat/completions
+允许 GitHub Pages 这类网页做浏览器 CORS 直连
+```
 
 配置示例：
 

@@ -71,7 +71,7 @@
           </div>
           <span class="badge" id="photoStateBadge">未拍照</span>
         </div>
-        <p class="support-note">图片鉴定需要支持视觉输入的模型；DeepSeek V4 Flash 当前适合先测文本对话。</p>
+        <p class="support-note">图片鉴定需要多模态/视觉模型，并且 API 必须允许浏览器 CORS 直连。</p>
 
         <div class="camera-frame" id="cameraFrame">
           <img id="photoPreview" alt="拍摄预览">
@@ -91,14 +91,21 @@
       <section class="config-panel" aria-label="API 配置">
         <details open>
           <summary>API 测试与配置</summary>
+          <div class="preset-row" aria-label="模型预设">
+            <button class="preset-button" type="button" data-preset="qwen-vl">阿里 Qwen-VL</button>
+            <button class="preset-button" type="button" data-preset="siliconflow">硅基流动</button>
+            <button class="preset-button" type="button" data-preset="deepseek-text">DeepSeek 文本</button>
+            <button class="preset-button" type="button" data-preset="custom">自定义</button>
+          </div>
+          <p class="preset-note" id="presetNote">请选择支持图片输入和浏览器 CORS 的模型；或切到自定义手动填写。</p>
           <div class="config-grid">
             <label>
               <span>API Base URL</span>
-              <input id="baseUrlInput" type="url" autocomplete="off" placeholder="https://api.deepseek.com">
+              <input id="baseUrlInput" type="url" autocomplete="off" placeholder="选择预设或手动填写">
             </label>
             <label>
               <span>Model</span>
-              <input id="modelInput" type="text" autocomplete="off" placeholder="deepseek-v4-flash">
+              <input id="modelInput" type="text" autocomplete="off" placeholder="选择预设或手动填写">
             </label>
             <label class="wide-field">
               <span>API Key</span>
@@ -115,7 +122,7 @@
               </div>
             </label>
           </div>
-          <p class="privacy-note">配置只保存在当前浏览器，不会上传到本站服务器。</p>
+          <p class="privacy-note">API Key 只保存在当前浏览器。照片鉴定需要模型支持图片输入、OpenAI-compatible 格式和浏览器 CORS。</p>
           <div class="config-actions">
             <button class="secondary-button" id="saveConfigBtn" type="button">保存配置</button>
             <button class="primary-button" id="testChatBtn" type="button">测试对话</button>

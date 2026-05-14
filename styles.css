@@ -382,6 +382,39 @@ details summary {
   font-weight: 900;
 }
 
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.preset-button {
+  min-height: 40px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  background: #fffdf8;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.preset-button.is-active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff8ed;
+}
+
+.preset-note {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--blue) 28%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--paper-2) 72%, white 28%);
+  color: var(--blue);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
 .config-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -407,6 +440,13 @@ textarea {
   background: #fffdf8;
   color: var(--ink);
   padding: 10px 11px;
+}
+
+input.is-locked,
+input:read-only.is-locked {
+  background: #eee5d6;
+  color: #6d6258;
+  cursor: not-allowed;
 }
 
 .secret-field {
