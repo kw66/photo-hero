@@ -12,55 +12,62 @@
         <div>
           <p class="eyebrow">Photo Hero</p>
           <h1>照片勇者</h1>
+          <p class="tagline">拍下现实物品，让它变成下一件战斗装备。</p>
         </div>
         <button class="ghost-button" id="resetGameBtn" type="button">重置</button>
       </section>
 
-      <section class="status-grid" aria-label="战斗状态">
-        <article class="fighter-panel player-panel">
-          <div class="panel-head">
-            <span>勇者</span>
-            <strong id="playerLevel">Lv.1</strong>
-          </div>
-          <div class="hp-row">
-            <span id="playerHpText">30 / 30</span>
-            <div class="hp-track"><span id="playerHpBar"></span></div>
-          </div>
-          <dl class="stat-list">
-            <div><dt>攻击</dt><dd id="playerAtk">5</dd></div>
-            <div><dt>防御</dt><dd id="playerDef">1</dd></div>
-            <div><dt>装备</dt><dd id="equipCount">0/3</dd></div>
-          </dl>
-        </article>
+      <section class="arena-panel" aria-label="战斗状态">
+        <div class="arena-stage">
+          <article class="fighter-panel player-panel">
+            <div class="avatar-ring hero-avatar">勇</div>
+            <div class="panel-head">
+              <span>勇者</span>
+              <strong id="playerLevel">Lv.1</strong>
+            </div>
+            <div class="hp-row">
+              <span id="playerHpText">30 / 30</span>
+              <div class="hp-track"><span id="playerHpBar"></span></div>
+            </div>
+            <dl class="stat-list">
+              <div><dt>攻击</dt><dd id="playerAtk">5</dd></div>
+              <div><dt>防御</dt><dd id="playerDef">1</dd></div>
+              <div><dt>装备</dt><dd id="equipCount">0/3</dd></div>
+            </dl>
+          </article>
 
-        <article class="fighter-panel monster-panel">
-          <div class="panel-head">
-            <span id="monsterName">纸壳史莱姆</span>
-            <strong id="monsterLevel">Lv.1</strong>
-          </div>
-          <div class="hp-row">
-            <span id="monsterHpText">18 / 18</span>
-            <div class="hp-track danger"><span id="monsterHpBar"></span></div>
-          </div>
-          <dl class="stat-list">
-            <div><dt>攻击</dt><dd id="monsterAtk">4</dd></div>
-            <div><dt>防御</dt><dd id="monsterDef">0</dd></div>
-            <div><dt>进度</dt><dd id="winCount">0</dd></div>
-          </dl>
-        </article>
-      </section>
+          <div class="versus-mark">VS</div>
 
-      <section class="action-strip" aria-label="战斗操作">
-        <button class="primary-button" id="attackBtn" type="button">攻击</button>
-        <button class="secondary-button" id="nextMonsterBtn" type="button">下一只</button>
-        <button class="secondary-button" id="healBtn" type="button">休整</button>
+          <article class="fighter-panel monster-panel">
+            <div class="avatar-ring monster-avatar">怪</div>
+            <div class="panel-head">
+              <span id="monsterName">纸壳史莱姆</span>
+              <strong id="monsterLevel">Lv.1</strong>
+            </div>
+            <div class="hp-row">
+              <span id="monsterHpText">18 / 18</span>
+              <div class="hp-track danger"><span id="monsterHpBar"></span></div>
+            </div>
+            <dl class="stat-list">
+              <div><dt>攻击</dt><dd id="monsterAtk">4</dd></div>
+              <div><dt>防御</dt><dd id="monsterDef">0</dd></div>
+              <div><dt>进度</dt><dd id="winCount">0</dd></div>
+            </dl>
+          </article>
+        </div>
+
+        <div class="action-strip" aria-label="战斗操作">
+          <button class="primary-button" id="attackBtn" type="button">攻击</button>
+          <button class="secondary-button" id="nextMonsterBtn" type="button">下一只</button>
+          <button class="secondary-button" id="healBtn" type="button">休整</button>
+        </div>
       </section>
 
       <section class="camera-panel" aria-label="相机鉴定">
         <div class="section-title">
           <div>
             <h2>拍照鉴定</h2>
-          <p id="cameraHint">拍照或从相册选择现实物品，鉴定成可装备道具。</p>
+            <p id="cameraHint">拍照或从相册选择现实物品，鉴定成可装备道具。</p>
           </div>
           <span class="badge" id="photoStateBadge">未拍照</span>
         </div>
@@ -82,7 +89,7 @@
 
       <section class="config-panel" aria-label="API 配置">
         <details open>
-          <summary>大模型 API</summary>
+          <summary>API 测试与配置</summary>
           <div class="config-grid">
             <label>
               <span>API Base URL</span>
@@ -94,7 +101,17 @@
             </label>
             <label class="wide-field">
               <span>API Key</span>
-              <input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-...">
+              <div class="secret-field">
+                <input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-...">
+                <button class="secret-toggle" id="toggleKeyBtn" type="button" aria-label="显示 API Key">
+                  <svg class="eye-icon" aria-hidden="true" viewBox="0 0 24 24">
+                    <path class="eye-outline" d="M2.2 12s3.5-6 9.8-6 9.8 6 9.8 6-3.5 6-9.8 6-9.8-6-9.8-6Z"></path>
+                    <circle class="eye-pupil" cx="12" cy="12" r="2.7"></circle>
+                    <path class="eye-slash" d="M4.5 20 19.5 4"></path>
+                  </svg>
+                  <span class="visually-hidden">显示 API Key</span>
+                </button>
+              </div>
             </label>
           </div>
           <p class="privacy-note">配置只保存在当前浏览器，不会上传到本站服务器。</p>

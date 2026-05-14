@@ -1,16 +1,25 @@
 :root {
   color-scheme: light;
-  --paper: #f6f0e4;
-  --ink: #231c17;
-  --muted: #74665b;
-  --line: #d7cab6;
-  --panel: #fff9ef;
-  --panel-strong: #efe0c8;
-  --red: #ba3f36;
-  --green: #3e7b53;
-  --blue: #345f8f;
-  --gold: #b87928;
-  --shadow: 0 16px 40px rgb(59 43 27 / 15%);
+  --bg: #f2ede2;
+  --paper: #fff8ea;
+  --paper-2: #f7ead2;
+  --ink: #211a14;
+  --muted: #746759;
+  --line: #d8c7aa;
+  --line-strong: #b99b6b;
+  --red: #b63e37;
+  --green: #31754a;
+  --blue: #315f8e;
+  --gold: #c07a24;
+  --gold-dark: #8c4e19;
+  --shadow: 0 18px 42px rgb(75 52 23 / 16%);
+  --soft-shadow: 0 8px 24px rgb(75 52 23 / 10%);
+  --radius: 8px;
+  --space-1: 6px;
+  --space-2: 10px;
+  --space-3: 14px;
+  --space-4: 18px;
+  --space-5: 24px;
 }
 
 * {
@@ -21,9 +30,10 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    linear-gradient(135deg, rgb(255 249 238 / 85%), rgb(235 244 232 / 75%)),
-    radial-gradient(circle at top left, rgb(184 121 40 / 24%), transparent 34rem),
-    var(--paper);
+    linear-gradient(120deg, rgb(255 250 238 / 92%), rgb(230 238 223 / 88%)),
+    radial-gradient(circle at 8% 0%, rgb(192 122 36 / 22%), transparent 30rem),
+    radial-gradient(circle at 94% 12%, rgb(49 95 142 / 14%), transparent 26rem),
+    var(--bg);
   color: var(--ink);
   font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
 }
@@ -35,9 +45,9 @@ textarea {
 }
 
 button {
-  min-height: 46px;
+  min-height: 48px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius);
   cursor: pointer;
   touch-action: manipulation;
 }
@@ -45,25 +55,20 @@ button {
 button:disabled {
   cursor: not-allowed;
   filter: grayscale(0.9);
-  opacity: 0.55;
+  opacity: 0.48;
 }
 
 .app-shell {
   width: min(1120px, 100%);
   margin: 0 auto;
-  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  padding: max(18px, env(safe-area-inset-top)) clamp(12px, 3vw, 24px) max(28px, env(safe-area-inset-bottom));
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1.02fr) minmax(330px, 0.98fr);
+  gap: var(--space-4);
 }
 
 .topbar,
-.status-grid,
-.action-strip,
-.camera-panel,
-.config-panel,
-.loot-panel,
-.log-panel {
+.arena-panel {
   grid-column: span 2;
 }
 
@@ -71,15 +76,20 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: end;
-  gap: 16px;
-  padding-top: 6px;
+  gap: var(--space-4);
+}
+
+.eyebrow,
+label span,
+dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .eyebrow {
   margin: 0 0 2px;
   color: var(--blue);
-  font-size: 0.76rem;
-  font-weight: 800;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -91,75 +101,133 @@ p {
 }
 
 h1 {
-  font-size: clamp(2rem, 7vw, 4.2rem);
-  line-height: 0.94;
+  font-size: clamp(2.25rem, 7vw, 4.9rem);
+  line-height: 0.9;
 }
 
 h2 {
   font-size: 1.05rem;
 }
 
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+.tagline {
+  max-width: 28rem;
+  margin-top: var(--space-2);
+  color: var(--muted);
+  font-size: clamp(0.95rem, 2.5vw, 1.08rem);
 }
 
-.fighter-panel,
+.arena-panel,
 .camera-panel,
 .config-panel,
 .loot-panel,
 .log-panel {
-  background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--paper) 94%, white 6%);
   box-shadow: var(--shadow);
 }
 
+.arena-panel {
+  padding: var(--space-3);
+  background:
+    linear-gradient(145deg, rgb(255 248 234 / 94%), rgb(246 232 204 / 88%)),
+    var(--paper);
+}
+
+.arena-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
 .fighter-panel {
-  padding: 14px;
+  position: relative;
+  min-height: 178px;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: var(--radius);
+  background: rgb(255 253 247 / 68%);
+  box-shadow: var(--soft-shadow);
+}
+
+.avatar-ring {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: var(--space-2);
+  border: 2px solid var(--line-strong);
+  border-radius: 50%;
+  color: #fff8ed;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.hero-avatar {
+  background: var(--blue);
+}
+
+.monster-avatar {
+  background: var(--red);
+}
+
+.versus-mark {
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff4df;
+  font-weight: 900;
+  box-shadow: var(--soft-shadow);
 }
 
 .panel-head,
 .section-title,
 .config-actions,
-.camera-actions,
-.action-strip {
+.camera-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
 .panel-head span {
-  font-weight: 800;
+  min-width: 0;
+  font-weight: 900;
+  overflow-wrap: anywhere;
 }
 
 .panel-head strong,
 .badge {
+  flex: none;
   padding: 5px 8px;
   border-radius: 999px;
-  background: var(--panel-strong);
+  background: var(--paper-2);
   color: var(--ink);
   font-size: 0.78rem;
 }
 
 .hp-row {
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 
 .hp-row > span {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-1);
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 0.88rem;
 }
 
 .hp-track {
   height: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: #ddcfbd;
+  background: #dfd2bd;
 }
 
 .hp-track span {
@@ -178,30 +246,27 @@ h2 {
 .stat-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 14px 0 0;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
 }
 
 .stat-list div {
-  padding: 9px;
+  padding: var(--space-2);
   border-radius: 6px;
-  background: #f2e7d5;
-}
-
-dt {
-  color: var(--muted);
-  font-size: 0.78rem;
+  background: color-mix(in srgb, var(--paper-2) 86%, white 14%);
 }
 
 dd {
   margin: 2px 0 0;
-  font-size: 1.2rem;
+  font-size: 1.28rem;
   font-weight: 900;
 }
 
 .action-strip {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr;
+  grid-template-columns: 1.45fr 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .primary-button {
@@ -217,7 +282,7 @@ dd {
 }
 
 .ghost-button {
-  background: transparent;
+  background: rgb(255 253 247 / 52%);
   color: var(--ink);
   border: 1px solid var(--line);
   font-weight: 800;
@@ -227,7 +292,7 @@ dd {
 .config-panel,
 .loot-panel,
 .log-panel {
-  padding: 14px;
+  padding: var(--space-3);
 }
 
 .camera-panel,
@@ -241,12 +306,13 @@ dd {
 }
 
 .section-title {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .section-title p,
 .camera-empty span,
-.loot-card span {
+.loot-card span,
+.privacy-note {
   margin-top: 4px;
   color: var(--muted);
   font-size: 0.88rem;
@@ -257,8 +323,9 @@ dd {
   aspect-ratio: 4 / 3;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #2a251f;
+  border-radius: var(--radius);
+  background:
+    linear-gradient(145deg, rgb(33 26 20 / 92%), rgb(78 54 32 / 94%));
 }
 
 #photoPreview {
@@ -281,13 +348,13 @@ dd {
   inset: 0;
   display: grid;
   place-content: center;
-  padding: 24px;
+  padding: var(--space-5);
   color: #fff8ed;
   text-align: center;
 }
 
 .camera-empty strong {
-  font-size: 1.15rem;
+  font-size: 1.18rem;
 }
 
 .camera-empty span {
@@ -297,7 +364,7 @@ dd {
 .camera-actions {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
-  margin-top: 12px;
+  margin-top: var(--space-2);
 }
 
 #fileInput {
@@ -306,14 +373,15 @@ dd {
 
 details summary {
   cursor: pointer;
+  font-size: 1.05rem;
   font-weight: 900;
 }
 
 .config-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 12px;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .wide-field {
@@ -322,21 +390,74 @@ details summary {
 
 label span {
   display: block;
-  margin-bottom: 5px;
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 800;
+  margin-bottom: var(--space-1);
 }
 
 input,
 textarea {
   width: 100%;
-  min-height: 44px;
+  min-height: 46px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: #fffdf8;
   color: var(--ink);
-  padding: 9px 10px;
+  padding: 10px 11px;
+}
+
+.secret-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fffdf8;
+  overflow: hidden;
+}
+
+.secret-field input {
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.secret-toggle {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  min-height: 46px;
+  padding: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: #f3e6d0;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.eye-icon {
+  width: 25px;
+  height: 25px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.eye-pupil {
+  fill: currentColor;
+}
+
+.secret-toggle.is-visible .eye-slash {
+  display: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 textarea {
@@ -346,31 +467,25 @@ textarea {
 
 .config-actions {
   justify-content: flex-start;
-  margin-top: 10px;
   flex-wrap: wrap;
-}
-
-.privacy-note {
-  margin-top: 10px;
-  color: var(--muted);
-  font-size: 0.86rem;
+  margin-top: var(--space-2);
 }
 
 .config-actions button {
-  padding-inline: 14px;
+  padding-inline: var(--space-3);
 }
 
 .chat-test {
   display: grid;
-  gap: 10px;
-  margin-top: 12px;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .chat-result {
   min-height: 52px;
-  padding: 10px;
+  padding: var(--space-2);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: #fffdf8;
   color: var(--muted);
   white-space: pre-wrap;
@@ -379,10 +494,10 @@ textarea {
 
 .loot-card {
   display: grid;
-  gap: 8px;
-  padding: 14px;
+  gap: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: #fffdf8;
 }
 
@@ -393,37 +508,38 @@ textarea {
 .loot-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-1);
 }
 
 .loot-meta span,
 .slot-pill {
   padding: 5px 8px;
   border-radius: 999px;
-  background: #eee0cc;
+  background: var(--paper-2);
   font-size: 0.78rem;
   font-weight: 800;
 }
 
 .inventory-list {
   display: grid;
-  gap: 8px;
-  margin-top: 10px;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .inventory-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
-  padding: 10px;
+  padding: var(--space-2);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #f6ead8;
+  border-radius: var(--radius);
+  background: var(--paper-2);
 }
 
 .inventory-item strong {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .inventory-item span {
@@ -439,10 +555,10 @@ textarea {
 
 .log-panel ol {
   display: grid;
-  gap: 6px;
+  gap: var(--space-1);
   max-height: 260px;
   overflow: auto;
-  margin: 10px 0 0;
+  margin: var(--space-2) 0 0;
   padding-left: 22px;
 }
 
@@ -454,20 +570,16 @@ textarea {
 @media (max-width: 820px) {
   .app-shell {
     grid-template-columns: 1fr;
+    gap: var(--space-3);
   }
 
   .topbar,
-  .status-grid,
-  .action-strip,
+  .arena-panel,
   .camera-panel,
   .config-panel,
   .loot-panel,
   .log-panel {
     grid-column: 1;
-  }
-
-  .status-grid {
-    grid-template-columns: 1fr;
   }
 
   .camera-panel {
@@ -487,14 +599,42 @@ textarea {
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 620px) {
   .app-shell {
     padding-inline: 10px;
-    gap: 10px;
+    gap: var(--space-2);
   }
 
   .topbar {
     align-items: center;
+  }
+
+  .arena-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .versus-mark {
+    width: 42px;
+    height: 42px;
+    margin: -2px auto;
+  }
+
+  .fighter-panel {
+    min-height: 0;
+  }
+
+  .avatar-ring {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    width: 42px;
+    height: 42px;
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  .panel-head {
+    padding-right: 52px;
   }
 
   .action-strip,

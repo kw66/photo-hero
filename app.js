@@ -53,6 +53,7 @@ const els = {
   photoStateBadge: byId("photoStateBadge"),
   baseUrlInput: byId("baseUrlInput"),
   apiKeyInput: byId("apiKeyInput"),
+  toggleKeyBtn: byId("toggleKeyBtn"),
   modelInput: byId("modelInput"),
   saveConfigBtn: byId("saveConfigBtn"),
   testChatBtn: byId("testChatBtn"),
@@ -141,10 +142,20 @@ function bindEvents() {
 
   els.saveConfigBtn.addEventListener("click", saveConfig);
   els.testChatBtn.addEventListener("click", testChatApi);
+  els.toggleKeyBtn.addEventListener("click", toggleApiKeyVisibility);
   els.attackBtn.addEventListener("click", attackMonster);
   els.nextMonsterBtn.addEventListener("click", nextMonster);
   els.healBtn.addEventListener("click", restPlayer);
   els.resetGameBtn.addEventListener("click", resetGame);
+}
+
+function toggleApiKeyVisibility() {
+  const showing = els.apiKeyInput.type === "text";
+  const label = showing ? "显示 API Key" : "隐藏 API Key";
+  els.apiKeyInput.type = showing ? "password" : "text";
+  els.toggleKeyBtn.classList.toggle("is-visible", !showing);
+  els.toggleKeyBtn.setAttribute("aria-label", label);
+  els.toggleKeyBtn.querySelector(".visually-hidden").textContent = label;
 }
 
 async function testChatApi() {
