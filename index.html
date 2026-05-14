@@ -11,9 +11,7 @@
       <section class="game-panel" aria-label="照片勇者游戏面板">
         <header class="panel-topbar">
           <div class="brand-block">
-            <p class="eyebrow">Photo Hero</p>
             <h1>照片勇者</h1>
-            <p class="tagline">上传或拍下现实物品，鉴定成装备，立刻投入战斗。</p>
           </div>
           <div class="panel-tools" aria-label="面板工具">
             <span class="api-status" id="apiStatusBadge">API 未配置</span>
@@ -27,8 +25,8 @@
             <div class="zone-head hero-head">
               <div class="avatar-ring hero-avatar">勇</div>
               <div>
-                <p class="zone-kicker">勇者装备工坊</p>
-                <h2>勇者</h2>
+                <p class="zone-kicker">玩家</p>
+                <h2>照片勇者</h2>
               </div>
               <strong class="level-pill" id="playerLevel">Lv.1</strong>
             </div>
@@ -109,30 +107,38 @@
           </section>
 
           <section class="enemy-zone" aria-label="敌人和战报">
-            <div class="zone-head enemy-head">
-              <div class="avatar-ring monster-avatar">怪</div>
+            <div class="section-title compact-title enemy-title">
               <div>
-                <p class="zone-kicker">当前敌人</p>
-                <h2 id="monsterName">纸壳史莱姆</h2>
+                <h3>敌人</h3>
+                <p>当前遭遇</p>
               </div>
-              <strong class="level-pill" id="monsterLevel">Lv.1</strong>
+              <span class="battle-chip">进度 <b id="winCount">0</b></span>
             </div>
 
-            <div class="hp-row enemy-hp">
-              <span id="monsterHpText">18 / 18</span>
-              <div class="hp-track danger"><span id="monsterHpBar"></span></div>
+            <div class="enemy-field" aria-label="敌人列表">
+              <article class="enemy-card is-active">
+                <div class="enemy-card-head">
+                  <span class="monster-token">怪</span>
+                  <div>
+                    <strong id="monsterName">纸壳史莱姆</strong>
+                    <span id="monsterLevel">Lv.1</span>
+                  </div>
+                </div>
+                <div class="enemy-hp-line">
+                  <span id="monsterHpText">18 / 18</span>
+                  <div class="hp-track danger"><span id="monsterHpBar"></span></div>
+                </div>
+                <dl class="enemy-card-stats">
+                  <div><dt>攻</dt><dd id="monsterAtk">4</dd></div>
+                  <div><dt>防</dt><dd id="monsterDef">0</dd></div>
+                  <div><dt>速</dt><dd id="monsterSpeed">2</dd></div>
+                </dl>
+              </article>
             </div>
-
-            <dl class="stat-list enemy-stats">
-              <div><dt>攻击</dt><dd id="monsterAtk">4</dd></div>
-              <div><dt>防御</dt><dd id="monsterDef">0</dd></div>
-              <div><dt>进度</dt><dd id="winCount">0</dd></div>
-            </dl>
 
             <div class="action-strip" aria-label="战斗操作">
-              <button class="primary-button" id="attackBtn" type="button">攻击</button>
-              <button class="secondary-button" id="nextMonsterBtn" type="button">下一只</button>
-              <button class="secondary-button" id="healBtn" type="button">休整</button>
+              <button class="primary-button" id="attackBtn" type="button">开战</button>
+              <button class="secondary-button" id="fleeBtn" type="button">逃跑</button>
             </div>
 
             <section class="battle-report" aria-label="图文战报">

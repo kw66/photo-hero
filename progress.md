@@ -36,3 +36,6 @@ Original prompt: 继续和我讨论游戏事宜，我们到时候上传github和
 - Replaced the three-slot RPG equipment model with a Mota-style stat model: HP bar, EXP bar, level, speed, attack, defense, and shield.
 - Equipment is now an unlimited collection: all identified items contribute stats, the UI shows 10 thumbnail slots per page, supports paging, and clicking a slot shows a larger image plus description and stat pills.
 - Verified desktop 1440x900 and laptop 1366x768 fit in one page without document scrolling; mobile has no horizontal overflow and keeps natural vertical browsing.
+- Desktop UI refinement: compressed the title/header into a 40px tool strip, renamed the player display to 照片勇者, reduced button and type scale, and changed player stats from large cards into a compact status strip.
+- Enemy UI refinement: replaced the wide enemy banner with a compact square-ish enemy card prepared for multiple enemies, added enemy speed, and simplified battle actions to 开战 / 逃跑.
+- Verified `node --check app.js`, desktop 1366x768 and 1440x900 no document scroll, and interaction flow for 开战 / 逃跑 with no console errors.

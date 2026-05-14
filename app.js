@@ -92,10 +92,10 @@ const els = {
   monsterHpBar: byId("monsterHpBar"),
   monsterAtk: byId("monsterAtk"),
   monsterDef: byId("monsterDef"),
+  monsterSpeed: byId("monsterSpeed"),
   winCount: byId("winCount"),
   attackBtn: byId("attackBtn"),
-  nextMonsterBtn: byId("nextMonsterBtn"),
-  healBtn: byId("healBtn"),
+  fleeBtn: byId("fleeBtn"),
   resetGameBtn: byId("resetGameBtn"),
   photoBtn: byId("photoBtn"),
   analyzeBtn: byId("analyzeBtn"),
@@ -223,8 +223,7 @@ function bindEvents() {
   els.testChatBtn.addEventListener("click", testChatApi);
   els.toggleKeyBtn.addEventListener("click", toggleApiKeyVisibility);
   els.attackBtn.addEventListener("click", attackMonster);
-  els.nextMonsterBtn.addEventListener("click", nextMonster);
-  els.healBtn.addEventListener("click", restPlayer);
+  els.fleeBtn.addEventListener("click", fleeBattle);
   els.resetGameBtn.addEventListener("click", resetGame);
   els.equipPrevBtn.addEventListener("click", () => changeEquipmentPage(-1));
   els.equipNextBtn.addEventListener("click", () => changeEquipmentPage(1));
@@ -574,20 +573,19 @@ function attackMonster() {
   const stats = getPlayerStats();
 
   if (state.player.hp <= 0) {
-    addLog("勇者已经倒下，先休整。");
+    state.player.hp = Math.max(1, Math.floor(stats.maxHp * 0.45));
+    addLog("照片勇者从倒地中爬起，恢复少量生命。");
     render();
     return;
   }
 
   if (state.monster.hp <= 0) {
-    addLog("这只怪物已经被击败了。");
-    render();
-    return;
+    spawnNextMonster("新的敌人补上来了。");
   }
 
   const playerDamage = Math.max(1, stats.atk + Math.floor(stats.speed / 3) - state.monster.def);
   state.monster.hp = Math.max(0, state.monster.hp - playerDamage);
-  addLog(`勇者造成 ${playerDamage} 点伤害。`);
+  addLog(`照片勇者造成 ${playerDamage} 点伤害。`);
 
   if (state.monster.hp <= 0) {
     state.player.wins += 1;
@@ -606,36 +604,29 @@ function attackMonster() {
 
   const rawDamage = Math.max(1, state.monster.atk - stats.def);
   const shieldBlock = Math.min(stats.shield, rawDamage);
-  const monsterDamage = Math.max(0, rawDamage - shieldBlock);
+  const speedGap = Math.max(0, state.monster.speed - stats.speed);
+  const monsterDamage = Math.max(0, rawDamage - shieldBlock + Math.floor(speedGap / 3));
   state.player.hp = Math.max(0, state.player.hp - monsterDamage);
   addLog(`${state.monster.name} 反击 ${monsterDamage} 点伤害，护盾抵消 ${shieldBlock}。`);
 
   if (state.player.hp <= 0) {
-    addLog("勇者倒下了，休整可以恢复生命。");
+    addLog("照片勇者倒下了，开战或逃跑都能重新站起来。");
   }
 
   saveGame();
   render();
 }
 
-function nextMonster() {
-  if (state.monster.hp > 0) {
-    addLog("先解决眼前的怪物。");
-    render();
-    return;
-  }
+function fleeBattle() {
+  const stats = getPlayerStats();
+  state.player.hp = Math.max(1, Math.min(stats.maxHp, state.player.hp + Math.ceil(stats.maxHp * 0.35)));
+  spawnNextMonster("照片勇者撤退，新的敌人出现。");
+}
 
+function spawnNextMonster(message) {
   state.monsterIndex += 1;
   state.monster = makeMonster(state.monsterIndex, state.player.level);
-  addLog(`${state.monster.name} 出现了。`);
-  saveGame();
-  render();
-}
-
-function restPlayer() {
-  const stats = getPlayerStats();
-  state.player.hp = stats.maxHp;
-  addLog("勇者完成休整，生命已恢复。");
+  addLog(message || `${state.monster.name} 出现了。`);
   saveGame();
   render();
 }
@@ -667,13 +658,29 @@ function resetGame() {
 function makeMonster(index, level) {
   const template = monsters[index % monsters.length];
   const scale = Math.floor(index / monsters.length) + level;
+  const maxHp = template.hp + scale * 5;
   return {
     name: template.name,
     level: scale,
-    maxHp: template.hp + scale * 5,
-    hp: template.hp + scale * 5,
+    maxHp,
+    hp: maxHp,
     atk: template.atk + scale,
     def: template.def + Math.floor(scale / 2),
+    speed: 2 + Math.floor(scale / 2) + (index % 3),
+  };
+}
+
+function normalizeMonster(monster, index = 0, level = 1) {
+  const fallback = makeMonster(index, level);
+  const maxHp = Number.isFinite(monster.maxHp) ? monster.maxHp : fallback.maxHp;
+  return {
+    name: typeof monster.name === "string" && monster.name ? monster.name : fallback.name,
+    level: Number.isFinite(monster.level) ? monster.level : fallback.level,
+    maxHp,
+    hp: Number.isFinite(monster.hp) ? Math.min(monster.hp, maxHp) : fallback.hp,
+    atk: Number.isFinite(monster.atk) ? monster.atk : fallback.atk,
+    def: Number.isFinite(monster.def) ? monster.def : fallback.def,
+    speed: Number.isFinite(monster.speed) ? monster.speed : fallback.speed,
   };
 }
 
@@ -790,9 +797,9 @@ function render() {
   els.monsterHpBar.style.width = `${percent(state.monster.hp, state.monster.maxHp)}%`;
   els.monsterAtk.textContent = state.monster.atk;
   els.monsterDef.textContent = state.monster.def;
+  els.monsterSpeed.textContent = state.monster.speed;
   els.winCount.textContent = state.player.wins;
 
-  els.nextMonsterBtn.disabled = state.monster.hp > 0;
   renderApiStatus();
   renderEquipmentGrid();
   renderEquipmentDetail();
@@ -924,14 +931,14 @@ function renderLog() {
 
 function getLogMarkType(entry) {
   if (entry.includes("鉴定") || entry.includes("装备") || entry.includes("获得")) return "item";
-  if (entry.includes("勇者") || entry.includes("休整")) return "hero";
+  if (entry.includes("勇者") || entry.includes("撤退")) return "hero";
   if (entry.includes("反击") || entry.includes("出现") || entry.includes("击败")) return "";
   return "info";
 }
 
 function getLogMarkText(entry) {
   if (entry.includes("鉴定") || entry.includes("装备") || entry.includes("获得")) return "装";
-  if (entry.includes("勇者") || entry.includes("休整")) return "勇";
+  if (entry.includes("勇者") || entry.includes("撤退")) return "勇";
   if (entry.includes("反击") || entry.includes("出现") || entry.includes("击败")) return "战";
   return "记";
 }
@@ -1011,7 +1018,7 @@ function loadSave() {
 
   state.player = normalizePlayer(save.player || state.player);
   state.monsterIndex = Number.isFinite(save.monsterIndex) ? save.monsterIndex : 0;
-  state.monster = save.monster || makeMonster(0, 1);
+  state.monster = normalizeMonster(save.monster || {}, state.monsterIndex, state.player.level);
   state.inventory = Array.isArray(save.inventory) ? save.inventory.map((item) => balanceItem(item, item.image || makePlaceholderImage())) : [];
   state.equipmentPage = Number.isFinite(save.equipmentPage) ? save.equipmentPage : 0;
   state.selectedItemId = save.selectedItemId || state.inventory[0]?.id || "";
