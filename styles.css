@@ -312,10 +312,15 @@ dd {
 .section-title p,
 .camera-empty span,
 .loot-card span,
-.privacy-note {
+.privacy-note,
+.support-note {
   margin-top: 4px;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.support-note {
+  margin: -6px 0 var(--space-3);
 }
 
 .camera-frame {
@@ -503,6 +508,11 @@ textarea {
 
 .loot-card.empty {
   color: var(--muted);
+}
+
+.loot-card.error {
+  border-color: color-mix(in srgb, var(--red) 56%, var(--line));
+  color: var(--red);
 }
 
 .loot-meta {

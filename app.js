@@ -85,6 +85,7 @@ const state = {
   inventory: [],
   lastPhoto: "",
   latestItem: null,
+  lootError: "",
   log: ["拍照或选择一件现实物品，把它变成第一件装备。"],
 };
 
@@ -254,6 +255,14 @@ async function analyzePhoto() {
     return;
   }
 
+  if (!isLikelyVisionModel(config)) {
+    const message =
+      "当前模型看起来不支持图片输入。DeepSeek V4 Flash 可用于测试对话；照片鉴定请换成支持 vision/image_url 的模型。";
+    showLootError(message);
+    addLog("图片鉴定需要视觉模型。");
+    return;
+  }
+
   saveConfig(false);
   setBusy("鉴定中...");
   els.analyzeBtn.disabled = true;
@@ -262,12 +271,43 @@ async function analyzePhoto() {
     const item = await analyzeDirectly(config, state.lastPhoto);
     receiveItem(balanceItem(item), "鉴定完成。");
   } catch (error) {
-    addLog(`鉴定失败：${error.message || "未知错误"}`);
+    const message = normalizeAnalyzeError(error);
+    showLootError(`鉴定失败：${message}`);
+    addLog(`鉴定失败：${message}`);
   } finally {
     setBusy("");
     els.analyzeBtn.disabled = false;
     render();
   }
+}
+
+function isLikelyVisionModel(config) {
+  const model = config.model.toLowerCase();
+  const baseUrl = config.baseUrl.toLowerCase();
+
+  if (baseUrl.includes("api.deepseek.com")) {
+    return false;
+  }
+
+  return /vision|vl|visual|gpt-4o|gemini|qwen.*omni|qwen.*vl|claude-3|claude-sonnet|claude-opus/.test(model);
+}
+
+function normalizeAnalyzeError(error) {
+  const message = error?.message || "未知错误";
+  if (
+    message.includes("unknown variant `image_url`") ||
+    message.includes("expected `text`") ||
+    message.toLowerCase().includes("image_url")
+  ) {
+    return "当前接口不接受图片输入，请换成支持 vision/image_url 的模型。";
+  }
+  return message;
+}
+
+function showLootError(message) {
+  state.latestItem = null;
+  state.lootError = message;
+  render();
 }
 
 async function analyzeDirectly(config, image) {
@@ -363,6 +403,7 @@ function receiveItem(item, message) {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
   };
   state.latestItem = fullItem;
+  state.lootError = "";
   state.inventory.unshift(fullItem);
   autoEquip(fullItem);
   addLog(`${message} 获得 ${fullItem.itemName}。`);
@@ -457,6 +498,7 @@ function resetGame() {
   state.monster = makeMonster(0, 1);
   state.inventory = [];
   state.latestItem = null;
+  state.lootError = "";
   state.log = ["进度已重置。"];
   render();
 }
@@ -583,6 +625,12 @@ function render() {
 }
 
 function renderLoot() {
+  if (state.lootError) {
+    els.lootCard.className = "loot-card error";
+    els.lootCard.innerHTML = `<strong>${escapeHtml(state.lootError)}</strong>`;
+    return;
+  }
+
   const item = state.latestItem;
   if (!item) {
     els.lootCard.className = "loot-card empty";
