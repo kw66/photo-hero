@@ -3,6 +3,11 @@ const STORAGE_KEYS = {
   save: "photoHero.save",
 };
 
+const DEFAULT_CONFIG = {
+  baseUrl: "https://api.deepseek.com",
+  model: "deepseek-v4-flash",
+};
+
 const slotNames = {
   weapon: "武器",
   armor: "防具",
@@ -638,9 +643,9 @@ function saveConfig(showLog = true) {
 
 function loadConfig() {
   const config = readJson(STORAGE_KEYS.config, {});
-  els.baseUrlInput.value = config.baseUrl || "";
+  els.baseUrlInput.value = config.baseUrl || DEFAULT_CONFIG.baseUrl;
   els.apiKeyInput.value = config.apiKey || "";
-  els.modelInput.value = config.model || "";
+  els.modelInput.value = config.model || DEFAULT_CONFIG.model;
 }
 
 function getConfigFromInputs() {

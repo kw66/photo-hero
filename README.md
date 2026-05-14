@@ -56,8 +56,8 @@ http://localhost:3000
 配置示例：
 
 ```text
-API Base URL: https://api.example.com/v1
-Model: gpt-4o-mini
+API Base URL: https://api.deepseek.com
+Model: deepseek-v4-flash
 API Key: sk-...
 ```
 
