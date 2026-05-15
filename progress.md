@@ -39,3 +39,7 @@ Original prompt: 继续和我讨论游戏事宜，我们到时候上传github和
 - Desktop UI refinement: compressed the title/header into a 40px tool strip, renamed the player display to 照片勇者, reduced button and type scale, and changed player stats from large cards into a compact status strip.
 - Enemy UI refinement: replaced the wide enemy banner with a compact square-ish enemy card prepared for multiple enemies, added enemy speed, and simplified battle actions to 开战 / 逃跑.
 - Verified `node --check app.js`, desktop 1366x768 and 1440x900 no document scroll, and interaction flow for 开战 / 逃跑 with no console errors.
+- Removed the DeepSeek text-only preset from the UI and hardened config loading so old saved DeepSeek preset values fall back to custom mode instead of lingering in the interface.
+- Simplified player progression around photo equipment only: removed player level/EXP/progress growth, kept seven player stats (HP, attack, defense, speed, regen, shield, lifesteal), and made regen/lifesteal reduce battle attrition without adding a larger economy.
+- Implemented the agreed battle semantics: speed is an action-timeline interval (`1 / speed`) with same-time hero priority, shield refreshes per enemy and absorbs damage before HP, regen triggers after being hit, and lifesteal triggers after hero attacks.
+- Added a temporary attribute test panel for the seven player stats so battle tuning can be tested without using equipment generation.

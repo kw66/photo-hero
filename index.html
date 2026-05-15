@@ -28,7 +28,6 @@
                 <p class="zone-kicker">玩家</p>
                 <h2>照片勇者</h2>
               </div>
-              <strong class="level-pill" id="playerLevel">Lv.1</strong>
             </div>
 
             <div class="hp-row hero-hp">
@@ -36,18 +35,23 @@
               <div class="hp-track"><span id="playerHpBar"></span></div>
             </div>
 
-            <div class="hp-row exp-row">
-              <span id="playerExpText">0 / 12</span>
-              <div class="hp-track exp-track"><span id="playerExpBar"></span></div>
-            </div>
-
             <dl class="stat-list hero-stats">
-              <div><dt>等级</dt><dd id="playerLevelStat">1</dd></div>
-              <div><dt>速度</dt><dd id="playerSpeed">3</dd></div>
+              <div><dt>血</dt><dd id="playerMaxHp">30</dd></div>
               <div><dt>攻击</dt><dd id="playerAtk">5</dd></div>
               <div><dt>防御</dt><dd id="playerDef">1</dd></div>
+              <div><dt>速度</dt><dd id="playerSpeed">3</dd></div>
+              <div><dt>回复</dt><dd id="playerRegen">0</dd></div>
               <div><dt>护盾</dt><dd id="playerShield">0</dd></div>
+              <div><dt>吸血</dt><dd id="playerLifesteal">0</dd></div>
             </dl>
+
+            <section class="debug-panel" aria-label="属性测试">
+              <div class="section-title compact-title">
+                <h3>属性测试</h3>
+                <span class="badge">临时</span>
+              </div>
+              <div class="debug-grid" id="debugStats"></div>
+            </section>
 
             <section class="camera-panel" aria-label="图片鉴定">
               <div class="section-title compact-title">
@@ -112,7 +116,6 @@
                 <h3>敌人</h3>
                 <p>当前遭遇</p>
               </div>
-              <span class="battle-chip">进度 <b id="winCount">0</b></span>
             </div>
 
             <div class="enemy-field" aria-label="敌人列表">
@@ -164,7 +167,6 @@
             <div class="preset-row" aria-label="模型预设">
               <button class="preset-button" type="button" data-preset="qwen-vl">阿里 Qwen-VL</button>
               <button class="preset-button" type="button" data-preset="siliconflow">硅基流动</button>
-              <button class="preset-button" type="button" data-preset="deepseek-text">DeepSeek 文本</button>
               <button class="preset-button" type="button" data-preset="custom">自定义</button>
             </div>
             <p class="preset-note" id="presetNote">请选择支持图片输入和浏览器 CORS 的模型；或切到自定义手动填写。</p>

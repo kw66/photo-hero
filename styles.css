@@ -335,13 +335,9 @@ h3 {
   background: linear-gradient(90deg, #9e2b26, var(--enemy));
 }
 
-.exp-track span {
-  background: linear-gradient(90deg, #6750a4, #245f9a);
-}
-
 .stat-list {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   margin: 0;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--line-strong) 72%, var(--line));
@@ -374,6 +370,7 @@ dd {
 .camera-panel,
 .loot-panel,
 .battle-report,
+.debug-panel,
 .config-panel {
   min-width: 0;
   padding: 8px;
@@ -414,6 +411,48 @@ dd {
     "frame actions";
   gap: 8px;
   align-items: stretch;
+}
+
+.debug-panel {
+  background: rgb(255 253 248 / 66%);
+}
+
+.debug-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.debug-stat {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr 24px 30px 24px;
+  gap: 3px;
+  align-items: center;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, white 18%);
+  border-radius: 6px;
+  background: #fffdf8;
+}
+
+.debug-stat span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.debug-stat strong {
+  text-align: center;
+  font-size: 0.82rem;
+}
+
+.debug-stat button {
+  min-height: 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-weight: 900;
 }
 
 .camera-panel .section-title {
@@ -1025,6 +1064,7 @@ textarea {
   .panel-tools,
   .action-strip,
   .camera-panel,
+  .debug-grid,
   .config-grid,
   .equipment-layout {
     grid-template-columns: 1fr;
@@ -1051,7 +1091,7 @@ textarea {
   }
 
   .stat-list {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 5px;
   }
 
