@@ -152,6 +152,10 @@ const statValueWeights = {
   regen: 12,
 };
 
+const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|鞋|拖鞋|滑板|风扇|橡皮|橡皮擦|胶带|刷|梳|钥匙|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|椅|凳|小桌|台灯|相机|眼镜/i;
+const oversizedScenePattern = /汽车|车辆|公交|火车|飞机|船|房|楼|建筑|天空|风景|街道|道路|山|海|河|湖|树|大型家具|床|沙发|衣柜|冰箱|洗衣机|大面积背景/i;
+const explicitOversizePattern = /比人.{0,8}(大|高)|比一个人.{0,8}(大|高)|尺寸.{0,8}(超过|大于|高于).{0,4}人|人.{0,4}(还要)?大|巨大|无法搬动|不能搬动|主要是.{0,6}(场景|背景)|大面积背景/i;
+
 const statOrder = ["hp", "attack", "defense", "speed", "shield", "lifesteal", "regen"];
 
 const monsterImages = {
@@ -828,7 +832,7 @@ async function analyzeDirectly(config, image) {
           {
             type: "text",
             text:
-              "根据图片里的真实物品生成一件可随身装备。只能返回 JSON，格式为 {\"itemName\":\"\",\"value\":0,\"tooLarge\":false,\"stats\":{\"hp\":0,\"attack\":0,\"defense\":0,\"speed\":0,\"shield\":0,\"lifesteal\":0,\"regen\":0},\"description\":\"\",\"confidence\":0.0}。规则：1) 先判断图片是否是现实生活实拍的可随身装备物品；比人大很多或不能装备的东西，例如汽车、房子、天空、风景、大型家具、大面积背景，必须 tooLarge=true、value=0、所有属性为0。2) value 是 5 到 20 的整数，表示装备总价值；越像现实实拍、主体占比越大、越清晰、背景越干净、杂物越少、物品越有趣越动心，value 越高。不是越精美越高，也不是越普通或破旧越高。3) 属性价值换算：生命上限 hp 每点价值1，攻击 attack 每点价值5，防御 defense 每点价值6，速度 speed 每点价值18，护盾 shield 每点价值4，吸血 lifesteal 每点价值12，回复 regen 每点价值12。4) 属性总价值不得超过 value。5) 按物品特性分配主属性：食物/药品偏 hp 或 regen，工具/键盘/硬物偏 attack，容器/锅盖/保护类偏 defense 或 shield，鞋/滑板/风扇/轻便物偏 speed，尖锐小工具偏 lifesteal，水/咖啡/饮品偏 regen。可以有多个属性，但主属性必须符合物品特性。描述要短。",
+              "根据图片里的真实物品生成一件游戏装备。这里的装备不是只能穿在身上，只要现实中单人可搬动、可手持、可放进背包、或尺寸明显不超过人的物品，都必须视为可装备道具，包括锤子、工具、书本、杯子、玩具、小家具、桌面物品。只能返回 JSON，格式为 {\"itemName\":\"\",\"value\":0,\"tooLarge\":false,\"stats\":{\"hp\":0,\"attack\":0,\"defense\":0,\"speed\":0,\"shield\":0,\"lifesteal\":0,\"regen\":0},\"description\":\"\",\"confidence\":0.0}。规则：1) 只有明显比人尺寸更大或主要是场景/背景的东西，例如汽车、房子、天空、风景、建筑、道路、大型家具、大面积背景，才允许 tooLarge=true、value=0、所有属性为0；普通锤子、剪刀、键盘、锅盖、椅子、小桌子等不要判为 tooLarge。2) value 是 5 到 20 的整数，表示装备总价值；越像现实实拍、主体占比越大、越清晰、背景越干净、杂物越少、物品越有趣越动心，value 越高。不是越精美越高，也不是越普通或破旧越高。3) 属性价值换算：生命上限 hp 每点价值1，攻击 attack 每点价值5，防御 defense 每点价值6，速度 speed 每点价值18，护盾 shield 每点价值4，吸血 lifesteal 每点价值12，回复 regen 每点价值12。4) 属性总价值不得超过 value。5) 按物品特性分配主属性：食物/药品偏 hp 或 regen，工具/键盘/硬物偏 attack，容器/锅盖/保护类偏 defense 或 shield，鞋/滑板/风扇/轻便物偏 speed，尖锐小工具偏 lifesteal，水/咖啡/饮品偏 regen。可以有多个属性，但主属性必须符合物品特性。描述要短。",
           },
           {
             type: "image_url",
@@ -1083,14 +1087,29 @@ function normalizeModelItem(raw) {
   const itemName = safe.itemName || safe.name || safe.item || safe["物品名称"] || safe["装备名"] || safe["名称"];
   const value = safe.value ?? safe.score ?? safe.quality ?? safe["价值"] ?? safe["品质"];
   const tooLarge = safe.tooLarge ?? safe.too_large ?? safe.oversized ?? safe["过大"] ?? safe["无法装备"];
+  const description = safe.description || safe.desc || safe["描述"];
+  const cleanName = cleanText(itemName, "照片装备", 18);
+  const rejected = parseBooleanLike(tooLarge);
+  const correctedTooLarge = shouldTreatAsTooLarge(cleanName, description, rejected);
   return {
-    itemName: cleanText(itemName, "照片装备", 18),
-    value: clampInt(value, 0, 20),
-    tooLarge: parseBooleanLike(tooLarge),
+    itemName: cleanName,
+    value: correctedTooLarge ? 0 : clampInt(value, 5, 20),
+    tooLarge: correctedTooLarge,
     stats,
-    description: cleanText(safe.description || safe.desc || safe["描述"], "由照片鉴定出的装备。", 56),
+    description: cleanText(description, "由照片鉴定出的装备。", 56),
     confidence: clampNumber(safe.confidence ?? safe["置信度"], 0, 1),
   };
+}
+
+function shouldTreatAsTooLarge(itemName, description = "", modelRejected = false) {
+  const text = `${itemName || ""} ${description || ""}`;
+  if (oversizedScenePattern.test(text) || explicitOversizePattern.test(text)) return true;
+  if (isPortableEquipmentText(text)) return false;
+  return Boolean(modelRejected && explicitOversizePattern.test(text));
+}
+
+function isPortableEquipmentText(text) {
+  return portableEquipmentPattern.test(String(text || ""));
 }
 
 function normalizeModelStats(stats) {
@@ -1123,10 +1142,11 @@ function makeFallbackItemFromModelText(text) {
   const tooLarge = looksTooLargeFromText(source);
   const itemName = inferItemNameFromModelText(source) || (tooLarge ? inferRejectedItemNameFromText(source) : "");
   if (!itemName) return null;
+  const correctedTooLarge = shouldTreatAsTooLarge(itemName, source, tooLarge);
   return {
     itemName,
-    value: tooLarge ? 0 : inferFallbackValue(source),
-    tooLarge,
+    value: correctedTooLarge ? 0 : inferFallbackValue(source),
+    tooLarge: correctedTooLarge,
     stats: {},
     description: cleanText(`模型未按 JSON 返回，已按文字描述保守鉴定：${source}`, "由照片鉴定出的装备。", 56),
     confidence: 0.45,
@@ -1138,7 +1158,9 @@ function looksLikeVisionFailure(text) {
 }
 
 function looksTooLargeFromText(text) {
-  return /(?:tooLarge\s*=\s*true|too_large\s*=\s*true|value\s*=\s*0|属性(?:全|为|是)?0|所有属性为0|不能装备|无法装备|不可装备|不是可装备|不属于可装备|不是现实生活|不是现实实拍|不是现实物品|不是实拍|卡通|动漫|插画|表情包|头像|截图|风景|天空|建筑|汽车|车辆|房子|街道|道路|大型家具|大面积背景)/i.test(text);
+  const source = String(text || "");
+  if (isPortableEquipmentText(source)) return false;
+  return /(?:tooLarge\s*=\s*true|too_large\s*=\s*true|风景|天空|建筑|汽车|车辆|房子|街道|道路|大型家具|大面积背景|比人.{0,8}(?:大|高)|尺寸.{0,8}(?:超过|大于|高于).{0,4}人|主要是.{0,6}(?:场景|背景))/i.test(source);
 }
 
 function inferItemNameFromModelText(text) {
@@ -2321,9 +2343,9 @@ function balanceItem(item, image = "") {
   const safe = item && typeof item === "object" ? item : {};
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
   const isFixed = Boolean(safe.fixed);
-  const tooLarge = Boolean(safe.tooLarge);
-  const consumable = Boolean(safe.consumable || tooLarge);
   const itemName = cleanText(safe.itemName, "照片装备", 18);
+  const tooLarge = isFixed ? false : shouldTreatAsTooLarge(itemName, safe.description, Boolean(safe.tooLarge));
+  const consumable = Boolean(safe.consumable || tooLarge) && tooLarge;
   const targetValue = isFixed
     ? calculateStatsValue(safe.stats || {})
     : tooLarge
