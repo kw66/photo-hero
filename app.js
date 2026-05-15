@@ -8,6 +8,10 @@ const SILICONFLOW_MODELS = [
   { value: "Pro/moonshotai/Kimi-K2.6" },
 ];
 
+const ZHIPU_MODELS = [
+  { value: "glm-5v-turbo" },
+];
+
 const API_PRESETS = {
   siliconflow: {
     label: "硅基流动",
@@ -21,6 +25,42 @@ const API_PRESETS = {
       { label: "API 文档", url: "https://docs.siliconflow.cn/" },
     ],
     supportsVision: true,
+  },
+  zhipu: {
+    label: "智谱",
+    baseUrl: "https://api.z.ai/api/paas/v4",
+    model: "glm-5v-turbo",
+    models: ZHIPU_MODELS,
+    note: "",
+    links: [
+      { label: "智谱开放平台", url: "https://www.bigmodel.cn/" },
+      { label: "Z.AI API 文档", url: "https://docs.z.ai/" },
+    ],
+    supportsVision: true,
+  },
+  micu: {
+    label: "米醋中转",
+    baseUrl: "https://www.micuapi.ai/v1",
+    model: "",
+    models: [],
+    note: "已检测到该站 /v1 接口有浏览器 CORS；模型名按你账号后台可用渠道填写。",
+    links: [
+      { label: "米醋中转", url: "https://www.micuapi.ai/" },
+    ],
+    supportsVision: true,
+    editableModel: true,
+  },
+  timicc: {
+    label: "TiMiCC 中转",
+    baseUrl: "https://timicc.com/v1",
+    model: "",
+    models: [],
+    note: "初测该站 /v1 预检没有 CORS 头，浏览器直连可能失败；可先测试图文模型确认。",
+    links: [
+      { label: "TiMiCC", url: "https://timicc.com/" },
+    ],
+    supportsVision: true,
+    editableModel: true,
   },
   custom: {
     label: "自定义",
@@ -221,6 +261,8 @@ const els = {
   fleeBtn: byId("fleeBtn"),
   resetGameBtn: byId("resetGameBtn"),
   photoBtn: byId("photoBtn"),
+  pasteImageBtn: byId("pasteImageBtn"),
+  screenshotBtn: byId("screenshotBtn"),
   analyzeBtn: byId("analyzeBtn"),
   fileInput: byId("fileInput"),
   cameraFrame: byId("cameraFrame"),
@@ -325,27 +367,13 @@ function bindEvents() {
     els.fileInput.value = "";
     els.fileInput.click();
   });
+  els.pasteImageBtn.addEventListener("click", pasteImageFromClipboard);
+  els.screenshotBtn.addEventListener("click", captureScreenImage);
 
   els.fileInput.addEventListener("change", async () => {
     const file = els.fileInput.files?.[0];
     if (!file) return;
-
-    setBusy("处理照片...");
-    try {
-      state.lastPhoto = await compressImage(file);
-      els.photoPreview.src = state.lastPhoto;
-      els.photoPreview.hidden = false;
-      els.cameraFrame.classList.add("has-photo");
-      state.lootError = "";
-      renderCameraStatus();
-      addLog("图片已准备好，可以鉴定。");
-      render();
-    } catch (error) {
-      addLog(`照片读取失败：${error.message || "无法处理该图片"}`);
-    } finally {
-      setBusy("");
-      renderGameTextOnly();
-    }
+    await preparePhotoFromFile(file, "图片已准备好，可以鉴定。", "照片读取失败");
   });
 
   els.analyzeBtn.addEventListener("click", analyzePhoto);
@@ -398,14 +426,17 @@ function applyPreset(presetId, persist = false) {
     els.customModelInput.value = customDraft.model;
   } else {
     els.baseUrlInput.value = preset.baseUrl;
-    els.customModelInput.value = "";
+    els.customModelInput.value = preset.editableModel ? customDraft.model : "";
   }
   renderModelOptions(preset, selectedModel);
 
   els.baseUrlInput.readOnly = !isCustom;
   els.baseUrlInput.classList.toggle("is-locked", !isCustom);
-  els.presetModelField.hidden = isCustom;
-  els.customModelField.hidden = !isCustom;
+  els.presetModelField.hidden = isCustom || Boolean(preset.editableModel);
+  els.customModelField.hidden = !isCustom && !preset.editableModel;
+  if (preset.editableModel) {
+    els.customModelInput.value = selectedModel || customDraft.model;
+  }
   els.presetNote.textContent = preset.note;
   els.presetNote.hidden = !preset.note;
   renderProviderLinks(preset);
@@ -470,6 +501,91 @@ function getActivePresetId() {
 function rememberCustomDraft() {
   customDraft.baseUrl = els.baseUrlInput.value;
   customDraft.model = els.customModelInput.value || els.modelInput.value;
+}
+
+async function preparePhotoFromFile(file, successMessage, errorPrefix) {
+  setBusy("处理图片...");
+  try {
+    state.lastPhoto = await compressImage(file);
+    els.photoPreview.src = state.lastPhoto;
+    els.photoPreview.hidden = false;
+    els.cameraFrame.classList.add("has-photo");
+    state.lootError = "";
+    renderCameraStatus();
+    addLog(successMessage);
+    showInputNotice(successMessage);
+    render();
+  } catch (error) {
+    showInputNotice(`${errorPrefix}：${error.message || "无法处理该图片"}`);
+  } finally {
+    if (els.loadingState.dataset.notice !== "true") setBusy("");
+    renderGameTextOnly();
+  }
+}
+
+async function pasteImageFromClipboard() {
+  if (!navigator.clipboard?.read) {
+    showInputNotice("当前浏览器不支持直接读取剪贴板图片；可以用选图/拍照。");
+    return;
+  }
+
+  try {
+    setBusy("读取剪贴板...");
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const imageType = item.types.find((type) => type.startsWith("image/"));
+      if (!imageType) continue;
+      const blob = await item.getType(imageType);
+      await preparePhotoFromFile(new File([blob], "clipboard-image.png", { type: imageType }), "已粘贴剪贴板图片，可以鉴定。", "粘贴图片失败");
+      return;
+    }
+    showInputNotice("剪贴板里没有图片。");
+  } catch (error) {
+    showInputNotice(`粘贴图片失败：${error.message || "浏览器拒绝读取剪贴板"}`);
+  } finally {
+    if (els.loadingState.dataset.notice !== "true") setBusy("");
+    renderGameTextOnly();
+  }
+}
+
+async function captureScreenImage() {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    showInputNotice("当前浏览器不支持网页截图；可以用系统截图后粘贴。");
+    return;
+  }
+
+  let stream;
+  try {
+    setBusy("等待截图授权...");
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { displaySurface: "browser" },
+      audio: false,
+    });
+    const video = document.createElement("video");
+    video.muted = true;
+    video.srcObject = stream;
+    await video.play();
+    await waitForVideoFrame(video);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, video.videoWidth || 1280);
+    canvas.height = Math.max(1, video.videoHeight || 720);
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await canvasToBlob(canvas, "image/png", 0.92);
+    await preparePhotoFromFile(new File([blob], "screen-capture.png", { type: "image/png" }), "已截取屏幕图片，可以鉴定。", "截图失败");
+  } catch (error) {
+    showInputNotice(`截图失败：${error.message || "浏览器拒绝屏幕捕获"}`);
+  } finally {
+    if (stream) stream.getTracks().forEach((track) => track.stop());
+    if (els.loadingState.dataset.notice !== "true") setBusy("");
+    renderGameTextOnly();
+  }
+}
+
+function showInputNotice(message) {
+  addLog(message);
+  els.loadingState.textContent = message;
+  els.loadingState.dataset.notice = "true";
 }
 
 async function testVisionApi() {
@@ -2280,6 +2396,25 @@ function resizeImageToDataUrl(image, maxEdge, quality) {
   return canvas.toDataURL("image/jpeg", quality);
 }
 
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+      } else {
+        reject(new Error("截图编码失败。"));
+      }
+    }, type, quality);
+  });
+}
+
+function waitForVideoFrame(video) {
+  if (video.requestVideoFrameCallback) {
+    return new Promise((resolve) => video.requestVideoFrameCallback(() => resolve()));
+  }
+  return new Promise((resolve) => window.setTimeout(resolve, 120));
+}
+
 function makeVisionTestImage() {
   const canvas = document.createElement("canvas");
   canvas.width = 360;
@@ -2926,6 +3061,7 @@ function addLog(message) {
 
 function setBusy(message) {
   els.loadingState.textContent = message;
+  els.loadingState.dataset.notice = message ? "false" : "";
 }
 
 function saveConfig(showLog = true) {
@@ -2946,7 +3082,8 @@ function loadConfig() {
 function getConfigFromInputs() {
   const activePreset = getActivePresetId();
   const baseUrl = els.baseUrlInput.value.trim();
-  const model = activePreset === "custom"
+  const activePresetConfig = API_PRESETS[activePreset] || API_PRESETS.custom;
+  const model = activePreset === "custom" || activePresetConfig.editableModel
     ? (els.customModelInput.value.trim() || els.modelInput.value.trim())
     : els.modelInput.value.trim();
 

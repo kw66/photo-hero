@@ -50,6 +50,8 @@
                 <div class="loot-actions">
                   <span class="badge" id="photoStateBadge">未选择</span>
                   <button class="primary-button" id="photoBtn" type="button">选图/拍照</button>
+                  <button class="secondary-button" id="pasteImageBtn" type="button">粘贴图片</button>
+                  <button class="secondary-button" id="screenshotBtn" type="button">截图</button>
                   <button class="secondary-button" id="analyzeBtn" type="button" disabled>鉴定</button>
                   <button class="secondary-button" id="recommendEquipBtn" type="button">推荐装备</button>
                   <input id="fileInput" type="file" accept="image/*">
@@ -94,6 +96,9 @@
 
                 <div class="preset-row" aria-label="模型预设">
                   <button class="preset-button" type="button" data-preset="siliconflow">硅基流动</button>
+                  <button class="preset-button" type="button" data-preset="zhipu">智谱</button>
+                  <button class="preset-button" type="button" data-preset="micu">米醋中转</button>
+                  <button class="preset-button" type="button" data-preset="timicc">TiMiCC</button>
                   <button class="preset-button" type="button" data-preset="custom">自定义</button>
                 </div>
                 <p class="preset-note" id="presetNote" hidden></p>
@@ -174,6 +179,6 @@
       </section>
     </main>
 
-    <script defer src="./app.js?v=20260516-gameplay-loop"></script>
+    <script defer src="./app.js?v=20260516-input-presets"></script>
   </body>
 </html>
