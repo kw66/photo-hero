@@ -633,6 +633,31 @@ async function testVisionApi() {
 
 async function callVisionText(config, image) {
   let response;
+  const body = withProviderRequestOptions(config, {
+    model: config.model,
+    temperature: 0.2,
+    max_tokens: 96,
+    messages: [
+      {
+        role: "system",
+        content: "只输出最终回答，不要输出分析过程、步骤、编号或 Markdown。",
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "请识别图片文字，只回复一句中文，格式为“图文模型测试成功：图片里写着……”。不要解释。",
+          },
+          {
+            type: "image_url",
+            image_url: { url: image, detail: modelImageDetail },
+          },
+        ],
+      },
+    ],
+  });
+
   try {
     response = await fetch(buildChatEndpoint(config.baseUrl), {
       method: "POST",
@@ -640,30 +665,7 @@ async function callVisionText(config, image) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.apiKey}`,
       },
-      body: JSON.stringify({
-        model: config.model,
-        temperature: 0.2,
-        max_tokens: 96,
-        messages: [
-          {
-            role: "system",
-            content: "只输出最终回答，不要输出分析过程、步骤、编号或 Markdown。",
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "请识别图片文字，只回复一句中文，格式为“图文模型测试成功：图片里写着……”。不要解释。",
-              },
-              {
-                type: "image_url",
-                image_url: { url: image, detail: modelImageDetail },
-              },
-            ],
-          },
-        ],
-      }),
+      body: JSON.stringify(body),
     });
   } catch (error) {
     throw new Error(
@@ -678,9 +680,8 @@ async function callVisionText(config, image) {
 
   const content = readModelText(payload);
   if (content) return content;
-  if (readModelText(payload, { includeReasoning: true })) {
-    throw new Error("模型只返回了推理内容，没有返回最终回答；请换非推理输出模型，或在服务商后台关闭思考输出。");
-  }
+  const reasoning = readModelText(payload, { reasoningOnly: true });
+  if (reasoning) return reasoning;
   throw new Error(`模型没有返回最终文本内容。响应结构：${summarizePayloadShape(payload)}`);
 }
 
@@ -816,7 +817,7 @@ function showLootError(message) {
 
 async function analyzeDirectly(config, image) {
   let response;
-  const body = {
+  const body = withProviderRequestOptions(config, {
     model: config.model,
     temperature: 0.35,
     max_tokens: modelMaxTokens,
@@ -841,7 +842,7 @@ async function analyzeDirectly(config, image) {
         ],
       },
     ],
-  };
+  });
 
   try {
     response = await fetch(buildChatEndpoint(config.baseUrl), {
@@ -863,7 +864,31 @@ async function analyzeDirectly(config, image) {
     throw new Error(readUpstreamError(payload) || `模型接口返回 ${response.status}`);
   }
 
-  return extractJson(readModelText(payload), payload);
+  const finalText = readModelText(payload);
+  if (finalText) return extractJson(finalText, payload);
+
+  const reasoningText = readModelText(payload, { reasoningOnly: true });
+  if (reasoningText) {
+    return extractJson(reasoningText, payload);
+  }
+
+  return extractJson("", payload);
+}
+
+function withProviderRequestOptions(config, body) {
+  const next = { ...body };
+  if (shouldDisableThinking(config)) {
+    next.enable_thinking = false;
+    next.thinking = { type: "disabled" };
+  }
+  return next;
+}
+
+function shouldDisableThinking(config) {
+  const preset = String(config?.presetId || "").toLowerCase();
+  const baseUrl = String(config?.baseUrl || "").toLowerCase();
+  const model = String(config?.model || "").toLowerCase();
+  return preset === "siliconflow" || baseUrl.includes("siliconflow") || model.includes("qwen");
 }
 
 function buildChatEndpoint(input) {
@@ -881,11 +906,12 @@ function buildChatEndpoint(input) {
 
 function readModelText(payload, options = {}) {
   const includeReasoning = Boolean(options.includeReasoning);
+  const reasoningOnly = Boolean(options.reasoningOnly);
   const parts = [];
   const visit = (value, path = "", depth = 0) => {
     if (value == null || depth > 6) return;
     if (typeof value === "string") {
-      if (isModelTextPath(path, includeReasoning) && value.trim()) parts.push(value.trim());
+      if (isModelTextPath(path, { includeReasoning, reasoningOnly }) && value.trim()) parts.push(value.trim());
       return;
     }
     if (Array.isArray(value)) {
@@ -894,7 +920,8 @@ function readModelText(payload, options = {}) {
     }
     if (typeof value === "object") {
       const type = String(value.type || "").toLowerCase();
-      if (!includeReasoning && (type.includes("reasoning") || type.includes("thinking"))) return;
+      if (!includeReasoning && !reasoningOnly && (type.includes("reasoning") || type.includes("thinking"))) return;
+      if (reasoningOnly && type && !(type.includes("reasoning") || type.includes("thinking"))) return;
       for (const [key, next] of Object.entries(value)) {
         visit(next, path ? `${path}.${key}` : key, depth + 1);
       }
@@ -905,12 +932,18 @@ function readModelText(payload, options = {}) {
   return [...new Set(parts)].join("\n").trim();
 }
 
-function isModelTextPath(path, includeReasoning = false) {
+function isModelTextPath(path, options = {}) {
+  const includeReasoning = Boolean(options.includeReasoning);
+  const reasoningOnly = Boolean(options.reasoningOnly);
   const normalized = String(path || "").toLowerCase();
   if (!normalized) return false;
   if (normalized.includes("prompt") || normalized.includes("system_fingerprint")) return false;
   if (normalized.includes("messages[") || normalized.includes(".request.")) return false;
-  if (!includeReasoning && /reasoning|thinking|chain_of_thought/.test(normalized)) return false;
+  const isReasoningPath = /reasoning|thinking|chain_of_thought/.test(normalized);
+  if (reasoningOnly) {
+    return isReasoningPath && (normalized.endsWith(".message.reasoning_content") || normalized.endsWith(".delta.reasoning_content") || normalized.endsWith(".reasoning_content") || normalized.endsWith(".thinking"));
+  }
+  if (!includeReasoning && isReasoningPath) return false;
   const tokens = [
     ".message.content",
     ".delta.content",
@@ -3482,6 +3515,13 @@ window.__photoHeroTestHooks = {
       id: makeId("test-item"),
     };
     addInventoryItem(item, "测试装备已加入。", true);
+  },
+  setPhoto(image) {
+    state.lastPhoto = image || "";
+    if (state.lastPhoto) {
+      els.photoPreview.src = state.lastPhoto;
+    }
+    render();
   },
   setHeroStats(next) {
     Object.assign(state.player, next || {});
