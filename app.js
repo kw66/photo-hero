@@ -163,7 +163,7 @@ const monsterImages = {
   slime: "13.png",
   skeleton: "16.png",
   bat: "15.png",
-  mage: "35.png",
+  mage: "11.png",
   wizard: "21.png",
   guard: "12.png",
   knight: "037-03.png",
