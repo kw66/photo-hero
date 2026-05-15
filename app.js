@@ -1007,8 +1007,19 @@ function receiveItem(item, message) {
     ...item,
     id: makeId("item"),
   };
+  const heal = fullItem.tooLarge ? applyRejectedPhotoHeal(fullItem) : 0;
   state.lastPhoto = "";
-  addInventoryItem(fullItem, `${message} 获得 ${fullItem.itemName}。`, scoreItem(fullItem) > 0);
+  const rewardText = fullItem.tooLarge
+    ? `${message} ${fullItem.itemName}不能装备，转化为一次性回复 ${heal} 点生命。`
+    : `${message} 获得 ${fullItem.itemName}。`;
+  addInventoryItem(fullItem, rewardText, !fullItem.tooLarge && scoreItem(fullItem) > 0);
+}
+
+function applyRejectedPhotoHeal(item) {
+  const stats = getPlayerStats();
+  const heal = 5 + hashIndex(`${item.itemName}:${item.description}:${Date.now()}`, 6);
+  state.player.hp = Math.min(stats.maxHp, state.player.hp + heal);
+  return heal;
 }
 
 function addInventoryItem(item, message, autoEquip = false) {
@@ -2275,7 +2286,11 @@ function renderEquipmentDetail() {
   els.equipmentDetailImage.hidden = false;
   els.equipmentDetailEmpty.hidden = true;
   els.equipmentDetailName.textContent = selected.itemName;
-  const equippedText = state.equippedItemIds.includes(selected.id) ? "已装备" : "未装备";
+  const equippedText = selected.tooLarge
+    ? "不可装备"
+    : state.equippedItemIds.includes(selected.id)
+      ? "已装备"
+      : "未装备";
   els.equipmentDetailMeta.textContent = `${rarityNames[selected.rarity]} · ${equippedText} · 价值 ${scoreItem(selected)} · 第 ${state.inventory.findIndex((item) => item.id === selected.id) + 1} 件`;
   els.equipmentDetailStats.innerHTML = renderStatPills(selected.stats);
   els.equipmentDetailDesc.textContent = selected.description;
