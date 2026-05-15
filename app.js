@@ -60,7 +60,7 @@ const API_PRESETS = {
     note: "",
     links: [
       { label: "米醋邀请链接", url: "https://www.micuapi.ai/register?aff=5j18" },
-      { label: "米醋文档", url: "https://www.micuapi.ai/docs" },
+      { label: "米醋文档", url: "https://docs.micuapi.ai/#/" },
     ],
     supportsVision: true,
   },
