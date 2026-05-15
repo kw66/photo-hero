@@ -116,3 +116,4 @@ Original prompt: 继续和我讨论游戏事宜，我们到时候上传github和
 - Hid the provider note text for 米醋 and OpenAI, added the 米醋文档 link (`https://docs.micuapi.ai/#/`), removed `gpt-5.4-nano` from 米醋 models, and changed API Key storage to be per preset so switching providers clears the visible key while returning to a provider restores its own saved key.
 - Removed the OpenAI preset and removed the extra 硅基流动模型中心 link, leaving only 硅基流动邀请链接/API 文档, 智谱, 米醋中转, and 自定义 in the provider UI.
 - Also removed the remaining player-facing "模型中心" wording from the model-disabled error hint; it now refers to the generic provider backend instead.
+- Filtered `reasoning_content` / thinking fields out of model text extraction so `测试图文模型` and real photo identification only use final answer text; the vision test prompt now asks for one final sentence and caps `max_tokens` at 96 to reduce verbose responses.

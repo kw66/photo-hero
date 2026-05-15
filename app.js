@@ -616,7 +616,7 @@ async function testVisionApi() {
 
   try {
     const content = await callVisionText(config, makeVisionTestImage());
-    setChatResult(content || "模型返回为空。", false);
+    setChatResult(formatVisionTestResult(content), false);
     addLog("图文模型测试成功。");
   } catch (error) {
     setChatResult(normalizeAnalyzeError(error), true);
@@ -639,14 +639,18 @@ async function callVisionText(config, image) {
       body: JSON.stringify({
         model: config.model,
         temperature: 0.2,
-        max_tokens: modelMaxTokens,
+        max_tokens: 96,
         messages: [
+          {
+            role: "system",
+            content: "只输出最终回答，不要输出分析过程、步骤、编号或 Markdown。",
+          },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "这是一张测试图。请用一句中文说明图片里写了什么，并明确回复“图文模型测试成功”。",
+                text: "请识别图片文字，只回复一句中文，格式为“图文模型测试成功：图片里写着……”。不要解释。",
               },
               {
                 type: "image_url",
@@ -670,7 +674,55 @@ async function callVisionText(config, image) {
 
   const content = readModelText(payload);
   if (content) return content;
-  return JSON.stringify(payload, null, 2);
+  if (readModelText(payload, { includeReasoning: true })) {
+    throw new Error("模型只返回了推理内容，没有返回最终回答；请换非推理输出模型，或在服务商后台关闭思考输出。");
+  }
+  throw new Error(`模型没有返回最终文本内容。响应结构：${summarizePayloadShape(payload)}`);
+}
+
+function formatVisionTestResult(content) {
+  const text = normalizeModelContent(content);
+  if (!text) return "模型返回为空。";
+
+  const lines = text
+    .split(/\r?\n+/)
+    .map(cleanModelDisplayLine)
+    .filter(Boolean);
+  let successIndex = -1;
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (lines[index].includes("图文模型测试成功")) {
+      successIndex = index;
+      break;
+    }
+  }
+
+  if (successIndex >= 0) {
+    const successLine = lines[successIndex];
+    if (/图片|写着|VISION OK|照片勇者/i.test(successLine)) {
+      return shortenText(successLine.replace(/\s+/g, " "), 120);
+    }
+
+    const imageLine = lines
+      .slice(Math.max(0, successIndex - 4), successIndex)
+      .reverse()
+      .find((line) => /图片|写着|VISION OK|照片勇者/i.test(line) && !/分析|要求|步骤|构建|检查/.test(line));
+    if (imageLine) {
+      return shortenText(`图文模型测试成功：${imageLine}`.replace(/\s+/g, " "), 120);
+    }
+
+    return shortenText(successLine.replace(/\s+/g, " "), 120);
+  }
+
+  return shortenText(lines.join(" ").replace(/\s+/g, " "), 120);
+}
+
+function cleanModelDisplayLine(line) {
+  return String(line || "")
+    .trim()
+    .replace(/^\s*(?:[-*•]\s*)+/, "")
+    .replace(/^\d+[.)]\s*/, "")
+    .replace(/\*\*/g, "")
+    .trim();
 }
 
 function setChatResult(message, isError = false, stateName = "") {
@@ -823,12 +875,13 @@ function buildChatEndpoint(input) {
   return url.toString();
 }
 
-function readModelText(payload) {
+function readModelText(payload, options = {}) {
+  const includeReasoning = Boolean(options.includeReasoning);
   const parts = [];
   const visit = (value, path = "", depth = 0) => {
     if (value == null || depth > 6) return;
     if (typeof value === "string") {
-      if (isModelTextPath(path) && value.trim()) parts.push(value.trim());
+      if (isModelTextPath(path, includeReasoning) && value.trim()) parts.push(value.trim());
       return;
     }
     if (Array.isArray(value)) {
@@ -836,6 +889,8 @@ function readModelText(payload) {
       return;
     }
     if (typeof value === "object") {
+      const type = String(value.type || "").toLowerCase();
+      if (!includeReasoning && (type.includes("reasoning") || type.includes("thinking"))) return;
       for (const [key, next] of Object.entries(value)) {
         visit(next, path ? `${path}.${key}` : key, depth + 1);
       }
@@ -846,15 +901,15 @@ function readModelText(payload) {
   return [...new Set(parts)].join("\n").trim();
 }
 
-function isModelTextPath(path) {
+function isModelTextPath(path, includeReasoning = false) {
   const normalized = String(path || "").toLowerCase();
   if (!normalized) return false;
   if (normalized.includes("prompt") || normalized.includes("system_fingerprint")) return false;
+  if (normalized.includes("messages[") || normalized.includes(".request.")) return false;
+  if (!includeReasoning && /reasoning|thinking|chain_of_thought/.test(normalized)) return false;
   const tokens = [
     ".message.content",
-    ".message.reasoning_content",
     ".delta.content",
-    ".delta.reasoning_content",
     ".text",
     "output_text",
     ".output.content",
@@ -864,6 +919,9 @@ function isModelTextPath(path) {
     ".answer",
     ".response",
   ];
+  if (includeReasoning) {
+    tokens.push(".message.reasoning_content", ".delta.reasoning_content");
+  }
   return tokens.some((token) => {
     const plain = token.replace(/^\./, "");
     return normalized === plain || normalized.endsWith(token) || normalized.includes(token);
