@@ -915,9 +915,9 @@ function makeFallbackItemFromModelText(text) {
     throw new Error(`模型返回了文本，但没有识别图片内容；请确认当前模型支持图片输入。原始回复：${shortenText(source, 72)}`);
   }
 
-  const itemName = inferItemNameFromModelText(source);
-  if (!itemName) return null;
   const tooLarge = looksTooLargeFromText(source);
+  const itemName = inferItemNameFromModelText(source) || (tooLarge ? inferRejectedItemNameFromText(source) : "");
+  if (!itemName) return null;
   return {
     itemName,
     value: tooLarge ? 0 : inferFallbackValue(source),
@@ -933,8 +933,7 @@ function looksLikeVisionFailure(text) {
 }
 
 function looksTooLargeFromText(text) {
-  return /(?:汽车|车辆|房子|建筑|天空|风景|街道|道路|山|海|大型家具|大面积背景)/.test(text)
-    && /(?:过大|不能装备|无法装备|不可装备|不是可装备)/.test(text);
+  return /(?:tooLarge\s*=\s*true|too_large\s*=\s*true|value\s*=\s*0|属性(?:全|为|是)?0|所有属性为0|不能装备|无法装备|不可装备|不是可装备|不属于可装备|不是现实生活|不是现实实拍|不是现实物品|不是实拍|卡通|动漫|插画|表情包|头像|截图|风景|天空|建筑|汽车|车辆|房子|街道|道路|大型家具|大面积背景)/i.test(text);
 }
 
 function inferItemNameFromModelText(text) {
@@ -951,11 +950,25 @@ function inferItemNameFromModelText(text) {
   return "";
 }
 
+function inferRejectedItemNameFromText(text) {
+  const patterns = [
+    /(?:这个|这张)?图片(?:是|为)\s*(?:一个|一件|一只|一张|个)?\s*([^，。；;\n]{1,18})/,
+    /(?:图中|图片里|照片里|画面中)(?:主要)?(?:是|有|显示|看到)\s*(?:一个|一件|一只|一张|个)?\s*([^，。；;\n]{1,18})/,
+    /不是(?:一个|一件|一只|一张|个)?\s*([^，。；;\n]{1,18})/,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    const name = cleanupItemName(match?.[1] || "");
+    if (name) return name;
+  }
+  return "不可装备物";
+}
+
 function cleanupItemName(value) {
   return String(value || "")
     .replace(/[{}[\]"“”'‘’]/g, "")
-    .replace(/^(现实生活中(?:的)?|可随身装备(?:的)?|清晰(?:的)?|普通(?:的)?|一张|一个|一件|一把|一只|一台|一瓶|一双|个)+/, "")
-    .replace(/(?:等物品|这个物品|这件物品|可以作为装备).*$/, "")
+    .replace(/^(现实生活中(?:的)?|可随身装备(?:的)?|清晰(?:的)?|普通(?:的)?|一张|一个|一件|一把|一只|一台|一瓶|一双|一幅|个)+/, "")
+    .replace(/(?:等物品|这个物品|这件物品|也不是|不是现实|不是可|可以作为装备|根据规则).*$/, "")
     .trim()
     .slice(0, 18);
 }
@@ -2221,7 +2234,7 @@ function renderEquipmentDetail() {
     els.equipmentDetailName.textContent = "鉴定失败";
     els.equipmentDetailMeta.textContent = state.lootError;
     els.equipmentDetailStats.innerHTML = "";
-    els.equipmentDetailDesc.textContent = "请检查模型是否支持图片输入和浏览器 CORS。";
+    els.equipmentDetailDesc.textContent = getLootErrorHint(state.lootError);
     return;
   }
 
@@ -2266,6 +2279,20 @@ function renderEquipmentDetail() {
   els.equipmentDetailMeta.textContent = `${rarityNames[selected.rarity]} · ${equippedText} · 价值 ${scoreItem(selected)} · 第 ${state.inventory.findIndex((item) => item.id === selected.id) + 1} 件`;
   els.equipmentDetailStats.innerHTML = renderStatPills(selected.stats);
   els.equipmentDetailDesc.textContent = selected.description;
+}
+
+function getLootErrorHint(message) {
+  const text = String(message || "");
+  if (text.includes("image_url") || text.includes("图片输入") || text.includes("没有识别图片内容")) {
+    return "当前模型可能不支持图片输入，或中转站没有把图片转发给模型。";
+  }
+  if (text.includes("浏览器直连") || text.toLowerCase().includes("cors")) {
+    return "浏览器直连失败时，需要换支持 CORS 的接口，或后续加本地/云端代理。";
+  }
+  if (text.includes("响应结构")) {
+    return "接口返回结构不标准，请把错误里的响应结构发给开发者适配。";
+  }
+  return "模型已返回内容，但格式不符合游戏约束；可以换模型或重试一张更清晰的现实物品照片。";
 }
 
 function renderStatPills(stats) {
