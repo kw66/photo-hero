@@ -153,6 +153,21 @@ const statValueWeights = {
   regen: 12,
 };
 
+const photoSpecialEffects = [
+  { key: "killAttack", label: "每击杀8怪攻击+1", value: 12, kind: "killThreshold", threshold: 8, stat: "attack", amount: 1 },
+  { key: "killDefense", label: "每击杀8怪防御+1", value: 15, kind: "killThreshold", threshold: 8, stat: "defense", amount: 1 },
+  { key: "killShield", label: "每击杀4怪护盾+1", value: 10, kind: "killThreshold", threshold: 4, stat: "shield", amount: 1 },
+  { key: "killSpeed", label: "每击杀12怪速度+1", value: 16, kind: "killThreshold", threshold: 12, stat: "speed", amount: 1 },
+  { key: "dealDamageAttack", label: "造成伤害临时攻击+1", value: 15, kind: "dealDamageTemp", stat: "attack", amount: 1, cap: 10 },
+  { key: "takeDamageDefense", label: "受到伤害临时防御+1", value: 15, kind: "takeDamageTemp", stat: "defense", amount: 1, cap: 8 },
+  { key: "killMaxHp", label: "每次击杀生命上限+2", value: 15, kind: "killPermanent", stat: "hp", amount: 2 },
+  { key: "killHeal", label: "每次击杀生命+8", value: 15, kind: "killHeal", amount: 8 },
+  { key: "doubleStrikeSpeedDown", label: "速度-5，二连击", value: 16, kind: "passive", stat: "speed", amount: -5, doubleStrike: true },
+  { key: "shieldCrashAttackDown", label: "攻击-5，附带当前护盾*0.5伤害", value: 16, kind: "passive", stat: "attack", amount: -5, shieldDamageRatio: 0.5 },
+];
+
+const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
+
 const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|鞋|拖鞋|滑板|风扇|橡皮|橡皮擦|胶带|刷|梳|钥匙|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|椅|凳|小桌|台灯|相机|眼镜/i;
 const oversizedScenePattern = /汽车|车辆|公交|火车|飞机|船|房|楼|建筑|天空|风景|街道|道路|山|海|河|湖|树|大型家具|床|沙发|衣柜|冰箱|洗衣机|大面积背景/i;
 const explicitOversizePattern = /比人.{0,8}(大|高)|比一个人.{0,8}(大|高)|尺寸.{0,8}(超过|大于|高于).{0,4}人|人.{0,4}(还要)?大|巨大|无法搬动|不能搬动|主要是.{0,6}(场景|背景)|大面积背景/i;
@@ -330,6 +345,8 @@ const state = {
   lootError: "",
   log: ["上传图片或拍一件现实物品，把它变成第一件装备。"],
   autoBattleTimer: 0,
+  battleSpecial: createDefaultBattleSpecial(),
+  testEnemyOverride: null,
 };
 
 loadConfig();
@@ -1448,9 +1465,29 @@ function stopAutoBattle() {
   state.autoBattleTimer = 0;
 }
 
+function createDefaultBattleSpecial() {
+  return {
+    attack: 0,
+    defense: 0,
+  };
+}
+
+function normalizeBattleSpecial(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return {
+    attack: clampInt(source.attack, 0, 10),
+    defense: clampInt(source.defense, 0, 8),
+  };
+}
+
+function resetBattleSpecial() {
+  state.battleSpecial = createDefaultBattleSpecial();
+}
+
 function beginBattle(enemies) {
   const activeIds = enemies.map((enemy) => enemy.id);
   state.activeEnemyIds = activeIds;
+  resetBattleSpecial();
   const stats = getBattleStats(activeIds);
   state.player.shield = stats.shield;
   state.player.shieldMonsterId = state.encounterId;
@@ -1516,41 +1553,56 @@ function resolveBattleAction() {
 }
 
 function resolveHeroStrike(stats, round) {
-  const enemy = getHeroTargetEnemy();
-  if (!enemy) return false;
+  void stats;
+  const strikeCount = hasEquippedPhotoEffect("doubleStrikeSpeedDown") ? 2 : 1;
+  let defeatedAny = false;
 
-  const rawDamage = Math.max(0, stats.atk - enemy.def);
-  let damage = rawDamage;
-  if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
+  for (let strikeIndex = 0; strikeIndex < strikeCount; strikeIndex += 1) {
+    const enemy = getHeroTargetEnemy();
+    if (!enemy) break;
 
-  const shieldLoss = Math.min(enemy.shield || 0, damage);
-  enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
-  const hpDamage = Math.max(0, damage - shieldLoss);
-  enemy.hp = Math.max(0, enemy.hp - hpDamage);
+    const currentStats = getBattleStats(state.activeEnemyIds);
+    const rawDamage = Math.max(0, currentStats.atk - enemy.def);
+    const shieldCrashDamage = getShieldCrashDamage();
+    let damage = rawDamage + shieldCrashDamage;
+    if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
 
-  let healed = 0;
-  if (!hasAnyActiveTrait("noLifesteal") && stats.lifesteal > 0) {
-    const beforeHp = state.player.hp;
-    state.player.hp = Math.min(stats.maxHp, state.player.hp + stats.lifesteal);
-    healed = state.player.hp - beforeHp;
+    const shieldLoss = Math.min(enemy.shield || 0, damage);
+    enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
+    const hpDamage = Math.max(0, damage - shieldLoss);
+    enemy.hp = Math.max(0, enemy.hp - hpDamage);
+    const totalDamage = shieldLoss + hpDamage;
+
+    let healed = 0;
+    if (!hasAnyActiveTrait("noLifesteal") && currentStats.lifesteal > 0) {
+      const beforeHp = state.player.hp;
+      state.player.hp = Math.min(currentStats.maxHp, state.player.hp + currentStats.lifesteal);
+      healed = state.player.hp - beforeHp;
+    }
+
+    if (totalDamage > 0) {
+      triggerDealDamageSpecial();
+    }
+
+    const parts = [];
+    if (damage <= 0) {
+      parts.push("未破防");
+    } else {
+      parts.push(`造成 ${hpDamage}伤害`);
+    }
+    if (shieldLoss > 0) parts.push(`破盾 ${shieldLoss}`);
+    if (shieldCrashDamage > 0) parts.push(`护盾追加 ${shieldCrashDamage}`);
+    if (healed > 0 || currentStats.lifesteal > 0) parts.push(`吸取${healed}血量`);
+    if (strikeCount > 1) parts.push(`连击${strikeIndex + 1}/${strikeCount}`);
+    addBattleDetail(`第${round}回合勇者进攻${enemy.name}，${parts.join("，")}。`);
+
+    if (enemy.hp <= 0) {
+      defeatEnemy(enemy);
+      defeatedAny = true;
+    }
   }
 
-  const parts = [];
-  if (rawDamage <= 0) {
-    parts.push("未破防");
-  } else {
-    parts.push(`造成 ${hpDamage}伤害`);
-  }
-  if (shieldLoss > 0) parts.push(`破盾 ${shieldLoss}`);
-  if (healed > 0 || stats.lifesteal > 0) parts.push(`吸取${healed}血量`);
-  addBattleDetail(`第${round}回合勇者进攻${enemy.name}，${parts.join("，")}。`);
-
-  if (enemy.hp <= 0) {
-    defeatEnemy(enemy);
-    return true;
-  }
-
-  return false;
+  return defeatedAny;
 }
 
 function resolveMonsterStrike(enemy, stats, round) {
@@ -1561,7 +1613,8 @@ function resolveMonsterStrike(enemy, stats, round) {
   let monsterStealTotal = 0;
 
   for (let i = 0; i < hitCount; i += 1) {
-    const damage = hasTrait(enemy, "magic") ? enemy.atk : Math.max(0, enemy.atk - stats.def);
+    const currentStatsBeforeHit = getBattleStats(state.activeEnemyIds);
+    const damage = hasTrait(enemy, "magic") ? enemy.atk : Math.max(0, enemy.atk - currentStatsBeforeHit.def);
     const ignoresShield = hasTrait(enemy, "ignoreShield");
     const shieldLoss = ignoresShield ? 0 : Math.min(state.player.shield, damage);
     const hpLoss = damage - shieldLoss;
@@ -1569,10 +1622,14 @@ function resolveMonsterStrike(enemy, stats, round) {
     state.player.hp = Math.max(0, state.player.hp - hpLoss);
     totalHpLoss += hpLoss;
     totalShieldLoss += shieldLoss;
+    if (shieldLoss + hpLoss > 0) {
+      triggerTakeDamageSpecial();
+    }
 
-    if (state.player.hp > 0 && !hasAnyActiveTrait("noRegen") && stats.regen > 0) {
+    const currentStats = getBattleStats(state.activeEnemyIds);
+    if (state.player.hp > 0 && !hasAnyActiveTrait("noRegen") && currentStats.regen > 0) {
       const beforeHp = state.player.hp;
-      state.player.hp = Math.min(stats.maxHp, state.player.hp + stats.regen);
+      state.player.hp = Math.min(currentStats.maxHp, state.player.hp + currentStats.regen);
       totalRegen += state.player.hp - beforeHp;
     }
 
@@ -1608,9 +1665,11 @@ function resolveMonsterStrike(enemy, stats, round) {
 
 function defeatEnemy(enemy) {
   const drops = getEnemyDrops(enemy);
+  const defeatedIds = state.currentBattle?.defeatedIds;
   addLootNamesToCurrentBattle(drops);
-  state.currentBattle.defeatedIds.push(enemy.id);
+  if (Array.isArray(defeatedIds)) defeatedIds.push(enemy.id);
   addBattleDetail(`${enemy.name} 被击败。`);
+  triggerKillSpecial(enemy);
   for (const drop of drops) {
     if (drop.kind === "shard") {
       addFilmShards(drop.amount);
@@ -1631,8 +1690,13 @@ function defeatEnemy(enemy) {
   removeActiveEnemyIds([enemy.id]);
 }
 
-function removeEnemiesByIds(ids) {
+function removeEnemiesByIds(ids, reward = true) {
   const idSet = new Set(ids);
+  if (reward) {
+    for (const enemy of state.enemies.filter((item) => idSet.has(item.id) && item.hp > 0)) {
+      defeatEnemy(enemy);
+    }
+  }
   state.enemies = state.enemies.filter((enemy) => !idSet.has(enemy.id));
   removeActiveEnemyIds(ids);
 }
@@ -1709,6 +1773,7 @@ function finishCurrentBattle(result) {
   state.selectedEnemyIds = [];
   state.activeEnemyIds = [];
   state.battleClock = null;
+  resetBattleSpecial();
 }
 
 function addBattleEvent(text, type = "item") {
@@ -1858,6 +1923,7 @@ function advanceFloor() {
     state.gameClear = true;
     state.enemies = [];
     state.encounterId = "clear";
+    resetBattleSpecial();
     addBattleEvent("照片勇者通关了40层魔塔。", "hero");
     return;
   }
@@ -1866,6 +1932,7 @@ function advanceFloor() {
   state.currentBattle = null;
   state.activeEnemyIds = [];
   state.battleClock = null;
+  resetBattleSpecial();
   state.enemies = buildFloorEncounter(state.floor);
   state.encounterId = makeEncounterId();
   applyFloorShield();
@@ -1890,6 +1957,30 @@ function ensureEncounter() {
 }
 
 function buildFloorEncounter(floor) {
+  if (Array.isArray(state.testEnemyOverride)) {
+    const override = state.testEnemyOverride;
+    state.testEnemyOverride = null;
+    return override.map((enemy, index) => normalizeEnemy({
+      id: enemy.id || `${floor}-test-${index}`,
+      testEnemy: true,
+      floor,
+      slot: index,
+      typeKey: enemy.typeKey || "slime",
+      typeName: enemy.typeName || "史莱姆",
+      dropKey: enemy.dropKey || "西红柿",
+      dropName: enemy.dropName || enemy.dropKey || "西红柿",
+      name: enemy.name || `${enemy.dropName || "西红柿"}${enemy.typeName || "史莱姆"}`,
+      maxHp: Number.isFinite(enemy.maxHp) ? enemy.maxHp : Number.isFinite(enemy.hp) ? enemy.hp : 1,
+      hp: Number.isFinite(enemy.hp) ? enemy.hp : Number.isFinite(enemy.maxHp) ? enemy.maxHp : 1,
+      atk: Number.isFinite(enemy.atk) ? enemy.atk : 1,
+      def: Number.isFinite(enemy.def) ? enemy.def : 0,
+      speed: Number.isFinite(enemy.speed) ? enemy.speed : 1,
+      maxShield: Number.isFinite(enemy.maxShield) ? enemy.maxShield : Number.isFinite(enemy.shield) ? enemy.shield : 0,
+      shield: Number.isFinite(enemy.shield) ? enemy.shield : 0,
+      prefixStats: enemy.prefixStats || {},
+      traits: Array.isArray(enemy.traits) ? enemy.traits : [],
+    })).filter(Boolean);
+  }
   const types = getFloorMonsterTypes(floor);
   return types.map((typeKey, index) => makeEnemy(typeKey, floor, index));
 }
@@ -1947,6 +2038,28 @@ function makeEnemy(typeKey, floor, slot) {
 
 function normalizeEnemy(enemy) {
   if (!enemy || typeof enemy !== "object") return null;
+  if (enemy.testEnemy) {
+    const maxHp = Number.isFinite(enemy.maxHp) ? Math.max(1, enemy.maxHp) : Number.isFinite(enemy.hp) ? Math.max(1, enemy.hp) : 1;
+    const maxShield = Number.isFinite(enemy.maxShield) ? Math.max(0, enemy.maxShield) : Number.isFinite(enemy.shield) ? Math.max(0, enemy.shield) : 0;
+    return {
+      ...enemy,
+      id: typeof enemy.id === "string" ? enemy.id : makeId("enemy"),
+      name: typeof enemy.name === "string" && enemy.name ? enemy.name : `${enemy.dropName || "西红柿"}${enemy.typeName || "史莱姆"}`,
+      typeKey: enemy.typeKey || "slime",
+      typeName: enemy.typeName || "史莱姆",
+      dropName: enemy.dropName || enemy.dropKey || "西红柿",
+      dropKey: enemy.dropKey || enemy.dropName || "西红柿",
+      maxHp,
+      hp: Number.isFinite(enemy.hp) ? Math.max(0, Math.min(enemy.hp, maxHp)) : maxHp,
+      atk: Number.isFinite(enemy.atk) ? Math.max(0, enemy.atk) : 1,
+      def: Number.isFinite(enemy.def) ? Math.max(0, enemy.def) : 0,
+      speed: Number.isFinite(enemy.speed) ? Math.max(1, enemy.speed) : 1,
+      maxShield,
+      shield: Number.isFinite(enemy.shield) ? Math.max(0, Math.min(enemy.shield, maxShield)) : maxShield,
+      prefixStats: normalizeStats(enemy.prefixStats || {}, 999),
+      traits: Array.isArray(enemy.traits) ? cloneTraits(enemy.traits) : [],
+    };
+  }
   const previousMaxHp = Number.isFinite(enemy.maxHp) ? enemy.maxHp : Number.isFinite(enemy.hp) ? enemy.hp : 1;
   const previousMaxShield = Number.isFinite(enemy.maxShield) ? enemy.maxShield : Number.isFinite(enemy.shield) ? enemy.shield : 0;
   const typeName = typeof enemy.typeName === "string" ? enemy.typeName : "怪物";
@@ -2000,6 +2113,7 @@ function createItemFromObject(objectName) {
     fixed: true,
     source: "tower",
     level: 0,
+    skipSpecialRoll: true,
     baseStats: object.stats || {},
   }, makeSystemItemImage(object.name));
 }
@@ -2095,11 +2209,21 @@ function getBattleStats(activeIds = state.activeEnemyIds) {
     const value = Math.max(...activeEnemies.map((enemy) => getTraitValue(enemy, "heroAttackDown", 0)));
     stats.atk = Math.max(0, stats.atk - value);
   }
+  applyBattleSpecialPassives(stats);
   return stats;
 }
 
 function getBattleStatsForEnemies(enemies) {
   const stats = getPlayerStats();
+  return applyEnemyBattleModifiers(stats, enemies);
+}
+
+function getBattleStatsForEnemiesWithSpecial(enemies, battleSpecial) {
+  const stats = getPlayerStatsWithBattleSpecial(battleSpecial);
+  return applyEnemyBattleModifiers(stats, enemies);
+}
+
+function applyEnemyBattleModifiers(stats, enemies) {
   if (enemies.some((enemy) => hasTrait(enemy, "heroSpeedDown"))) {
     const value = Math.max(...enemies.map((enemy) => getTraitValue(enemy, "heroSpeedDown", 0)));
     stats.speed = Math.max(1, stats.speed - value);
@@ -2108,6 +2232,13 @@ function getBattleStatsForEnemies(enemies) {
     const value = Math.max(...enemies.map((enemy) => getTraitValue(enemy, "heroAttackDown", 0)));
     stats.atk = Math.max(0, stats.atk - value);
   }
+  applyBattleSpecialPassives(stats);
+  return stats;
+}
+
+function applyBattleSpecialPassives(stats) {
+  stats.speed = Math.max(1, stats.speed);
+  stats.atk = Math.max(0, stats.atk);
   return stats;
 }
 
@@ -2119,10 +2250,12 @@ function simulateSelectedBattle() {
     return { result: "none", hpDelta: 0, endHp: state.player.hp, rounds: 0, defeatedCount: 0 };
   }
 
-  const stats = getBattleStatsForEnemies(enemies);
+  const stats = getBattleStatsForEnemiesWithSpecial(enemies, createDefaultBattleSpecial());
   const sim = {
     hp: state.player.hp,
     shield: stats.shield,
+    battleSpecial: createDefaultBattleSpecial(),
+    maxHpBonus: 0,
     activeIds: enemies.map((enemy) => enemy.id),
     heroTime: 1 / Math.max(1, stats.speed),
     enemyTimes: new Map(enemies.map((enemy) => [enemy.id, 1 / Math.max(1, enemy.speed)])),
@@ -2143,7 +2276,8 @@ function simulateSelectedBattle() {
       };
     }
 
-    const currentStats = getBattleStatsForEnemies(getSimActiveEnemies(sim, enemies));
+    const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
+    currentStats.maxHp += sim.maxHpBonus || 0;
     const nextEnemyId = getNextSimEnemyId(sim);
     const enemyTime = nextEnemyId ? sim.enemyTimes.get(nextEnemyId) : Infinity;
 
@@ -2188,28 +2322,45 @@ function getSimActiveEnemies(sim, enemies) {
 }
 
 function simulateHeroStrike(sim, enemies, stats) {
-  const enemy = sim.activeIds.map((id) => enemies.find((item) => item.id === id)).find(Boolean);
-  if (!enemy) return false;
+  void stats;
+  const strikeCount = hasEquippedPhotoEffect("doubleStrikeSpeedDown") ? 2 : 1;
+  let defeatedAny = false;
 
-  const rawDamage = Math.max(0, stats.atk - enemy.def);
-  let damage = rawDamage;
-  if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
-  const shieldLoss = Math.min(enemy.shield || 0, damage);
-  enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
-  const hpDamage = Math.max(0, damage - shieldLoss);
-  enemy.hp = Math.max(0, enemy.hp - hpDamage);
+  for (let strikeIndex = 0; strikeIndex < strikeCount; strikeIndex += 1) {
+    const enemy = sim.activeIds.map((id) => enemies.find((item) => item.id === id)).find(Boolean);
+    if (!enemy) break;
 
-  if (!enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noLifesteal")) && stats.lifesteal > 0) {
-    sim.hp = Math.min(stats.maxHp, sim.hp + stats.lifesteal);
+    const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
+    currentStats.maxHp += sim.maxHpBonus || 0;
+    const rawDamage = Math.max(0, currentStats.atk - enemy.def);
+    const shieldCrashDamage = hasEquippedPhotoEffect("shieldCrashAttackDown")
+      ? Math.floor(Math.max(0, sim.shield || 0) * 0.5)
+      : 0;
+    let damage = rawDamage + shieldCrashDamage;
+    if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
+    const shieldLoss = Math.min(enemy.shield || 0, damage);
+    enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
+    const hpDamage = Math.max(0, damage - shieldLoss);
+    enemy.hp = Math.max(0, enemy.hp - hpDamage);
+
+    if (shieldLoss + hpDamage > 0 && hasEquippedPhotoEffect("dealDamageAttack")) {
+      sim.battleSpecial.attack = Math.min(10, (sim.battleSpecial.attack || 0) + 1);
+    }
+
+    if (!enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noLifesteal")) && currentStats.lifesteal > 0) {
+      sim.hp = Math.min(currentStats.maxHp, sim.hp + currentStats.lifesteal);
+    }
+
+    if (enemy.hp <= 0) {
+      simulateKillSpecial(sim, currentStats);
+      sim.activeIds = sim.activeIds.filter((id) => id !== enemy.id);
+      sim.enemyTimes.delete(enemy.id);
+      sim.defeatedCount += 1;
+      defeatedAny = true;
+    }
   }
 
-  if (enemy.hp <= 0) {
-    sim.activeIds = sim.activeIds.filter((id) => id !== enemy.id);
-    sim.enemyTimes.delete(enemy.id);
-    sim.defeatedCount += 1;
-    return true;
-  }
-  return false;
+  return defeatedAny;
 }
 
 function simulateMonsterStrike(sim, enemy, enemies, stats) {
@@ -2220,6 +2371,9 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
     const hpLoss = damage - shieldLoss;
     sim.shield -= shieldLoss;
     sim.hp = Math.max(0, sim.hp - hpLoss);
+    if (shieldLoss + hpLoss > 0 && hasEquippedPhotoEffect("takeDamageDefense")) {
+      sim.battleSpecial.defense = Math.min(8, (sim.battleSpecial.defense || 0) + 1);
+    }
 
     if (sim.hp > 0 && !enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noRegen")) && stats.regen > 0) {
       sim.hp = Math.min(stats.maxHp, sim.hp + stats.regen);
@@ -2234,6 +2388,20 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
   if (monsterRegen > 0 && enemy.hp > 0) {
     enemy.hp = Math.min(enemy.maxHp, enemy.hp + monsterRegen);
   }
+}
+
+function simulateKillSpecial(sim, stats) {
+  let maxHpGain = 0;
+  let heal = 0;
+  for (const item of getEquippedItems()) {
+    for (const { effect } of getItemSpecialInstances(item)) {
+      if (effect.key === "killMaxHp") maxHpGain += effect.amount;
+      if (effect.key === "killHeal") heal += effect.amount;
+    }
+  }
+  if (maxHpGain > 0) stats.maxHp += maxHpGain;
+  sim.maxHpBonus = (sim.maxHpBonus || 0) + maxHpGain;
+  if (heal > 0) sim.hp = Math.min(stats.maxHp, sim.hp + heal);
 }
 
 function hasAnyActiveTrait(type) {
@@ -2337,6 +2505,7 @@ function resetGame() {
   state.filmRolls = initialFilmRolls;
   state.lootError = "";
   state.log = ["已重开。"];
+  resetBattleSpecial();
   applyFloorShield();
   render();
 }
@@ -2351,22 +2520,126 @@ function hashIndex(seed, length) {
 }
 
 function getPlayerStats() {
-  const bonus = getEquippedItems().reduce((sum, item) => {
+  return getPlayerStatsWithBattleSpecial(state.battleSpecial);
+}
+
+function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpecial()) {
+  const equippedItems = getEquippedItems();
+  const bonus = equippedItems.reduce((sum, item) => {
     for (const key of statOrder) {
       sum[key] = (sum[key] || 0) + (item.stats?.[key] || 0);
+    }
+    const effectStats = getItemSpecialStats(item);
+    for (const key of statOrder) {
+      sum[key] = (sum[key] || 0) + (effectStats[key] || 0);
     }
     return sum;
   }, {});
 
+  const passiveAttackPenalty = equippedItems.some((item) => getItemSpecialKeys(item).includes("shieldCrashAttackDown")) ? 5 : 0;
+  const passiveSpeedPenalty = equippedItems.some((item) => getItemSpecialKeys(item).includes("doubleStrikeSpeedDown")) ? 5 : 0;
+
   return {
     maxHp: state.player.baseHp + (bonus.hp || 0),
-    atk: state.player.baseAtk + (bonus.attack || 0),
-    def: state.player.baseDef + (bonus.defense || 0),
-    speed: Math.max(1, state.player.baseSpeed + (bonus.speed || 0)),
+    atk: Math.max(0, state.player.baseAtk + (bonus.attack || 0) + (battleSpecial?.attack || 0) - passiveAttackPenalty),
+    def: Math.max(0, state.player.baseDef + (bonus.defense || 0) + (battleSpecial?.defense || 0)),
+    speed: Math.max(1, state.player.baseSpeed + (bonus.speed || 0) - passiveSpeedPenalty),
     regen: state.player.baseRegen + (bonus.regen || 0),
     shield: state.player.baseShield + (bonus.shield || 0),
     lifesteal: state.player.baseLifesteal + (bonus.lifesteal || 0),
   };
+}
+
+function getItemSpecialStats(item) {
+  const result = normalizeStats({}, 999);
+  for (const instance of getItemSpecialInstances(item)) {
+    const effect = instance.effect;
+    const stateData = instance.state;
+    if (effect.kind === "killThreshold" && effect.stat) {
+      result[effect.stat] += clampInt(stateData.bonus, 0, 999) * effect.amount;
+    } else if (effect.kind === "killPermanent" && effect.stat) {
+      result[effect.stat] += clampInt(stateData.bonus, 0, 999);
+    }
+  }
+  return result;
+}
+
+function getItemSpecialInstances(item) {
+  return getItemSpecialKeys(item).map((key) => ({
+    key,
+    effect: photoSpecialEffectMap.get(key),
+    state: ensureItemSpecialState(item, key),
+  })).filter((entry) => entry.effect);
+}
+
+function getItemSpecialKeys(item) {
+  if (!item || !Array.isArray(item.specialEffects)) return [];
+  return [...new Set(item.specialEffects.filter((key) => photoSpecialEffectMap.has(key)))];
+}
+
+function ensureItemSpecialState(item, key) {
+  if (!item.specialState || typeof item.specialState !== "object") item.specialState = {};
+  if (!item.specialState[key] || typeof item.specialState[key] !== "object") {
+    item.specialState[key] = {};
+  }
+  const data = item.specialState[key];
+  if (!Number.isFinite(data.kills)) data.kills = 0;
+  if (!Number.isFinite(data.bonus)) data.bonus = 0;
+  return data;
+}
+
+function hasEquippedPhotoEffect(key) {
+  return getEquippedItems().some((item) => getItemSpecialKeys(item).includes(key));
+}
+
+function getShieldCrashDamage() {
+  if (!hasEquippedPhotoEffect("shieldCrashAttackDown")) return 0;
+  return Math.floor(Math.max(0, state.player.shield || 0) * 0.5);
+}
+
+function triggerDealDamageSpecial() {
+  if (!hasEquippedPhotoEffect("dealDamageAttack")) return;
+  state.battleSpecial.attack = Math.min(10, (state.battleSpecial.attack || 0) + 1);
+}
+
+function triggerTakeDamageSpecial() {
+  if (!hasEquippedPhotoEffect("takeDamageDefense")) return;
+  state.battleSpecial.defense = Math.min(8, (state.battleSpecial.defense || 0) + 1);
+}
+
+function triggerKillSpecial(enemy) {
+  void enemy;
+  const changes = [];
+
+  for (const item of getEquippedItems()) {
+    for (const { key, effect, state: data } of getItemSpecialInstances(item)) {
+      if (effect.kind === "killThreshold") {
+        data.kills += 1;
+        const targetBonus = Math.floor(data.kills / effect.threshold);
+        if (targetBonus > data.bonus) {
+          const gain = (targetBonus - data.bonus) * effect.amount;
+          data.bonus = targetBonus;
+          changes.push(`${formatItemDisplayName(item)} ${statLabels[effect.stat] || effect.stat}+${gain}`);
+        }
+      } else if (effect.kind === "killPermanent") {
+        data.kills += 1;
+        data.bonus += effect.amount;
+        changes.push(`${formatItemDisplayName(item)} ${statLabels[effect.stat] || effect.stat}+${effect.amount}`);
+      } else if (effect.kind === "killHeal") {
+        data.kills += 1;
+        const stats = getBattleStats(state.activeEnemyIds);
+        const beforeHp = state.player.hp;
+        state.player.hp = Math.min(stats.maxHp, state.player.hp + effect.amount);
+        const healed = state.player.hp - beforeHp;
+        if (healed > 0) changes.push(`${formatItemDisplayName(item)} 回复${healed}`);
+      }
+      ensureItemSpecialState(item, key);
+    }
+  }
+
+  if (changes.length) {
+    addBattleDetail(`击杀触发：${changes.join("，")}。`);
+  }
 }
 
 function getEquippedItems() {
@@ -2496,22 +2769,31 @@ function balanceItem(item, image = "") {
   const itemName = cleanText(safe.itemName, "照片装备", 18);
   const tooLarge = isFixed ? false : shouldTreatAsTooLarge(itemName, safe.description, Boolean(safe.tooLarge));
   const consumable = Boolean(safe.consumable || tooLarge) && tooLarge;
+  const requestedValue = isFixed || tooLarge ? 0 : clampInt(safe.value, 5, 20);
+  const specialEffects = isFixed || tooLarge || consumable
+    ? []
+    : choosePhotoSpecialEffects(safe, image, requestedValue)
+      .filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue);
+  const specialValue = calculateSpecialEffectsValue(specialEffects);
+  const statBudget = Math.max(0, requestedValue - specialValue);
   const targetValue = isFixed
     ? calculateStatsValue(safe.stats || {})
     : tooLarge
       ? 0
-      : clampInt(safe.value, 5, 20);
+      : Math.max(requestedValue, specialValue);
   const stats = isFixed
     ? normalizeStats(safe.stats || {}, 99)
     : tooLarge
       ? normalizeStats({}, 20)
-      : clampStatsToValue(allocateStatsForItem(safe.stats || {}, itemName, targetValue), targetValue);
+      : clampStatsToValue(allocateStatsForItem(safe.stats || {}, itemName, statBudget), statBudget);
 
   return {
     itemName,
     rarity,
     value: targetValue,
     stats,
+    specialEffects,
+    specialState: normalizeSpecialState(safe.specialState, specialEffects),
     description: tooLarge ? "物品过大或不是可装备物，无法提供属性。" : cleanText(safe.description, "由照片鉴定出的装备。", 56),
     confidence: clampNumber(safe.confidence, 0, 1),
     film: Boolean(safe.film),
@@ -2519,6 +2801,7 @@ function balanceItem(item, image = "") {
     source: typeof safe.source === "string" ? safe.source : "",
     level: isFixed ? getItemLevel(safe) : 0,
     baseStats: isFixed ? getItemBaseStats(safe) : normalizeStats({}, 999),
+    skipSpecialRoll: Boolean(safe.skipSpecialRoll),
     tooLarge,
     consumable,
     healAmount: consumable && Number.isFinite(Number.parseInt(safe.healAmount, 10))
@@ -2529,11 +2812,13 @@ function balanceItem(item, image = "") {
 }
 
 function normalizeInventoryItem(item) {
-  const balanced = balanceItem(item, item?.image || makePlaceholderImage());
+  const balanced = balanceItem({ ...(item || {}), skipSpecialRoll: true }, item?.image || makePlaceholderImage());
   const normalized = {
     ...balanced,
     id: typeof item?.id === "string" && item.id ? item.id : makeId("item"),
   };
+  normalized.specialEffects = normalizeSpecialEffects(item?.specialEffects || balanced.specialEffects);
+  normalized.specialState = normalizeSpecialState(item?.specialState || balanced.specialState, normalized.specialEffects);
   const withHeal = ensureConsumableHeal(normalized);
   if (withHeal.fixed && !withHeal.source) withHeal.source = "tower";
   return withHeal;
@@ -2541,7 +2826,7 @@ function normalizeInventoryItem(item) {
 
 function scoreItem(item) {
   if (!item) return 0;
-  return calculateStatsValue(item.stats || {});
+  return calculateStatsValue(item.stats || {}) + calculateSpecialEffectsValue(getItemSpecialKeys(item));
 }
 
 function sortInventoryByValue() {
@@ -2599,6 +2884,75 @@ function allocateStatsForItem(rawStats, itemName, valueBudget) {
   }
   if (!calculateStatsValue(result)) result.hp = Math.max(0, remaining);
   return result;
+}
+
+function choosePhotoSpecialEffects(item, image, valueBudget) {
+  const provided = normalizeSpecialEffects(item.specialEffects || item.effects || item.special || item.specialEffect)
+    .filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= valueBudget);
+  if (provided.length) return provided.slice(0, 1);
+  if (item.skipSpecialRoll) return [];
+  if (valueBudget < 10) return [];
+
+  const seed = `${item.itemName || ""}:${item.description || ""}:${image ? image.slice(0, 96) : ""}:${item.value || ""}`;
+  const roll = hashIndex(`${seed}:special-roll`, 100);
+  if (roll >= 32) return [];
+
+  const eligible = photoSpecialEffects.filter((effect) => effect.value <= valueBudget);
+  if (!eligible.length) return [];
+  const picked = eligible[hashIndex(`${seed}:special-pick`, eligible.length)];
+  return picked ? [picked.key] : [];
+}
+
+function normalizeSpecialEffects(input) {
+  const values = Array.isArray(input) ? input : input ? [input] : [];
+  return [...new Set(values.map((value) => normalizeSpecialEffectKey(value)).filter((key) => photoSpecialEffectMap.has(key)))];
+}
+
+function normalizeSpecialEffectKey(value) {
+  if (typeof value === "string") {
+    if (photoSpecialEffectMap.has(value)) return value;
+    const text = value.trim();
+    const byLabel = photoSpecialEffects.find((effect) => effect.label === text || text.includes(effect.label));
+    if (byLabel) return byLabel.key;
+    if (/击杀.*8.*攻/.test(text)) return "killAttack";
+    if (/击杀.*8.*防/.test(text)) return "killDefense";
+    if (/击杀.*4.*盾/.test(text)) return "killShield";
+    if (/击杀.*12.*速/.test(text)) return "killSpeed";
+    if (/造成伤害.*攻|攻击.*最多10/.test(text)) return "dealDamageAttack";
+    if (/受到伤害.*防|受击.*防/.test(text)) return "takeDamageDefense";
+    if (/击杀.*生命上限/.test(text)) return "killMaxHp";
+    if (/击杀.*生命|击杀.*回复|击杀.*回血/.test(text)) return "killHeal";
+    if (/二连击|连击2/.test(text)) return "doubleStrikeSpeedDown";
+    if (/当前护盾|护盾.*0\.?5|护盾.*一半/.test(text)) return "shieldCrashAttackDown";
+  }
+  if (value && typeof value === "object") {
+    return normalizeSpecialEffectKey(value.key || value.type || value.name || value.label);
+  }
+  return "";
+}
+
+function normalizeSpecialState(rawState, effectKeys) {
+  const source = rawState && typeof rawState === "object" ? rawState : {};
+  const result = {};
+  for (const key of effectKeys) {
+    const data = source[key] && typeof source[key] === "object" ? source[key] : {};
+    result[key] = {
+      kills: clampInt(data.kills, 0, 9999),
+      bonus: clampInt(data.bonus, 0, 9999),
+    };
+  }
+  return result;
+}
+
+function calculateSpecialEffectsValue(effectKeys) {
+  return getSpecialEffectDefinitions(effectKeys)
+    .reduce((total, effect) => total + effect.value, 0);
+}
+
+function getSpecialEffectDefinitions(effectKeys) {
+  return normalizeSpecialEffects(effectKeys)
+    .map((key) => photoSpecialEffectMap.get(key))
+    .filter(Boolean);
 }
 
 function inferPreferredStats(name) {
@@ -2934,6 +3288,7 @@ function renderEquipmentGrid() {
       button.innerHTML = `
         <img src="${item.image || makePlaceholderImage()}" alt="">
         ${isConsumableItem(item) ? `<b class="supply-badge">补</b>` : ""}
+        ${getItemSpecialKeys(item).length ? `<b class="special-badge">特</b>` : ""}
         <span>${escapeHtml(formatItemDisplayName(item))}</span>
       `;
       button.addEventListener("click", () => {
@@ -3028,7 +3383,7 @@ function renderEquipmentDetail() {
   els.equipmentDetailMeta.textContent = `${rarityNames[selected.rarity]} · ${equippedText} · 价值 ${scoreItem(selected)} · 第 ${state.inventory.findIndex((item) => item.id === selected.id) + 1} 件`;
   els.equipmentDetailStats.innerHTML = isConsumableItem(selected)
     ? `<span>使用回复 ${clampInt(selected.healAmount, 5, 10)}</span>`
-    : renderStatPills(selected.stats);
+    : renderItemDetailPills(selected);
   els.equipmentDetailDesc.textContent = selected.description;
 
   if (isConsumableItem(selected)) {
@@ -3058,6 +3413,34 @@ function renderStatPills(stats) {
     .filter(([key]) => stats[key])
     .map(([key, label]) => `<span>${label} +${stats[key] || 0}</span>`);
   return pills.length ? pills.join("") : "<span>无属性</span>";
+}
+
+function renderItemDetailPills(item) {
+  const effectHtml = renderSpecialEffectPills(item);
+  if (effectHtml && calculateStatsValue(item.stats || {}) <= 0) return effectHtml;
+  const statHtml = renderStatPills(item.stats);
+  if (effectHtml) return `${statHtml}${effectHtml}`;
+  return statHtml;
+}
+
+function renderSpecialEffectPills(item) {
+  return getItemSpecialInstances(item)
+    .map(({ effect, state: data }) => `<span class="effect-pill">${escapeHtml(formatSpecialEffectText(effect, data))}</span>`)
+    .join("");
+}
+
+function formatSpecialEffectText(effect, data = {}) {
+  if (effect.kind === "killThreshold") {
+    const progress = clampInt(data.kills, 0, 9999) % effect.threshold;
+    const bonus = clampInt(data.bonus, 0, 9999) * effect.amount;
+    return `${effect.label}（${progress}/${effect.threshold}，已+${bonus}）`;
+  }
+  if (effect.kind === "killPermanent") {
+    return `${effect.label}（已+${clampInt(data.bonus, 0, 9999)}）`;
+  }
+  if (effect.kind === "dealDamageTemp") return `${effect.label}，最多${effect.cap}，战后复原`;
+  if (effect.kind === "takeDamageTemp") return `${effect.label}，最多${effect.cap}，战后复原`;
+  return effect.label;
 }
 
 function changeEquipmentPage(delta) {
@@ -3257,8 +3640,10 @@ function renderGameTextOnly() {
       filmShards: state.filmShards,
       filmCount: getFilmCount(),
       selectedEstimate: simulateSelectedBattle(),
+      battleSpecial: { ...(state.battleSpecial || {}) },
       selectedEquipment: selectedEquipment ? formatItemDisplayName(selectedEquipment) : null,
       equippedItems: equippedItems.map((item) => formatItemDisplayName(item)),
+      equippedEffects: equippedItems.flatMap((item) => getItemSpecialKeys(item)),
     },
     floor: state.floor,
     maxFloor,
@@ -3288,6 +3673,15 @@ function renderGameTextOnly() {
     activeEnemyIds: [...state.activeEnemyIds],
     hasPhoto: Boolean(state.lastPhoto),
     latestItem: state.latestItem,
+    inventory: state.inventory.slice(0, 12).map((item) => ({
+      name: formatItemDisplayName(item),
+      score: scoreItem(item),
+      stats: item.stats || {},
+      effects: getItemSpecialKeys(item),
+      specialState: item.specialState || {},
+      equipped: state.equippedItemIds.includes(item.id),
+      consumable: isConsumableItem(item),
+    })),
     battleClock: state.battleClock,
     currentBattle: state.currentBattle
       ? {
@@ -3370,6 +3764,7 @@ function saveGame() {
     battleReports: state.battleReports,
     battleReportSeq: state.battleReportSeq,
     currentBattle: state.currentBattle,
+    battleSpecial: state.battleSpecial,
     inventory: state.inventory,
     equipmentPage: state.equipmentPage,
     selectedItemId: state.selectedItemId,
@@ -3400,7 +3795,7 @@ function loadSave() {
     : save.selectedItemId && state.inventory.some((item) => item.id === save.selectedItemId)
       ? [save.selectedItemId]
       : [];
-  state.latestItem = save.latestItem ? balanceItem(save.latestItem, save.latestItem.image || makePlaceholderImage()) : state.inventory[0] || null;
+  state.latestItem = save.latestItem ? normalizeInventoryItem({ ...save.latestItem, skipSpecialRoll: true }) : state.inventory[0] || null;
   state.log = Array.isArray(save.log) ? save.log : state.log;
 
   state.floor = clampInt(save.floor, 1, maxFloor);
@@ -3423,6 +3818,7 @@ function loadSave() {
   state.battleReportSeq = Number.isFinite(save.battleReportSeq) ? save.battleReportSeq : state.battleReports.length;
   state.currentBattle = normalizeCurrentBattle(save.currentBattle);
   state.battleClock = normalizeBattleClock(save.battleClock);
+  state.battleSpecial = state.currentBattle ? normalizeBattleSpecial(save.battleSpecial) : createDefaultBattleSpecial();
 }
 
 function normalizePlayer(player) {
@@ -3633,8 +4029,24 @@ window.__photoHeroTestHooks = {
   loadImage,
   makeSystemItemImage,
   addTestItem(input) {
-    const item = balanceItem(input, input?.image || makePlaceholderImage());
+    const item = balanceItem(input || {}, input?.image || makePlaceholderImage());
     addInventoryItem({ ...item, id: makeId("test-item") }, "测试装备已加入。", true);
+  },
+  addSpecialItem(effectKey, input = {}) {
+    const effect = photoSpecialEffectMap.get(effectKey);
+    const value = Math.max(effect?.value || 16, input.value || 16);
+    const item = balanceItem({
+      itemName: input.itemName || "测试特装",
+      rarity: input.rarity || "rare",
+      value,
+      stats: input.stats || {},
+      specialEffects: [effectKey],
+      skipSpecialRoll: true,
+      description: input.description || "测试用拍照特殊装备。",
+      confidence: 1,
+      fixed: false,
+    }, input.image || makePlaceholderImage());
+    addInventoryItem({ ...item, id: makeId("test-special") }, "测试特殊装备已加入。", true);
   },
   addTowerItem(name) {
     const item = createItemFromObject(name);
@@ -3651,7 +4063,7 @@ window.__photoHeroTestHooks = {
   },
   addRawItem(input) {
     const item = {
-      ...balanceItem(input, input?.image || makePlaceholderImage()),
+      ...balanceItem({ ...(input || {}), skipSpecialRoll: input?.skipSpecialRoll ?? true }, input?.image || makePlaceholderImage()),
       stats: normalizeStats(input?.stats || {}, 999),
       id: makeId("test-item"),
     };
@@ -3684,6 +4096,21 @@ window.__photoHeroTestHooks = {
     state.activeEnemyIds = [];
     state.currentBattle = null;
     state.battleClock = null;
+    resetBattleSpecial();
+    applyFloorShield();
+    saveGame();
+    render();
+  },
+  setEnemies(enemies) {
+    stopAutoBattle();
+    state.testEnemyOverride = Array.isArray(enemies) ? enemies : [];
+    state.enemies = buildFloorEncounter(state.floor);
+    state.encounterId = makeEncounterId();
+    state.selectedEnemyIds = state.enemies.map((enemy) => enemy.id);
+    state.activeEnemyIds = [];
+    state.currentBattle = null;
+    state.battleClock = null;
+    resetBattleSpecial();
     applyFloorShield();
     saveGame();
     render();
@@ -3693,7 +4120,12 @@ window.__photoHeroTestHooks = {
   simulateSelectedBattle,
   buildFloorEncounter,
   startAutoBattle,
-  resolveBattleAction,
+  resolveBattleAction() {
+    const finished = resolveBattleAction();
+    saveGame();
+    render();
+    return finished;
+  },
   getFirstInventoryId() {
     return state.inventory[0]?.id || "";
   },

@@ -643,6 +643,24 @@ dd {
   font-weight: 900;
 }
 
+.special-badge {
+  position: absolute;
+  top: 3px;
+  left: 24px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgb(23 19 15 / 24%);
+  border-radius: 50%;
+  background: var(--hero);
+  color: #fffaf0;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .equipment-slot.is-locked {
   cursor: not-allowed;
   filter: saturate(0.72);
@@ -766,6 +784,12 @@ dd {
   background: var(--paper-2);
   font-size: 0.7rem;
   font-weight: 900;
+}
+
+.detail-stats .effect-pill {
+  border: 1px solid color-mix(in srgb, var(--hero) 28%, var(--line));
+  background: color-mix(in srgb, var(--hero) 10%, #fffdf8);
+  color: var(--ink);
 }
 
 .battle-chip b {
