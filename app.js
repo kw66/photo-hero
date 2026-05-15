@@ -109,6 +109,7 @@ const rarityNames = {
 
 const equipmentPageSize = 9;
 const equipmentSlotLimit = 10;
+const mergeUpgradeCount = 10;
 const battleReportLimit = 18;
 const modelMaxTokens = 512;
 const modelImageDetail = "low";
@@ -1284,15 +1285,28 @@ function addInventoryItem(item, message, autoEquip = false) {
   ensureConsumableHeal(item);
   state.latestItem = item;
   state.lootError = "";
-  state.inventory.unshift(item);
+  addInventoryItemDirect(item);
+  const mergeMessages = mergeUpgradeableItems();
   sortInventoryByValue();
-  state.selectedItemId = item.id;
-  if (autoEquip) equipItem(item.id);
+  if (state.inventory.some((entry) => entry.id === item.id)) {
+    state.selectedItemId = item.id;
+  } else if (!state.inventory.some((entry) => entry.id === state.selectedItemId)) {
+    state.selectedItemId = state.inventory[0]?.id || "";
+  }
+  if (autoEquip) {
+    if (!equipItem(item.id) && state.selectedItemId) equipItem(state.selectedItemId);
+  }
   state.equipmentPage = 0;
   addLog(message);
+  for (const mergeMessage of mergeMessages) addLog(mergeMessage);
   addBattleEvent(message, "item");
+  for (const mergeMessage of mergeMessages) addBattleEvent(mergeMessage, "item");
   saveGame();
   render();
+}
+
+function addInventoryItemDirect(item) {
+  state.inventory.unshift(item);
 }
 
 function ensureConsumableHeal(item) {
@@ -1302,6 +1316,99 @@ function ensureConsumableHeal(item) {
     ? clampInt(item.healAmount, 5, 10)
     : 5 + hashIndex(`${item.id || ""}:${item.itemName || ""}:${item.description || ""}`, 6);
   return item;
+}
+
+function mergeUpgradeableItems() {
+  const messages = [];
+  let merged = true;
+
+  while (merged) {
+    merged = false;
+    const groups = new Map();
+    for (const item of state.inventory) {
+      if (!isUpgradeableTowerItem(item)) continue;
+      const key = getUpgradeableItemKey(item);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    }
+
+    for (const group of groups.values()) {
+      if (group.length < mergeUpgradeCount) continue;
+      const consumed = group.slice(0, mergeUpgradeCount);
+      const template = consumed[0];
+      const nextItem = createUpgradedTowerItem(template);
+      const consumedIds = new Set(consumed.map((item) => item.id));
+      state.inventory = state.inventory.filter((item) => !consumedIds.has(item.id));
+      state.equippedItemIds = state.equippedItemIds.filter((id) => !consumedIds.has(id));
+      addInventoryItemDirect(nextItem);
+      state.selectedItemId = nextItem.id;
+      state.latestItem = nextItem;
+      equipItem(nextItem.id);
+      messages.push(`${formatItemDisplayName(template)} * ${mergeUpgradeCount} 合成为 ${formatItemDisplayName(nextItem)}。`);
+      merged = true;
+      break;
+    }
+  }
+
+  return messages;
+}
+
+function isUpgradeableTowerItem(item) {
+  return Boolean(item?.fixed && item.source === "tower" && !item.film && !isConsumableItem(item));
+}
+
+function getUpgradeableItemKey(item) {
+  return `${item.itemName}::${getItemLevel(item)}`;
+}
+
+function getItemLevel(item) {
+  return clampInt(item?.level, 0, 12);
+}
+
+function getItemBaseStats(item) {
+  const baseStats = item?.baseStats && calculateStatsValue(item.baseStats) > 0
+    ? item.baseStats
+    : item?.stats || {};
+  return normalizeStats(baseStats, 999);
+}
+
+function getLevelMultiplier(level) {
+  return 2 ** Math.max(0, getItemLevel({ level }));
+}
+
+function applyItemLevelStats(baseStats, level) {
+  const multiplier = getLevelMultiplier(level);
+  const normalized = normalizeStats(baseStats, 999);
+  const result = normalizeStats({}, 999);
+  for (const key of statOrder) {
+    result[key] = normalized[key] * multiplier;
+  }
+  return result;
+}
+
+function createUpgradedTowerItem(template) {
+  const nextLevel = getItemLevel(template) + 1;
+  const baseStats = getItemBaseStats(template);
+  return {
+    ...balanceItem({
+      itemName: template.itemName,
+      rarity: template.rarity || "common",
+      stats: applyItemLevelStats(baseStats, nextLevel),
+      description: `塔中怪物装备 +${nextLevel}，由 10 件 +${nextLevel - 1} 合成，效果翻倍。`,
+      confidence: 1,
+      film: false,
+      fixed: true,
+      source: "tower",
+      level: nextLevel,
+      baseStats,
+    }, template.image || makeSystemItemImage(template.itemName)),
+    id: makeId("item"),
+  };
+}
+
+function formatItemDisplayName(item) {
+  const level = getItemLevel(item);
+  return `${item?.itemName || "装备"}${level > 0 ? `+${level}` : ""}`;
 }
 
 function toggleAutoBattle() {
@@ -1515,11 +1622,12 @@ function defeatEnemy(enemy) {
       continue;
     }
     drop.id = drop.id || makeId("item");
-    state.inventory.unshift(drop);
+    addInventoryItemDirect(drop);
     state.selectedItemId = drop.id;
     equipItem(drop.id);
     state.latestItem = drop;
   }
+  mergeUpgradeableItems();
   sortInventoryByValue();
   removeActiveEnemyIds([enemy.id]);
 }
@@ -1891,6 +1999,9 @@ function createItemFromObject(objectName) {
     confidence: 1,
     film: Boolean(object.film),
     fixed: true,
+    source: "tower",
+    level: 0,
+    baseStats: object.stats || {},
   }, makeSystemItemImage(object.name));
 }
 
@@ -2262,7 +2373,7 @@ function getPlayerStats() {
 function getEquippedItems() {
   const inventoryIds = new Set(state.inventory.map((item) => item.id));
   const seenIds = new Set();
-  const seenFixedNames = new Set();
+  const seenFixedKeys = new Set();
   const nextIds = [];
   const items = [];
 
@@ -2271,8 +2382,9 @@ function getEquippedItems() {
     const item = state.inventory.find((entry) => entry.id === id);
     if (!item || isConsumableItem(item)) continue;
     if (item.fixed) {
-      if (seenFixedNames.has(item.itemName)) continue;
-      seenFixedNames.add(item.itemName);
+      const fixedKey = getFixedEquipKey(item);
+      if (seenFixedKeys.has(fixedKey)) continue;
+      seenFixedKeys.add(fixedKey);
     }
     seenIds.add(id);
     nextIds.push(id);
@@ -2288,11 +2400,15 @@ function equipItem(itemId) {
   if (!item || isConsumableItem(item)) return false;
   if (state.equippedItemIds.includes(itemId)) return true;
   if (state.equippedItemIds.length >= equipmentSlotLimit) return false;
-  if (item.fixed && getEquippedItems().some((entry) => entry.fixed && entry.itemName === item.itemName && entry.id !== item.id)) {
+  if (item.fixed && getEquippedItems().some((entry) => entry.fixed && getFixedEquipKey(entry) === getFixedEquipKey(item) && entry.id !== item.id)) {
     return false;
   }
   state.equippedItemIds.push(itemId);
   return true;
+}
+
+function getFixedEquipKey(item) {
+  return `${item?.itemName || ""}::${getItemLevel(item)}`;
 }
 
 function toggleEquipItem(itemId) {
@@ -2321,7 +2437,7 @@ function recommendEquipment() {
   if (isEquipmentLocked()) return false;
 
   const selected = [];
-  const fixedNames = new Set();
+  const fixedKeys = new Set();
   const candidates = state.inventory
     .filter((item) => !isConsumableItem(item) && scoreItem(item) > 0)
     .map((item, index) => ({ item, index }))
@@ -2330,14 +2446,16 @@ function recommendEquipment() {
   for (const { item } of candidates) {
     if (selected.length >= equipmentSlotLimit) break;
     if (item.fixed) {
-      if (fixedNames.has(item.itemName)) continue;
-      fixedNames.add(item.itemName);
+      const fixedKey = getFixedEquipKey(item);
+      if (fixedKeys.has(fixedKey)) continue;
+      fixedKeys.add(fixedKey);
     }
     selected.push(item.id);
   }
 
   state.equippedItemIds = selected;
-  state.selectedItemId = selected[0] || state.inventory[0]?.id || "";
+  getEquippedItems();
+  state.selectedItemId = state.equippedItemIds[0] || state.inventory[0]?.id || "";
   addLog(selected.length ? `已推荐装备 ${selected.length} 件。` : "没有可推荐装备。");
   saveGame();
   render();
@@ -2399,6 +2517,9 @@ function balanceItem(item, image = "") {
     confidence: clampNumber(safe.confidence, 0, 1),
     film: Boolean(safe.film),
     fixed: isFixed,
+    source: typeof safe.source === "string" ? safe.source : "",
+    level: isFixed ? getItemLevel(safe) : 0,
+    baseStats: isFixed ? getItemBaseStats(safe) : normalizeStats({}, 999),
     tooLarge,
     consumable,
     healAmount: consumable && Number.isFinite(Number.parseInt(safe.healAmount, 10))
@@ -2414,7 +2535,9 @@ function normalizeInventoryItem(item) {
     ...balanced,
     id: typeof item?.id === "string" && item.id ? item.id : makeId("item"),
   };
-  return ensureConsumableHeal(normalized);
+  const withHeal = ensureConsumableHeal(normalized);
+  if (withHeal.fixed && !withHeal.source) withHeal.source = "tower";
+  return withHeal;
 }
 
 function scoreItem(item) {
@@ -2425,8 +2548,11 @@ function scoreItem(item) {
 function sortInventoryByValue() {
   state.inventory = state.inventory
     .map((item, index) => ({ item, index }))
-    .sort((a, b) => scoreItem(b.item) - scoreItem(a.item) || a.index - b.index)
+    .sort((a, b) => scoreItem(b.item) - scoreItem(a.item) || getItemLevel(b.item) - getItemLevel(a.item) || a.index - b.index)
     .map(({ item }) => item);
+  if (state.selectedItemId && !state.inventory.some((item) => item.id === state.selectedItemId)) {
+    state.selectedItemId = state.inventory[0]?.id || "";
+  }
 }
 
 function normalizeStats(stats, maxValue = 20) {
@@ -2809,7 +2935,7 @@ function renderEquipmentGrid() {
       button.innerHTML = `
         <img src="${item.image || makePlaceholderImage()}" alt="">
         ${isConsumableItem(item) ? `<b class="supply-badge">补</b>` : ""}
-        <span>${escapeHtml(item.itemName)}</span>
+        <span>${escapeHtml(formatItemDisplayName(item))}</span>
       `;
       button.addEventListener("click", () => {
         if (locked) {
@@ -2831,7 +2957,7 @@ function renderEquipmentGrid() {
 
   els.equipPrevBtn.disabled = state.equipmentPage <= 0;
   els.equipNextBtn.disabled = state.equipmentPage >= totalPages - 1;
-  els.equipPageText.textContent = `${state.equippedItemIds.length}/${equipmentSlotLimit} · ${state.inventory.length ? state.equipmentPage + 1 : 0} / ${state.inventory.length ? totalPages : 0}`;
+  els.equipPageText.textContent = `${getEquippedItems().length}/${equipmentSlotLimit} · ${state.inventory.length ? state.equipmentPage + 1 : 0} / ${state.inventory.length ? totalPages : 0}`;
 }
 
 function renderEquipmentDetail() {
@@ -2889,16 +3015,16 @@ function renderEquipmentDetail() {
   els.equipmentDetailImage.src = selected.image || makePlaceholderImage();
   els.equipmentDetailImage.hidden = false;
   els.equipmentDetailEmpty.hidden = true;
-  els.equipmentDetailName.textContent = selected.itemName;
+  els.equipmentDetailName.textContent = formatItemDisplayName(selected);
   const alreadyHasSameFixed = selected.fixed
     && !state.equippedItemIds.includes(selected.id)
-    && getEquippedItems().some((item) => item.fixed && item.itemName === selected.itemName);
+    && getEquippedItems().some((item) => item.fixed && getFixedEquipKey(item) === getFixedEquipKey(selected));
   const equippedText = isConsumableItem(selected)
     ? `补给 · 回复 ${clampInt(selected.healAmount, 5, 10)}`
     : state.equippedItemIds.includes(selected.id)
       ? "已装备"
       : alreadyHasSameFixed
-        ? "同名已装备"
+        ? "同名同级已装备"
         : "未装备";
   els.equipmentDetailMeta.textContent = `${rarityNames[selected.rarity]} · ${equippedText} · 价值 ${scoreItem(selected)} · 第 ${state.inventory.findIndex((item) => item.id === selected.id) + 1} 件`;
   els.equipmentDetailStats.innerHTML = isConsumableItem(selected)
@@ -3119,19 +3245,21 @@ function getReportMarkText(entry) {
 }
 
 function renderGameTextOnly() {
+  const equippedItems = getEquippedItems();
+  const selectedEquipment = state.inventory.find((item) => item.id === state.selectedItemId);
   window.__photoHeroState = {
     player: {
       hp: state.player.hp,
       shield: state.player.shield,
       stats: getPlayerStats(),
       equipmentCount: state.inventory.length,
-      equippedCount: state.equippedItemIds.length,
+      equippedCount: equippedItems.length,
       filmRolls: state.filmRolls,
       filmShards: state.filmShards,
       filmCount: getFilmCount(),
       selectedEstimate: simulateSelectedBattle(),
-      selectedEquipment: state.inventory.find((item) => item.id === state.selectedItemId)?.itemName || null,
-      equippedItems: getEquippedItems().map((item) => item.itemName),
+      selectedEquipment: selectedEquipment ? formatItemDisplayName(selectedEquipment) : null,
+      equippedItems: equippedItems.map((item) => formatItemDisplayName(item)),
     },
     floor: state.floor,
     maxFloor,
@@ -3264,6 +3392,7 @@ function loadSave() {
 
   state.player = normalizePlayer(save.player || state.player);
   state.inventory = Array.isArray(save.inventory) ? save.inventory.map(normalizeInventoryItem) : [];
+  mergeUpgradeableItems();
   sortInventoryByValue();
   state.equipmentPage = Number.isFinite(save.equipmentPage) ? save.equipmentPage : 0;
   state.selectedItemId = save.selectedItemId || state.inventory[0]?.id || "";
@@ -3507,6 +3636,11 @@ window.__photoHeroTestHooks = {
   addTestItem(input) {
     const item = balanceItem(input, input?.image || makePlaceholderImage());
     addInventoryItem({ ...item, id: makeId("test-item") }, "测试装备已加入。", true);
+  },
+  addTowerItem(name) {
+    const item = createItemFromObject(name);
+    item.id = makeId("test-item");
+    addInventoryItem(item, "测试塔装已加入。", true);
   },
   addRawItem(input) {
     const item = {
