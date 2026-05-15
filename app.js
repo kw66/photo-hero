@@ -163,9 +163,9 @@ const monsterImages = {
   slime: "13.png",
   skeleton: "16.png",
   bat: "15.png",
-  mage: "12.png",
-  wizard: "12.png",
-  guard: "32.png",
+  mage: "35.png",
+  wizard: "21.png",
+  guard: "12.png",
   knight: "037-03.png",
   golem: "14.png",
   patrol: "35.png",
@@ -174,11 +174,11 @@ const monsterImages = {
   vampire: "44.png",
   demon: "53.png",
   orc: "17.png",
-  swordsman: "21.png",
-  warrior: "42.png",
-  archmage: "22.png",
-  skeletonCaptain: "21.png",
-  knightCaptain: "55.png",
+  swordsman: "42.png",
+  warrior: "22.png",
+  archmage: "54.png",
+  skeletonCaptain: "55.png",
+  knightCaptain: "32.png",
 };
 
 const monsterTypes = {
@@ -208,7 +208,7 @@ const monsterPools = [
   ["slime", "skeleton", "bat", "mage", "orc", "golem", "wizard"],
   ["slime", "skeleton", "bat", "mage", "orc", "golem", "wizard", "guard", "knight", "patrol"],
   ["slime", "skeleton", "bat", "mage", "orc", "golem", "wizard", "guard", "knight", "patrol", "swordsman", "warrior"],
-  ["slime", "skeleton", "bat", "mage", "orc", "golem", "wizard", "guard", "knight", "patrol", "swordsman", "warrior", "vampire"],
+  ["slime", "skeleton", "bat", "mage", "orc", "golem", "wizard", "guard", "knight", "patrol", "swordsman", "warrior"],
 ];
 
 const normalMonsterUnlocks = [
@@ -224,7 +224,6 @@ const normalMonsterUnlocks = [
   { floor: 17, key: "patrol", weight: 3 },
   { floor: 21, key: "warrior", weight: 4 },
   { floor: 23, key: "swordsman", weight: 3 },
-  { floor: 26, key: "vampire", weight: 2 },
 ];
 
 const lootTypes = [
@@ -3641,6 +3640,14 @@ window.__photoHeroTestHooks = {
     const item = createItemFromObject(name);
     item.id = makeId("test-item");
     addInventoryItem(item, "测试塔装已加入。", true);
+  },
+  applyBossReward(typeKey) {
+    const drop = createBossReward({ typeKey });
+    if (drop) {
+      applyBossReward(drop);
+      saveGame();
+      render();
+    }
   },
   addRawItem(input) {
     const item = {
