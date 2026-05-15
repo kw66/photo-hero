@@ -621,7 +621,7 @@ async function analyzeDirectly(config, image) {
       {
         role: "system",
         content:
-          "你是一个轻量网页 RPG 的装备鉴定器。你只能输出 JSON，不要输出 Markdown 或额外解释。严格按规则给低数值装备。",
+          "你是一个轻量网页 RPG 的装备鉴定器。你只能输出 JSON，不要输出 Markdown 或额外解释。第一字符必须是 {，最后一个字符必须是 }。严格按规则给低数值装备。",
       },
       {
         role: "user",
@@ -677,20 +677,226 @@ function buildChatEndpoint(input) {
 }
 
 function extractJson(content) {
-  if (typeof content !== "string") {
+  const text = normalizeModelContent(content);
+  if (!text) {
     throw new Error("模型没有返回文本内容。");
   }
 
-  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced ? fenced[1] : content;
-  const start = candidate.indexOf("{");
-  const end = candidate.lastIndexOf("}");
-
-  if (start < 0 || end < start) {
-    throw new Error("模型没有返回可解析的 JSON。");
+  const candidates = collectJsonCandidates(text);
+  for (const candidate of candidates) {
+    const parsed = parseJsonCandidate(candidate);
+    if (parsed) return normalizeModelItem(parsed);
   }
 
-  return JSON.parse(candidate.slice(start, end + 1));
+  const fallback = makeFallbackItemFromModelText(text);
+  if (fallback) return fallback;
+
+  throw new Error(`模型返回了文本，但没有按 JSON 格式输出：${shortenText(text, 72)}`);
+}
+
+function normalizeModelContent(content) {
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (typeof part?.text === "string") return part.text;
+        if (typeof part?.content === "string") return part.content;
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+  }
+  if (content && typeof content === "object") {
+    if (typeof content.text === "string") return content.text.trim();
+    if (typeof content.content === "string") return content.content.trim();
+  }
+  return "";
+}
+
+function collectJsonCandidates(text) {
+  const normalized = String(text || "").trim();
+  const candidates = [normalized];
+  const fencedMatches = normalized.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi);
+  for (const match of fencedMatches) {
+    if (match[1]) candidates.push(match[1].trim());
+  }
+
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let quote = "";
+  let escaped = false;
+
+  for (let i = 0; i < normalized.length; i += 1) {
+    const char = normalized[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quote) {
+        inString = false;
+        quote = "";
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      inString = true;
+      quote = char;
+      continue;
+    }
+
+    if (char === "{") {
+      if (depth === 0) start = i;
+      depth += 1;
+    } else if (char === "}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        candidates.push(normalized.slice(start, i + 1));
+        start = -1;
+      }
+    }
+  }
+
+  return [...new Set(candidates.filter(Boolean))];
+}
+
+function parseJsonCandidate(candidate) {
+  for (const text of makeJsonVariants(candidate)) {
+    try {
+      const parsed = JSON.parse(text);
+      const object = pickJsonObject(parsed);
+      if (object) return object;
+    } catch {
+      // Try the next relaxed variant.
+    }
+  }
+  return null;
+}
+
+function makeJsonVariants(candidate) {
+  const base = String(candidate || "")
+    .trim()
+    .replace(/^\uFEFF/, "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'");
+  const relaxed = base
+    .replace(/,\s*([}\]])/g, "$1")
+    .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":')
+    .replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, ': "$1"');
+  return [...new Set([base, relaxed])];
+}
+
+function pickJsonObject(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  if (Array.isArray(value)) {
+    return value.find((item) => item && typeof item === "object" && !Array.isArray(item)) || null;
+  }
+  return null;
+}
+
+function normalizeModelItem(raw) {
+  const source = raw?.equipment || raw?.item || raw?.result || raw;
+  const safe = source && typeof source === "object" ? source : {};
+  const stats = normalizeModelStats(safe.stats || safe.attributes || safe["属性"] || {});
+  const itemName = safe.itemName || safe.name || safe.item || safe["物品名称"] || safe["装备名"] || safe["名称"];
+  const value = safe.value ?? safe.score ?? safe.quality ?? safe["价值"] ?? safe["品质"];
+  const tooLarge = safe.tooLarge ?? safe.too_large ?? safe.oversized ?? safe["过大"] ?? safe["无法装备"];
+  return {
+    itemName: cleanText(itemName, "照片装备", 18),
+    value: clampInt(value, 0, 20),
+    tooLarge: parseBooleanLike(tooLarge),
+    stats,
+    description: cleanText(safe.description || safe.desc || safe["描述"], "由照片鉴定出的装备。", 56),
+    confidence: clampNumber(safe.confidence ?? safe["置信度"], 0, 1),
+  };
+}
+
+function normalizeModelStats(stats) {
+  const safe = stats && typeof stats === "object" ? stats : {};
+  return normalizeStats({
+    hp: safe.hp ?? safe.health ?? safe.maxHp ?? safe["生命"] ?? safe["生命上限"] ?? safe["血量"],
+    attack: safe.attack ?? safe.atk ?? safe["攻击"] ?? safe["攻"],
+    defense: safe.defense ?? safe.def ?? safe["防御"] ?? safe["防"],
+    speed: safe.speed ?? safe.spd ?? safe["速度"] ?? safe["速"],
+    shield: safe.shield ?? safe["护盾"] ?? safe["盾"],
+    lifesteal: safe.lifesteal ?? safe.lifeSteal ?? safe["吸血"] ?? safe["吸"],
+    regen: safe.regen ?? safe.recovery ?? safe.restore ?? safe["回复"] ?? safe["回"],
+  }, 99);
+}
+
+function parseBooleanLike(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value > 0;
+  const text = String(value || "").trim().toLowerCase();
+  return ["true", "yes", "1", "是", "对", "过大", "无法装备"].includes(text);
+}
+
+function makeFallbackItemFromModelText(text) {
+  const source = String(text || "").trim();
+  if (!source) return null;
+  if (looksLikeVisionFailure(source)) {
+    throw new Error(`模型返回了文本，但没有识别图片内容；请确认当前模型支持图片输入。原始回复：${shortenText(source, 72)}`);
+  }
+
+  const itemName = inferItemNameFromModelText(source);
+  if (!itemName) return null;
+  const tooLarge = looksTooLargeFromText(source);
+  return {
+    itemName,
+    value: tooLarge ? 0 : inferFallbackValue(source),
+    tooLarge,
+    stats: {},
+    description: cleanText(`模型未按 JSON 返回，已按文字描述保守鉴定：${source}`, "由照片鉴定出的装备。", 56),
+    confidence: 0.45,
+  };
+}
+
+function looksLikeVisionFailure(text) {
+  return /(?:无法|不能|看不到|未能|没有能力).{0,12}(?:图片|图像|照片)|(?:不支持|无法处理).{0,12}(?:图片|图像|image)|(?:作为|身为).{0,8}AI.{0,12}(?:无法|不能)/i.test(text);
+}
+
+function looksTooLargeFromText(text) {
+  return /(?:汽车|车辆|房子|建筑|天空|风景|街道|道路|山|海|大型家具|大面积背景)/.test(text)
+    && /(?:过大|不能装备|无法装备|不可装备|不是可装备)/.test(text);
+}
+
+function inferItemNameFromModelText(text) {
+  const patterns = [
+    /(?:物品|主体|装备名|名称|itemName)\s*(?:是|为|[:：])\s*["“]?([^"，。；;\n]{1,18})/i,
+    /(?:图中|图片里|照片里|画面中|这张图里)(?:主要)?(?:是|有|显示|看到)\s*(?:一个|一件|一把|一只|一台|一瓶|一双|一些|个)?\s*([^，。；;\n]{1,18})/,
+    /这是\s*(?:一个|一件|一把|一只|一台|一瓶|一双|个)?\s*([^，。；;\n]{1,18})/,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    const name = cleanupItemName(match?.[1] || "");
+    if (name) return name;
+  }
+  return "";
+}
+
+function cleanupItemName(value) {
+  return String(value || "")
+    .replace(/[{}[\]"“”'‘’]/g, "")
+    .replace(/^(现实生活中(?:的)?|可随身装备(?:的)?|清晰(?:的)?|普通(?:的)?|一张|一个|一件|一把|一只|一台|一瓶|一双|个)+/, "")
+    .replace(/(?:等物品|这个物品|这件物品|可以作为装备).*$/, "")
+    .trim()
+    .slice(0, 18);
+}
+
+function inferFallbackValue(text) {
+  if (/(?:清晰|主体突出|背景干净|占比大|有趣|动心)/.test(text)) return 12;
+  if (/(?:模糊|杂乱|不清楚|遮挡|占比小)/.test(text)) return 6;
+  return 8;
+}
+
+function shortenText(text, maxLength) {
+  const source = String(text || "").replace(/\s+/g, " ").trim();
+  return source.length > maxLength ? `${source.slice(0, maxLength)}...` : source;
 }
 
 function readUpstreamError(payload) {
