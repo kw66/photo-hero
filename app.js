@@ -6,10 +6,25 @@ const STORAGE_KEYS = {
 const SILICONFLOW_MODELS = [
   { value: "Qwen/Qwen3.6-35B-A3B" },
   { value: "Pro/moonshotai/Kimi-K2.6" },
+  { value: "Pro/moonshotai/Kimi-K2.5" },
+  { value: "Qwen/Qwen3.6-27B" },
+  { value: "Qwen/Qwen3.5-397B-A17B" },
+  { value: "Qwen/Qwen3.5-122B-A10B" },
 ];
 
 const ZHIPU_MODELS = [
   { value: "glm-5v-turbo" },
+];
+
+const MICU_MODELS = [
+  { value: "gpt-5.5" },
+  { value: "gpt-5.4-mini" },
+  { value: "gpt-5.4-nano" },
+  { value: "gpt-5.4" },
+  { value: "kimi-k2.5" },
+  { value: "kimi-k2.6" },
+  { value: "qwen3.5-plus" },
+  { value: "qwen3.6-plus" },
 ];
 
 const API_PRESETS = {
@@ -20,7 +35,7 @@ const API_PRESETS = {
     models: SILICONFLOW_MODELS,
     note: "",
     links: [
-      { label: "硅基流动控制台", url: "https://cloud.siliconflow.cn/" },
+      { label: "硅基流动邀请链接", url: "https://cloud.siliconflow.cn/i/GOrKhgP7" },
       { label: "模型中心", url: "https://www.siliconflow.cn/models" },
       { label: "API 文档", url: "https://docs.siliconflow.cn/" },
     ],
@@ -33,7 +48,7 @@ const API_PRESETS = {
     models: ZHIPU_MODELS,
     note: "",
     links: [
-      { label: "智谱开放平台", url: "https://www.bigmodel.cn/" },
+      { label: "智谱邀请链接", url: "https://www.bigmodel.cn/invite?icode=fXJBq%2BPW8gOvcw6tMwvM0nHEaazDlIZGj9HxftzTbt4%3D" },
       { label: "Z.AI API 文档", url: "https://docs.z.ai/" },
     ],
     supportsVision: true,
@@ -41,23 +56,23 @@ const API_PRESETS = {
   micu: {
     label: "米醋中转",
     baseUrl: "https://www.micuapi.ai/v1",
-    model: "",
-    models: [],
+    model: "gpt-5.5",
+    models: MICU_MODELS,
     note: "已检测到该站 /v1 接口有浏览器 CORS；模型名按你账号后台可用渠道填写。",
     links: [
-      { label: "米醋中转", url: "https://www.micuapi.ai/" },
+      { label: "米醋邀请链接", url: "https://www.micuapi.ai/register?aff=5j18" },
     ],
     supportsVision: true,
-    editableModel: true,
   },
-  codexVip: {
-    label: "Codex VIP 中转",
-    baseUrl: "https://api-vip.codex-for.me/v1",
+  openai: {
+    label: "OpenAI 官方",
+    baseUrl: "https://api.openai.com/v1",
     model: "",
     models: [],
-    note: "已检测到该站 /v1 接口有浏览器 CORS；模型名按你账号后台可用渠道填写。",
+    note: "OpenAI 官方 API 通常不适合直接从浏览器暴露 Key；此入口主要提供官方链接和兼容参数测试。",
     links: [
-      { label: "Codex VIP API", url: "https://api-vip.codex-for.me/v1" },
+      { label: "OpenAI API 平台", url: "https://platform.openai.com/" },
+      { label: "OpenAI API 文档", url: "https://platform.openai.com/docs" },
     ],
     supportsVision: true,
     editableModel: true,
