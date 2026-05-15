@@ -19,7 +19,6 @@ const ZHIPU_MODELS = [
 const MICU_MODELS = [
   { value: "gpt-5.5" },
   { value: "gpt-5.4-mini" },
-  { value: "gpt-5.4-nano" },
   { value: "gpt-5.4" },
   { value: "kimi-k2.5" },
   { value: "kimi-k2.6" },
@@ -58,9 +57,10 @@ const API_PRESETS = {
     baseUrl: "https://www.micuapi.ai/v1",
     model: "gpt-5.5",
     models: MICU_MODELS,
-    note: "已检测到该站 /v1 接口有浏览器 CORS；模型名按你账号后台可用渠道填写。",
+    note: "",
     links: [
       { label: "米醋邀请链接", url: "https://www.micuapi.ai/register?aff=5j18" },
+      { label: "米醋文档", url: "https://www.micuapi.ai/docs" },
     ],
     supportsVision: true,
   },
@@ -69,7 +69,7 @@ const API_PRESETS = {
     baseUrl: "https://api.openai.com/v1",
     model: "",
     models: [],
-    note: "OpenAI 官方 API 通常不适合直接从浏览器暴露 Key；此入口主要提供官方链接和兼容参数测试。",
+    note: "",
     links: [
       { label: "OpenAI API 平台", url: "https://platform.openai.com/" },
       { label: "OpenAI API 文档", url: "https://platform.openai.com/docs" },
@@ -92,6 +92,8 @@ const customDraft = {
   baseUrl: "",
   model: "",
 };
+
+const providerApiKeys = {};
 
 const objectImageMap = {
   西红柿: "1f345.svg",
@@ -428,6 +430,7 @@ function setSecondaryPanel(panelId) {
 }
 
 function applyPreset(presetId, persist = false) {
+  rememberCurrentApiKey();
   if (persist && getActivePresetId() === "custom" && presetId !== "custom") {
     rememberCustomDraft();
   }
@@ -443,6 +446,7 @@ function applyPreset(presetId, persist = false) {
     els.baseUrlInput.value = preset.baseUrl;
     els.customModelInput.value = preset.editableModel ? customDraft.model : "";
   }
+  els.apiKeyInput.value = providerApiKeys[presetId] || "";
   renderModelOptions(preset, selectedModel);
 
   els.baseUrlInput.readOnly = !isCustom;
@@ -511,6 +515,12 @@ function renderProviderLinks(preset) {
 
 function getActivePresetId() {
   return document.querySelector(".preset-button.is-active")?.dataset.preset || "siliconflow";
+}
+
+function rememberCurrentApiKey() {
+  const activePreset = document.querySelector(".preset-button.is-active")?.dataset.preset;
+  if (!API_PRESETS[activePreset]) return;
+  providerApiKeys[activePreset] = els.apiKeyInput.value.trim();
 }
 
 function rememberCustomDraft() {
@@ -3080,6 +3090,7 @@ function setBusy(message) {
 }
 
 function saveConfig(showLog = true) {
+  rememberCurrentApiKey();
   localStorage.setItem(STORAGE_KEYS.config, JSON.stringify(getConfigFromInputs()));
   if (showLog) addLog("API 配置已保存到当前浏览器。");
   render();
@@ -3090,7 +3101,11 @@ function loadConfig() {
   const presetId = API_PRESETS[config.presetId] ? config.presetId : "siliconflow";
   customDraft.baseUrl = presetId === "custom" ? config.baseUrl || "" : config.customBaseUrl || "";
   customDraft.model = presetId === "custom" ? config.model || "" : config.customModel || "";
-  els.apiKeyInput.value = config.apiKey || "";
+  Object.assign(providerApiKeys, config.apiKeys || {});
+  if (config.apiKey && !providerApiKeys[presetId]) {
+    providerApiKeys[presetId] = config.apiKey;
+  }
+  els.apiKeyInput.value = providerApiKeys[presetId] || "";
   applyPreset(presetId, false);
 }
 
@@ -3106,6 +3121,7 @@ function getConfigFromInputs() {
     presetId: activePreset,
     baseUrl,
     apiKey: els.apiKeyInput.value.trim(),
+    apiKeys: { ...providerApiKeys, [activePreset]: els.apiKeyInput.value.trim() },
     model,
     customBaseUrl: activePreset === "custom" ? baseUrl : customDraft.baseUrl.trim(),
     customModel: activePreset === "custom" ? model : customDraft.model.trim(),
