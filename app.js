@@ -50,14 +50,14 @@ const API_PRESETS = {
     supportsVision: true,
     editableModel: true,
   },
-  timicc: {
-    label: "TiMiCC 中转",
-    baseUrl: "https://timicc.com/v1",
+  codexVip: {
+    label: "Codex VIP 中转",
+    baseUrl: "https://api-vip.codex-for.me/v1",
     model: "",
     models: [],
-    note: "初测该站 /v1 预检没有 CORS 头，浏览器直连可能失败；可先测试图文模型确认。",
+    note: "已检测到该站 /v1 接口有浏览器 CORS；模型名按你账号后台可用渠道填写。",
     links: [
-      { label: "TiMiCC", url: "https://timicc.com/" },
+      { label: "Codex VIP API", url: "https://api-vip.codex-for.me/v1" },
     ],
     supportsVision: true,
     editableModel: true,
