@@ -35,7 +35,6 @@ const API_PRESETS = {
     note: "",
     links: [
       { label: "硅基流动邀请链接", url: "https://cloud.siliconflow.cn/i/GOrKhgP7" },
-      { label: "模型中心", url: "https://www.siliconflow.cn/models" },
       { label: "API 文档", url: "https://docs.siliconflow.cn/" },
     ],
     supportsVision: true,
@@ -63,19 +62,6 @@ const API_PRESETS = {
       { label: "米醋文档", url: "https://docs.micuapi.ai/#/" },
     ],
     supportsVision: true,
-  },
-  openai: {
-    label: "OpenAI 官方",
-    baseUrl: "https://api.openai.com/v1",
-    model: "",
-    models: [],
-    note: "",
-    links: [
-      { label: "OpenAI API 平台", url: "https://platform.openai.com/" },
-      { label: "OpenAI API 文档", url: "https://platform.openai.com/docs" },
-    ],
-    supportsVision: true,
-    editableModel: true,
   },
   custom: {
     label: "自定义",
@@ -1157,7 +1143,7 @@ function readUpstreamError(payload) {
           : "";
 
   if (/model disabled/i.test(message) || message.includes("模型已禁用")) {
-    return "当前模型在服务商侧不可用或你的账号未开通；请换成模型中心里显示可用且支持图片输入的模型，或切到自定义复制后台模型名。";
+    return "当前模型在服务商侧不可用或你的账号未开通；请换成服务商后台显示可用且支持图片输入的模型，或切到自定义复制后台模型名。";
   }
 
   return message;
