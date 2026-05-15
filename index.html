@@ -21,6 +21,7 @@
               <div class="panel-tools" aria-label="面板工具">
                 <span class="api-status" id="apiStatusBadge">API 未配置</span>
                 <button class="tool-button" type="button" data-panel-target="config" aria-pressed="false">API 设置</button>
+                <button class="tool-button" type="button" data-panel-target="debug" aria-pressed="false">属性测试</button>
                 <button class="ghost-button" id="resetGameBtn" type="button">重开</button>
               </div>
             </div>
@@ -40,14 +41,6 @@
               <div><dt>护盾</dt><dd id="playerShield">0</dd></div>
             </dl>
 
-            <section class="debug-panel" aria-label="属性测试">
-              <div class="section-title compact-title">
-                <h3>属性测试</h3>
-                <span class="badge">临时</span>
-              </div>
-              <div class="debug-grid" id="debugStats"></div>
-            </section>
-
             <section class="loot-panel" aria-label="鉴定结果和背包">
               <div class="section-title compact-title loot-title">
                 <div>
@@ -58,6 +51,7 @@
                   <span class="badge" id="photoStateBadge">未选择</span>
                   <button class="primary-button" id="photoBtn" type="button">选图/拍照</button>
                   <button class="secondary-button" id="analyzeBtn" type="button" disabled>鉴定</button>
+                  <button class="secondary-button" id="recommendEquipBtn" type="button">推荐装备</button>
                   <input id="fileInput" type="file" accept="image/*">
                   <span id="loadingState"></span>
                 </div>
@@ -82,6 +76,7 @@
                     <div class="detail-meta" id="equipmentDetailMeta">上传或拍照后生成装备。</div>
                     <div class="detail-stats" id="equipmentDetailStats"></div>
                     <p id="equipmentDetailDesc">装备会显示缩略图，点击格子后在这里查看图片和描述。</p>
+                    <button class="secondary-button detail-action" id="useItemBtn" type="button" hidden>使用</button>
                   </div>
                 </article>
               </div>
@@ -142,6 +137,17 @@
                   <div class="chat-result" id="chatResult">还没有测试结果。</div>
                 </div>
               </section>
+
+              <section class="debug-panel secondary-content" data-secondary-panel="debug" aria-label="属性测试" hidden>
+                <div class="secondary-head">
+                  <div>
+                    <h2>属性测试</h2>
+                    <p>临时调试入口，用来快速验证战斗和胶卷碎片规则。</p>
+                  </div>
+                  <button class="ghost-button" type="button" data-panel-target="none">收起</button>
+                </div>
+                <div class="debug-grid" id="debugStats"></div>
+              </section>
             </section>
           </section>
 
@@ -168,6 +174,6 @@
       </section>
     </main>
 
-    <script defer src="./app.js?v=20260516-rejected-heal"></script>
+    <script defer src="./app.js?v=20260516-gameplay-loop"></script>
   </body>
 </html>

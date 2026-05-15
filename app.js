@@ -163,6 +163,22 @@ const monsterPools = [
   ["slime", "skeleton", "bat", "mage", "orc", "golem", "wizard", "guard", "knight", "patrol", "swordsman", "warrior", "vampire"],
 ];
 
+const normalMonsterUnlocks = [
+  { floor: 1, key: "slime", weight: 12 },
+  { floor: 2, key: "bat", weight: 5 },
+  { floor: 3, key: "skeleton", weight: 5 },
+  { floor: 4, key: "mage", weight: 4 },
+  { floor: 6, key: "orc", weight: 4 },
+  { floor: 8, key: "golem", weight: 3 },
+  { floor: 11, key: "wizard", weight: 4 },
+  { floor: 13, key: "guard", weight: 3 },
+  { floor: 15, key: "knight", weight: 4 },
+  { floor: 17, key: "patrol", weight: 3 },
+  { floor: 21, key: "warrior", weight: 4 },
+  { floor: 23, key: "swordsman", weight: 3 },
+  { floor: 26, key: "vampire", weight: 2 },
+];
+
 const lootTypes = [
   { name: "西红柿", stats: { hp: 15 } },
   { name: "香蕉", stats: { hp: 10 } },
@@ -225,6 +241,7 @@ const els = {
   testChatBtn: byId("testChatBtn"),
   chatResult: byId("chatResult"),
   debugStats: byId("debugStats"),
+  recommendEquipBtn: byId("recommendEquipBtn"),
   equipmentGrid: byId("equipmentGrid"),
   equipPrevBtn: byId("equipPrevBtn"),
   equipNextBtn: byId("equipNextBtn"),
@@ -236,6 +253,7 @@ const els = {
   equipmentDetailMeta: byId("equipmentDetailMeta"),
   equipmentDetailStats: byId("equipmentDetailStats"),
   equipmentDetailDesc: byId("equipmentDetailDesc"),
+  useItemBtn: byId("useItemBtn"),
   loadingState: byId("loadingState"),
   battleLog: byId("battleLog"),
 };
@@ -337,6 +355,8 @@ function bindEvents() {
   els.attackBtn.addEventListener("click", toggleAutoBattle);
   els.fleeBtn.addEventListener("click", fleeBattle);
   els.resetGameBtn.addEventListener("click", resetGame);
+  els.recommendEquipBtn.addEventListener("click", recommendEquipment);
+  els.useItemBtn.addEventListener("click", useSelectedConsumable);
   els.equipPrevBtn.addEventListener("click", () => changeEquipmentPage(-1));
   els.equipNextBtn.addEventListener("click", () => changeEquipmentPage(1));
   renderDebugControls();
@@ -352,7 +372,7 @@ function toggleApiKeyVisibility() {
 }
 
 function setSecondaryPanel(panelId) {
-  const target = panelId === "config" ? "config" : "";
+  const target = ["config", "debug"].includes(panelId) ? panelId : "";
   els.secondaryArea.classList.toggle("is-collapsed", !target);
 
   document.querySelectorAll(".secondary-content").forEach((panel) => {
@@ -578,8 +598,8 @@ async function analyzePhoto() {
     receiveItem(balanceItem(item, inventoryImage), "鉴定完成。");
   } catch (error) {
     const message = normalizeAnalyzeError(error);
-    showLootError(`鉴定失败：${message}`);
-    addLog(`鉴定失败：${message}`);
+    showLootError(`鉴定失败：${message}（胶卷未消耗）`);
+    addLog(`鉴定失败：${message}（胶卷未消耗）`);
   } finally {
     setBusy("");
     els.analyzeBtn.disabled = false;
@@ -1007,22 +1027,21 @@ function receiveItem(item, message) {
     ...item,
     id: makeId("item"),
   };
-  const heal = fullItem.tooLarge ? applyRejectedPhotoHeal(fullItem) : 0;
+  if (fullItem.tooLarge || fullItem.consumable) {
+    fullItem.consumable = true;
+    fullItem.healAmount = fullItem.healAmount
+      ? clampInt(fullItem.healAmount, 5, 10)
+      : 5 + hashIndex(`${fullItem.id}:${fullItem.itemName}:${fullItem.description}`, 6);
+  }
   state.lastPhoto = "";
   const rewardText = fullItem.tooLarge
-    ? `${message} ${fullItem.itemName}不能装备，转化为一次性回复 ${heal} 点生命。`
+    ? `${message} 获得补给：${fullItem.itemName}，可使用回复 ${fullItem.healAmount} 点生命。`
     : `${message} 获得 ${fullItem.itemName}。`;
   addInventoryItem(fullItem, rewardText, !fullItem.tooLarge && scoreItem(fullItem) > 0);
 }
 
-function applyRejectedPhotoHeal(item) {
-  const stats = getPlayerStats();
-  const heal = 5 + hashIndex(`${item.itemName}:${item.description}:${Date.now()}`, 6);
-  state.player.hp = Math.min(stats.maxHp, state.player.hp + heal);
-  return heal;
-}
-
 function addInventoryItem(item, message, autoEquip = false) {
+  ensureConsumableHeal(item);
   state.latestItem = item;
   state.lootError = "";
   state.inventory.unshift(item);
@@ -1034,6 +1053,15 @@ function addInventoryItem(item, message, autoEquip = false) {
   addBattleEvent(message, "item");
   saveGame();
   render();
+}
+
+function ensureConsumableHeal(item) {
+  if (!isConsumableItem(item)) return item;
+  item.consumable = true;
+  item.healAmount = item.healAmount
+    ? clampInt(item.healAmount, 5, 10)
+    : 5 + hashIndex(`${item.id || ""}:${item.itemName || ""}:${item.description || ""}`, 6);
+  return item;
 }
 
 function toggleAutoBattle() {
@@ -1351,19 +1379,36 @@ function addBattleEvent(text, type = "item") {
 }
 
 function makeBattleSummary(result, battle, hpDelta) {
+  const floor = Number.isFinite(battle?.floor) ? battle.floor : state.floor;
+  const monsterName = typeof battle?.monsterName === "string" && battle.monsterName
+    ? battle.monsterName
+    : typeof battle === "string" && battle
+      ? battle
+      : "敌人";
   const lifeText = `生命变化 ${formatHpDelta(hpDelta)}`;
-  const lootText = formatLootNames(battle.lootNames || []);
+  const lootText = formatLootNames(battle?.lootNames || []);
   if (result === "victory") {
-    return `勇士击败第${battle.floor}层${battle.monsterName}，${lifeText}，获得：${lootText}。`;
+    const stats = getPlayerStats();
+    const endHp = Number.isFinite(battle?.endHp) ? battle.endHp : state.player.hp;
+    const hpPercent = stats.maxHp ? endHp / stats.maxHp : 1;
+    const label = hpPercent <= 0.2
+      ? "险胜"
+      : hpDelta >= 0
+        ? "完胜"
+        : Math.abs(hpDelta) <= Math.max(3, Math.ceil(stats.maxHp * 0.15))
+          ? "小胜"
+          : "胜";
+    const remainText = label === "险胜" ? `，剩余生命 ${endHp}/${stats.maxHp}` : "";
+    return `${label} · 第${floor}层${monsterName}，${lifeText}${remainText}，获得：${lootText}。`;
   }
   if (result === "defeat") {
-    return `勇士被第${battle.floor}层${battle.monsterName}击倒，${lifeText}，获得：${lootText}。`;
+    return `败 · 第${floor}层${monsterName}击倒照片勇者，${lifeText}，获得：${lootText}。`;
   }
   if (result === "enemy-fled") {
-    return `第${battle.floor}层敌方逃跑，${lifeText}，获得：${lootText}。`;
+    return `敌逃 · 第${floor}层缠斗50回合，敌方逃跑，${lifeText}，获得：${lootText}。`;
   }
   if (result === "hero-fled") {
-    return `勇士跳过第${battle.floor}层，${lifeText}，获得：${lootText}。`;
+    return `跳过 · 照片勇者进入下一层，${lifeText}，获得：${lootText}。`;
   }
   return `战斗结束，${lifeText}，获得：${lootText}。`;
 }
@@ -1510,8 +1555,19 @@ function getFloorMonsterTypes(floor) {
   if (floor === 35) return ["dragon"];
   if (floor === 39) return ["archmage"];
   if (floor === 40) return ["demon"];
-  const pool = monsterPools[Math.min(monsterPools.length - 1, Math.floor((floor - 1) / 8))];
+  const pool = buildWeightedMonsterPool(floor);
   return [0, 1, 2].map((slot) => pool[hashIndex(`${floor}:monster:${slot}`, pool.length)]);
+}
+
+function buildWeightedMonsterPool(floor) {
+  const entries = normalMonsterUnlocks.filter((entry) => floor >= entry.floor);
+  const weighted = [];
+  for (const entry of entries) {
+    const age = Math.max(0, floor - entry.floor);
+    const decay = Math.max(1, entry.weight - Math.floor(age / 10));
+    for (let i = 0; i < decay; i += 1) weighted.push(entry.key);
+  }
+  return weighted.length ? weighted : ["slime"];
 }
 
 function makeEnemy(typeKey, floor, slot) {
@@ -1692,6 +1748,144 @@ function getBattleStats(activeIds = state.activeEnemyIds) {
   return stats;
 }
 
+function getBattleStatsForEnemies(enemies) {
+  const stats = getPlayerStats();
+  if (enemies.some((enemy) => hasTrait(enemy, "heroSpeedDown"))) {
+    const value = Math.max(...enemies.map((enemy) => getTraitValue(enemy, "heroSpeedDown", 0)));
+    stats.speed = Math.max(1, stats.speed - value);
+  }
+  if (enemies.some((enemy) => hasTrait(enemy, "heroAttackDown"))) {
+    const value = Math.max(...enemies.map((enemy) => getTraitValue(enemy, "heroAttackDown", 0)));
+    stats.atk = Math.max(0, stats.atk - value);
+  }
+  return stats;
+}
+
+function simulateSelectedBattle() {
+  const enemies = getSelectedEnemies()
+    .filter((enemy) => enemy.hp > 0)
+    .map(cloneEnemyForSimulation);
+  if (!enemies.length || isPlayerDefeated()) {
+    return { result: "none", hpDelta: 0, endHp: state.player.hp, rounds: 0, defeatedCount: 0 };
+  }
+
+  const stats = getBattleStatsForEnemies(enemies);
+  const sim = {
+    hp: state.player.hp,
+    shield: stats.shield,
+    activeIds: enemies.map((enemy) => enemy.id),
+    heroTime: 1 / Math.max(1, stats.speed),
+    enemyTimes: new Map(enemies.map((enemy) => [enemy.id, 1 / Math.max(1, enemy.speed)])),
+    round: 1,
+    rounds: 0,
+    defeatedCount: 0,
+  };
+  const startHp = sim.hp;
+
+  while (sim.hp > 0 && sim.activeIds.length) {
+    if (sim.round >= 50) {
+      return {
+        result: "timeout",
+        hpDelta: sim.hp - startHp,
+        endHp: sim.hp,
+        rounds: sim.rounds,
+        defeatedCount: sim.defeatedCount,
+      };
+    }
+
+    const currentStats = getBattleStatsForEnemies(getSimActiveEnemies(sim, enemies));
+    const nextEnemyId = getNextSimEnemyId(sim);
+    const enemyTime = nextEnemyId ? sim.enemyTimes.get(nextEnemyId) : Infinity;
+
+    if (!nextEnemyId || sim.heroTime <= enemyTime + Number.EPSILON) {
+      const defeated = simulateHeroStrike(sim, enemies, currentStats);
+      sim.heroTime += 1 / Math.max(1, currentStats.speed);
+      sim.round = defeated ? 1 : sim.round + 1;
+    } else {
+      const enemy = enemies.find((item) => item.id === nextEnemyId);
+      if (enemy) simulateMonsterStrike(sim, enemy, enemies, currentStats);
+      sim.enemyTimes.set(nextEnemyId, enemyTime + 1 / Math.max(1, enemy?.speed || 1));
+      sim.round += 1;
+    }
+    sim.rounds += 1;
+  }
+
+  return {
+    result: sim.hp <= 0 ? "death" : "win",
+    hpDelta: sim.hp - startHp,
+    endHp: sim.hp,
+    rounds: sim.rounds,
+    defeatedCount: sim.defeatedCount,
+  };
+}
+
+function cloneEnemyForSimulation(enemy) {
+  return {
+    ...enemy,
+    traits: cloneTraits(enemy.traits || []),
+    prefixStats: { ...(enemy.prefixStats || {}) },
+  };
+}
+
+function getNextSimEnemyId(sim) {
+  return sim.activeIds
+    .map((id) => ({ id, time: sim.enemyTimes.get(id) ?? Infinity }))
+    .sort((a, b) => a.time - b.time || sim.activeIds.indexOf(a.id) - sim.activeIds.indexOf(b.id))[0]?.id || "";
+}
+
+function getSimActiveEnemies(sim, enemies) {
+  return enemies.filter((enemy) => sim.activeIds.includes(enemy.id));
+}
+
+function simulateHeroStrike(sim, enemies, stats) {
+  const enemy = sim.activeIds.map((id) => enemies.find((item) => item.id === id)).find(Boolean);
+  if (!enemy) return false;
+
+  const rawDamage = Math.max(0, stats.atk - enemy.def);
+  let damage = rawDamage;
+  if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
+  const shieldLoss = Math.min(enemy.shield || 0, damage);
+  enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
+  const hpDamage = Math.max(0, damage - shieldLoss);
+  enemy.hp = Math.max(0, enemy.hp - hpDamage);
+
+  if (!enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noLifesteal")) && stats.lifesteal > 0) {
+    sim.hp = Math.min(stats.maxHp, sim.hp + stats.lifesteal);
+  }
+
+  if (enemy.hp <= 0) {
+    sim.activeIds = sim.activeIds.filter((id) => id !== enemy.id);
+    sim.enemyTimes.delete(enemy.id);
+    sim.defeatedCount += 1;
+    return true;
+  }
+  return false;
+}
+
+function simulateMonsterStrike(sim, enemy, enemies, stats) {
+  const hitCount = getTraitValue(enemy, "multiHit", 1);
+  for (let i = 0; i < hitCount; i += 1) {
+    const damage = hasTrait(enemy, "magic") ? enemy.atk : Math.max(0, enemy.atk - stats.def);
+    const shieldLoss = hasTrait(enemy, "ignoreShield") ? 0 : Math.min(sim.shield, damage);
+    const hpLoss = damage - shieldLoss;
+    sim.shield -= shieldLoss;
+    sim.hp = Math.max(0, sim.hp - hpLoss);
+
+    if (sim.hp > 0 && !enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noRegen")) && stats.regen > 0) {
+      sim.hp = Math.min(stats.maxHp, sim.hp + stats.regen);
+    }
+
+    const monsterSteal = getTraitValue(enemy, "lifesteal", 0);
+    if (monsterSteal > 0) enemy.hp = Math.min(enemy.maxHp, enemy.hp + monsterSteal);
+    if (sim.hp <= 0) break;
+  }
+
+  const monsterRegen = getTraitValue(enemy, "regen", 0);
+  if (monsterRegen > 0 && enemy.hp > 0) {
+    enemy.hp = Math.min(enemy.maxHp, enemy.hp + monsterRegen);
+  }
+}
+
 function hasAnyActiveTrait(type) {
   return getActiveBattleEnemies().some((enemy) => hasTrait(enemy, type));
 }
@@ -1827,24 +2021,47 @@ function getPlayerStats() {
 
 function getEquippedItems() {
   const inventoryIds = new Set(state.inventory.map((item) => item.id));
-  state.equippedItemIds = state.equippedItemIds.filter((id, index, ids) => inventoryIds.has(id) && ids.indexOf(id) === index).slice(0, equipmentSlotLimit);
-  return state.equippedItemIds
-    .map((id) => state.inventory.find((item) => item.id === id))
-    .filter(Boolean);
+  const seenIds = new Set();
+  const seenFixedNames = new Set();
+  const nextIds = [];
+  const items = [];
+
+  for (const id of state.equippedItemIds) {
+    if (seenIds.has(id) || !inventoryIds.has(id) || nextIds.length >= equipmentSlotLimit) continue;
+    const item = state.inventory.find((entry) => entry.id === id);
+    if (!item || isConsumableItem(item)) continue;
+    if (item.fixed) {
+      if (seenFixedNames.has(item.itemName)) continue;
+      seenFixedNames.add(item.itemName);
+    }
+    seenIds.add(id);
+    nextIds.push(id);
+    items.push(item);
+  }
+
+  state.equippedItemIds = nextIds;
+  return items;
 }
 
 function equipItem(itemId) {
-  if (!state.inventory.some((item) => item.id === itemId)) return false;
+  const item = state.inventory.find((entry) => entry.id === itemId);
+  if (!item || isConsumableItem(item)) return false;
   if (state.equippedItemIds.includes(itemId)) return true;
   if (state.equippedItemIds.length >= equipmentSlotLimit) return false;
+  if (item.fixed && getEquippedItems().some((entry) => entry.fixed && entry.itemName === item.itemName && entry.id !== item.id)) {
+    return false;
+  }
   state.equippedItemIds.push(itemId);
   return true;
 }
 
 function toggleEquipItem(itemId) {
   if (isEquipmentLocked()) return false;
+  const item = state.inventory.find((entry) => entry.id === itemId);
+  if (!item) return false;
   const index = state.equippedItemIds.indexOf(itemId);
   state.selectedItemId = itemId;
+  if (isConsumableItem(item)) return true;
   if (index >= 0) {
     state.equippedItemIds.splice(index, 1);
     return true;
@@ -1852,8 +2069,67 @@ function toggleEquipItem(itemId) {
   return equipItem(itemId);
 }
 
+function isConsumableItem(item) {
+  return Boolean(item?.consumable || item?.tooLarge);
+}
+
 function isEquipmentLocked() {
   return Boolean(state.autoBattleTimer) || Boolean(state.currentBattle);
+}
+
+function recommendEquipment() {
+  if (isEquipmentLocked()) return false;
+
+  const selected = [];
+  const fixedNames = new Set();
+  const candidates = state.inventory
+    .filter((item) => !isConsumableItem(item) && scoreItem(item) > 0)
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => scoreItem(b.item) - scoreItem(a.item) || Number(a.item.fixed) - Number(b.item.fixed) || a.index - b.index);
+
+  for (const { item } of candidates) {
+    if (selected.length >= equipmentSlotLimit) break;
+    if (item.fixed) {
+      if (fixedNames.has(item.itemName)) continue;
+      fixedNames.add(item.itemName);
+    }
+    selected.push(item.id);
+  }
+
+  state.equippedItemIds = selected;
+  state.selectedItemId = selected[0] || state.inventory[0]?.id || "";
+  addLog(selected.length ? `已推荐装备 ${selected.length} 件。` : "没有可推荐装备。");
+  saveGame();
+  render();
+  return true;
+}
+
+function useSelectedConsumable() {
+  if (isEquipmentLocked()) return false;
+  const index = state.inventory.findIndex((item) => item.id === state.selectedItemId);
+  const item = state.inventory[index];
+  if (index < 0 || !isConsumableItem(item)) return false;
+
+  const stats = getPlayerStats();
+  if (state.player.hp >= stats.maxHp) {
+    addLog("生命已满，暂时不用补给。");
+    render();
+    return false;
+  }
+
+  const healAmount = clampInt(item.healAmount, 5, 10);
+  const beforeHp = state.player.hp;
+  state.player.hp = Math.min(stats.maxHp, state.player.hp + healAmount);
+  const healed = state.player.hp - beforeHp;
+  const [usedItem] = state.inventory.splice(index, 1);
+  state.equippedItemIds = state.equippedItemIds.filter((id) => id !== usedItem.id);
+  state.selectedItemId = state.inventory[Math.min(index, state.inventory.length - 1)]?.id || "";
+  state.latestItem = state.inventory[0] || null;
+  addBattleEvent(`使用 ${usedItem.itemName}，回复 ${healed} 点生命。`, "item");
+  addLog(`使用 ${usedItem.itemName}，回复 ${healed} 点生命。`);
+  saveGame();
+  render();
+  return true;
 }
 
 function balanceItem(item, image = "") {
@@ -1861,6 +2137,7 @@ function balanceItem(item, image = "") {
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
   const isFixed = Boolean(safe.fixed);
   const tooLarge = Boolean(safe.tooLarge);
+  const consumable = Boolean(safe.consumable || tooLarge);
   const itemName = cleanText(safe.itemName, "照片装备", 18);
   const targetValue = isFixed
     ? calculateStatsValue(safe.stats || {})
@@ -1883,16 +2160,21 @@ function balanceItem(item, image = "") {
     film: Boolean(safe.film),
     fixed: isFixed,
     tooLarge,
+    consumable,
+    healAmount: consumable && Number.isFinite(Number.parseInt(safe.healAmount, 10))
+      ? clampInt(safe.healAmount, 5, 10)
+      : 0,
     image,
   };
 }
 
 function normalizeInventoryItem(item) {
   const balanced = balanceItem(item, item?.image || makePlaceholderImage());
-  return {
+  const normalized = {
     ...balanced,
     id: typeof item?.id === "string" && item.id ? item.id : makeId("item"),
   };
+  return ensureConsumableHeal(normalized);
 }
 
 function scoreItem(item) {
@@ -2052,6 +2334,7 @@ function render() {
 
   renderApiStatus();
   renderCameraStatus();
+  els.recommendEquipBtn.disabled = defeated || isEquipmentLocked() || !state.inventory.some((item) => !isConsumableItem(item) && scoreItem(item) > 0);
   renderEquipmentGrid();
   renderEquipmentDetail();
   renderLog();
@@ -2087,6 +2370,7 @@ function renderCameraStatus() {
 
 function renderEnemyHint() {
   if (!els.enemyHint) return;
+  const upcomingText = getUpcomingFloorHint();
   if (state.gameClear) {
     els.enemyHint.textContent = "已通关。";
     return;
@@ -2099,16 +2383,68 @@ function renderEnemyHint() {
     els.enemyHint.textContent = "战斗中不可更换对手或装备。";
     return;
   }
-  if (isBossFloor(state.floor)) {
-    els.enemyHint.textContent = "Boss 层自动挑战全部敌人，不能逃跑。";
-    return;
-  }
   const count = state.selectedEnemyIds.length;
-  if (!count) {
-    els.enemyHint.textContent = "点击敌人选择本层对手；数字表示勇者攻击顺序。选多个奖励更多，但所有被选敌人都会一起进攻。";
+  if (isBossFloor(state.floor)) {
+    els.enemyHint.textContent = `${formatSelectionEstimate(simulateSelectedBattle())} · Boss 层自动挑战全部敌人，不能逃跑。${upcomingText ? ` ${upcomingText}` : ""}`;
     return;
   }
-  els.enemyHint.textContent = `已选择 ${count} 个对手；再次点击可取消，开战后会按数字顺序攻击，逃跑会直接进入下一层。`;
+  if (!count) {
+    els.enemyHint.textContent = `点击敌人选择本层对手；数字表示勇者攻击顺序。选多个奖励更多，但所有被选敌人都会一起进攻。${upcomingText ? ` ${upcomingText}` : ""}`;
+    return;
+  }
+  els.enemyHint.textContent = `${formatSelectionEstimate(simulateSelectedBattle())} · 再次点击可取消；逃跑会直接进入下一层。${upcomingText ? ` ${upcomingText}` : ""}`;
+}
+
+function formatSelectionEstimate(estimate) {
+  const count = state.selectedEnemyIds.length;
+  if (!count) return "";
+  const rewardText = formatSelectionRewards();
+  if (!estimate || estimate.result === "none") return `已选择 ${count} 个 · ${rewardText}`;
+  const statusMap = {
+    win: "预计可胜",
+    death: "预计会倒下",
+    timeout: "敌方可能逃跑",
+  };
+  const status = statusMap[estimate.result] || "结果未知";
+  const hpText = estimate.hpDelta > 0 ? `生命 +${estimate.hpDelta}` : `生命 ${estimate.hpDelta}`;
+  return `已选择 ${count} 个 · ${rewardText} · ${hpText} · ${status}`;
+}
+
+function formatSelectionRewards() {
+  const enemies = getSelectedEnemies().filter((enemy) => enemy.hp > 0);
+  if (!enemies.length) return "奖励无";
+  const names = [];
+  const shardCount = enemies.length;
+  for (const enemy of enemies) {
+    names.push(enemy.dropName || "装备");
+    const reward = createBossReward(enemy);
+    if (reward) {
+      names.push("普通胶卷");
+      const statText = formatStatsText(reward.stats);
+      if (statText) names.push(statText);
+    }
+  }
+  names.push(shardCount > 1 ? `胶卷碎片*${shardCount}` : "胶卷碎片");
+  return `奖励 ${formatLootNames(names)}`;
+}
+
+function getUpcomingFloorHint() {
+  const current = state.floor;
+  const targets = [
+    { floor: 10, label: "Boss", name: "骷髅队长" },
+    { floor: 20, label: "Boss", name: "吸血鬼" },
+    { floor: 25, label: "奖励Boss", name: "章鱼", optional: true },
+    { floor: 30, label: "Boss", name: "骑士队长" },
+    { floor: 35, label: "奖励Boss", name: "魔龙", optional: true },
+    { floor: 39, label: "奖励Boss", name: "大法师", optional: true },
+    { floor: 40, label: "最终Boss", name: "魔王" },
+  ];
+  const next = targets.find((item) => item.floor >= current);
+  if (!next) return "";
+  if (next.floor === current) {
+    return next.optional ? `本层奖励Boss：${next.name}，可跳过。` : `本层${next.label}：${next.name}。`;
+  }
+  return `预告：${next.floor}层 ${next.label} ${next.name}${next.optional ? "，可跳过" : ""}。`;
 }
 
 function renderEnemyField() {
@@ -2205,7 +2541,7 @@ function renderEquipmentGrid() {
     const item = pageItems[i];
     const isEquipped = item ? state.equippedItemIds.includes(item.id) : false;
     const button = document.createElement("button");
-    button.className = `equipment-slot${item ? " has-item" : ""}${isEquipped ? " is-equipped" : ""}${item?.id === state.selectedItemId ? " is-selected" : ""}${locked && item ? " is-locked" : ""}`;
+    button.className = `equipment-slot${item ? " has-item" : ""}${isEquipped ? " is-equipped" : ""}${item?.id === state.selectedItemId ? " is-selected" : ""}${locked && item ? " is-locked" : ""}${isConsumableItem(item) ? " is-consumable" : ""}`;
     button.type = "button";
     button.disabled = !item;
     button.setAttribute("aria-label", item ? `查看${item.itemName}` : "空装备格");
@@ -2213,10 +2549,16 @@ function renderEquipmentGrid() {
     if (item) {
       button.innerHTML = `
         <img src="${item.image || makePlaceholderImage()}" alt="">
+        ${isConsumableItem(item) ? `<b class="supply-badge">补</b>` : ""}
         <span>${escapeHtml(item.itemName)}</span>
       `;
       button.addEventListener("click", () => {
-        if (locked) return;
+        if (locked) {
+          state.selectedItemId = item.id;
+          saveGame();
+          render();
+          return;
+        }
         toggleEquipItem(item.id);
         saveGame();
         render();
@@ -2234,6 +2576,9 @@ function renderEquipmentGrid() {
 }
 
 function renderEquipmentDetail() {
+  els.useItemBtn.hidden = true;
+  els.useItemBtn.disabled = true;
+
   if (state.lootError) {
     els.equipmentDetail.classList.add("is-error");
     els.cameraFrame.classList.remove("has-photo");
@@ -2286,14 +2631,28 @@ function renderEquipmentDetail() {
   els.equipmentDetailImage.hidden = false;
   els.equipmentDetailEmpty.hidden = true;
   els.equipmentDetailName.textContent = selected.itemName;
-  const equippedText = selected.tooLarge
-    ? "不可装备"
+  const alreadyHasSameFixed = selected.fixed
+    && !state.equippedItemIds.includes(selected.id)
+    && getEquippedItems().some((item) => item.fixed && item.itemName === selected.itemName);
+  const equippedText = isConsumableItem(selected)
+    ? `补给 · 回复 ${clampInt(selected.healAmount, 5, 10)}`
     : state.equippedItemIds.includes(selected.id)
       ? "已装备"
-      : "未装备";
+      : alreadyHasSameFixed
+        ? "同名已装备"
+        : "未装备";
   els.equipmentDetailMeta.textContent = `${rarityNames[selected.rarity]} · ${equippedText} · 价值 ${scoreItem(selected)} · 第 ${state.inventory.findIndex((item) => item.id === selected.id) + 1} 件`;
-  els.equipmentDetailStats.innerHTML = renderStatPills(selected.stats);
+  els.equipmentDetailStats.innerHTML = isConsumableItem(selected)
+    ? `<span>使用回复 ${clampInt(selected.healAmount, 5, 10)}</span>`
+    : renderStatPills(selected.stats);
   els.equipmentDetailDesc.textContent = selected.description;
+
+  if (isConsumableItem(selected)) {
+    const stats = getPlayerStats();
+    els.useItemBtn.hidden = false;
+    els.useItemBtn.disabled = isEquipmentLocked() || state.player.hp >= stats.maxHp;
+    els.useItemBtn.textContent = state.player.hp >= stats.maxHp ? "生命已满" : `使用 · 回复 ${clampInt(selected.healAmount, 5, 10)}`;
+  }
 }
 
 function getLootErrorHint(message) {
@@ -2511,6 +2870,7 @@ function renderGameTextOnly() {
       filmRolls: state.filmRolls,
       filmShards: state.filmShards,
       filmCount: getFilmCount(),
+      selectedEstimate: simulateSelectedBattle(),
       selectedEquipment: state.inventory.find((item) => item.id === state.selectedItemId)?.itemName || null,
       equippedItems: getEquippedItems().map((item) => item.itemName),
     },
@@ -2758,7 +3118,7 @@ function normalizeBattleReport(entry) {
     hpDelta: Number.isFinite(entry.hpDelta) ? entry.hpDelta : 0,
     endHp: Number.isFinite(entry.endHp) ? entry.endHp : state.player.hp,
     endShield: Number.isFinite(entry.endShield) ? entry.endShield : state.player.shield,
-    summary: typeof entry.summary === "string" ? entry.summary : makeBattleSummary(entry.result, entry.monsterName || "敌人", entry.hpDelta || 0),
+    summary: typeof entry.summary === "string" ? entry.summary : makeBattleSummary(entry.result, entry, entry.hpDelta || 0),
     details: Array.isArray(entry.details) ? entry.details.filter((item) => typeof item === "string").slice(-60) : [],
     expanded: Boolean(entry.expanded),
     createdAt: Number.isFinite(entry.createdAt) ? entry.createdAt : Date.now(),
@@ -2899,6 +3259,24 @@ window.__photoHeroTestHooks = {
     saveGame();
     render();
   },
+  setFloor(floor) {
+    stopAutoBattle();
+    state.floor = clampInt(floor, 1, maxFloor);
+    state.gameClear = false;
+    state.enemies = buildFloorEncounter(state.floor);
+    state.encounterId = makeEncounterId();
+    state.selectedEnemyIds = [];
+    state.activeEnemyIds = [];
+    state.currentBattle = null;
+    state.battleClock = null;
+    applyFloorShield();
+    saveGame();
+    render();
+  },
+  recommendEquipment,
+  useSelectedConsumable,
+  simulateSelectedBattle,
+  buildFloorEncounter,
   startAutoBattle,
   resolveBattleAction,
   getFirstInventoryId() {

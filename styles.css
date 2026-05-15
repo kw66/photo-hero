@@ -262,9 +262,9 @@ h3 {
     0 2px 0 rgb(23 19 15 / 18%);
 }
 
-#fleeBtn,
 #analyzeBtn,
-#testChatBtn {
+#testChatBtn,
+#useItemBtn {
   border-color: color-mix(in srgb, var(--amber) 68%, var(--ink));
   background:
     linear-gradient(180deg, #d89f3a 0%, var(--amber) 100%),
@@ -481,11 +481,8 @@ dd {
   line-height: 1.35;
 }
 
-.debug-panel {
-  background: rgb(255 253 248 / 66%);
-}
-
 .debug-grid {
+  margin-top: var(--space-3);
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 5px;
@@ -624,6 +621,28 @@ dd {
   font-weight: 900;
 }
 
+.equipment-slot.is-consumable {
+  border-color: color-mix(in srgb, var(--green) 52%, var(--line));
+}
+
+.supply-badge {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgb(23 19 15 / 24%);
+  border-radius: 50%;
+  background: var(--green);
+  color: #fffaf0;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .equipment-slot.is-locked {
   cursor: not-allowed;
   filter: saturate(0.72);
@@ -726,6 +745,13 @@ dd {
 .detail-copy strong {
   overflow-wrap: anywhere;
   font-size: 0.96rem;
+}
+
+.detail-action {
+  justify-self: start;
+  min-height: 28px;
+  margin-top: 2px;
+  padding-inline: 12px;
 }
 
 .detail-stats {
