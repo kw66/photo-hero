@@ -521,8 +521,8 @@ async function callVisionText(config, image) {
     throw new Error(readUpstreamError(payload) || `模型接口返回 ${response.status}`);
   }
 
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content === "string") return content.trim();
+  const content = readModelText(payload);
+  if (content) return content;
   return JSON.stringify(payload, null, 2);
 }
 
@@ -660,7 +660,7 @@ async function analyzeDirectly(config, image) {
     throw new Error(readUpstreamError(payload) || `模型接口返回 ${response.status}`);
   }
 
-  return extractJson(payload?.choices?.[0]?.message?.content);
+  return extractJson(readModelText(payload), payload);
 }
 
 function buildChatEndpoint(input) {
@@ -676,10 +676,57 @@ function buildChatEndpoint(input) {
   return url.toString();
 }
 
-function extractJson(content) {
+function readModelText(payload) {
+  const parts = [];
+  const visit = (value, path = "", depth = 0) => {
+    if (value == null || depth > 6) return;
+    if (typeof value === "string") {
+      if (isModelTextPath(path) && value.trim()) parts.push(value.trim());
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, `${path}[${index}]`, depth + 1));
+      return;
+    }
+    if (typeof value === "object") {
+      for (const [key, next] of Object.entries(value)) {
+        visit(next, path ? `${path}.${key}` : key, depth + 1);
+      }
+    }
+  };
+
+  visit(payload);
+  return [...new Set(parts)].join("\n").trim();
+}
+
+function isModelTextPath(path) {
+  const normalized = String(path || "").toLowerCase();
+  if (!normalized) return false;
+  if (normalized.includes("prompt") || normalized.includes("system_fingerprint")) return false;
+  const tokens = [
+    ".message.content",
+    ".message.reasoning_content",
+    ".delta.content",
+    ".delta.reasoning_content",
+    ".text",
+    "output_text",
+    ".output.content",
+    ".content.text",
+    ".result",
+    ".reply",
+    ".answer",
+    ".response",
+  ];
+  return tokens.some((token) => {
+    const plain = token.replace(/^\./, "");
+    return normalized === plain || normalized.endsWith(token) || normalized.includes(token);
+  });
+}
+
+function extractJson(content, payload = null) {
   const text = normalizeModelContent(content);
   if (!text) {
-    throw new Error("模型没有返回文本内容。");
+    throw new Error(`模型没有返回文本内容。响应结构：${summarizePayloadShape(payload)}`);
   }
 
   const candidates = collectJsonCandidates(text);
@@ -713,6 +760,31 @@ function normalizeModelContent(content) {
     if (typeof content.content === "string") return content.content.trim();
   }
   return "";
+}
+
+function summarizePayloadShape(payload) {
+  if (!payload || typeof payload !== "object") return "空响应";
+  const seen = new Set();
+  const walk = (value, path = "$", depth = 0, output = []) => {
+    if (output.length >= 18 || value == null || typeof value !== "object" || depth > 3 || seen.has(value)) return output;
+    seen.add(value);
+    const entries = Array.isArray(value)
+      ? value.slice(0, 3).map((item, index) => [index, item])
+      : Object.entries(value).slice(0, 12);
+    for (const [key, next] of entries) {
+      const nextPath = Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`;
+      const type = Array.isArray(next) ? "array" : next === null ? "null" : typeof next;
+      if (type === "string") {
+        output.push(`${nextPath}: string(${shortenText(next, 32)})`);
+      } else {
+        output.push(`${nextPath}: ${type}`);
+      }
+      if (next && typeof next === "object") walk(next, nextPath, depth + 1, output);
+      if (output.length >= 18) break;
+    }
+    return output;
+  };
+  return walk(payload).join("；") || "无法读取响应结构";
 }
 
 function collectJsonCandidates(text) {
