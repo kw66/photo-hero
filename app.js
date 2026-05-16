@@ -188,27 +188,28 @@ const heroForms = [
 const heroFormMap = new Map(heroForms.map((form) => [form.id, form]));
 const defaultHeroFormId = heroForms[0].id;
 const heroFormImageBase = "./assets/heroes/";
+const monsterImageBase = "./assets/monsters/";
 
 const monsterImages = {
-  slime: "13.png",
-  skeleton: "16.png",
-  bat: "15.png",
-  mage: "11.png",
-  wizard: "21.png",
-  guard: "12.png",
-  knight: "037-03.png",
-  golem: "14.png",
-  patrol: "35.png",
-  octopus: "47.png",
-  dragon: "039-01.png",
-  vampire: "44.png",
-  demon: "53.png",
-  orc: "17.png",
-  swordsman: "42.png",
-  warrior: "22.png",
-  archmage: "54.png",
-  skeletonCaptain: "55.png",
-  knightCaptain: "32.png",
+  slime: "slime.png",
+  skeleton: "skeleton.png",
+  bat: "bat.png",
+  mage: "mage.png",
+  wizard: "wizard.png",
+  guard: "guard.png",
+  knight: "knight.png",
+  golem: "golem.png",
+  patrol: "patrol.png",
+  octopus: "octopus.png",
+  dragon: "dragon.png",
+  vampire: "vampire.png",
+  demon: "demon.png",
+  orc: "orc.png",
+  swordsman: "swordsman.png",
+  warrior: "warrior.png",
+  archmage: "archmage.png",
+  skeletonCaptain: "skeleton-captain.png",
+  knightCaptain: "knight-captain.png",
 };
 
 const monsterTypes = {
@@ -3284,7 +3285,7 @@ function renderEnemyField() {
 }
 
 function getMonsterImageUrl(typeKey) {
-  return `./figure/${monsterImages[typeKey] || monsterImages.slime}`;
+  return `${monsterImageBase}${monsterImages[typeKey] || monsterImages.slime}`;
 }
 
 function getPrefixEffectText(enemy) {
