@@ -18,7 +18,6 @@ const ZHIPU_MODELS = [
 
 const MICU_MODELS = [
   { value: "gpt-5.5" },
-  { value: "gpt-5.4-mini" },
   { value: "gpt-5.4" },
   { value: "kimi-k2.5" },
   { value: "kimi-k2.6" },
@@ -81,25 +80,27 @@ const customDraft = {
 
 const providerApiKeys = {};
 
-const objectImageMap = {
-  西红柿: "1f345.svg",
-  香蕉: "1f34c.svg",
-  咖啡: "2615.svg",
-  矿泉水: "1f4a7.svg",
-  锅盖: "",
-  橡皮: "",
-  雨伞: "2602.svg",
-  镜子: "1fa9e.svg",
-  键盘: "2328.svg",
-  拖鞋: "1fa74.svg",
-  剪刀: "2702.svg",
-  指甲刀: "",
-  风扇: "",
-  滑板: "1f6f9.svg",
-  胶卷: "1f39e.svg",
-};
+const systemItemImageBase = "./assets/items/";
 
-const twemojiBase = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/";
+const systemItemImageMap = {
+  西红柿: "tomato.webp",
+  香蕉: "banana.webp",
+  咖啡: "coffee.webp",
+  矿泉水: "water.webp",
+  锅盖: "pot-lid.webp",
+  橡皮: "eraser.webp",
+  雨伞: "umbrella.webp",
+  镜子: "mirror.webp",
+  键盘: "keyboard.webp",
+  拖鞋: "slipper.webp",
+  剪刀: "scissors.webp",
+  指甲刀: "nail-clipper.webp",
+  风扇: "fan.webp",
+  滑板: "skateboard.webp",
+  胶卷: "film-roll.webp",
+  普通胶卷: "film-roll.webp",
+  胶卷碎片: "film-roll.webp",
+};
 
 const rarityNames = {
   common: "普通",
@@ -173,6 +174,20 @@ const oversizedScenePattern = /汽车|车辆|公交|火车|飞机|船|房|楼|�
 const explicitOversizePattern = /比人.{0,8}(大|高)|比一个人.{0,8}(大|高)|尺寸.{0,8}(超过|大于|高于).{0,4}人|人.{0,4}(还要)?大|巨大|无法搬动|不能搬动|主要是.{0,6}(场景|背景)|大面积背景/i;
 
 const statOrder = ["hp", "attack", "defense", "speed", "shield", "lifesteal", "regen"];
+
+const heroForms = [
+  { id: "hp", label: "生命", image: "form-hp.png", stats: { hp: 30 }, desc: "生命上限 +30" },
+  { id: "attack", label: "攻击", image: "form-attack.png", stats: { attack: 2 }, desc: "攻击 +2" },
+  { id: "lifesteal", label: "吸血", image: "form-lifesteal.png", stats: { lifesteal: 1 }, desc: "吸血 +1" },
+  { id: "regen", label: "回复", image: "form-regen.png", stats: { regen: 1 }, desc: "回复 +1" },
+  { id: "speed", label: "速度", image: "form-speed.png", stats: { speed: 1 }, desc: "速度 +1" },
+  { id: "defense", label: "防御", image: "form-defense.png", stats: { defense: 2 }, desc: "防御 +2" },
+  { id: "shield", label: "护盾", image: "form-shield.png", stats: { shield: 10 }, desc: "护盾 +10" },
+];
+
+const heroFormMap = new Map(heroForms.map((form) => [form.id, form]));
+const defaultHeroFormId = heroForms[0].id;
+const heroFormImageBase = "./assets/heroes/";
 
 const monsterImages = {
   slime: "13.png",
@@ -276,6 +291,8 @@ const els = {
   playerRegen: byId("playerRegen"),
   playerShield: byId("playerShield"),
   playerLifesteal: byId("playerLifesteal"),
+  heroAvatarImage: byId("heroAvatarImage"),
+  formGrid: byId("formGrid"),
   floorText: byId("floorText"),
   enemyHint: byId("enemyHint"),
   enemyField: byId("enemyField"),
@@ -284,7 +301,6 @@ const els = {
   resetGameBtn: byId("resetGameBtn"),
   photoBtn: byId("photoBtn"),
   pasteImageBtn: byId("pasteImageBtn"),
-  screenshotBtn: byId("screenshotBtn"),
   analyzeBtn: byId("analyzeBtn"),
   fileInput: byId("fileInput"),
   cameraFrame: byId("cameraFrame"),
@@ -392,13 +408,14 @@ function bindEvents() {
     els.fileInput.click();
   });
   els.pasteImageBtn.addEventListener("click", pasteImageFromClipboard);
-  els.screenshotBtn.addEventListener("click", captureScreenImage);
 
   els.fileInput.addEventListener("change", async () => {
     const file = els.fileInput.files?.[0];
     if (!file) return;
     await preparePhotoFromFile(file, "图片已准备好，可以鉴定。", "照片读取失败");
   });
+
+  document.addEventListener("paste", handlePasteEvent);
 
   els.analyzeBtn.addEventListener("click", analyzePhoto);
   els.saveConfigBtn.addEventListener("click", saveConfig);
@@ -411,6 +428,7 @@ function bindEvents() {
   els.useItemBtn.addEventListener("click", useSelectedConsumable);
   els.equipPrevBtn.addEventListener("click", () => changeEquipmentPage(-1));
   els.equipNextBtn.addEventListener("click", () => changeEquipmentPage(1));
+  renderHeroForms();
   renderDebugControls();
 }
 
@@ -424,7 +442,7 @@ function toggleApiKeyVisibility() {
 }
 
 function setSecondaryPanel(panelId) {
-  const target = ["config", "debug"].includes(panelId) ? panelId : "";
+  const target = ["config", "debug", "forms"].includes(panelId) ? panelId : "";
   els.secondaryArea.classList.toggle("is-collapsed", !target);
 
   document.querySelectorAll(".secondary-content").forEach((panel) => {
@@ -556,8 +574,12 @@ async function preparePhotoFromFile(file, successMessage, errorPrefix) {
 }
 
 async function pasteImageFromClipboard() {
+  if (document.hasFocus && !document.hasFocus()) {
+    window.focus();
+  }
+
   if (!navigator.clipboard?.read) {
-    showInputNotice("当前浏览器不支持直接读取剪贴板图片；可以用选图/拍照。");
+    showInputNotice("当前浏览器不支持按钮读取剪贴板；请直接按 Ctrl+V 粘贴图片。");
     return;
   }
 
@@ -565,53 +587,37 @@ async function pasteImageFromClipboard() {
     setBusy("读取剪贴板...");
     const items = await navigator.clipboard.read();
     for (const item of items) {
-      const imageType = item.types.find((type) => type.startsWith("image/"));
+      const imageType = Array.from(item.types || []).find((type) => type.startsWith("image/") || type === "image/png");
       if (!imageType) continue;
       const blob = await item.getType(imageType);
       await preparePhotoFromFile(new File([blob], "clipboard-image.png", { type: imageType }), "已粘贴剪贴板图片，可以鉴定。", "粘贴图片失败");
       return;
     }
-    showInputNotice("剪贴板里没有图片。");
+    showInputNotice("按钮没有读到图片；如果剪贴板里确实有图，请直接按 Ctrl+V 粘贴。");
   } catch (error) {
-    showInputNotice(`粘贴图片失败：${error.message || "浏览器拒绝读取剪贴板"}`);
+    showInputNotice(`按钮读取剪贴板失败：${error.message || "浏览器拒绝读取"}。请直接按 Ctrl+V 粘贴图片。`);
   } finally {
     if (els.loadingState.dataset.notice !== "true") setBusy("");
     renderGameTextOnly();
   }
 }
 
-async function captureScreenImage() {
-  if (!navigator.mediaDevices?.getDisplayMedia) {
-    showInputNotice("当前浏览器不支持网页截图；可以用系统截图后粘贴。");
-    return;
-  }
+async function handlePasteEvent(event) {
+  const file = getImageFileFromDataTransfer(event.clipboardData);
+  if (!file) return;
+  event.preventDefault();
+  await preparePhotoFromFile(file, "已粘贴图片，可以鉴定。", "粘贴图片失败");
+}
 
-  let stream;
-  try {
-    setBusy("等待截图授权...");
-    stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { displaySurface: "browser" },
-      audio: false,
-    });
-    const video = document.createElement("video");
-    video.muted = true;
-    video.srcObject = stream;
-    await video.play();
-    await waitForVideoFrame(video);
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, video.videoWidth || 1280);
-    canvas.height = Math.max(1, video.videoHeight || 720);
-    const ctx = canvas.getContext("2d", { alpha: false });
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await canvasToBlob(canvas, "image/png", 0.92);
-    await preparePhotoFromFile(new File([blob], "screen-capture.png", { type: "image/png" }), "已截取屏幕图片，可以鉴定。", "截图失败");
-  } catch (error) {
-    showInputNotice(`截图失败：${error.message || "浏览器拒绝屏幕捕获"}`);
-  } finally {
-    if (stream) stream.getTracks().forEach((track) => track.stop());
-    if (els.loadingState.dataset.notice !== "true") setBusy("");
-    renderGameTextOnly();
-  }
+function getImageFileFromDataTransfer(dataTransfer) {
+  if (!dataTransfer) return null;
+
+  const file = Array.from(dataTransfer.files || []).find((item) => item.type?.startsWith("image/"));
+  if (file) return file;
+
+  const item = Array.from(dataTransfer.items || []).find((entry) => entry.kind === "file" && entry.type?.startsWith("image/"));
+  const blob = item?.getAsFile?.();
+  return blob || null;
 }
 
 function showInputNotice(message) {
@@ -1417,7 +1423,7 @@ function createUpgradedTowerItem(template) {
       source: "tower",
       level: nextLevel,
       baseStats,
-    }, template.image || makeSystemItemImage(template.itemName)),
+    }, makeSystemItemImage(template.itemName)),
     id: makeId("item"),
   };
 }
@@ -2468,6 +2474,7 @@ function applyFloorShield() {
 
 function createDefaultPlayer() {
   return {
+    formId: defaultHeroFormId,
     baseHp: 50,
     hp: 50,
     baseAtk: 3,
@@ -2507,6 +2514,7 @@ function resetGame() {
   state.log = ["已重开。"];
   resetBattleSpecial();
   applyFloorShield();
+  saveGame();
   render();
 }
 
@@ -2525,7 +2533,8 @@ function getPlayerStats() {
 
 function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpecial()) {
   const equippedItems = getEquippedItems();
-  const bonus = equippedItems.reduce((sum, item) => {
+  const bonus = { ...getHeroFormStats() };
+  equippedItems.reduce((sum, item) => {
     for (const key of statOrder) {
       sum[key] = (sum[key] || 0) + (item.stats?.[key] || 0);
     }
@@ -2534,7 +2543,7 @@ function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpec
       sum[key] = (sum[key] || 0) + (effectStats[key] || 0);
     }
     return sum;
-  }, {});
+  }, bonus);
 
   const passiveAttackPenalty = equippedItems.some((item) => getItemSpecialKeys(item).includes("shieldCrashAttackDown")) ? 5 : 0;
   const passiveSpeedPenalty = equippedItems.some((item) => getItemSpecialKeys(item).includes("doubleStrikeSpeedDown")) ? 5 : 0;
@@ -2548,6 +2557,38 @@ function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpec
     shield: state.player.baseShield + (bonus.shield || 0),
     lifesteal: state.player.baseLifesteal + (bonus.lifesteal || 0),
   };
+}
+
+function getHeroForm() {
+  return heroFormMap.get(state.player.formId) || heroFormMap.get(defaultHeroFormId);
+}
+
+function getHeroFormStats() {
+  return normalizeStats(getHeroForm()?.stats || {}, 999);
+}
+
+function getHeroFormImageUrl(form = getHeroForm()) {
+  return `${heroFormImageBase}${form.image}`;
+}
+
+function setHeroForm(formId) {
+  if (!heroFormMap.has(formId) || state.player.formId === formId) return;
+  const oldStats = getPlayerStats();
+  state.player.formId = formId;
+  const newStats = getPlayerStats();
+  if (newStats.maxHp > oldStats.maxHp) {
+    state.player.hp += newStats.maxHp - oldStats.maxHp;
+  } else {
+    state.player.hp = Math.min(state.player.hp, newStats.maxHp);
+  }
+  if (newStats.shield > oldStats.shield) {
+    state.player.shield += newStats.shield - oldStats.shield;
+  } else {
+    state.player.shield = Math.min(state.player.shield, newStats.shield);
+  }
+  state.player.shieldMonsterId = "";
+  saveGame();
+  render();
 }
 
 function getItemSpecialStats(item) {
@@ -2821,6 +2862,9 @@ function normalizeInventoryItem(item) {
   normalized.specialState = normalizeSpecialState(item?.specialState || balanced.specialState, normalized.specialEffects);
   const withHeal = ensureConsumableHeal(normalized);
   if (withHeal.fixed && !withHeal.source) withHeal.source = "tower";
+  if (isSystemItemImageName(withHeal.itemName) && (withHeal.fixed || withHeal.source === "tower" || withHeal.film)) {
+    withHeal.image = makeSystemItemImage(withHeal.itemName);
+  }
   return withHeal;
 }
 
@@ -2999,25 +3043,6 @@ function resizeImageToDataUrl(image, maxEdge, quality) {
   return canvas.toDataURL("image/jpeg", quality);
 }
 
-function canvasToBlob(canvas, type, quality) {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) {
-        resolve(blob);
-      } else {
-        reject(new Error("截图编码失败。"));
-      }
-    }, type, quality);
-  });
-}
-
-function waitForVideoFrame(video) {
-  if (video.requestVideoFrameCallback) {
-    return new Promise((resolve) => video.requestVideoFrameCallback(() => resolve()));
-  }
-  return new Promise((resolve) => window.setTimeout(resolve, 120));
-}
-
 function makeVisionTestImage() {
   const canvas = document.createElement("canvas");
   canvas.width = 360;
@@ -3050,6 +3075,10 @@ function render() {
   const defeated = isPlayerDefeated();
 
   state.player.hp = Math.min(state.player.hp, stats.maxHp);
+  const form = getHeroForm();
+  els.heroAvatarImage.src = getHeroFormImageUrl(form);
+  els.heroAvatarImage.alt = `照片勇者${form.label}形态`;
+  renderHeroForms();
 
   els.playerHpText.textContent = `${state.player.hp} / ${stats.maxHp}`;
   els.playerHpBar.style.width = `${percent(state.player.hp, stats.maxHp)}%`;
@@ -3394,6 +3423,35 @@ function renderEquipmentDetail() {
   }
 }
 
+function renderHeroForms() {
+  els.formGrid.innerHTML = "";
+  const currentForm = getHeroForm();
+  document.querySelectorAll("[data-form-label]").forEach((node) => {
+    node.textContent = `形态 · ${currentForm.label}`;
+  });
+
+  for (const form of heroForms) {
+    const button = document.createElement("button");
+    button.className = "form-card";
+    button.type = "button";
+    button.dataset.formId = form.id;
+    button.setAttribute("aria-pressed", String(form.id === currentForm.id));
+    if (form.id === currentForm.id) button.classList.add("is-active");
+
+    const img = document.createElement("img");
+    img.src = getHeroFormImageUrl(form);
+    img.alt = `${form.label}形态`;
+
+    const copy = document.createElement("span");
+    copy.className = "form-copy";
+    copy.innerHTML = `<strong>${escapeHtml(form.label)}</strong><small>${escapeHtml(form.desc)}</small>`;
+
+    button.append(img, copy);
+    button.addEventListener("click", () => setHeroForm(form.id));
+    els.formGrid.append(button);
+  }
+}
+
 function getLootErrorHint(message) {
   const text = String(message || "");
   if (text.includes("image_url") || text.includes("图片输入") || text.includes("没有识别图片内容")) {
@@ -3633,6 +3691,11 @@ function renderGameTextOnly() {
     player: {
       hp: state.player.hp,
       shield: state.player.shield,
+      form: {
+        id: getHeroForm().id,
+        label: getHeroForm().label,
+        stats: getHeroFormStats(),
+      },
       stats: getPlayerStats(),
       equipmentCount: state.inventory.length,
       equippedCount: equippedItems.length,
@@ -3824,6 +3887,7 @@ function loadSave() {
 function normalizePlayer(player) {
   const defaults = createDefaultPlayer();
   return {
+    formId: heroFormMap.has(player.formId) ? player.formId : defaults.formId,
     baseHp: Number.isFinite(player.baseHp) ? player.baseHp : defaults.baseHp,
     hp: Number.isFinite(player.hp) ? player.hp : defaults.hp,
     baseAtk: Number.isFinite(player.baseAtk) ? player.baseAtk : defaults.baseAtk,
@@ -3967,47 +4031,12 @@ function escapeHtml(value) {
 }
 
 function makeSystemItemImage(itemName) {
-  if (itemName === "橡皮") return makeObjectSvg("eraser");
-  if (itemName === "锅盖") return makeObjectSvg("potlid");
-  if (itemName === "指甲刀") return makeObjectSvg("clipper");
-  if (itemName === "风扇") return makeObjectSvg("fan");
-  const file = objectImageMap[itemName] || objectImageMap.胶卷;
-  return `${twemojiBase}${file}`;
+  const file = systemItemImageMap[itemName] || systemItemImageMap.胶卷;
+  return `${systemItemImageBase}${file}`;
 }
 
-function makeObjectSvg(kind) {
-  const bodies = {
-    eraser: `
-      <rect x="20" y="42" width="80" height="42" rx="8" fill="#f5b7c8" stroke="#17130f" stroke-width="4"/>
-      <path d="M66 42h26c6 0 10 4 10 10v22c0 6-4 10-10 10H66z" fill="#f7efe1" stroke="#17130f" stroke-width="4"/>
-      <path d="M28 75h34" stroke="#fffaf0" stroke-width="6" stroke-linecap="round"/>
-    `,
-    potlid: `
-      <path d="M18 78c7-28 26-43 42-43s35 15 42 43z" fill="#c9ccd1" stroke="#17130f" stroke-width="4"/>
-      <path d="M44 36c2-10 30-10 32 0" fill="none" stroke="#17130f" stroke-width="4" stroke-linecap="round"/>
-      <rect x="49" y="24" width="22" height="13" rx="6" fill="#8f969e" stroke="#17130f" stroke-width="4"/>
-      <path d="M28 74h64" stroke="#fffaf0" stroke-width="5" stroke-linecap="round"/>
-    `,
-    clipper: `
-      <path d="M34 70l39-39 13 13-39 39z" fill="#d8dde4" stroke="#17130f" stroke-width="4"/>
-      <path d="M28 58l14-14 34 34-14 14z" fill="#aeb6c0" stroke="#17130f" stroke-width="4"/>
-      <path d="M78 28l13 13" stroke="#fffaf0" stroke-width="5" stroke-linecap="round"/>
-      <circle cx="38" cy="80" r="6" fill="#f7efe1" stroke="#17130f" stroke-width="4"/>
-    `,
-    fan: `
-      <circle cx="60" cy="58" r="10" fill="#8f969e" stroke="#17130f" stroke-width="4"/>
-      <path d="M60 48c-8-20 20-28 22-8 1 10-10 14-22 8Z" fill="#bfe3ef" stroke="#17130f" stroke-width="4"/>
-      <path d="M70 62c22 5 16 34-2 25-9-5-8-18 2-25Z" fill="#bfe3ef" stroke="#17130f" stroke-width="4"/>
-      <path d="M51 64c-15 17-38-1-22-14 8-7 19 0 22 14Z" fill="#bfe3ef" stroke="#17130f" stroke-width="4"/>
-      <path d="M58 70v20h18" fill="none" stroke="#17130f" stroke-width="5" stroke-linecap="round"/>
-    `,
-  };
-  return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-      <rect width="120" height="120" rx="14" fill="#f5ebd7"/>
-      ${bodies[kind] || bodies.eraser}
-    </svg>
-  `);
+function isSystemItemImageName(itemName) {
+  return Boolean(systemItemImageMap[itemName]);
 }
 
 function makePlaceholderImage() {
@@ -4081,6 +4110,7 @@ window.__photoHeroTestHooks = {
     saveGame();
     render();
   },
+  setHeroForm,
   selectEnemies(ids) {
     state.selectedEnemyIds = Array.isArray(ids) ? ids : [];
     saveGame();

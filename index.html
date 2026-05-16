@@ -13,10 +13,11 @@
           <section class="hero-zone" aria-label="勇者属性和装备">
             <div class="zone-head hero-head">
               <div class="avatar-ring hero-avatar">
-                <img src="./figure/hero-front.png" alt="照片勇者正面像">
+                <img id="heroAvatarImage" src="./assets/heroes/form-hp.png" alt="照片勇者形态">
               </div>
-              <div>
+              <div class="hero-identity">
                 <h2>照片勇者</h2>
+                <button class="form-toggle" type="button" data-panel-target="forms" data-form-label aria-pressed="false">形态 · 生命</button>
               </div>
               <div class="panel-tools" aria-label="面板工具">
                 <span class="api-status" id="apiStatusBadge">API 未配置</span>
@@ -51,7 +52,6 @@
                   <span class="badge" id="photoStateBadge">未选择</span>
                   <button class="primary-button" id="photoBtn" type="button">选图/拍照</button>
                   <button class="secondary-button" id="pasteImageBtn" type="button">粘贴图片</button>
-                  <button class="secondary-button" id="screenshotBtn" type="button">截图</button>
                   <button class="secondary-button" id="analyzeBtn" type="button" disabled>鉴定</button>
                   <button class="secondary-button" id="recommendEquipBtn" type="button">推荐装备</button>
                   <input id="fileInput" type="file" accept="image/*">
@@ -85,6 +85,17 @@
             </section>
 
             <section class="secondary-area is-collapsed" id="secondaryArea" aria-label="次要面板">
+              <section class="forms-panel secondary-content" data-secondary-panel="forms" aria-label="角色形态" hidden>
+                <div class="secondary-head">
+                  <div>
+                    <h2>角色形态</h2>
+                    <p>7 种形态可以随时切换，只生效当前选择。</p>
+                  </div>
+                  <button class="ghost-button" type="button" data-panel-target="none">收起</button>
+                </div>
+                <div class="form-grid" id="formGrid"></div>
+              </section>
+
               <section class="config-panel secondary-content" data-secondary-panel="config" aria-label="API 配置">
                 <div class="secondary-head">
                   <div>
@@ -178,6 +189,6 @@
       </section>
     </main>
 
-    <script defer src="./app.js?v=20260516-photo-specials"></script>
+    <script defer src="./app.js?v=20260516-forms-paste"></script>
   </body>
 </html>

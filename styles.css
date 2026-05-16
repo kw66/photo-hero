@@ -326,8 +326,8 @@ h3 {
 .avatar-ring {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 66px;
+  height: 66px;
   border: 2px solid var(--ink);
   border-radius: 50%;
   color: #fffaf0;
@@ -342,10 +342,34 @@ h3 {
 }
 
 .hero-avatar img {
-  width: 34px;
-  height: 34px;
+  width: 60px;
+  height: 60px;
   object-fit: contain;
-  image-rendering: pixelated;
+}
+
+.hero-identity {
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+}
+
+.form-toggle {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--hero) 42%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hero-soft) 68%, white 32%);
+  color: #1f4f7f;
+  font-size: 0.72rem;
+  font-weight: 900;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 72%);
+}
+
+.form-toggle[aria-pressed="true"] {
+  border-color: var(--hero);
+  background: var(--hero);
+  color: #fffaf0;
 }
 
 .hp-row {
@@ -450,7 +474,8 @@ dd {
 .loot-panel,
 .battle-report,
 .debug-panel,
-.config-panel {
+.config-panel,
+.forms-panel {
   min-width: 0;
   padding: 8px;
   border: 1px solid var(--line);
@@ -1111,6 +1136,64 @@ dd {
   background: color-mix(in srgb, var(--paper) 88%, white 12%);
 }
 
+.form-grid {
+  margin-top: var(--space-3);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.form-card {
+  min-height: 104px;
+  display: grid;
+  grid-template-rows: 64px auto;
+  justify-items: center;
+  align-items: center;
+  gap: 5px;
+  padding: 6px;
+  border: 2px solid color-mix(in srgb, var(--ink) 48%, var(--line));
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgb(255 253 248 / 86%), rgb(245 235 215 / 78%)),
+    var(--paper);
+  color: var(--ink);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 78%), 0 2px 0 rgb(23 19 15 / 12%);
+}
+
+.form-card img {
+  max-width: 64px;
+  max-height: 64px;
+  object-fit: contain;
+}
+
+.form-card.is-active {
+  border-color: var(--hero);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hero-soft) 70%, white 30%), #fffdf8),
+    var(--hero-soft);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--hero) 24%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 86%);
+}
+
+.form-copy {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+  line-height: 1.12;
+}
+
+.form-copy strong {
+  font-size: 0.82rem;
+}
+
+.form-copy small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
 .preset-row,
 .provider-links,
 .config-actions {
@@ -1343,6 +1426,10 @@ textarea {
   .panel-tools {
     justify-content: flex-start;
   }
+
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 620px) {
@@ -1363,6 +1450,7 @@ textarea {
   .panel-tools,
   .floor-action-row,
   .debug-grid,
+  .form-grid,
   .config-grid,
   .equipment-layout {
     grid-template-columns: 1fr;
