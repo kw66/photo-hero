@@ -296,6 +296,14 @@ const state = {
   autoBattleTimer: 0,
   battleSpecial: createDefaultBattleSpecial(),
   testEnemyOverride: null,
+  enemyFlipEncounterId: "",
+  enemyFaceDownIds: new Set(),
+  enemyFlipDownIds: new Set(),
+  enemyFlipUpIds: new Set(),
+  battleStartTimer: 0,
+  battleRevealTimer: 0,
+  floorAdvanceTimer: 0,
+  pendingFloorAdvance: false,
 };
 
 loadConfig();
@@ -1280,6 +1288,7 @@ function toggleAutoBattle() {
 
 function startAutoBattle() {
   if (isPlayerDefeated()) return;
+  if (state.battleStartTimer || state.pendingFloorAdvance) return;
 
   ensureEncounter();
   if (isBossFloor(state.floor)) {
@@ -1288,27 +1297,56 @@ function startAutoBattle() {
   const selectedEnemies = getSelectedEnemies();
   if (!selectedEnemies.length) return;
 
-  beginBattle(selectedEnemies);
-  resolveBattleAction();
-  if (!state.currentBattle || state.player.hp <= 0) {
-    saveGame();
-    render();
-    return;
-  }
-
-  state.autoBattleTimer = window.setInterval(() => {
-    resolveBattleAction();
-    saveGame();
-    render();
-  }, 1000);
-  saveGame();
+  const selectedIds = new Set(selectedEnemies.map((enemy) => enemy.id));
+  const unselectedIds = state.enemies
+    .filter((enemy) => enemy.hp > 0 && !selectedIds.has(enemy.id))
+    .map((enemy) => enemy.id);
+  state.enemyFlipDownIds = new Set(unselectedIds);
   render();
+
+  state.battleStartTimer = window.setTimeout(() => {
+    state.battleStartTimer = 0;
+    for (const id of unselectedIds) state.enemyFaceDownIds.add(id);
+    state.enemyFlipDownIds = new Set();
+    beginBattle(selectedEnemies);
+    resolveBattleAction();
+    if (!state.currentBattle || state.player.hp <= 0) {
+      saveGame();
+      render();
+      return;
+    }
+
+    state.autoBattleTimer = window.setInterval(() => {
+      resolveBattleAction();
+      saveGame();
+      render();
+    }, 1000);
+    saveGame();
+    render();
+  }, unselectedIds.length ? 320 : 0);
+  saveGame();
 }
 
 function stopAutoBattle() {
   if (!state.autoBattleTimer) return;
   window.clearInterval(state.autoBattleTimer);
   state.autoBattleTimer = 0;
+}
+
+function stopBattleTimers() {
+  if (state.battleStartTimer) {
+    window.clearTimeout(state.battleStartTimer);
+    state.battleStartTimer = 0;
+  }
+  if (state.battleRevealTimer) {
+    window.clearTimeout(state.battleRevealTimer);
+    state.battleRevealTimer = 0;
+  }
+  if (state.floorAdvanceTimer) {
+    window.clearTimeout(state.floorAdvanceTimer);
+    state.floorAdvanceTimer = 0;
+  }
+  state.pendingFloorAdvance = false;
 }
 
 function createDefaultBattleSpecial() {
@@ -1357,10 +1395,11 @@ function resolveBattleAction() {
 
   if (round >= 50) {
     addBattleDetail(`第50回合敌方逃跑。`);
+    for (const id of state.activeEnemyIds) state.enemyFlipDownIds.add(id);
     removeEnemiesByIds(state.activeEnemyIds, false);
     finishCurrentBattle("enemy-fled");
     stopAutoBattle();
-    handleBattleEndAdvance();
+    handleBattleEndAdvance("delay");
     return true;
   }
 
@@ -1391,7 +1430,7 @@ function resolveBattleAction() {
   if (!getActiveBattleEnemies().length) {
     finishCurrentBattle("victory");
     stopAutoBattle();
-    handleBattleEndAdvance();
+    handleBattleEndAdvance("delay");
     return true;
   }
 
@@ -1515,6 +1554,7 @@ function defeatEnemy(enemy) {
   addLootNamesToCurrentBattle(drops);
   if (Array.isArray(defeatedIds)) defeatedIds.push(enemy.id);
   addBattleDetail(`${enemy.name} 被击败。`);
+  state.enemyFlipDownIds.add(enemy.id);
   triggerKillSpecial(enemy);
   for (const drop of drops) {
     if (drop.kind === "shard") {
@@ -1607,6 +1647,29 @@ function finishCurrentBattle(result) {
   resetBattleSpecial();
 }
 
+function revealEnemyCardsThen(callback) {
+  const faceDownIds = new Set([
+    ...state.enemyFaceDownIds,
+    ...state.enemyFlipDownIds,
+  ]);
+  if (!faceDownIds.size) {
+    callback();
+    return;
+  }
+
+  state.enemyFlipUpIds = faceDownIds;
+  state.enemyFaceDownIds = new Set();
+  state.enemyFlipDownIds = new Set();
+  state.pendingFloorAdvance = true;
+  render();
+
+  state.battleRevealTimer = window.setTimeout(() => {
+    state.battleRevealTimer = 0;
+    state.enemyFlipUpIds = new Set();
+    callback();
+  }, 360);
+}
+
 function addBattleEvent(text, type = "item") {
   state.battleReportSeq += 1;
   state.battleReports.unshift({
@@ -1675,6 +1738,7 @@ function formatHpDelta(delta) {
 
 function fleeBattle() {
   if (isPlayerDefeated()) return;
+  if (state.pendingFloorAdvance || state.battleStartTimer) return;
   if (state.autoBattleTimer) stopAutoBattle();
   if (isBossFloor(state.floor)) {
     addBattleEvent(`第${state.floor}层无法逃跑。`, "info");
@@ -1699,6 +1763,7 @@ function fleeBattle() {
     addBattleDetail(`勇者跳过第${state.floor}层，进入下一层。`);
   }
   finishCurrentBattle("hero-fled");
+  clearEnemyCardMotion();
   advanceFloor();
   saveGame();
   render();
@@ -1735,13 +1800,31 @@ function getActiveBattleEnemies() {
     .filter(Boolean);
 }
 
-function handleBattleEndAdvance() {
+function handleBattleEndAdvance(mode = "instant") {
+  if (mode === "delay") {
+    state.pendingFloorAdvance = true;
+    render();
+    state.floorAdvanceTimer = window.setTimeout(() => {
+      state.floorAdvanceTimer = 0;
+      revealEnemyCardsThen(() => {
+        state.floorAdvanceTimer = window.setTimeout(() => {
+          state.floorAdvanceTimer = 0;
+          state.pendingFloorAdvance = false;
+          advanceFloor();
+          saveGame();
+          render();
+        }, 420);
+      });
+    }, 360);
+    return;
+  }
   advanceFloor();
 }
 
 function advanceFloor() {
   stopAutoBattle();
   if (isPlayerDefeated()) return;
+  clearEnemyCardMotion();
   if (state.floor >= maxFloor) {
     state.gameClear = true;
     state.enemies = [];
@@ -1758,7 +1841,15 @@ function advanceFloor() {
   resetBattleSpecial();
   state.enemies = buildFloorEncounter(state.floor);
   state.encounterId = makeEncounterId();
+  state.enemyFlipEncounterId = state.encounterId;
   applyFloorShield();
+}
+
+function clearEnemyCardMotion() {
+  state.enemyFaceDownIds = new Set();
+  state.enemyFlipDownIds = new Set();
+  state.enemyFlipUpIds = new Set();
+  state.pendingFloorAdvance = false;
 }
 
 function ensureEncounter() {
@@ -2178,6 +2269,7 @@ function createDefaultPlayer() {
 
 function resetGame() {
   stopAutoBattle();
+  stopBattleTimers();
   localStorage.removeItem(STORAGE_KEYS.save);
   state.player = createDefaultPlayer();
   state.floor = 1;
@@ -2201,6 +2293,7 @@ function resetGame() {
   state.lootError = "";
   state.log = ["已重开。"];
   resetBattleSpecial();
+  clearEnemyCardMotion();
   applyFloorShield();
   saveGame();
   render();
@@ -2750,9 +2843,9 @@ function render() {
     : `第 ${state.floor} / ${maxFloor} 层${isBossFloor(state.floor) ? " · Boss" : isRewardBossFloor(state.floor) ? " · 可选Boss" : ""}`;
   renderEnemyHint();
   renderEnemyField();
-  els.attackBtn.disabled = defeated || Boolean(state.autoBattleTimer) || state.gameClear || !getSelectedEnemies().length;
+  els.attackBtn.disabled = defeated || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !getSelectedEnemies().length;
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
-  els.fleeBtn.disabled = defeated || state.gameClear || isBossFloor(state.floor);
+  els.fleeBtn.disabled = defeated || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || isBossFloor(state.floor);
 
   renderApiStatus();
   renderCameraStatus();
@@ -2810,6 +2903,10 @@ function renderEnemyHint() {
     els.enemyHint.textContent = "战斗中不可更换对手或装备。";
     return;
   }
+  if (state.pendingFloorAdvance || state.battleStartTimer) {
+    els.enemyHint.textContent = "战斗结算中，准备进入下一层。";
+    return;
+  }
   const count = state.selectedEnemyIds.length;
   if (isBossFloor(state.floor)) {
     els.enemyHint.textContent = `Boss 层自动挑战全部敌人，不能逃跑。${upcomingText ? ` ${upcomingText}` : ""}`;
@@ -2844,6 +2941,7 @@ function getUpcomingFloorHint() {
 function renderEnemyField() {
   els.enemyField.innerHTML = "";
   const enemyDamageEstimates = getEnemyDamageEstimates();
+  const shouldFlipIn = state.enemyFlipEncounterId === state.encounterId && !state.currentBattle && !state.autoBattleTimer;
 
   if (state.gameClear) {
     const clear = document.createElement("article");
@@ -2866,15 +2964,21 @@ function renderEnemyField() {
   }
 
   state.enemies.forEach((enemy, index) => {
-    void index;
     const isDefeated = enemy.hp <= 0;
-    const isLocked = Boolean(state.autoBattleTimer) || Boolean(state.currentBattle) || isBossFloor(state.floor) || isDefeated;
+    const isLocked = Boolean(state.autoBattleTimer) || Boolean(state.currentBattle) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || isBossFloor(state.floor) || isDefeated;
     const selectionOrder = getEnemySelectionOrder(enemy.id);
     const isSelected = selectionOrder > 0;
+    const isFaceDown = state.enemyFaceDownIds.has(enemy.id);
+    const isFlippingDown = state.enemyFlipDownIds.has(enemy.id);
+    const isFlippingUp = state.enemyFlipUpIds.has(enemy.id);
     const damageText = enemyDamageEstimates.get(enemy.id) || "选择后显示";
     const button = document.createElement("button");
-    button.className = `enemy-card enemy-select-card${isSelected ? " is-selected" : ""}${state.activeEnemyIds?.includes(enemy.id) ? " is-active" : ""}${isLocked ? " is-locked" : ""}${isDefeated ? " is-defeated" : ""}`;
+    button.className = `enemy-card enemy-select-card${isSelected ? " is-selected" : ""}${state.activeEnemyIds?.includes(enemy.id) ? " is-active" : ""}${isLocked ? " is-locked" : ""}${isDefeated ? " is-defeated" : ""}${shouldFlipIn ? " is-entering" : ""}${isFaceDown ? " is-face-down" : ""}${isFlippingDown ? " is-flipping-down" : ""}${isFlippingUp ? " is-flipping-up" : ""}`;
     button.type = "button";
+    if (shouldFlipIn) {
+      button.style.setProperty("--flip-delay", `${Math.min(2, index) * 80}ms`);
+      button.addEventListener("animationend", () => button.classList.remove("is-entering"), { once: true });
+    }
     button.setAttribute("aria-disabled", String(isLocked));
     button.addEventListener("click", () => {
       if (isLocked) return;
@@ -2910,9 +3014,13 @@ function renderEnemyField() {
         <span>碎片 +1</span>
         <strong>${escapeHtml(damageText)}</strong>
       </div>
+      <div class="enemy-card-back" aria-hidden="true">
+        <span>${isDefeated ? "已击破" : "未参战"}</span>
+      </div>
     `;
     els.enemyField.append(button);
   });
+  if (shouldFlipIn) state.enemyFlipEncounterId = "";
 }
 
 function getEnemyDamageEstimates() {
@@ -3496,6 +3604,7 @@ function loadSave() {
   state.currentBattle = normalizeCurrentBattle(save.currentBattle);
   state.battleClock = normalizeBattleClock(save.battleClock);
   state.battleSpecial = state.currentBattle ? normalizeBattleSpecial(save.battleSpecial) : createDefaultBattleSpecial();
+  clearEnemyCardMotion();
 }
 
 function normalizePlayer(player) {
@@ -3708,6 +3817,7 @@ window.__photoHeroTestHooks = {
   },
   setFloor(floor) {
     stopAutoBattle();
+    stopBattleTimers();
     state.floor = clampInt(floor, 1, maxFloor);
     state.gameClear = false;
     state.enemies = buildFloorEncounter(state.floor);
@@ -3717,12 +3827,15 @@ window.__photoHeroTestHooks = {
     state.currentBattle = null;
     state.battleClock = null;
     resetBattleSpecial();
+    clearEnemyCardMotion();
+    state.enemyFlipEncounterId = state.encounterId;
     applyFloorShield();
     saveGame();
     render();
   },
   setEnemies(enemies) {
     stopAutoBattle();
+    stopBattleTimers();
     state.testEnemyOverride = Array.isArray(enemies) ? enemies : [];
     state.enemies = buildFloorEncounter(state.floor);
     state.encounterId = makeEncounterId();
@@ -3731,6 +3844,8 @@ window.__photoHeroTestHooks = {
     state.currentBattle = null;
     state.battleClock = null;
     resetBattleSpecial();
+    clearEnemyCardMotion();
+    state.enemyFlipEncounterId = state.encounterId;
     applyFloorShield();
     saveGame();
     render();
