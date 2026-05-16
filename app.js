@@ -286,6 +286,8 @@ const bossRewards = {
 const els = {
   playerHpText: byId("playerHpText"),
   playerHpBar: byId("playerHpBar"),
+  playerShieldText: byId("playerShieldText"),
+  playerShieldBar: byId("playerShieldBar"),
   playerAtk: byId("playerAtk"),
   playerDef: byId("playerDef"),
   playerSpeed: byId("playerSpeed"),
@@ -308,6 +310,7 @@ const els = {
   photoPreview: byId("photoPreview"),
   photoStateBadge: byId("photoStateBadge"),
   apiStatusBadge: byId("apiStatusBadge"),
+  configToggleBtn: byId("configToggleBtn"),
   secondaryArea: byId("secondaryArea"),
   presetNote: byId("presetNote"),
   providerLinks: byId("providerLinks"),
@@ -3089,7 +3092,9 @@ function render() {
   els.playerSpeed.textContent = stats.speed;
   els.playerRegen.textContent = stats.regen;
   els.playerLifesteal.textContent = stats.lifesteal;
-  els.playerShield.textContent = `${state.player.shield} / ${stats.shield}`;
+  els.playerShield.textContent = stats.shield;
+  if (els.playerShieldText) els.playerShieldText.textContent = `${state.player.shield} / ${stats.shield}`;
+  if (els.playerShieldBar) els.playerShieldBar.style.width = `${percent(state.player.shield, stats.shield)}%`;
 
   els.floorText.textContent = state.gameClear
     ? "已通关"
@@ -3113,21 +3118,30 @@ function renderApiStatus() {
   const config = getConfigFromInputs();
   const missing = getMissingConfigFields(config);
   const activePreset = API_PRESETS[config.presetId] || API_PRESETS.custom;
+  let stateName = "ready";
+  let buttonLabel = "API配置 ✓";
+  let title = "API 配置完整";
 
   if (missing.length) {
-    els.apiStatusBadge.textContent = "API 未配置";
-    els.apiStatusBadge.dataset.state = "missing";
-    return;
+    stateName = "missing";
+    buttonLabel = "API配置 ×";
+    title = "API 未配置";
+  } else if (activePreset.supportsVision === false || !isLikelyVisionModel(config)) {
+    stateName = "text-only";
+    buttonLabel = "API配置 ×";
+    title = "当前模型可能不支持图片输入";
   }
 
-  if (activePreset.supportsVision === false || !isLikelyVisionModel(config)) {
-    els.apiStatusBadge.textContent = "仅文本测试";
-    els.apiStatusBadge.dataset.state = "text-only";
-    return;
+  if (els.apiStatusBadge) {
+    els.apiStatusBadge.textContent = stateName === "ready" ? "API 已配置" : stateName === "missing" ? "API 未配置" : "仅文本测试";
+    els.apiStatusBadge.dataset.state = stateName;
   }
-
-  els.apiStatusBadge.textContent = "API 已配置";
-  els.apiStatusBadge.dataset.state = "ready";
+  if (els.configToggleBtn) {
+    els.configToggleBtn.textContent = buttonLabel;
+    els.configToggleBtn.dataset.state = stateName;
+    els.configToggleBtn.title = title;
+    els.configToggleBtn.setAttribute("aria-label", title);
+  }
 }
 
 function renderCameraStatus() {
@@ -3428,7 +3442,7 @@ function renderHeroForms() {
   els.formGrid.innerHTML = "";
   const currentForm = getHeroForm();
   document.querySelectorAll("[data-form-label]").forEach((node) => {
-    node.textContent = `形态 · ${currentForm.label}`;
+    node.textContent = `${currentForm.label}形态`;
   });
 
   for (const form of heroForms) {

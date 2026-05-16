@@ -12,35 +12,39 @@
         <div class="game-board">
           <section class="hero-zone" aria-label="勇者属性和装备">
             <div class="zone-head hero-head">
-              <div class="avatar-ring hero-avatar">
-                <img id="heroAvatarImage" src="./assets/heroes/form-hp.png" alt="照片勇者形态">
-              </div>
-              <div class="hero-identity">
-                <h2>照片勇者</h2>
-                <button class="form-toggle" type="button" data-panel-target="forms" data-form-label aria-pressed="false">形态 · 生命</button>
-              </div>
+              <h2>照片勇者</h2>
               <div class="panel-tools" aria-label="面板工具">
-                <span class="api-status" id="apiStatusBadge">API 未配置</span>
-                <button class="tool-button" type="button" data-panel-target="config" aria-pressed="false">API 设置</button>
-                <button class="tool-button" type="button" data-panel-target="debug" aria-pressed="false">属性测试</button>
+                <button class="tool-button api-config-button" id="configToggleBtn" type="button" data-panel-target="config" data-state="missing" aria-pressed="false">API配置 ×</button>
                 <button class="ghost-button" id="resetGameBtn" type="button">重开</button>
               </div>
             </div>
 
-            <div class="hp-row hero-hp">
-              <span>生命</span>
-              <div class="hp-track"><span id="playerHpBar"></span></div>
-              <strong id="playerHpText">30 / 30</strong>
+            <div class="hero-summary">
+              <button class="hero-form-card" type="button" data-panel-target="forms" aria-pressed="false" aria-label="切换角色形态">
+                <img id="heroAvatarImage" src="./assets/heroes/form-hp.png" alt="照片勇者形态">
+                <span data-form-label>生命形态</span>
+              </button>
+
+              <dl class="hero-stat-strip hero-stats">
+                <div><dt>攻击</dt><dd id="playerAtk">5</dd></div>
+                <div><dt>吸血</dt><dd id="playerLifesteal">0</dd></div>
+                <div><dt>速度</dt><dd id="playerSpeed">3</dd></div>
+                <div><dt>防御</dt><dd id="playerDef">1</dd></div>
+                <div><dt>回复</dt><dd id="playerRegen">0</dd></div>
+                <div><dt>护盾</dt><dd id="playerShield">0</dd></div>
+              </dl>
             </div>
 
-            <dl class="stat-list hero-stats">
-              <div><dt>攻击</dt><dd id="playerAtk">5</dd></div>
-              <div><dt>防御</dt><dd id="playerDef">1</dd></div>
-              <div><dt>速度</dt><dd id="playerSpeed">3</dd></div>
-              <div><dt>回复</dt><dd id="playerRegen">0</dd></div>
-              <div><dt>吸血</dt><dd id="playerLifesteal">0</dd></div>
-              <div><dt>护盾</dt><dd id="playerShield">0</dd></div>
-            </dl>
+            <div class="vital-bars" aria-label="生命和护盾">
+              <div class="vital-row hp-row hero-hp">
+                <strong id="playerHpText">30 / 30</strong>
+                <div class="hp-track"><span id="playerHpBar"></span></div>
+              </div>
+              <div class="vital-row shield-row">
+                <strong id="playerShieldText">0 / 0</strong>
+                <div class="shield-track"><span id="playerShieldBar"></span></div>
+              </div>
+            </div>
 
             <section class="loot-panel" aria-label="鉴定结果和背包">
               <div class="section-title compact-title loot-title">
@@ -50,8 +54,8 @@
                 </div>
                 <div class="loot-actions">
                   <span class="badge" id="photoStateBadge">未选择</span>
-                  <button class="primary-button" id="photoBtn" type="button">选图/拍照</button>
-                  <button class="secondary-button" id="pasteImageBtn" type="button">粘贴图片</button>
+                  <button class="primary-button" id="photoBtn" type="button">拍照/上传</button>
+                  <button class="secondary-button" id="pasteImageBtn" type="button">粘贴</button>
                   <button class="secondary-button" id="analyzeBtn" type="button" disabled>鉴定</button>
                   <button class="secondary-button" id="recommendEquipBtn" type="button">推荐装备</button>
                   <input id="fileInput" type="file" accept="image/*">
@@ -189,6 +193,6 @@
       </section>
     </main>
 
-    <script defer src="./app.js?v=20260516-monster-assets"></script>
+    <script defer src="./app.js?v=20260516-mobile-hero"></script>
   </body>
 </html>
