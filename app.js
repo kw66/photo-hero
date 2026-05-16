@@ -286,8 +286,6 @@ const bossRewards = {
 const els = {
   playerHpText: byId("playerHpText"),
   playerHpBar: byId("playerHpBar"),
-  playerShieldText: byId("playerShieldText"),
-  playerShieldBar: byId("playerShieldBar"),
   playerAtk: byId("playerAtk"),
   playerDef: byId("playerDef"),
   playerSpeed: byId("playerSpeed"),
@@ -3084,7 +3082,7 @@ function render() {
   els.heroAvatarImage.alt = `照片勇者${form.label}形态`;
   renderHeroForms();
 
-  els.playerHpText.textContent = `${state.player.hp} / ${stats.maxHp}`;
+  els.playerHpText.textContent = `${state.player.hp}/${stats.maxHp}`;
   els.playerHpBar.style.width = `${percent(state.player.hp, stats.maxHp)}%`;
   els.playerHpBar.parentElement.classList.toggle("is-low", percent(state.player.hp, stats.maxHp) <= 30);
   els.playerAtk.textContent = stats.atk;
@@ -3092,9 +3090,7 @@ function render() {
   els.playerSpeed.textContent = stats.speed;
   els.playerRegen.textContent = stats.regen;
   els.playerLifesteal.textContent = stats.lifesteal;
-  els.playerShield.textContent = stats.shield;
-  if (els.playerShieldText) els.playerShieldText.textContent = `${state.player.shield} / ${stats.shield}`;
-  if (els.playerShieldBar) els.playerShieldBar.style.width = `${percent(state.player.shield, stats.shield)}%`;
+  els.playerShield.textContent = `${state.player.shield}/${stats.shield}`;
 
   els.floorText.textContent = state.gameClear
     ? "已通关"
@@ -3119,16 +3115,13 @@ function renderApiStatus() {
   const missing = getMissingConfigFields(config);
   const activePreset = API_PRESETS[config.presetId] || API_PRESETS.custom;
   let stateName = "ready";
-  let buttonLabel = "API配置 ✓";
   let title = "API 配置完整";
 
   if (missing.length) {
     stateName = "missing";
-    buttonLabel = "API配置 ×";
     title = "API 未配置";
   } else if (activePreset.supportsVision === false || !isLikelyVisionModel(config)) {
     stateName = "text-only";
-    buttonLabel = "API配置 ×";
     title = "当前模型可能不支持图片输入";
   }
 
@@ -3137,7 +3130,6 @@ function renderApiStatus() {
     els.apiStatusBadge.dataset.state = stateName;
   }
   if (els.configToggleBtn) {
-    els.configToggleBtn.textContent = buttonLabel;
     els.configToggleBtn.dataset.state = stateName;
     els.configToggleBtn.title = title;
     els.configToggleBtn.setAttribute("aria-label", title);
