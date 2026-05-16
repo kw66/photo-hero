@@ -182,7 +182,6 @@ h3 {
 }
 
 .api-status,
-.level-pill,
 .badge,
 .battle-chip {
   display: inline-flex;
@@ -608,7 +607,6 @@ dd {
 
 .loot-panel,
 .battle-report,
-.debug-panel,
 .config-panel,
 .forms-panel {
   min-width: 0;
@@ -639,45 +637,6 @@ dd {
   color: var(--muted);
   font-size: 0.76rem;
   line-height: 1.35;
-}
-
-.debug-grid {
-  margin-top: var(--space-3);
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 5px;
-}
-
-.debug-stat {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 1fr 24px 30px 24px;
-  gap: 3px;
-  align-items: center;
-  padding: 4px;
-  border: 1px solid color-mix(in srgb, var(--line) 82%, white 18%);
-  border-radius: 6px;
-  background: #fffdf8;
-}
-
-.debug-stat span {
-  color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 850;
-}
-
-.debug-stat strong {
-  text-align: center;
-  font-size: 0.82rem;
-}
-
-.debug-stat button {
-  min-height: 24px;
-  padding: 0;
-  border: 1px solid var(--line);
-  background: var(--paper-2);
-  color: var(--ink);
-  font-weight: 900;
 }
 
 #photoPreview {
@@ -999,9 +958,9 @@ dd {
 .enemy-card {
   position: relative;
   min-width: 0;
-  min-height: 142px;
+  min-height: 166px;
   display: grid;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto auto auto;
   gap: 6px;
   padding: 8px;
   border: 2px solid var(--ink);
@@ -1141,6 +1100,32 @@ dd {
 
 .enemy-card-stats div:first-child {
   border-left: 0;
+}
+
+.enemy-card-reward {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 26px;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 48%, var(--line));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--paper-2) 70%, white 30%);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.enemy-card-reward span {
+  white-space: nowrap;
+}
+
+.enemy-card-reward strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+  font-weight: 950;
+  white-space: nowrap;
 }
 
 .battle-report {
@@ -1585,7 +1570,6 @@ textarea {
     font-size: clamp(2rem, 13vw, 3rem);
   }
 
-  .debug-grid,
   .form-grid,
   .config-grid,
   .equipment-layout {

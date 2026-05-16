@@ -80,28 +80,6 @@ const customDraft = {
 
 const providerApiKeys = {};
 
-const systemItemImageBase = "./assets/items/";
-
-const systemItemImageMap = {
-  西红柿: "tomato.webp",
-  香蕉: "banana.webp",
-  咖啡: "coffee.webp",
-  矿泉水: "water.webp",
-  锅盖: "pot-lid.webp",
-  橡皮: "eraser.webp",
-  雨伞: "umbrella.webp",
-  镜子: "mirror.webp",
-  键盘: "keyboard.webp",
-  拖鞋: "slipper.webp",
-  剪刀: "scissors.webp",
-  指甲刀: "nail-clipper.webp",
-  风扇: "fan.webp",
-  滑板: "skateboard.webp",
-  胶卷: "film-roll.webp",
-  普通胶卷: "film-roll.webp",
-  胶卷碎片: "film-roll.webp",
-};
-
 const rarityNames = {
   common: "普通",
   uncommon: "精良",
@@ -110,7 +88,6 @@ const rarityNames = {
 
 const equipmentPageSize = 9;
 const equipmentSlotLimit = 10;
-const mergeUpgradeCount = 10;
 const battleReportLimit = 18;
 const modelMaxTokens = 512;
 const modelImageDetail = "low";
@@ -119,20 +96,10 @@ const analysisImageQuality = 0.78;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
-const gameSaveVersion = 5;
+const gameSaveVersion = 7;
 const initialFilmRolls = 1;
 const bossFloors = new Set([10, 20, 30, 40]);
 const rewardBossFloors = new Set([25, 35, 39]);
-const testStats = [
-  { key: "baseHp", label: "生命", step: 5, min: 5, max: 999 },
-  { key: "baseAtk", label: "攻", step: 1, min: 1, max: 999 },
-  { key: "baseDef", label: "防", step: 1, min: 0, max: 999 },
-  { key: "baseSpeed", label: "速", step: 1, min: 1, max: 999 },
-  { key: "baseRegen", label: "回", step: 1, min: 0, max: 999 },
-  { key: "baseLifesteal", label: "吸", step: 1, min: 0, max: 999 },
-  { key: "baseShield", label: "盾", step: 1, min: 0, max: 999 },
-  { key: "filmShards", label: "碎", step: 1, min: 0, max: 9, target: "state" },
-];
 
 const statLabels = {
   hp: "生命",
@@ -234,14 +201,6 @@ const monsterTypes = {
   knightCaptain: { name: "骑士队长", atk: 14, def: 5, hp: 40, speed: 4, traits: [{ type: "shield", value: 40, text: "护盾40" }] },
 };
 
-const monsterPools = [
-  ["slime", "skeleton", "bat", "mage"],
-  ["slime", "skeleton", "bat", "mage", "orc", "golem", "wizard"],
-  ["slime", "skeleton", "bat", "mage", "orc", "golem", "wizard", "guard", "knight", "patrol"],
-  ["slime", "skeleton", "bat", "mage", "orc", "golem", "wizard", "guard", "knight", "patrol", "swordsman", "warrior"],
-  ["slime", "skeleton", "bat", "mage", "orc", "golem", "wizard", "guard", "knight", "patrol", "swordsman", "warrior"],
-];
-
 const normalMonsterUnlocks = [
   { floor: 1, key: "slime", weight: 12 },
   { floor: 2, key: "bat", weight: 5 },
@@ -256,32 +215,6 @@ const normalMonsterUnlocks = [
   { floor: 21, key: "warrior", weight: 4 },
   { floor: 23, key: "swordsman", weight: 3 },
 ];
-
-const lootTypes = [
-  { name: "西红柿", stats: { hp: 15 } },
-  { name: "香蕉", stats: { hp: 10 } },
-  { name: "咖啡", stats: { regen: 2 } },
-  { name: "矿泉水", stats: { regen: 1 } },
-  { name: "锅盖", stats: { defense: 3 } },
-  { name: "橡皮", stats: { defense: 2 } },
-  { name: "雨伞", stats: { shield: 6 } },
-  { name: "镜子", stats: { shield: 3 } },
-  { name: "键盘", stats: { attack: 4 } },
-  { name: "拖鞋", stats: { attack: 3 } },
-  { name: "剪刀", stats: { lifesteal: 2 } },
-  { name: "指甲刀", stats: { lifesteal: 1 } },
-  { name: "风扇", stats: { speed: 2 } },
-  { name: "滑板", stats: { speed: 1 } },
-];
-
-const bossRewards = {
-  skeletonCaptain: { itemName: "普通胶卷", stats: { defense: 2 } },
-  vampire: { itemName: "普通胶卷", stats: { lifesteal: 1 } },
-  knightCaptain: { itemName: "普通胶卷", stats: { shield: 8 } },
-  octopus: { itemName: "普通胶卷", stats: { hp: 25 } },
-  dragon: { itemName: "普通胶卷", stats: { speed: 2 } },
-  archmage: { itemName: "普通胶卷", stats: { attack: 3 } },
-};
 
 const els = {
   playerHpText: byId("playerHpText"),
@@ -307,7 +240,6 @@ const els = {
   cameraFrame: byId("cameraFrame"),
   photoPreview: byId("photoPreview"),
   photoStateBadge: byId("photoStateBadge"),
-  apiStatusBadge: byId("apiStatusBadge"),
   configToggleBtn: byId("configToggleBtn"),
   secondaryArea: byId("secondaryArea"),
   presetNote: byId("presetNote"),
@@ -322,7 +254,6 @@ const els = {
   saveConfigBtn: byId("saveConfigBtn"),
   testChatBtn: byId("testChatBtn"),
   chatResult: byId("chatResult"),
-  debugStats: byId("debugStats"),
   recommendEquipBtn: byId("recommendEquipBtn"),
   equipmentGrid: byId("equipmentGrid"),
   equipPrevBtn: byId("equipPrevBtn"),
@@ -431,7 +362,6 @@ function bindEvents() {
   els.equipPrevBtn.addEventListener("click", () => changeEquipmentPage(-1));
   els.equipNextBtn.addEventListener("click", () => changeEquipmentPage(1));
   renderHeroForms();
-  renderDebugControls();
 }
 
 function toggleApiKeyVisibility() {
@@ -444,7 +374,7 @@ function toggleApiKeyVisibility() {
 }
 
 function setSecondaryPanel(panelId) {
-  const target = ["config", "debug", "forms"].includes(panelId) ? panelId : "";
+  const target = ["config", "forms"].includes(panelId) ? panelId : "";
   els.secondaryArea.classList.toggle("is-collapsed", !target);
 
   document.querySelectorAll(".secondary-content").forEach((panel) => {
@@ -776,7 +706,7 @@ async function analyzePhoto() {
   }
 
   if (getFilmCount() <= 0) {
-    const message = "需要先获得胶卷：10 个碎片可合成 1 个，Boss 会掉落普通胶卷并直接提升属性。";
+    const message = "需要先获得胶卷：每击败 1 个怪物获得 1 个胶卷碎片，10 个碎片可合成 1 个胶卷。";
     showLootError(message);
     addLog(message);
     return;
@@ -1310,7 +1240,6 @@ function addInventoryItem(item, message, autoEquip = false) {
   state.latestItem = item;
   state.lootError = "";
   addInventoryItemDirect(item);
-  const mergeMessages = mergeUpgradeableItems();
   sortInventoryByValue();
   if (state.inventory.some((entry) => entry.id === item.id)) {
     state.selectedItemId = item.id;
@@ -1322,9 +1251,7 @@ function addInventoryItem(item, message, autoEquip = false) {
   }
   state.equipmentPage = 0;
   addLog(message);
-  for (const mergeMessage of mergeMessages) addLog(mergeMessage);
   addBattleEvent(message, "item");
-  for (const mergeMessage of mergeMessages) addBattleEvent(mergeMessage, "item");
   saveGame();
   render();
 }
@@ -1342,97 +1269,8 @@ function ensureConsumableHeal(item) {
   return item;
 }
 
-function mergeUpgradeableItems() {
-  const messages = [];
-  let merged = true;
-
-  while (merged) {
-    merged = false;
-    const groups = new Map();
-    for (const item of state.inventory) {
-      if (!isUpgradeableTowerItem(item)) continue;
-      const key = getUpgradeableItemKey(item);
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(item);
-    }
-
-    for (const group of groups.values()) {
-      if (group.length < mergeUpgradeCount) continue;
-      const consumed = group.slice(0, mergeUpgradeCount);
-      const template = consumed[0];
-      const nextItem = createUpgradedTowerItem(template);
-      const consumedIds = new Set(consumed.map((item) => item.id));
-      state.inventory = state.inventory.filter((item) => !consumedIds.has(item.id));
-      state.equippedItemIds = state.equippedItemIds.filter((id) => !consumedIds.has(id));
-      addInventoryItemDirect(nextItem);
-      state.selectedItemId = nextItem.id;
-      state.latestItem = nextItem;
-      equipItem(nextItem.id);
-      messages.push(`${formatItemDisplayName(template)} * ${mergeUpgradeCount} 合成为 ${formatItemDisplayName(nextItem)}。`);
-      merged = true;
-      break;
-    }
-  }
-
-  return messages;
-}
-
-function isUpgradeableTowerItem(item) {
-  return Boolean(item?.fixed && item.source === "tower" && !item.film && !isConsumableItem(item));
-}
-
-function getUpgradeableItemKey(item) {
-  return `${item.itemName}::${getItemLevel(item)}`;
-}
-
-function getItemLevel(item) {
-  return clampInt(item?.level, 0, 12);
-}
-
-function getItemBaseStats(item) {
-  const baseStats = item?.baseStats && calculateStatsValue(item.baseStats) > 0
-    ? item.baseStats
-    : item?.stats || {};
-  return normalizeStats(baseStats, 999);
-}
-
-function getLevelMultiplier(level) {
-  return 2 ** Math.max(0, getItemLevel({ level }));
-}
-
-function applyItemLevelStats(baseStats, level) {
-  const multiplier = getLevelMultiplier(level);
-  const normalized = normalizeStats(baseStats, 999);
-  const result = normalizeStats({}, 999);
-  for (const key of statOrder) {
-    result[key] = normalized[key] * multiplier;
-  }
-  return result;
-}
-
-function createUpgradedTowerItem(template) {
-  const nextLevel = getItemLevel(template) + 1;
-  const baseStats = getItemBaseStats(template);
-  return {
-    ...balanceItem({
-      itemName: template.itemName,
-      rarity: template.rarity || "common",
-      stats: applyItemLevelStats(baseStats, nextLevel),
-      description: `塔中怪物装备 +${nextLevel}，由 10 件 +${nextLevel - 1} 合成，效果翻倍。`,
-      confidence: 1,
-      film: false,
-      fixed: true,
-      source: "tower",
-      level: nextLevel,
-      baseStats,
-    }, makeSystemItemImage(template.itemName)),
-    id: makeId("item"),
-  };
-}
-
 function formatItemDisplayName(item) {
-  const level = getItemLevel(item);
-  return `${item?.itemName || "装备"}${level > 0 ? `+${level}` : ""}`;
+  return item?.itemName || "装备";
 }
 
 function toggleAutoBattle() {
@@ -1681,19 +1519,8 @@ function defeatEnemy(enemy) {
   for (const drop of drops) {
     if (drop.kind === "shard") {
       addFilmShards(drop.amount);
-      continue;
     }
-    if (drop.kind === "bossReward") {
-      applyBossReward(drop);
-      continue;
-    }
-    drop.id = drop.id || makeId("item");
-    addInventoryItemDirect(drop);
-    state.selectedItemId = drop.id;
-    equipItem(drop.id);
-    state.latestItem = drop;
   }
-  mergeUpgradeableItems();
   sortInventoryByValue();
   removeActiveEnemyIds([enemy.id]);
 }
@@ -1750,13 +1577,9 @@ function addBattleDetail(text) {
 function addLootNamesToCurrentBattle(drops) {
   if (!state.currentBattle) return;
   for (const drop of drops) {
-    const amount = drop.kind === "shard" ? drop.amount || 1 : drop.amount || 1;
+    const amount = drop.amount || 1;
     for (let i = 0; i < amount; i += 1) {
       state.currentBattle.lootNames.push(drop.itemName);
-    }
-    if (drop.kind === "bossReward") {
-      const statText = formatStatsText(drop.stats);
-      if (statText) state.currentBattle.lootNames.push(statText);
     }
   }
 }
@@ -1843,14 +1666,6 @@ function formatLootNames(names) {
   return [...counts.entries()]
     .map(([name, count]) => count > 1 ? `${name}*${count}` : name)
     .join("、");
-}
-
-function formatStatsText(stats) {
-  const normalized = normalizeStats(stats || {}, 999);
-  return statOrder
-    .filter((key) => normalized[key])
-    .map((key) => `${statLabels[key] || key}+${normalized[key]}`)
-    .join(" ");
 }
 
 function formatHpDelta(delta) {
@@ -1975,9 +1790,7 @@ function buildFloorEncounter(floor) {
       slot: index,
       typeKey: enemy.typeKey || "slime",
       typeName: enemy.typeName || "史莱姆",
-      dropKey: enemy.dropKey || "西红柿",
-      dropName: enemy.dropName || enemy.dropKey || "西红柿",
-      name: enemy.name || `${enemy.dropName || "西红柿"}${enemy.typeName || "史莱姆"}`,
+      name: enemy.name || enemy.typeName || "史莱姆",
       maxHp: Number.isFinite(enemy.maxHp) ? enemy.maxHp : Number.isFinite(enemy.hp) ? enemy.hp : 1,
       hp: Number.isFinite(enemy.hp) ? enemy.hp : Number.isFinite(enemy.maxHp) ? enemy.maxHp : 1,
       atk: Number.isFinite(enemy.atk) ? enemy.atk : 1,
@@ -1985,7 +1798,6 @@ function buildFloorEncounter(floor) {
       speed: Number.isFinite(enemy.speed) ? enemy.speed : 1,
       maxShield: Number.isFinite(enemy.maxShield) ? enemy.maxShield : Number.isFinite(enemy.shield) ? enemy.shield : 0,
       shield: Number.isFinite(enemy.shield) ? enemy.shield : 0,
-      prefixStats: enemy.prefixStats || {},
       traits: Array.isArray(enemy.traits) ? enemy.traits : [],
     })).filter(Boolean);
   }
@@ -2018,28 +1830,23 @@ function buildWeightedMonsterPool(floor) {
 
 function makeEnemy(typeKey, floor, slot) {
   const type = monsterTypes[typeKey] || monsterTypes.slime;
-  const object = lootTypes[hashIndex(`${floor}:object:${slot}`, lootTypes.length)];
-  const prefixStats = normalizeStats(object.stats || {});
   const shield = getTraitValueFromList(type.traits, "shield", 0) || 0;
-  const traits = mergePrefixTraits(cloneTraits(type.traits), prefixStats);
-  const maxHp = Math.max(1, type.hp + (prefixStats.hp || 0));
+  const traits = cloneTraits(type.traits);
+  const maxHp = Math.max(1, type.hp);
   return {
-    id: `${floor}-${slot}-${object.name}-${type.name}`,
+    id: `${floor}-${slot}-${typeKey}`,
     floor,
     slot,
     typeKey,
     typeName: type.name,
-    dropKey: object.name,
-    dropName: object.name,
-    name: `${object.name}${type.name}`,
+    name: type.name,
     maxHp,
     hp: maxHp,
-    atk: Math.max(0, type.atk + (prefixStats.attack || 0)),
-    def: Math.max(0, type.def + (prefixStats.defense || 0)),
-    speed: Math.max(1, type.speed + (prefixStats.speed || 0)),
-    maxShield: Math.max(0, shield + (prefixStats.shield || 0)),
-    shield: Math.max(0, shield + (prefixStats.shield || 0)),
-    prefixStats,
+    atk: Math.max(0, type.atk),
+    def: Math.max(0, type.def),
+    speed: Math.max(1, type.speed),
+    maxShield: Math.max(0, shield),
+    shield: Math.max(0, shield),
     traits,
   };
 }
@@ -2052,11 +1859,9 @@ function normalizeEnemy(enemy) {
     return {
       ...enemy,
       id: typeof enemy.id === "string" ? enemy.id : makeId("enemy"),
-      name: typeof enemy.name === "string" && enemy.name ? enemy.name : `${enemy.dropName || "西红柿"}${enemy.typeName || "史莱姆"}`,
+      name: typeof enemy.name === "string" && enemy.name ? enemy.name : enemy.typeName || "史莱姆",
       typeKey: enemy.typeKey || "slime",
       typeName: enemy.typeName || "史莱姆",
-      dropName: enemy.dropName || enemy.dropKey || "西红柿",
-      dropKey: enemy.dropKey || enemy.dropName || "西红柿",
       maxHp,
       hp: Number.isFinite(enemy.hp) ? Math.max(0, Math.min(enemy.hp, maxHp)) : maxHp,
       atk: Number.isFinite(enemy.atk) ? Math.max(0, enemy.atk) : 1,
@@ -2064,105 +1869,50 @@ function normalizeEnemy(enemy) {
       speed: Number.isFinite(enemy.speed) ? Math.max(1, enemy.speed) : 1,
       maxShield,
       shield: Number.isFinite(enemy.shield) ? Math.max(0, Math.min(enemy.shield, maxShield)) : maxShield,
-      prefixStats: normalizeStats(enemy.prefixStats || {}, 999),
       traits: Array.isArray(enemy.traits) ? cloneTraits(enemy.traits) : [],
     };
   }
   const previousMaxHp = Number.isFinite(enemy.maxHp) ? enemy.maxHp : Number.isFinite(enemy.hp) ? enemy.hp : 1;
   const previousMaxShield = Number.isFinite(enemy.maxShield) ? enemy.maxShield : Number.isFinite(enemy.shield) ? enemy.shield : 0;
-  const typeName = typeof enemy.typeName === "string" ? enemy.typeName : "怪物";
-  const dropName = typeof enemy.dropName === "string" ? enemy.dropName : enemy.objectName || enemy.objectKey || "物品";
-  const dropKey = typeof enemy.dropKey === "string" ? enemy.dropKey : enemy.objectKey || enemy.objectName || dropName || "西红柿";
+  const typeName = typeof enemy.typeName === "string" ? enemy.typeName : monsterTypes[enemy.typeKey]?.name || "怪物";
   const type = monsterTypes[enemy.typeKey];
-  const object = lootTypes.find((item) => item.name === dropKey || item.name === dropName);
-  const prefixStats = normalizeStats(object?.stats || enemy.prefixStats || {});
   const baseShield = type ? getTraitValueFromList(type.traits, "shield", 0) || 0 : 0;
-  const maxHp = type ? Math.max(1, type.hp + (prefixStats.hp || 0)) : Number.isFinite(enemy.maxHp) ? enemy.maxHp : Number.isFinite(enemy.hp) ? enemy.hp : 1;
+  const maxHp = type ? Math.max(1, type.hp) : Number.isFinite(enemy.maxHp) ? enemy.maxHp : Number.isFinite(enemy.hp) ? enemy.hp : 1;
   const maxShield = type
-    ? Math.max(0, baseShield + (prefixStats.shield || 0))
+    ? Math.max(0, baseShield)
     : Number.isFinite(enemy.maxShield)
       ? enemy.maxShield
       : Number.isFinite(enemy.shield)
         ? enemy.shield
         : 0;
-  const traits = type ? mergePrefixTraits(cloneTraits(type.traits), prefixStats) : Array.isArray(enemy.traits) ? enemy.traits : [];
+  const traits = type ? cloneTraits(type.traits) : Array.isArray(enemy.traits) ? enemy.traits : [];
   return {
     ...enemy,
     id: typeof enemy.id === "string" ? enemy.id : makeId("enemy"),
-    name: typeof enemy.name === "string" && enemy.name ? enemy.name : `${dropName}${typeName}`,
+    name: typeName,
     typeName,
-    dropName,
-    dropKey,
     maxHp,
     hp: Number.isFinite(enemy.hp)
       ? Math.max(0, Math.min(enemy.hp >= previousMaxHp ? maxHp : enemy.hp, maxHp))
       : maxHp,
-    atk: type ? Math.max(0, type.atk + (prefixStats.attack || 0)) : Number.isFinite(enemy.atk) ? enemy.atk : 1,
-    def: type ? Math.max(0, type.def + (prefixStats.defense || 0)) : Number.isFinite(enemy.def) ? enemy.def : 0,
-    speed: type ? Math.max(1, type.speed + (prefixStats.speed || 0)) : Number.isFinite(enemy.speed) ? Math.max(1, enemy.speed) : 1,
+    atk: type ? Math.max(0, type.atk) : Number.isFinite(enemy.atk) ? enemy.atk : 1,
+    def: type ? Math.max(0, type.def) : Number.isFinite(enemy.def) ? enemy.def : 0,
+    speed: type ? Math.max(1, type.speed) : Number.isFinite(enemy.speed) ? Math.max(1, enemy.speed) : 1,
     maxShield,
     shield: Number.isFinite(enemy.shield)
       ? Math.max(0, Math.min(enemy.shield >= previousMaxShield ? maxShield : enemy.shield, maxShield))
       : maxShield,
-    prefixStats,
     traits,
   };
 }
 
-function createItemFromObject(objectName) {
-  const object = lootTypes.find((item) => item.name === objectName) || lootTypes[lootTypes.length - 1];
-  return balanceItem({
-    itemName: object.name,
-    rarity: "common",
-    stats: object.stats || {},
-    description: object.film ? "无属性。可作为后续拍照玩法的胶卷。" : "塔中怪物固定装备，同名装备可以重复拥有。",
-    confidence: 1,
-    film: Boolean(object.film),
-    fixed: true,
-    source: "tower",
-    level: 0,
-    skipSpecialRoll: true,
-    baseStats: object.stats || {},
-  }, makeSystemItemImage(object.name));
-}
-
 function getEnemyDrops(enemy) {
-  const drops = [createItemFromObject(enemy.dropKey), {
+  void enemy;
+  return [{
     kind: "shard",
     itemName: "胶卷碎片",
     amount: 1,
   }];
-  const bossReward = createBossReward(enemy);
-  if (bossReward) drops.push(bossReward);
-  return drops;
-}
-
-function createBossReward(enemy) {
-  const config = bossRewards[enemy.typeKey];
-  if (!config) return null;
-  return {
-    kind: "bossReward",
-    itemName: config.itemName,
-    amount: 1,
-    stats: normalizeStats(config.stats || {}, 999),
-  };
-}
-
-function applyBossReward(drop) {
-  state.filmRolls += drop.amount || 1;
-  const stats = normalizeStats(drop.stats || {}, 999);
-  const beforeStats = getPlayerStats();
-  state.player.baseHp += stats.hp || 0;
-  state.player.baseAtk += stats.attack || 0;
-  state.player.baseDef += stats.defense || 0;
-  state.player.baseSpeed += stats.speed || 0;
-  state.player.baseShield += stats.shield || 0;
-  state.player.baseLifesteal += stats.lifesteal || 0;
-  state.player.baseRegen += stats.regen || 0;
-  const afterStats = getPlayerStats();
-  if (afterStats.maxHp > beforeStats.maxHp) {
-    state.player.hp += afterStats.maxHp - beforeStats.maxHp;
-  }
 }
 
 function addFilmShards(amount) {
@@ -2250,16 +2000,9 @@ function applyBattleSpecialPassives(stats) {
   return stats;
 }
 
-function simulateSelectedBattle() {
-  const enemies = getSelectedEnemies()
-    .filter((enemy) => enemy.hp > 0)
-    .map(cloneEnemyForSimulation);
-  if (!enemies.length || isPlayerDefeated()) {
-    return { result: "none", hpDelta: 0, endHp: state.player.hp, rounds: 0, defeatedCount: 0 };
-  }
-
+function createBattleSimulation(enemies) {
   const stats = getBattleStatsForEnemiesWithSpecial(enemies, createDefaultBattleSpecial());
-  const sim = {
+  return {
     hp: state.player.hp,
     shield: stats.shield,
     battleSpecial: createDefaultBattleSpecial(),
@@ -2271,51 +2014,12 @@ function simulateSelectedBattle() {
     rounds: 0,
     defeatedCount: 0,
   };
-  const startHp = sim.hp;
-
-  while (sim.hp > 0 && sim.activeIds.length) {
-    if (sim.round >= 50) {
-      return {
-        result: "timeout",
-        hpDelta: sim.hp - startHp,
-        endHp: sim.hp,
-        rounds: sim.rounds,
-        defeatedCount: sim.defeatedCount,
-      };
-    }
-
-    const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
-    currentStats.maxHp += sim.maxHpBonus || 0;
-    const nextEnemyId = getNextSimEnemyId(sim);
-    const enemyTime = nextEnemyId ? sim.enemyTimes.get(nextEnemyId) : Infinity;
-
-    if (!nextEnemyId || sim.heroTime <= enemyTime + Number.EPSILON) {
-      const defeated = simulateHeroStrike(sim, enemies, currentStats);
-      sim.heroTime += 1 / Math.max(1, currentStats.speed);
-      sim.round = defeated ? 1 : sim.round + 1;
-    } else {
-      const enemy = enemies.find((item) => item.id === nextEnemyId);
-      if (enemy) simulateMonsterStrike(sim, enemy, enemies, currentStats);
-      sim.enemyTimes.set(nextEnemyId, enemyTime + 1 / Math.max(1, enemy?.speed || 1));
-      sim.round += 1;
-    }
-    sim.rounds += 1;
-  }
-
-  return {
-    result: sim.hp <= 0 ? "death" : "win",
-    hpDelta: sim.hp - startHp,
-    endHp: sim.hp,
-    rounds: sim.rounds,
-    defeatedCount: sim.defeatedCount,
-  };
 }
 
 function cloneEnemyForSimulation(enemy) {
   return {
     ...enemy,
     traits: cloneTraits(enemy.traits || []),
-    prefixStats: { ...(enemy.prefixStats || {}) },
   };
 }
 
@@ -2332,7 +2036,7 @@ function getSimActiveEnemies(sim, enemies) {
 function simulateHeroStrike(sim, enemies, stats) {
   void stats;
   const strikeCount = hasEquippedPhotoEffect("doubleStrikeSpeedDown") ? 2 : 1;
-  let defeatedAny = false;
+  const defeatedIds = [];
 
   for (let strikeIndex = 0; strikeIndex < strikeCount; strikeIndex += 1) {
     const enemy = sim.activeIds.map((id) => enemies.find((item) => item.id === id)).find(Boolean);
@@ -2364,11 +2068,11 @@ function simulateHeroStrike(sim, enemies, stats) {
       sim.activeIds = sim.activeIds.filter((id) => id !== enemy.id);
       sim.enemyTimes.delete(enemy.id);
       sim.defeatedCount += 1;
-      defeatedAny = true;
+      defeatedIds.push(enemy.id);
     }
   }
 
-  return defeatedAny;
+  return defeatedIds;
 }
 
 function simulateMonsterStrike(sim, enemy, enemies, stats) {
@@ -2431,24 +2135,6 @@ function getTraitValueFromList(traits = [], type, fallback = 0) {
 
 function cloneTraits(traits = []) {
   return traits.map((trait) => ({ ...trait }));
-}
-
-function mergePrefixTraits(traits, stats) {
-  const merged = [...traits];
-  if (stats.regen) upsertNumericTrait(merged, "regen", stats.regen, `回复${stats.regen}`);
-  if (stats.lifesteal) upsertNumericTrait(merged, "lifesteal", stats.lifesteal, `吸血${stats.lifesteal}`);
-  return merged;
-}
-
-function upsertNumericTrait(traits, type, delta, text) {
-  const existing = traits.find((trait) => trait.type === type);
-  if (existing) {
-    const nextValue = Math.max(0, (Number.isFinite(existing.value) ? existing.value : 0) + delta);
-    existing.value = nextValue;
-    existing.text = `${type === "regen" ? "回复" : "吸血"}${nextValue}`;
-    return;
-  }
-  traits.push({ type, value: delta, text });
 }
 
 function isBossFloor(floor) {
@@ -2688,7 +2374,6 @@ function triggerKillSpecial(enemy) {
 function getEquippedItems() {
   const inventoryIds = new Set(state.inventory.map((item) => item.id));
   const seenIds = new Set();
-  const seenFixedKeys = new Set();
   const nextIds = [];
   const items = [];
 
@@ -2696,11 +2381,6 @@ function getEquippedItems() {
     if (seenIds.has(id) || !inventoryIds.has(id) || nextIds.length >= equipmentSlotLimit) continue;
     const item = state.inventory.find((entry) => entry.id === id);
     if (!item || isConsumableItem(item)) continue;
-    if (item.fixed) {
-      const fixedKey = getFixedEquipKey(item);
-      if (seenFixedKeys.has(fixedKey)) continue;
-      seenFixedKeys.add(fixedKey);
-    }
     seenIds.add(id);
     nextIds.push(id);
     items.push(item);
@@ -2715,15 +2395,8 @@ function equipItem(itemId) {
   if (!item || isConsumableItem(item)) return false;
   if (state.equippedItemIds.includes(itemId)) return true;
   if (state.equippedItemIds.length >= equipmentSlotLimit) return false;
-  if (item.fixed && getEquippedItems().some((entry) => entry.fixed && getFixedEquipKey(entry) === getFixedEquipKey(item) && entry.id !== item.id)) {
-    return false;
-  }
   state.equippedItemIds.push(itemId);
   return true;
-}
-
-function getFixedEquipKey(item) {
-  return `${item?.itemName || ""}::${getItemLevel(item)}`;
 }
 
 function toggleEquipItem(itemId) {
@@ -2752,19 +2425,13 @@ function recommendEquipment() {
   if (isEquipmentLocked()) return false;
 
   const selected = [];
-  const fixedKeys = new Set();
   const candidates = state.inventory
     .filter((item) => !isConsumableItem(item) && scoreItem(item) > 0)
     .map((item, index) => ({ item, index }))
-    .sort((a, b) => scoreItem(b.item) - scoreItem(a.item) || Number(a.item.fixed) - Number(b.item.fixed) || a.index - b.index);
+    .sort((a, b) => scoreItem(b.item) - scoreItem(a.item) || a.index - b.index);
 
   for (const { item } of candidates) {
     if (selected.length >= equipmentSlotLimit) break;
-    if (item.fixed) {
-      const fixedKey = getFixedEquipKey(item);
-      if (fixedKeys.has(fixedKey)) continue;
-      fixedKeys.add(fixedKey);
-    }
     selected.push(item.id);
   }
 
@@ -2808,25 +2475,20 @@ function useSelectedConsumable() {
 function balanceItem(item, image = "") {
   const safe = item && typeof item === "object" ? item : {};
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
-  const isFixed = Boolean(safe.fixed);
   const itemName = cleanText(safe.itemName, "照片装备", 18);
-  const tooLarge = isFixed ? false : shouldTreatAsTooLarge(itemName, safe.description, Boolean(safe.tooLarge));
+  const tooLarge = shouldTreatAsTooLarge(itemName, safe.description, Boolean(safe.tooLarge));
   const consumable = Boolean(safe.consumable || tooLarge) && tooLarge;
-  const requestedValue = isFixed || tooLarge ? 0 : clampInt(safe.value, 5, 20);
-  const specialEffects = isFixed || tooLarge || consumable
+  const requestedValue = tooLarge ? 0 : clampInt(safe.value, 5, 20);
+  const specialEffects = tooLarge || consumable
     ? []
     : choosePhotoSpecialEffects(safe, image, requestedValue)
       .filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue);
   const specialValue = calculateSpecialEffectsValue(specialEffects);
   const statBudget = Math.max(0, requestedValue - specialValue);
-  const targetValue = isFixed
-    ? calculateStatsValue(safe.stats || {})
-    : tooLarge
+  const targetValue = tooLarge
       ? 0
       : Math.max(requestedValue, specialValue);
-  const stats = isFixed
-    ? normalizeStats(safe.stats || {}, 99)
-    : tooLarge
+  const stats = tooLarge
       ? normalizeStats({}, 20)
       : clampStatsToValue(allocateStatsForItem(safe.stats || {}, itemName, statBudget), statBudget);
 
@@ -2840,10 +2502,6 @@ function balanceItem(item, image = "") {
     description: tooLarge ? "物品过大或不是可装备物，无法提供属性。" : cleanText(safe.description, "由照片鉴定出的装备。", 56),
     confidence: clampNumber(safe.confidence, 0, 1),
     film: Boolean(safe.film),
-    fixed: isFixed,
-    source: typeof safe.source === "string" ? safe.source : "",
-    level: isFixed ? getItemLevel(safe) : 0,
-    baseStats: isFixed ? getItemBaseStats(safe) : normalizeStats({}, 999),
     skipSpecialRoll: Boolean(safe.skipSpecialRoll),
     tooLarge,
     consumable,
@@ -2862,12 +2520,7 @@ function normalizeInventoryItem(item) {
   };
   normalized.specialEffects = normalizeSpecialEffects(item?.specialEffects || balanced.specialEffects);
   normalized.specialState = normalizeSpecialState(item?.specialState || balanced.specialState, normalized.specialEffects);
-  const withHeal = ensureConsumableHeal(normalized);
-  if (withHeal.fixed && !withHeal.source) withHeal.source = "tower";
-  if (isSystemItemImageName(withHeal.itemName) && (withHeal.fixed || withHeal.source === "tower" || withHeal.film)) {
-    withHeal.image = makeSystemItemImage(withHeal.itemName);
-  }
-  return withHeal;
+  return ensureConsumableHeal(normalized);
 }
 
 function scoreItem(item) {
@@ -2878,7 +2531,7 @@ function scoreItem(item) {
 function sortInventoryByValue() {
   state.inventory = state.inventory
     .map((item, index) => ({ item, index }))
-    .sort((a, b) => scoreItem(b.item) - scoreItem(a.item) || getItemLevel(b.item) - getItemLevel(a.item) || a.index - b.index)
+    .sort((a, b) => scoreItem(b.item) - scoreItem(a.item) || a.index - b.index)
     .map(({ item }) => item);
   if (state.selectedItemId && !state.inventory.some((item) => item.id === state.selectedItemId)) {
     state.selectedItemId = state.inventory[0]?.id || "";
@@ -3094,7 +2747,7 @@ function render() {
 
   els.floorText.textContent = state.gameClear
     ? "已通关"
-    : `第 ${state.floor} / ${maxFloor} 层${isBossFloor(state.floor) ? " · Boss" : isRewardBossFloor(state.floor) ? " · 奖励Boss" : ""}`;
+    : `第 ${state.floor} / ${maxFloor} 层${isBossFloor(state.floor) ? " · Boss" : isRewardBossFloor(state.floor) ? " · 可选Boss" : ""}`;
   renderEnemyHint();
   renderEnemyField();
   els.attackBtn.disabled = defeated || Boolean(state.autoBattleTimer) || state.gameClear || !getSelectedEnemies().length;
@@ -3159,47 +2812,14 @@ function renderEnemyHint() {
   }
   const count = state.selectedEnemyIds.length;
   if (isBossFloor(state.floor)) {
-    els.enemyHint.textContent = `${formatSelectionEstimate(simulateSelectedBattle())} · Boss 层自动挑战全部敌人，不能逃跑。${upcomingText ? ` ${upcomingText}` : ""}`;
+    els.enemyHint.textContent = `Boss 层自动挑战全部敌人，不能逃跑。${upcomingText ? ` ${upcomingText}` : ""}`;
     return;
   }
   if (!count) {
-    els.enemyHint.textContent = `点击敌人选择本层对手；数字表示勇者攻击顺序。选多个奖励更多，但所有被选敌人都会一起进攻。${upcomingText ? ` ${upcomingText}` : ""}`;
+    els.enemyHint.textContent = `点击敌人选择本层对手；数字表示勇者攻击顺序。选多个可获得更多碎片，但所有被选敌人都会一起进攻。${upcomingText ? ` ${upcomingText}` : ""}`;
     return;
   }
-  els.enemyHint.textContent = `${formatSelectionEstimate(simulateSelectedBattle())} · 再次点击可取消；逃跑会直接进入下一层。${upcomingText ? ` ${upcomingText}` : ""}`;
-}
-
-function formatSelectionEstimate(estimate) {
-  const count = state.selectedEnemyIds.length;
-  if (!count) return "";
-  const rewardText = formatSelectionRewards();
-  if (!estimate || estimate.result === "none") return `已选择 ${count} 个 · ${rewardText}`;
-  const statusMap = {
-    win: "预计可胜",
-    death: "预计会倒下",
-    timeout: "敌方可能逃跑",
-  };
-  const status = statusMap[estimate.result] || "结果未知";
-  const hpText = estimate.hpDelta > 0 ? `生命 +${estimate.hpDelta}` : `生命 ${estimate.hpDelta}`;
-  return `已选择 ${count} 个 · ${rewardText} · ${hpText} · ${status}`;
-}
-
-function formatSelectionRewards() {
-  const enemies = getSelectedEnemies().filter((enemy) => enemy.hp > 0);
-  if (!enemies.length) return "奖励无";
-  const names = [];
-  const shardCount = enemies.length;
-  for (const enemy of enemies) {
-    names.push(enemy.dropName || "装备");
-    const reward = createBossReward(enemy);
-    if (reward) {
-      names.push("普通胶卷");
-      const statText = formatStatsText(reward.stats);
-      if (statText) names.push(statText);
-    }
-  }
-  names.push(shardCount > 1 ? `胶卷碎片*${shardCount}` : "胶卷碎片");
-  return `奖励 ${formatLootNames(names)}`;
+  els.enemyHint.textContent = `已选择 ${count} 个 · 再次点击可取消；逃跑会直接进入下一层。${upcomingText ? ` ${upcomingText}` : ""}`;
 }
 
 function getUpcomingFloorHint() {
@@ -3207,22 +2827,23 @@ function getUpcomingFloorHint() {
   const targets = [
     { floor: 10, label: "Boss", name: "骷髅队长" },
     { floor: 20, label: "Boss", name: "吸血鬼" },
-    { floor: 25, label: "奖励Boss", name: "章鱼", optional: true },
+    { floor: 25, label: "可选Boss", name: "章鱼", optional: true },
     { floor: 30, label: "Boss", name: "骑士队长" },
-    { floor: 35, label: "奖励Boss", name: "魔龙", optional: true },
-    { floor: 39, label: "奖励Boss", name: "大法师", optional: true },
+    { floor: 35, label: "可选Boss", name: "魔龙", optional: true },
+    { floor: 39, label: "可选Boss", name: "大法师", optional: true },
     { floor: 40, label: "最终Boss", name: "魔王" },
   ];
   const next = targets.find((item) => item.floor >= current);
   if (!next) return "";
   if (next.floor === current) {
-    return next.optional ? `本层奖励Boss：${next.name}，可跳过。` : `本层${next.label}：${next.name}。`;
+    return next.optional ? `本层可选Boss：${next.name}，可跳过。` : `本层${next.label}：${next.name}。`;
   }
   return `预告：${next.floor}层 ${next.label} ${next.name}${next.optional ? "，可跳过" : ""}。`;
 }
 
 function renderEnemyField() {
   els.enemyField.innerHTML = "";
+  const enemyDamageEstimates = getEnemyDamageEstimates();
 
   if (state.gameClear) {
     const clear = document.createElement("article");
@@ -3245,10 +2866,12 @@ function renderEnemyField() {
   }
 
   state.enemies.forEach((enemy, index) => {
+    void index;
     const isDefeated = enemy.hp <= 0;
     const isLocked = Boolean(state.autoBattleTimer) || Boolean(state.currentBattle) || isBossFloor(state.floor) || isDefeated;
     const selectionOrder = getEnemySelectionOrder(enemy.id);
     const isSelected = selectionOrder > 0;
+    const damageText = enemyDamageEstimates.get(enemy.id) || "选择后显示";
     const button = document.createElement("button");
     button.className = `enemy-card enemy-select-card${isSelected ? " is-selected" : ""}${state.activeEnemyIds?.includes(enemy.id) ? " is-active" : ""}${isLocked ? " is-locked" : ""}${isDefeated ? " is-defeated" : ""}`;
     button.type = "button";
@@ -3261,7 +2884,6 @@ function renderEnemyField() {
     });
 
     const traitText = enemy.traits?.map((trait) => trait.text).filter(Boolean).join(" / ") || "无特性";
-    const prefixText = getPrefixEffectText(enemy);
     const imageUrl = getMonsterImageUrl(enemy.typeKey);
     button.innerHTML = `
       ${selectionOrder ? `<span class="selection-badge">${selectionOrder}</span>` : ""}
@@ -3271,7 +2893,6 @@ function renderEnemyField() {
         </div>
         <div class="enemy-name-block">
           <strong>${escapeHtml(enemy.name)}</strong>
-          <span>${escapeHtml(enemy.dropName)} · ${escapeHtml(prefixText)}</span>
           <span>${escapeHtml(traitText)}</span>
         </div>
       </div>
@@ -3285,20 +2906,89 @@ function renderEnemyField() {
         <div><dt>速</dt><dd>${enemy.speed}</dd></div>
         <div><dt>盾</dt><dd>${enemy.shield || 0}</dd></div>
       </dl>
+      <div class="enemy-card-reward">
+        <span>碎片 +1</span>
+        <strong>${escapeHtml(damageText)}</strong>
+      </div>
     `;
     els.enemyField.append(button);
   });
 }
 
-function getMonsterImageUrl(typeKey) {
-  return `${monsterImageBase}${monsterImages[typeKey] || monsterImages.slime}`;
+function getEnemyDamageEstimates() {
+  const estimates = new Map();
+  if (state.currentBattle || state.autoBattleTimer || isPlayerDefeated()) return estimates;
+
+  const aliveEnemies = state.enemies.filter((enemy) => enemy.hp > 0);
+  const selectedIds = state.selectedEnemyIds.filter((id) => aliveEnemies.some((enemy) => enemy.id === id));
+  if (selectedIds.length) {
+    for (const [id, text] of simulateDamageEstimateForIds(selectedIds, "selected")) {
+      estimates.set(id, text);
+    }
+  }
+
+  for (const enemy of aliveEnemies) {
+    if (estimates.has(enemy.id)) continue;
+    const singleEstimate = simulateDamageEstimateForIds([enemy.id], "single").get(enemy.id);
+    if (singleEstimate) estimates.set(enemy.id, singleEstimate);
+  }
+
+  return estimates;
 }
 
-function getPrefixEffectText(enemy) {
-  const stats = Object.entries(enemy.prefixStats || {})
-    .filter(([, value]) => value)
-    .map(([key, value]) => `${statLabels[key] || key}+${value}`);
-  return stats.length ? stats.join(" ") : "无属性";
+function simulateDamageEstimateForIds(enemyIds, mode) {
+  const estimates = new Map();
+  const enemies = enemyIds
+    .map((id) => state.enemies.find((enemy) => enemy.id === id))
+    .filter(Boolean)
+    .map(cloneEnemyForSimulation);
+  if (!enemies.length) return estimates;
+
+  const startHp = state.player.hp;
+  const sim = createBattleSimulation(enemies);
+
+  while (sim.hp > 0 && sim.activeIds.length) {
+    if (sim.round >= 50) {
+      for (const id of sim.activeIds) {
+        estimates.set(id, "50回合未击杀");
+      }
+      break;
+    }
+    const nextEnemyId = getNextSimEnemyId(sim);
+    const enemyTime = nextEnemyId ? sim.enemyTimes.get(nextEnemyId) : Infinity;
+    const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
+    currentStats.maxHp += sim.maxHpBonus || 0;
+
+    if (!nextEnemyId || sim.heroTime <= enemyTime + Number.EPSILON) {
+      const defeatedIds = simulateHeroStrike(sim, enemies, currentStats);
+      for (const id of defeatedIds) {
+        estimates.set(id, formatHpLossEstimate(startHp - sim.hp, mode));
+      }
+      sim.heroTime += 1 / Math.max(1, currentStats.speed);
+      sim.round = defeatedIds.length ? 1 : sim.round + 1;
+    } else {
+      const enemy = enemies.find((item) => item.id === nextEnemyId);
+      if (enemy) simulateMonsterStrike(sim, enemy, enemies, currentStats);
+      sim.enemyTimes.set(nextEnemyId, enemyTime + 1 / Math.max(1, enemy?.speed || 1));
+      sim.round += 1;
+    }
+  }
+
+  for (const id of enemyIds) {
+    if (!estimates.has(id)) {
+      estimates.set(id, sim.hp <= 0 ? "预计倒下" : mode === "single" ? "单挑未击杀" : "未击杀");
+    }
+  }
+  return estimates;
+}
+
+function formatHpLossEstimate(loss, mode) {
+  const label = mode === "single" ? "单挑扣血" : "击杀扣血";
+  return `${label} ${Math.max(0, loss)}`;
+}
+
+function getMonsterImageUrl(typeKey) {
+  return `${monsterImageBase}${monsterImages[typeKey] || monsterImages.slime}`;
 }
 
 function renderEquipmentGrid() {
@@ -3394,7 +3084,7 @@ function renderEquipmentDetail() {
     els.equipmentDetailEmpty.hidden = false;
     els.equipmentDetailEmpty.textContent = "";
     els.equipmentDetailName.textContent = "未选择装备";
-    els.equipmentDetailMeta.textContent = "战胜怪物会掉落物品。";
+    els.equipmentDetailMeta.textContent = "怪物掉落胶卷碎片，装备主要来自拍照鉴定。";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailDesc.textContent = "点击背包格装备，再点一次卸下；最多装备 10 件。";
     return;
@@ -3406,16 +3096,11 @@ function renderEquipmentDetail() {
   els.equipmentDetailImage.hidden = false;
   els.equipmentDetailEmpty.hidden = true;
   els.equipmentDetailName.textContent = formatItemDisplayName(selected);
-  const alreadyHasSameFixed = selected.fixed
-    && !state.equippedItemIds.includes(selected.id)
-    && getEquippedItems().some((item) => item.fixed && getFixedEquipKey(item) === getFixedEquipKey(selected));
   const equippedText = isConsumableItem(selected)
     ? `补给 · 回复 ${clampInt(selected.healAmount, 5, 10)}`
     : state.equippedItemIds.includes(selected.id)
       ? "已装备"
-      : alreadyHasSameFixed
-        ? "同名同级已装备"
-        : "未装备";
+      : "未装备";
   els.equipmentDetailMeta.textContent = `${rarityNames[selected.rarity]} · ${equippedText} · 价值 ${scoreItem(selected)} · 第 ${state.inventory.findIndex((item) => item.id === selected.id) + 1} 件`;
   els.equipmentDetailStats.innerHTML = isConsumableItem(selected)
     ? `<span>使用回复 ${clampInt(selected.healAmount, 5, 10)}</span>`
@@ -3511,82 +3196,6 @@ function formatSpecialEffectText(effect, data = {}) {
 function changeEquipmentPage(delta) {
   const totalPages = Math.max(1, Math.ceil(state.inventory.length / equipmentPageSize));
   state.equipmentPage = Math.min(Math.max(0, state.equipmentPage + delta), totalPages - 1);
-  saveGame();
-  render();
-}
-
-function renderDebugControls() {
-  els.debugStats.innerHTML = "";
-
-  for (const stat of testStats) {
-    const row = document.createElement("div");
-    row.className = "debug-stat";
-    const label = document.createElement("span");
-    label.textContent = stat.label;
-    const minus = document.createElement("button");
-    minus.type = "button";
-    minus.textContent = "-";
-    minus.setAttribute("aria-label", `${stat.label}减少`);
-    const value = document.createElement("strong");
-    value.dataset.debugValue = stat.key;
-    const plus = document.createElement("button");
-    plus.type = "button";
-    plus.textContent = "+";
-    plus.setAttribute("aria-label", `${stat.label}增加`);
-
-    minus.addEventListener("click", () => adjustTestStat(stat, -stat.step));
-    plus.addEventListener("click", () => adjustTestStat(stat, stat.step));
-
-    row.append(label, minus, value, plus);
-    els.debugStats.append(row);
-  }
-
-  updateDebugValues();
-}
-
-function updateDebugValues() {
-  for (const stat of testStats) {
-    const value = els.debugStats.querySelector(`[data-debug-value="${stat.key}"]`);
-    if (value) value.textContent = getDebugStatValue(stat);
-  }
-}
-
-function adjustTestStat(stat, delta) {
-  if (stat.key === "filmShards") {
-    adjustTestFilmShards(delta);
-    return;
-  }
-
-  const nextValue = Math.max(stat.min, Math.min(stat.max, state.player[stat.key] + delta));
-  if (nextValue === state.player[stat.key]) return;
-  const oldStats = getPlayerStats();
-  state.player[stat.key] = nextValue;
-  const newStats = getPlayerStats();
-  state.player.hp = Math.min(newStats.maxHp, state.player.hp + Math.max(0, newStats.maxHp - oldStats.maxHp));
-
-  if (stat.key === "baseShield") {
-    state.player.shieldMonsterId = "";
-    applyFloorShield();
-  }
-
-  addLog(`${stat.label} 调整为 ${nextValue}。`);
-  updateDebugValues();
-  saveGame();
-  render();
-}
-
-function getDebugStatValue(stat) {
-  if (stat.target === "state") return state[stat.key];
-  return state.player[stat.key];
-}
-
-function adjustTestFilmShards(delta) {
-  if (delta > 0) {
-    addFilmShards(delta);
-  } else if (delta < 0) {
-    state.filmShards = Math.max(0, state.filmShards + delta);
-  }
-  updateDebugValues();
   saveGame();
   render();
 }
@@ -3694,6 +3303,7 @@ function getReportMarkText(entry) {
 function renderGameTextOnly() {
   const equippedItems = getEquippedItems();
   const selectedEquipment = state.inventory.find((item) => item.id === state.selectedItemId);
+  const enemyDamageEstimates = getEnemyDamageEstimates();
   window.__photoHeroState = {
     player: {
       hp: state.player.hp,
@@ -3709,7 +3319,6 @@ function renderGameTextOnly() {
       filmRolls: state.filmRolls,
       filmShards: state.filmShards,
       filmCount: getFilmCount(),
-      selectedEstimate: simulateSelectedBattle(),
       battleSpecial: { ...(state.battleSpecial || {}) },
       selectedEquipment: selectedEquipment ? formatItemDisplayName(selectedEquipment) : null,
       equippedItems: equippedItems.map((item) => formatItemDisplayName(item)),
@@ -3724,9 +3333,6 @@ function renderGameTextOnly() {
       name: enemy.name,
       image: getMonsterImageUrl(enemy.typeKey),
       typeName: enemy.typeName,
-      dropName: enemy.dropName,
-      prefixEffect: getPrefixEffectText(enemy),
-      prefixStats: enemy.prefixStats || {},
       hp: enemy.hp,
       maxHp: enemy.maxHp,
       shield: enemy.shield,
@@ -3734,6 +3340,8 @@ function renderGameTextOnly() {
       def: enemy.def,
       speed: enemy.speed,
       traits: enemy.traits?.map((trait) => trait.text || trait.type) || [],
+      drop: "胶卷碎片",
+      damageEstimate: enemyDamageEstimates.get(enemy.id) || "",
       selected: state.selectedEnemyIds.includes(enemy.id),
       selectionOrder: getEnemySelectionOrder(enemy.id),
       active: state.activeEnemyIds.includes(enemy.id),
@@ -3856,7 +3464,6 @@ function loadSave() {
 
   state.player = normalizePlayer(save.player || state.player);
   state.inventory = Array.isArray(save.inventory) ? save.inventory.map(normalizeInventoryItem) : [];
-  mergeUpgradeableItems();
   sortInventoryByValue();
   state.equipmentPage = Number.isFinite(save.equipmentPage) ? save.equipmentPage : 0;
   state.selectedItemId = save.selectedItemId || state.inventory[0]?.id || "";
@@ -4011,10 +3618,10 @@ function clampInt(value, min, max) {
   return Math.max(min, Math.min(max, numeric));
 }
 
-function makeId(prefix) {
+function makeId(idStem) {
   if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
   state.battleReportSeq += 1;
-  return `${prefix}-${Date.now()}-${state.battleReportSeq}`;
+  return `${idStem}-${Date.now()}-${state.battleReportSeq}`;
 }
 
 function clampNumber(value, min, max) {
@@ -4037,15 +3644,6 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function makeSystemItemImage(itemName) {
-  const file = systemItemImageMap[itemName] || systemItemImageMap.胶卷;
-  return `${systemItemImageBase}${file}`;
-}
-
-function isSystemItemImageName(itemName) {
-  return Boolean(systemItemImageMap[itemName]);
-}
-
 function makePlaceholderImage() {
   return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
@@ -4063,7 +3661,6 @@ window.__photoHeroTestHooks = {
   compressImage,
   makeInventoryImage,
   loadImage,
-  makeSystemItemImage,
   addTestItem(input) {
     const item = balanceItem(input || {}, input?.image || makePlaceholderImage());
     addInventoryItem({ ...item, id: makeId("test-item") }, "测试装备已加入。", true);
@@ -4080,22 +3677,8 @@ window.__photoHeroTestHooks = {
       skipSpecialRoll: true,
       description: input.description || "测试用拍照特殊装备。",
       confidence: 1,
-      fixed: false,
     }, input.image || makePlaceholderImage());
     addInventoryItem({ ...item, id: makeId("test-special") }, "测试特殊装备已加入。", true);
-  },
-  addTowerItem(name) {
-    const item = createItemFromObject(name);
-    item.id = makeId("test-item");
-    addInventoryItem(item, "测试塔装已加入。", true);
-  },
-  applyBossReward(typeKey) {
-    const drop = createBossReward({ typeKey });
-    if (drop) {
-      applyBossReward(drop);
-      saveGame();
-      render();
-    }
   },
   addRawItem(input) {
     const item = {
@@ -4154,7 +3737,7 @@ window.__photoHeroTestHooks = {
   },
   recommendEquipment,
   useSelectedConsumable,
-  simulateSelectedBattle,
+  getEnemyDamageEstimates,
   buildFloorEncounter,
   startAutoBattle,
   resolveBattleAction() {
