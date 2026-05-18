@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260518-equip-focus">
+    <link rel="stylesheet" href="./styles.css?v=20260519-slot-estimate">
   </head>
   <body>
     <main class="app-shell">
@@ -56,8 +56,15 @@
                     <div class="detail-head">
                       <strong id="equipmentDetailName">未选择装备</strong>
                       <div class="detail-actions" id="equipmentActions" hidden>
-                        <button class="secondary-button detail-action" id="useItemBtn" type="button">装备</button>
-                        <button class="ghost-button detail-action danger-button" id="discardItemBtn" type="button">丢弃</button>
+                        <button class="ghost-button detail-action icon-action danger-button" id="discardItemBtn" type="button" aria-label="丢弃装备">
+                          <svg aria-hidden="true" viewBox="0 0 24 24">
+                            <path d="M3 6h18"></path>
+                            <path d="M8 6V4h8v2"></path>
+                            <path d="M6 6l1 15h10l1-15"></path>
+                            <path d="M10 10v7"></path>
+                            <path d="M14 10v7"></path>
+                          </svg>
+                        </button>
                       </div>
                     </div>
                     <div class="detail-stats" id="equipmentDetailStats"></div>
@@ -148,11 +155,7 @@
 
             <div class="enemy-field" id="enemyField" aria-label="敌人列表"></div>
 
-            <section class="battle-report" aria-label="图文战报">
-              <div class="section-title compact-title">
-                <h3>图文战报</h3>
-                <span class="battle-chip">实时</span>
-              </div>
+            <section class="battle-report" aria-label="战斗播报">
               <ol id="battleLog"></ol>
             </section>
           </section>
@@ -160,6 +163,11 @@
       </section>
     </main>
 
-    <script defer src="./app.js?v=20260518-equip-focus"></script>
+    <button class="image-viewer" id="imageViewer" type="button" hidden aria-label="关闭装备大图">
+      <img id="imageViewerImage" alt="装备大图">
+      <span id="imageViewerCaption"></span>
+    </button>
+
+    <script defer src="./app.js?v=20260519-slot-estimate"></script>
   </body>
 </html>

@@ -299,8 +299,7 @@ h3 {
     0 2px 0 rgb(23 19 15 / 18%);
 }
 
-#testChatBtn,
-#useItemBtn:not(:disabled) {
+#testChatBtn {
   border-color: color-mix(in srgb, var(--amber) 68%, var(--ink));
   background:
     linear-gradient(180deg, #d89f3a 0%, var(--amber) 100%),
@@ -741,49 +740,8 @@ dd {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--hero) 24%, transparent), inset 0 0 0 1px white;
 }
 
-.equipment-slot.is-equipped {
-  border-color: var(--amber);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 30%, transparent), inset 0 0 0 1px white;
-}
-
-.equipment-slot.is-equipped::after {
-  content: "装";
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid rgb(23 19 15 / 24%);
-  border-radius: 50%;
-  background: var(--amber);
-  color: #fffaf0;
-  font-size: 0.68rem;
-  font-weight: 900;
-}
-
-.special-badge {
-  position: absolute;
-  top: 3px;
-  left: 24px;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid rgb(23 19 15 / 24%);
-  border-radius: 50%;
-  background: var(--hero);
-  color: #fffaf0;
-  font-size: 0.68rem;
-  font-style: normal;
-  font-weight: 900;
-}
-
 .equipment-slot.is-locked {
-  cursor: not-allowed;
-  filter: saturate(0.72);
+  cursor: default;
 }
 
 .equipment-slot img {
@@ -870,6 +828,16 @@ dd {
   text-align: center;
 }
 
+.camera-empty-icon {
+  width: min(46%, 58px);
+  height: auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .film-badge {
   position: absolute;
   left: 5px;
@@ -917,6 +885,22 @@ dd {
   font-size: 0.68rem;
 }
 
+.icon-action {
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+}
+
+.icon-action svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .detail-actions {
   flex: 0 0 auto;
   display: flex;
@@ -930,6 +914,7 @@ dd {
 
 .danger-button {
   border-color: color-mix(in srgb, var(--enemy) 60%, var(--ink));
+  color: color-mix(in srgb, var(--enemy) 78%, var(--ink));
 }
 
 .detail-stats {
@@ -962,6 +947,40 @@ dd {
   border: 1px solid color-mix(in srgb, var(--hero) 28%, var(--line));
   background: color-mix(in srgb, var(--hero) 10%, #fffdf8);
   color: var(--ink);
+}
+
+.image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  place-items: center;
+  gap: 10px;
+  padding: 16px;
+  border: 0;
+  border-radius: 0;
+  background: rgb(23 19 15 / 88%);
+  color: #fffaf0;
+  box-shadow: none;
+}
+
+.image-viewer[hidden] {
+  display: none;
+}
+
+.image-viewer img {
+  max-width: min(100%, 720px);
+  max-height: 88vh;
+  object-fit: contain;
+  border: 2px solid rgb(255 250 240 / 86%);
+  border-radius: var(--radius);
+  background: #fffdf8;
+}
+
+.image-viewer span {
+  font-size: 0.86rem;
+  font-weight: 900;
 }
 
 .battle-chip b {
@@ -1221,10 +1240,22 @@ dd {
   white-space: nowrap;
 }
 
+.enemy-card-reward strong.estimate-safe {
+  color: #246d38;
+}
+
+.enemy-card-reward strong.estimate-danger {
+  color: var(--enemy);
+}
+
+.enemy-card-reward strong.estimate-unknown {
+  color: color-mix(in srgb, var(--ink) 54%, var(--muted));
+}
+
 .battle-report {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   background:
     linear-gradient(180deg, rgb(255 253 248 / 88%), rgb(248 238 222 / 94%));
 }
@@ -1253,6 +1284,10 @@ dd {
   color: #3f372e;
   font-size: 0.86rem;
   line-height: 1.32;
+}
+
+.battle-report li.no-mark {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .battle-report li.is-summary {
@@ -1742,17 +1777,6 @@ textarea {
     font-size: 0.54rem;
   }
 
-  .special-badge,
-  .equipment-slot.is-equipped::after {
-    width: 15px;
-    height: 15px;
-    font-size: 0.56rem;
-  }
-
-  .special-badge {
-    left: 20px;
-  }
-
   .equipment-detail {
     padding: 7px;
     gap: 3px;
@@ -1826,7 +1850,8 @@ textarea {
 
   .panel-tools button {
     min-height: 31px;
-    padding-inline: 8px;
+    min-width: 72px;
+    padding-inline: 12px;
     font-size: 0.78rem;
   }
 
@@ -1882,7 +1907,7 @@ textarea {
   }
 
   .floor-action-row {
-    grid-template-columns: minmax(0, 1fr) minmax(58px, auto) minmax(58px, auto);
+    grid-template-columns: minmax(0, 1fr) minmax(68px, auto) minmax(68px, auto);
     gap: 5px;
   }
 
@@ -1894,7 +1919,8 @@ textarea {
 
   .floor-action-row button {
     min-height: 31px;
-    padding-inline: 7px;
+    min-width: 68px;
+    padding-inline: 10px;
     font-size: 0.78rem;
   }
 
@@ -2016,6 +2042,10 @@ textarea {
     padding: 5px 6px;
     font-size: 0.78rem;
     line-height: 1.28;
+  }
+
+  .battle-report li.no-mark {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .battle-report li.is-detail {
