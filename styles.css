@@ -247,6 +247,14 @@ h3 {
   color: #164423;
 }
 
+.api-config-button[data-state="ready"][aria-pressed="true"] {
+  color: #fffaf0;
+}
+
+.api-config-button[data-state="ready"][aria-pressed="true"] .api-state-icon::before {
+  color: #fffaf0;
+}
+
 .api-config-button[data-state="missing"],
 .api-config-button[data-state="text-only"] {
   border-color: color-mix(in srgb, var(--enemy) 42%, var(--line-strong));
@@ -622,6 +630,16 @@ dd {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.secondary-head > div {
+  min-width: 0;
+}
+
+.secondary-head .ghost-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .compact-title {
@@ -1291,6 +1309,7 @@ dd {
   min-height: 0;
   display: grid;
   overflow: auto;
+  align-content: start;
   padding: 8px;
   border: 2px solid var(--ink);
   border-radius: var(--radius);
@@ -1304,6 +1323,20 @@ dd {
 
 .secondary-area.is-collapsed {
   display: none;
+}
+
+.secondary-area:has([data-secondary-panel="forms"]:not([hidden])),
+.secondary-area:has([data-secondary-panel="config"]:not([hidden])) {
+  bottom: auto;
+}
+
+.secondary-area:has([data-secondary-panel="forms"]:not([hidden])) {
+  max-height: none;
+  overflow: visible;
+}
+
+.secondary-area:has([data-secondary-panel="config"]:not([hidden])) {
+  max-height: calc(100% - 52px);
 }
 
 .secondary-content[hidden] {
@@ -1680,12 +1713,6 @@ textarea {
 
   .forms-panel {
     padding: 7px;
-  }
-
-  .secondary-area:has([data-secondary-panel="forms"]:not([hidden])) {
-    bottom: auto;
-    max-height: none;
-    overflow: visible;
   }
 
   .forms-panel .secondary-head {
