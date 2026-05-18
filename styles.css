@@ -1673,10 +1673,60 @@ textarea {
     font-size: clamp(2rem, 13vw, 3rem);
   }
 
-  .form-grid,
   .config-grid,
   .equipment-layout {
     grid-template-columns: 1fr;
+  }
+
+  .forms-panel {
+    padding: 7px;
+  }
+
+  .secondary-area:has([data-secondary-panel="forms"]:not([hidden])) {
+    bottom: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .forms-panel .secondary-head {
+    align-items: center;
+  }
+
+  .forms-panel .secondary-head p {
+    display: none;
+  }
+
+  .form-grid {
+    margin-top: 7px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .form-card {
+    min-height: 82px;
+    grid-template-rows: 46px auto;
+    gap: 3px;
+    padding: 5px 3px;
+    border-width: 1px;
+    border-radius: 7px;
+  }
+
+  .form-card img {
+    max-width: 48px;
+    max-height: 48px;
+  }
+
+  .form-copy {
+    gap: 1px;
+    line-height: 1.05;
+  }
+
+  .form-copy strong {
+    font-size: 0.72rem;
+  }
+
+  .form-copy small {
+    font-size: 0.58rem;
   }
 
   .panel-tools {
