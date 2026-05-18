@@ -130,9 +130,54 @@ const photoSpecialEffects = [
 
 const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
 
-const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|鞋|拖鞋|滑板|风扇|橡皮|橡皮擦|胶带|刷|梳|钥匙|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|椅|凳|小桌|台灯|相机|眼镜/i;
+const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|鞋|拖鞋|滑板|风扇|橡皮|橡皮擦|胶带|刷|梳|钥匙|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|椅|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物/i;
 const oversizedScenePattern = /汽车|车辆|公交|火车|飞机|船|房|楼|建筑|天空|风景|街道|道路|山|海|河|湖|树|大型家具|床|沙发|衣柜|冰箱|洗衣机|大面积背景/i;
 const explicitOversizePattern = /比人.{0,8}(大|高)|比一个人.{0,8}(大|高)|尺寸.{0,8}(超过|大于|高于).{0,4}人|人.{0,4}(还要)?大|巨大|无法搬动|不能搬动|主要是.{0,6}(场景|背景)|大面积背景/i;
+
+const photoIdentificationSystemPrompt = [
+  "你是《照片勇者》的照片装备鉴定器，也是低数值 RPG 装备设计师。",
+  "你必须只输出一个 JSON 对象，不要 Markdown，不要代码块，不要额外解释。",
+  "第一字符必须是 {，最后一个字符必须是 }。",
+  "你的目标不是保守拒绝，而是把现实照片里的主要物品转成有趣、低数值、可解释的装备。",
+].join("\n");
+
+const photoIdentificationUserPrompt = [
+  "请鉴定图片里的一个主要物品，生成《照片勇者》装备 JSON。",
+  "",
+  "识别规则：",
+  "1. 先找画面中最主要、最像单个实体的物品；忽略背景、桌面、墙面和无关杂物。",
+  "2. 只要主体不明显比成年人更大，就视为可装备道具。可装备不等于能穿戴，杯子、书、工具、玩具、贴纸、纸面图案、键盘、椅子、小桌、小电器、小摆件都可以。",
+  "3. 只有主体明显大于成年人，或图片主要是场景/背景/交通工具/建筑/天空/道路/山海河湖时，才允许 tooLarge=true。",
+  "4. 如果画面是卡通图案、贴纸、屏幕里的图案、包装上的图案，只要承载它的物品不是巨大场景，就按小物件鉴定，不要直接拒绝。",
+  "",
+  "必须输出这个 JSON 结构，字段名使用英文：",
+  "{\"itemName\":\"短装备名\",\"objectType\":\"主体物品类型\",\"value\":0,\"tooLarge\":false,\"stats\":{\"hp\":0,\"attack\":0,\"defense\":0,\"speed\":0,\"shield\":0,\"lifesteal\":0,\"regen\":0},\"specialEffects\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
+  "",
+  "价值规则：",
+  "1. tooLarge=true 时 value=0、所有 stats=0、specialEffects=[]。",
+  "2. 可装备时 value 必须是 5 到 20 的整数。基础 5 分；主体清楚 +3；主体占图面积大 +3；背景干净 +2；现实拍摄感强 +3；光线/对焦好 +2；物品有趣、让人想装备 +2；总分封顶 20。",
+  "3. 价值不是价格，不是越精美越高，也不是越破旧越高；优先奖励清晰、有主体、有生活感、有趣。",
+  "",
+  "属性预算：",
+  "生命上限 hp 每点价值 1；攻击 attack 每点价值 5；防御 defense 每点价值 6；速度 speed 每点价值 18；护盾 shield 每点价值 4；吸血 lifesteal 每点价值 12；回复 regen 每点价值 12。",
+  "stats 的总价值 + specialEffects 的价值不得超过 value。低价值装备宁可只给 1 到 2 种属性，不要平均撒点。",
+  "",
+  "属性语义：",
+  "食物、饮料、药品、植物、柔软温暖物品：优先 hp/regen。",
+  "工具、硬物、敲击物、键盘鼠标、笔、砖石、运动器材：优先 attack，次选 defense/hp。",
+  "容器、盒、包、锅盖、伞、镜子、壳、套、头盔、防护用品：优先 shield/defense。",
+  "鞋、轮子、滑板、风扇、空气流动、轻便快速、遥控器：优先 speed；没有运动/气流/轮/鞋含义时不要给高 speed。",
+  "刀、剪刀、针、钩、指甲刀、尖锐小工具、吸附/抽取/红色血感物品：可给 lifesteal；没有尖锐/吸附/夺取含义时不要给 lifesteal。",
+  "电池、充电器、线缆、灯、喷雾、清洁用品：按用途给 shield/regen/speed/attack，不要机械固定。",
+  "",
+  `特殊效果只能从这些 key 里选，且只能在语义合适并且预算足够时给 0 或 1 个：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}(价值${effect.value})`).join("；")}。`,
+  "工具、武器、越打越顺手的物品可选 dealDamageAttack；盾牌、外壳、硬保护物可选 takeDamageDefense 或 shieldCrashAttackDown；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、双件物品可选 doubleStrikeSpeedDown。",
+  "",
+  "命名和描述：",
+  "itemName 要具体、短、有画面感，例如 蓝柄剪刀、旧陶瓷杯、青蛙贴纸、黑色键盘；不要叫 照片装备、神秘物品。",
+  "description 用一句中文说明为什么这些属性合理，不要列 rarity/价值/是否装备。",
+  "reason 只写一句内部依据，越短越好。",
+].join("\n");
 
 const statOrder = ["hp", "attack", "defense", "speed", "shield", "lifesteal", "regen"];
 
@@ -796,16 +841,14 @@ async function analyzeDirectly(config, image) {
     messages: [
       {
         role: "system",
-        content:
-          "你是一个轻量网页 RPG 的装备鉴定器。你只能输出 JSON，不要输出 Markdown 或额外解释。第一字符必须是 {，最后一个字符必须是 }。严格按规则给低数值装备。",
+        content: photoIdentificationSystemPrompt,
       },
       {
         role: "user",
         content: [
           {
             type: "text",
-            text:
-              "根据图片里的真实物品生成一件游戏装备。这里的装备不是只能穿在身上，只要现实中单人可搬动、可手持、可放进背包、或尺寸明显不超过人的物品，都必须视为可装备道具，包括锤子、工具、书本、杯子、玩具、小家具、桌面物品。只能返回 JSON，格式为 {\"itemName\":\"\",\"value\":0,\"tooLarge\":false,\"stats\":{\"hp\":0,\"attack\":0,\"defense\":0,\"speed\":0,\"shield\":0,\"lifesteal\":0,\"regen\":0},\"description\":\"\",\"confidence\":0.0}。规则：1) 只有明显比人尺寸更大或主要是场景/背景的东西，例如汽车、房子、天空、风景、建筑、道路、大型家具、大面积背景，才允许 tooLarge=true、value=0、所有属性为0；普通锤子、剪刀、键盘、锅盖、椅子、小桌子等不要判为 tooLarge。2) value 是 5 到 20 的整数，表示装备总价值；越像现实实拍、主体占比越大、越清晰、背景越干净、杂物越少、物品越有趣越动心，value 越高。不是越精美越高，也不是越普通或破旧越高。3) 属性价值换算：生命上限 hp 每点价值1，攻击 attack 每点价值5，防御 defense 每点价值6，速度 speed 每点价值18，护盾 shield 每点价值4，吸血 lifesteal 每点价值12，回复 regen 每点价值12。4) 属性总价值不得超过 value。5) 按物品特性分配主属性：食物/药品偏 hp 或 regen，工具/键盘/硬物偏 attack，容器/锅盖/保护类偏 defense 或 shield，鞋/滑板/风扇/轻便物偏 speed，尖锐小工具偏 lifesteal，水/咖啡/饮品偏 regen。可以有多个属性，但主属性必须符合物品特性。描述要短。",
+            text: photoIdentificationUserPrompt,
           },
           {
             type: "image_url",
@@ -1086,30 +1129,49 @@ function pickJsonObject(value) {
 }
 
 function normalizeModelItem(raw) {
-  const source = raw?.equipment || raw?.item || raw?.result || raw;
+  const source = [raw?.equipment, raw?.result, raw?.data, raw?.item]
+    .find((value) => value && typeof value === "object" && !Array.isArray(value)) || raw;
   const safe = source && typeof source === "object" ? source : {};
   const stats = normalizeModelStats(safe.stats || safe.attributes || safe["属性"] || {});
   const itemName = safe.itemName || safe.name || safe.item || safe["物品名称"] || safe["装备名"] || safe["名称"];
   const value = safe.value ?? safe.score ?? safe.quality ?? safe["价值"] ?? safe["品质"];
   const tooLarge = safe.tooLarge ?? safe.too_large ?? safe.oversized ?? safe["过大"] ?? safe["无法装备"];
-  const description = safe.description || safe.desc || safe["描述"];
+  const objectType = safe.objectType || safe.object_type || safe.category || safe.type || safe["主体"] || safe["类型"];
+  const tags = normalizeStringList(safe.tags || safe.keywords || safe["标签"] || safe["关键词"]);
+  const reason = safe.reason || safe.analysis || safe.rationale || safe["理由"] || safe["判断依据"] || safe["分析"];
+  const description = safe.description || safe.desc || safe["描述"] || reason;
+  const specialEffects = safe.specialEffects || safe.special_effects || safe.effects || safe.special || safe.specialEffect || safe["特殊效果"] || safe["特效"];
   const cleanName = cleanText(itemName, "照片装备", 18);
   const rejected = parseBooleanLike(tooLarge);
-  const correctedTooLarge = shouldTreatAsTooLarge(cleanName, description, rejected);
+  const contextText = [cleanName, objectType, description, reason, tags.join(" ")].filter(Boolean).join(" ");
+  const correctedTooLarge = shouldTreatAsTooLarge(cleanName, contextText, rejected);
   return {
     itemName: cleanName,
+    objectType: cleanText(objectType, "", 18),
     value: correctedTooLarge ? 0 : clampInt(value, 5, 20),
     tooLarge: correctedTooLarge,
     stats,
-    description: cleanText(description, "由照片鉴定出的装备。", 56),
+    specialEffects: normalizeSpecialEffects(specialEffects),
+    description: cleanText(description, "由照片鉴定出的装备。", 72),
+    reason: cleanText(reason, "", 72),
+    tags,
     confidence: clampNumber(safe.confidence ?? safe["置信度"], 0, 1),
   };
 }
 
+function normalizeStringList(input) {
+  const values = Array.isArray(input)
+    ? input
+    : typeof input === "string"
+      ? input.split(/[，,、;；\s]+/)
+      : [];
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))].slice(0, 8);
+}
+
 function shouldTreatAsTooLarge(itemName, description = "", modelRejected = false) {
   const text = `${itemName || ""} ${description || ""}`;
-  if (oversizedScenePattern.test(text) || explicitOversizePattern.test(text)) return true;
   if (isPortableEquipmentText(text)) return false;
+  if (oversizedScenePattern.test(text) || explicitOversizePattern.test(text)) return true;
   return Boolean(modelRejected && explicitOversizePattern.test(text));
 }
 
@@ -1153,7 +1215,9 @@ function makeFallbackItemFromModelText(text) {
     value: correctedTooLarge ? 0 : inferFallbackValue(source),
     tooLarge: correctedTooLarge,
     stats: {},
-    description: cleanText(`模型未按 JSON 返回，已按文字描述保守鉴定：${source}`, "由照片鉴定出的装备。", 56),
+    description: cleanText(`按模型文字保守鉴定：${source}`, "由照片鉴定出的装备。", 72),
+    reason: cleanText(source, "", 72),
+    tags: normalizeStringList(source),
     confidence: 0.45,
   };
 }
@@ -1165,7 +1229,7 @@ function looksLikeVisionFailure(text) {
 function looksTooLargeFromText(text) {
   const source = String(text || "");
   if (isPortableEquipmentText(source)) return false;
-  return /(?:tooLarge\s*=\s*true|too_large\s*=\s*true|风景|天空|建筑|汽车|车辆|房子|街道|道路|大型家具|大面积背景|比人.{0,8}(?:大|高)|尺寸.{0,8}(?:超过|大于|高于).{0,4}人|主要是.{0,6}(?:场景|背景))/i.test(source);
+  return /(?:tooLarge\s*=\s*true|too_large\s*=\s*true|风景|天空|建筑|真实汽车|大型汽车|车辆主体|房子|街道|道路|大型家具|大面积背景|比人.{0,8}(?:大|高)|尺寸.{0,8}(?:超过|大于|高于).{0,4}人|主要是.{0,6}(?:场景|背景))/i.test(source);
 }
 
 function inferItemNameFromModelText(text) {
@@ -2565,11 +2629,15 @@ function balanceItem(item, image = "") {
   const safe = item && typeof item === "object" ? item : {};
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
   const itemName = cleanText(safe.itemName, "照片装备", 18);
-  const tooLarge = shouldTreatAsTooLarge(itemName, safe.description, Boolean(safe.tooLarge));
+  const tags = normalizeStringList(safe.tags);
+  const objectType = cleanText(safe.objectType, "", 18);
+  const reason = cleanText(safe.reason, "", 72);
+  const semanticText = [itemName, objectType, safe.description, reason, tags.join(" ")].filter(Boolean).join(" ");
+  const tooLarge = shouldTreatAsTooLarge(itemName, semanticText, Boolean(safe.tooLarge));
   const requestedValue = tooLarge ? 0 : clampInt(safe.value, 5, 20);
   const specialEffects = tooLarge
     ? []
-    : choosePhotoSpecialEffects(safe, image, requestedValue)
+    : choosePhotoSpecialEffects({ ...safe, itemName, objectType, reason, tags, description: semanticText }, image, requestedValue)
       .filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue);
   const specialValue = calculateSpecialEffectsValue(specialEffects);
   const statBudget = Math.max(0, requestedValue - specialValue);
@@ -2578,16 +2646,19 @@ function balanceItem(item, image = "") {
       : Math.max(requestedValue, specialValue);
   const stats = tooLarge
       ? normalizeStats({}, 20)
-      : clampStatsToValue(allocateStatsForItem(safe.stats || {}, itemName, statBudget), statBudget);
+      : clampStatsToValue(allocateStatsForItem(safe.stats || {}, semanticText || itemName, statBudget), statBudget);
 
   return {
     itemName,
+    objectType,
     rarity,
     value: targetValue,
     stats,
     specialEffects,
     specialState: normalizeSpecialState(safe.specialState, specialEffects),
-    description: tooLarge ? "物品过大或不是可装备物，无法提供属性。" : cleanText(safe.description, "由照片鉴定出的装备。", 56),
+    description: tooLarge ? "主体过大或主要是场景，无法提供属性。" : cleanText(safe.description || reason, "由照片鉴定出的装备。", 72),
+    reason,
+    tags,
     confidence: clampNumber(safe.confidence, 0, 1),
     film: Boolean(safe.film),
     skipSpecialRoll: Boolean(safe.skipSpecialRoll),
@@ -2679,13 +2750,56 @@ function choosePhotoSpecialEffects(item, image, valueBudget) {
   if (valueBudget < 10) return [];
 
   const seed = `${item.itemName || ""}:${item.description || ""}:${image ? image.slice(0, 96) : ""}:${item.value || ""}`;
-  const roll = hashIndex(`${seed}:special-roll`, 100);
-  if (roll >= 32) return [];
+  const semanticPick = inferSemanticSpecialEffect(`${item.itemName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`);
+  if (semanticPick && (photoSpecialEffectMap.get(semanticPick)?.value || Infinity) <= valueBudget) {
+    const semanticRoll = hashIndex(`${seed}:semantic-special-roll`, 100);
+    if (semanticRoll < 45) return [semanticPick];
+  }
 
-  const eligible = photoSpecialEffects.filter((effect) => effect.value <= valueBudget);
+  const roll = hashIndex(`${seed}:special-roll`, 100);
+  if (roll >= 20) return [];
+
+  const preferred = inferSemanticSpecialEffects(`${item.itemName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`);
+  const eligible = (preferred.length ? preferred : photoSpecialEffects.map((effect) => effect.key))
+    .map((key) => photoSpecialEffectMap.get(key))
+    .filter((effect) => effect && effect.value <= valueBudget);
   if (!eligible.length) return [];
   const picked = eligible[hashIndex(`${seed}:special-pick`, eligible.length)];
   return picked ? [picked.key] : [];
+}
+
+function inferSemanticSpecialEffect(text) {
+  return inferSemanticSpecialEffects(text)[0] || "";
+}
+
+function inferSemanticSpecialEffects(text) {
+  const source = String(text || "");
+  const effects = [];
+  const add = (key) => {
+    if (photoSpecialEffectMap.has(key) && !effects.includes(key)) effects.push(key);
+  };
+
+  if (/鞋|拖鞋|滑板|轮|风扇|扇|双|一对|速度|疾|飞|跑|旋转|气流/.test(source)) add("doubleStrikeSpeedDown");
+  if (/刀|剪|针|钩|指甲刀|锥|刃|锯|尖|夹|钳/.test(source)) add("dealDamageAttack");
+  if (/锤|棍|棒|砖|石|键盘|鼠标|工具|扳手|螺丝刀|球拍|拍子|硬物|武器/.test(source)) {
+    add("dealDamageAttack");
+    add("killAttack");
+  }
+  if (/盾|锅盖|壳|盒|箱|套|盔|伞|镜|护|防|金属外壳|玻璃罩|甲/.test(source)) {
+    add("shieldCrashAttackDown");
+    add("takeDamageDefense");
+    add("killShield");
+  }
+  if (/书|本|笔|尺|奖|证|牌|训练|练习|种子|植物|成长|学习|日记|笔记/.test(source)) {
+    add("killAttack");
+    add("killDefense");
+    add("killSpeed");
+  }
+  if (/食|饭|面|糖|饼|肉|菜|果|西红柿|番茄|香蕉|药|茶|奶|水|饮|咖啡|汤|杯|瓶|补给|能量/.test(source)) {
+    add("killMaxHp");
+    add("killHpBoost");
+  }
+  return effects;
 }
 
 function normalizeSpecialEffects(input) {
@@ -2742,12 +2856,13 @@ function getSpecialEffectDefinitions(effectKeys) {
 
 function inferPreferredStats(name) {
   const text = String(name || "");
-  if (/咖啡|水|饮|药|汤|茶|奶|果汁/.test(text)) return ["regen", "hp", "shield"];
-  if (/番茄|西红柿|香蕉|饭|面|糖|饼|肉|菜|水果|食/.test(text)) return ["hp", "regen", "shield"];
-  if (/刀|剪|针|钉|锥|刃|指甲刀/.test(text)) return ["lifesteal", "attack", "speed"];
-  if (/键盘|锤|棍|笔|工具|扳手|砖|石/.test(text)) return ["attack", "defense", "hp"];
-  if (/锅盖|镜|盾|伞|盔|盒|包|壳/.test(text)) return ["shield", "defense", "hp"];
-  if (/鞋|拖鞋|滑板|风扇|轮|轻|羽/.test(text)) return ["speed", "attack", "hp"];
+  if (/咖啡|水|饮|药|汤|茶|奶|果汁|杯|瓶|喷雾|清洁|纸巾|毛巾|湿巾/.test(text)) return ["regen", "hp", "shield"];
+  if (/番茄|西红柿|香蕉|饭|面|糖|饼|肉|菜|水果|食|能量|糖果|零食|植物|花|叶|种子/.test(text)) return ["hp", "regen", "shield"];
+  if (/刀|剪|针|钉|锥|刃|指甲刀|钩|夹|钳|锯|尖锐/.test(text)) return ["lifesteal", "attack", "speed"];
+  if (/键盘|鼠标|锤|棍|棒|笔|工具|扳手|螺丝刀|砖|石|球拍|拍子|遥控器|手机|相机/.test(text)) return ["attack", "defense", "hp"];
+  if (/锅盖|镜|盾|伞|盔|盒|箱|包|壳|套|口罩|眼镜|锁|钥匙|防护|保护|容器/.test(text)) return ["shield", "defense", "hp"];
+  if (/鞋|拖鞋|滑板|风扇|轮|轻|羽|飞|跑|车模|陀螺|旋转|气流|线缆|充电器|电池/.test(text)) return ["speed", "attack", "hp"];
+  if (/书|本|笔记|卡片|贴纸|玩具|模型|摆件|公仔|青蛙|卡通|图案/.test(text)) return ["hp", "shield", "attack"];
   return ["attack", "shield", "hp"];
 }
 
