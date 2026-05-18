@@ -86,7 +86,7 @@ const rarityNames = {
   rare: "稀有",
 };
 
-const equipmentPageSize = 9;
+const equipmentVisibleSlots = 10;
 const equipmentSlotLimit = 10;
 const battleReportLimit = 18;
 const modelMaxTokens = 512;
@@ -233,11 +233,10 @@ const els = {
   attackBtn: byId("attackBtn"),
   fleeBtn: byId("fleeBtn"),
   resetGameBtn: byId("resetGameBtn"),
-  photoBtn: byId("photoBtn"),
-  analyzeBtn: byId("analyzeBtn"),
   fileInput: byId("fileInput"),
   cameraFrame: byId("cameraFrame"),
   photoPreview: byId("photoPreview"),
+  filmCountBadge: byId("filmCountBadge"),
   configToggleBtn: byId("configToggleBtn"),
   secondaryArea: byId("secondaryArea"),
   presetNote: byId("presetNote"),
@@ -253,9 +252,6 @@ const els = {
   testChatBtn: byId("testChatBtn"),
   chatResult: byId("chatResult"),
   equipmentGrid: byId("equipmentGrid"),
-  equipPrevBtn: byId("equipPrevBtn"),
-  equipNextBtn: byId("equipNextBtn"),
-  equipPageText: byId("equipPageText"),
   equipmentDetail: byId("equipmentDetail"),
   equipmentDetailImage: byId("equipmentDetailImage"),
   equipmentDetailEmpty: byId("equipmentDetailEmpty"),
@@ -263,7 +259,9 @@ const els = {
   equipmentDetailMeta: byId("equipmentDetailMeta"),
   equipmentDetailStats: byId("equipmentDetailStats"),
   equipmentDetailDesc: byId("equipmentDetailDesc"),
+  equipmentActions: byId("equipmentActions"),
   useItemBtn: byId("useItemBtn"),
+  discardItemBtn: byId("discardItemBtn"),
   loadingState: byId("loadingState"),
   battleLog: byId("battleLog"),
 };
@@ -281,7 +279,6 @@ const state = {
   currentBattle: null,
   gameClear: false,
   inventory: [],
-  equipmentPage: 0,
   selectedItemId: "",
   equippedItemIds: [],
   lastPhoto: "",
@@ -341,10 +338,7 @@ function bindEvents() {
     });
   });
 
-  els.photoBtn.addEventListener("click", () => {
-    els.fileInput.value = "";
-    els.fileInput.click();
-  });
+  els.cameraFrame.addEventListener("click", openPhotoPicker);
 
   els.fileInput.addEventListener("change", async () => {
     const file = els.fileInput.files?.[0];
@@ -354,7 +348,12 @@ function bindEvents() {
 
   document.addEventListener("paste", handlePasteEvent);
 
-  els.analyzeBtn.addEventListener("click", analyzePhoto);
+  els.equipmentDetail.addEventListener("click", handleEquipmentDetailClick);
+  els.equipmentDetail.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    handleEquipmentDetailClick(event);
+  });
   els.saveConfigBtn.addEventListener("click", saveConfig);
   els.testChatBtn.addEventListener("click", testVisionApi);
   els.toggleKeyBtn.addEventListener("click", toggleApiKeyVisibility);
@@ -362,9 +361,20 @@ function bindEvents() {
   els.fleeBtn.addEventListener("click", fleeBattle);
   els.resetGameBtn.addEventListener("click", resetGame);
   els.useItemBtn.addEventListener("click", useSelectedConsumable);
-  els.equipPrevBtn.addEventListener("click", () => changeEquipmentPage(-1));
-  els.equipNextBtn.addEventListener("click", () => changeEquipmentPage(1));
+  els.discardItemBtn.addEventListener("click", discardSelectedItem);
   renderHeroForms();
+}
+
+function openPhotoPicker() {
+  els.fileInput.value = "";
+  els.fileInput.click();
+}
+
+function handleEquipmentDetailClick(event) {
+  if (event.target.closest("button")) return;
+  if (state.lastPhoto) {
+    analyzePhoto();
+  }
 }
 
 function toggleApiKeyVisibility() {
@@ -679,7 +689,7 @@ async function analyzePhoto() {
     return;
   }
 
-  if (getFilmCount() <= 0) {
+  if (state.filmRolls < 1) {
     const message = "需要先获得胶卷：每击败 1 个怪物获得 1 个胶卷碎片，10 个碎片可合成 1 个胶卷。";
     showLootError(message);
     addLog(message);
@@ -702,8 +712,6 @@ async function analyzePhoto() {
 
   saveConfig(false);
   setBusy("鉴定中...");
-  els.analyzeBtn.disabled = true;
-
   try {
     const item = await analyzeDirectly(config, state.lastPhoto);
     const inventoryImage = await makeInventoryImage(state.lastPhoto);
@@ -715,7 +723,6 @@ async function analyzePhoto() {
     addLog(`鉴定失败：${message}（胶卷未消耗）`);
   } finally {
     setBusy("");
-    els.analyzeBtn.disabled = false;
     render();
   }
 }
@@ -1209,6 +1216,10 @@ function receiveItem(item, message) {
   addInventoryItem(fullItem, rewardText, !fullItem.tooLarge && scoreItem(fullItem) > 0);
 }
 
+function getSelectedInventoryItem() {
+  return state.inventory.find((item) => item.id === state.selectedItemId) || null;
+}
+
 function addInventoryItem(item, message, autoEquip = false) {
   ensureConsumableHeal(item);
   state.latestItem = item;
@@ -1223,7 +1234,6 @@ function addInventoryItem(item, message, autoEquip = false) {
   if (autoEquip) {
     if (!equipItem(item.id) && state.selectedItemId) equipItem(state.selectedItemId);
   }
-  state.equipmentPage = 0;
   addLog(message);
   addBattleEvent(message, "item");
   saveGame();
@@ -1982,13 +1992,17 @@ function addFilmShards(amount) {
 }
 
 function getFilmCount() {
-  return state.filmRolls;
+  return state.filmRolls + state.filmShards / 10;
 }
 
 function consumeFilm() {
-  if (state.filmRolls <= 0) return false;
+  if (state.filmRolls < 1) return false;
   state.filmRolls -= 1;
   return true;
+}
+
+function formatFilmCount() {
+  return getFilmCount().toFixed(1);
 }
 
 function toggleEnemySelection(enemyId) {
@@ -2262,7 +2276,6 @@ function resetGame() {
   state.battleReportSeq = 0;
   state.currentBattle = null;
   state.inventory = [];
-  state.equipmentPage = 0;
   state.selectedItemId = "";
   state.equippedItemIds = [];
   state.lastPhoto = "";
@@ -2497,7 +2510,15 @@ function useSelectedConsumable() {
   if (isEquipmentLocked()) return false;
   const index = state.inventory.findIndex((item) => item.id === state.selectedItemId);
   const item = state.inventory[index];
-  if (index < 0 || !isConsumableItem(item)) return false;
+  if (index < 0 || !item) return false;
+  if (!isConsumableItem(item)) {
+    const changed = toggleEquipItem(item.id);
+    if (changed) {
+      saveGame();
+      render();
+    }
+    return changed;
+  }
 
   const stats = getPlayerStats();
   if (state.player.hp >= stats.maxHp) {
@@ -2516,6 +2537,21 @@ function useSelectedConsumable() {
   state.latestItem = state.inventory[0] || null;
   addBattleEvent(`使用 ${usedItem.itemName}，回复 ${healed} 点生命。`, "item");
   addLog(`使用 ${usedItem.itemName}，回复 ${healed} 点生命。`);
+  saveGame();
+  render();
+  return true;
+}
+
+function discardSelectedItem() {
+  if (isEquipmentLocked()) return false;
+  const index = state.inventory.findIndex((item) => item.id === state.selectedItemId);
+  if (index < 0) return false;
+
+  const [removed] = state.inventory.splice(index, 1);
+  state.equippedItemIds = state.equippedItemIds.filter((id) => id !== removed.id);
+  state.selectedItemId = state.inventory[Math.min(index, state.inventory.length - 1)]?.id || "";
+  state.latestItem = state.inventory[0] || null;
+  showInputNotice(`已丢弃 ${formatItemDisplayName(removed)}。`);
   saveGame();
   render();
   return true;
@@ -2838,7 +2874,7 @@ function renderApiStatus() {
 }
 
 function renderCameraStatus() {
-  els.analyzeBtn.disabled = !state.lastPhoto || getFilmCount() <= 0;
+  els.filmCountBadge.textContent = `胶卷 ${formatFilmCount()}`;
 }
 
 function renderEnemyHint() {
@@ -3056,13 +3092,10 @@ function renderEquipmentGrid() {
   getEquippedItems();
   sortInventoryByValue();
   const locked = isEquipmentLocked();
-  const totalPages = Math.max(1, Math.ceil(state.inventory.length / equipmentPageSize));
-  state.equipmentPage = Math.min(Math.max(0, state.equipmentPage), totalPages - 1);
-  const start = state.equipmentPage * equipmentPageSize;
-  const pageItems = state.inventory.slice(start, start + equipmentPageSize);
+  const pageItems = state.inventory.slice(0, equipmentVisibleSlots);
 
   els.equipmentGrid.innerHTML = "";
-  for (let i = 0; i < equipmentPageSize; i += 1) {
+  for (let i = 0; i < equipmentVisibleSlots; i += 1) {
     const item = pageItems[i];
     const isEquipped = item ? state.equippedItemIds.includes(item.id) : false;
     const button = document.createElement("button");
@@ -3085,7 +3118,7 @@ function renderEquipmentGrid() {
           render();
           return;
         }
-        toggleEquipItem(item.id);
+        state.selectedItemId = item.id;
         saveGame();
         render();
       });
@@ -3095,24 +3128,26 @@ function renderEquipmentGrid() {
 
     els.equipmentGrid.append(button);
   }
-
-  els.equipPrevBtn.disabled = state.equipmentPage <= 0;
-  els.equipNextBtn.disabled = state.equipmentPage >= totalPages - 1;
-  els.equipPageText.textContent = `${getEquippedItems().length}/${equipmentSlotLimit} · ${state.inventory.length ? state.equipmentPage + 1 : 0} / ${state.inventory.length ? totalPages : 0}`;
 }
 
 function renderEquipmentDetail() {
-  els.useItemBtn.hidden = true;
+  const selected = getSelectedInventoryItem();
+  const locked = isEquipmentLocked();
+
+  els.equipmentActions.hidden = true;
   els.useItemBtn.disabled = true;
+  els.discardItemBtn.disabled = true;
+  els.equipmentDetail.classList.remove("is-error", "is-actionable");
+  els.cameraFrame.classList.remove("has-photo");
+  els.photoPreview.hidden = true;
+  els.equipmentDetailImage.removeAttribute("src");
+  els.equipmentDetailImage.hidden = true;
+  els.equipmentDetailEmpty.hidden = false;
+  els.equipmentDetailEmpty.textContent = "拍照";
 
   if (state.lootError) {
     els.equipmentDetail.classList.add("is-error");
-    els.cameraFrame.classList.remove("has-photo");
-    els.photoPreview.hidden = true;
-    els.equipmentDetailImage.removeAttribute("src");
-    els.equipmentDetailImage.hidden = true;
-    els.equipmentDetailEmpty.hidden = false;
-    els.equipmentDetailEmpty.textContent = "鉴定失败";
+    els.equipmentDetailEmpty.textContent = "失败";
     els.equipmentDetailName.textContent = "鉴定失败";
     els.equipmentDetailMeta.textContent = state.lootError;
     els.equipmentDetailStats.innerHTML = "";
@@ -3120,39 +3155,30 @@ function renderEquipmentDetail() {
     return;
   }
 
-  els.equipmentDetail.classList.remove("is-error");
   if (state.lastPhoto) {
     els.cameraFrame.classList.add("has-photo");
     els.photoPreview.src = state.lastPhoto;
     els.photoPreview.hidden = false;
-    els.equipmentDetailImage.removeAttribute("src");
-    els.equipmentDetailImage.hidden = true;
     els.equipmentDetailEmpty.hidden = true;
     els.equipmentDetailEmpty.textContent = "";
+    els.equipmentDetail.classList.add("is-actionable");
     els.equipmentDetailName.textContent = "待鉴定照片";
-    els.equipmentDetailMeta.textContent = `胶卷 ${getFilmCount()} · 碎片 ${state.filmShards}/10`;
+    els.equipmentDetailMeta.textContent = `胶卷 ${formatFilmCount()}`;
     els.equipmentDetailStats.innerHTML = "";
-    els.equipmentDetailDesc.textContent = "点击鉴定后会生成装备并进入背包。";
+    els.equipmentDetailDesc.textContent = state.filmRolls >= 1
+      ? "点击这里鉴定，生成装备并进入背包。"
+      : "胶卷不足 1.0，先击败怪物收集碎片。";
     return;
   }
 
-  const selected = state.inventory.find((item) => item.id === state.selectedItemId) || state.inventory[0];
   if (!selected) {
-    els.cameraFrame.classList.remove("has-photo");
-    els.photoPreview.hidden = true;
-    els.equipmentDetailImage.removeAttribute("src");
-    els.equipmentDetailImage.hidden = true;
-    els.equipmentDetailEmpty.hidden = false;
-    els.equipmentDetailEmpty.textContent = "";
-    els.equipmentDetailName.textContent = "未选择装备";
-    els.equipmentDetailMeta.textContent = "怪物掉落胶卷碎片，装备主要来自拍照鉴定。";
+    els.equipmentDetailName.textContent = "空";
+    els.equipmentDetailMeta.textContent = `胶卷 ${formatFilmCount()}`;
     els.equipmentDetailStats.innerHTML = "";
-    els.equipmentDetailDesc.textContent = "点击背包格装备，再点一次卸下；最多装备 10 件。";
+    els.equipmentDetailDesc.textContent = "点左侧图片框拍照/上传，点这里鉴定。";
     return;
   }
 
-  els.cameraFrame.classList.remove("has-photo");
-  els.photoPreview.hidden = true;
   els.equipmentDetailImage.src = selected.image || makePlaceholderImage();
   els.equipmentDetailImage.hidden = false;
   els.equipmentDetailEmpty.hidden = true;
@@ -3162,18 +3188,19 @@ function renderEquipmentDetail() {
     : state.equippedItemIds.includes(selected.id)
       ? "已装备"
       : "未装备";
-  els.equipmentDetailMeta.textContent = `${rarityNames[selected.rarity]} · ${equippedText} · 价值 ${scoreItem(selected)} · 第 ${state.inventory.findIndex((item) => item.id === selected.id) + 1} 件`;
+  els.equipmentDetailMeta.textContent = `${rarityNames[selected.rarity]} · ${equippedText} · 价值 ${scoreItem(selected)}`;
   els.equipmentDetailStats.innerHTML = isConsumableItem(selected)
     ? `<span>使用回复 ${clampInt(selected.healAmount, 5, 10)}</span>`
     : renderItemDetailPills(selected);
   els.equipmentDetailDesc.textContent = selected.description;
-
-  if (isConsumableItem(selected)) {
-    const stats = getPlayerStats();
-    els.useItemBtn.hidden = false;
-    els.useItemBtn.disabled = isEquipmentLocked() || state.player.hp >= stats.maxHp;
-    els.useItemBtn.textContent = state.player.hp >= stats.maxHp ? "生命已满" : `使用 · 回复 ${clampInt(selected.healAmount, 5, 10)}`;
-  }
+  els.equipmentActions.hidden = false;
+  els.useItemBtn.disabled = locked;
+  els.useItemBtn.textContent = isConsumableItem(selected)
+    ? `使用 · 回复 ${clampInt(selected.healAmount, 5, 10)}`
+    : state.equippedItemIds.includes(selected.id)
+      ? "卸下"
+      : "装备";
+  els.discardItemBtn.disabled = locked;
 }
 
 function renderHeroForms() {
@@ -3252,13 +3279,6 @@ function formatSpecialEffectText(effect, data = {}) {
   if (effect.kind === "dealDamageTemp") return `${effect.label}，最多${effect.cap}，战后复原`;
   if (effect.kind === "takeDamageTemp") return `${effect.label}，最多${effect.cap}，战后复原`;
   return effect.label;
-}
-
-function changeEquipmentPage(delta) {
-  const totalPages = Math.max(1, Math.ceil(state.inventory.length / equipmentPageSize));
-  state.equipmentPage = Math.min(Math.max(0, state.equipmentPage + delta), totalPages - 1);
-  saveGame();
-  render();
 }
 
 function renderLog() {
@@ -3505,7 +3525,6 @@ function saveGame() {
     currentBattle: state.currentBattle,
     battleSpecial: state.battleSpecial,
     inventory: state.inventory,
-    equipmentPage: state.equipmentPage,
     selectedItemId: state.selectedItemId,
     equippedItemIds: state.equippedItemIds,
     latestItem: state.latestItem,
@@ -3526,7 +3545,6 @@ function loadSave() {
   state.player = normalizePlayer(save.player || state.player);
   state.inventory = Array.isArray(save.inventory) ? save.inventory.map(normalizeInventoryItem) : [];
   sortInventoryByValue();
-  state.equipmentPage = Number.isFinite(save.equipmentPage) ? save.equipmentPage : 0;
   state.selectedItemId = save.selectedItemId || state.inventory[0]?.id || "";
   state.equippedItemIds = Array.isArray(save.equippedItemIds)
     ? save.equippedItemIds.filter((id) => typeof id === "string" && state.inventory.some((item) => item.id === id)).slice(0, equipmentSlotLimit)

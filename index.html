@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260518-panel-tighten">
+    <link rel="stylesheet" href="./styles.css?v=20260518-equip-focus">
   </head>
   <body>
     <main class="app-shell">
@@ -43,37 +43,28 @@
             </div>
 
             <section class="loot-panel" aria-label="鉴定结果和背包">
-              <div class="section-title compact-title loot-title">
-                <div class="loot-actions">
-                  <button class="primary-button" id="photoBtn" type="button">拍照/上传</button>
-                  <button class="secondary-button" id="analyzeBtn" type="button" disabled>鉴定</button>
-                  <input id="fileInput" type="file" accept="image/*">
-                  <span id="loadingState"></span>
-                </div>
-              </div>
+              <input id="fileInput" type="file" accept="image/*">
               <div class="equipment-layout">
-                <div>
-                  <div class="equipment-grid" id="equipmentGrid" aria-label="装备格子"></div>
-                  <div class="equipment-pager" aria-label="装备翻页">
-                    <button class="ghost-button" id="equipPrevBtn" type="button">上一页</button>
-                    <span id="equipPageText">0 / 0</span>
-                    <button class="ghost-button" id="equipNextBtn" type="button">下一页</button>
-                  </div>
-                </div>
-                <article class="equipment-detail" id="equipmentDetail" aria-label="装备详情">
-                  <div class="detail-image-frame" id="cameraFrame">
+                <div class="equipment-focus">
+                  <button class="detail-image-frame" id="cameraFrame" type="button" aria-label="拍照或上传图片">
                     <img id="photoPreview" alt="待鉴定图片预览">
                     <img id="equipmentDetailImage" alt="装备图片预览">
                     <span id="equipmentDetailEmpty"></span>
-                  </div>
-                  <div class="detail-copy">
+                    <span class="film-badge" id="filmCountBadge">胶卷 1.0</span>
+                  </button>
+                  <article class="equipment-detail" id="equipmentDetail" aria-label="装备详情" tabindex="0">
                     <strong id="equipmentDetailName">未选择装备</strong>
                     <div class="detail-meta" id="equipmentDetailMeta">上传或拍照后生成装备。</div>
                     <div class="detail-stats" id="equipmentDetailStats"></div>
                     <p id="equipmentDetailDesc">装备会显示缩略图，点击格子后在这里查看图片和描述。</p>
-                    <button class="secondary-button detail-action" id="useItemBtn" type="button" hidden>使用</button>
-                  </div>
-                </article>
+                    <div class="detail-actions" id="equipmentActions" hidden>
+                      <button class="secondary-button detail-action" id="useItemBtn" type="button">使用</button>
+                      <button class="ghost-button detail-action danger-button" id="discardItemBtn" type="button">丢弃</button>
+                    </div>
+                    <span id="loadingState"></span>
+                  </article>
+                </div>
+                <div class="equipment-grid" id="equipmentGrid" aria-label="装备格子"></div>
               </div>
             </section>
 
@@ -170,6 +161,6 @@
       </section>
     </main>
 
-    <script defer src="./app.js?v=20260516-photo-loot"></script>
+    <script defer src="./app.js?v=20260518-equip-focus"></script>
   </body>
 </html>
