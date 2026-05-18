@@ -234,12 +234,10 @@ const els = {
   fleeBtn: byId("fleeBtn"),
   resetGameBtn: byId("resetGameBtn"),
   photoBtn: byId("photoBtn"),
-  pasteImageBtn: byId("pasteImageBtn"),
   analyzeBtn: byId("analyzeBtn"),
   fileInput: byId("fileInput"),
   cameraFrame: byId("cameraFrame"),
   photoPreview: byId("photoPreview"),
-  photoStateBadge: byId("photoStateBadge"),
   configToggleBtn: byId("configToggleBtn"),
   secondaryArea: byId("secondaryArea"),
   presetNote: byId("presetNote"),
@@ -254,7 +252,6 @@ const els = {
   saveConfigBtn: byId("saveConfigBtn"),
   testChatBtn: byId("testChatBtn"),
   chatResult: byId("chatResult"),
-  recommendEquipBtn: byId("recommendEquipBtn"),
   equipmentGrid: byId("equipmentGrid"),
   equipPrevBtn: byId("equipPrevBtn"),
   equipNextBtn: byId("equipNextBtn"),
@@ -348,7 +345,6 @@ function bindEvents() {
     els.fileInput.value = "";
     els.fileInput.click();
   });
-  els.pasteImageBtn.addEventListener("click", pasteImageFromClipboard);
 
   els.fileInput.addEventListener("change", async () => {
     const file = els.fileInput.files?.[0];
@@ -365,7 +361,6 @@ function bindEvents() {
   els.attackBtn.addEventListener("click", toggleAutoBattle);
   els.fleeBtn.addEventListener("click", fleeBattle);
   els.resetGameBtn.addEventListener("click", resetGame);
-  els.recommendEquipBtn.addEventListener("click", recommendEquipment);
   els.useItemBtn.addEventListener("click", useSelectedConsumable);
   els.equipPrevBtn.addEventListener("click", () => changeEquipmentPage(-1));
   els.equipNextBtn.addEventListener("click", () => changeEquipmentPage(1));
@@ -507,35 +502,6 @@ async function preparePhotoFromFile(file, successMessage, errorPrefix) {
     render();
   } catch (error) {
     showInputNotice(`${errorPrefix}：${error.message || "无法处理该图片"}`);
-  } finally {
-    if (els.loadingState.dataset.notice !== "true") setBusy("");
-    renderGameTextOnly();
-  }
-}
-
-async function pasteImageFromClipboard() {
-  if (document.hasFocus && !document.hasFocus()) {
-    window.focus();
-  }
-
-  if (!navigator.clipboard?.read) {
-    showInputNotice("当前浏览器不支持按钮读取剪贴板；请直接按 Ctrl+V 粘贴图片。");
-    return;
-  }
-
-  try {
-    setBusy("读取剪贴板...");
-    const items = await navigator.clipboard.read();
-    for (const item of items) {
-      const imageType = Array.from(item.types || []).find((type) => type.startsWith("image/") || type === "image/png");
-      if (!imageType) continue;
-      const blob = await item.getType(imageType);
-      await preparePhotoFromFile(new File([blob], "clipboard-image.png", { type: imageType }), "已粘贴剪贴板图片，可以鉴定。", "粘贴图片失败");
-      return;
-    }
-    showInputNotice("按钮没有读到图片；如果剪贴板里确实有图，请直接按 Ctrl+V 粘贴。");
-  } catch (error) {
-    showInputNotice(`按钮读取剪贴板失败：${error.message || "浏览器拒绝读取"}。请直接按 Ctrl+V 粘贴图片。`);
   } finally {
     if (els.loadingState.dataset.notice !== "true") setBusy("");
     renderGameTextOnly();
@@ -2527,29 +2493,6 @@ function isEquipmentLocked() {
   return Boolean(state.autoBattleTimer) || Boolean(state.currentBattle);
 }
 
-function recommendEquipment() {
-  if (isEquipmentLocked()) return false;
-
-  const selected = [];
-  const candidates = state.inventory
-    .filter((item) => !isConsumableItem(item) && scoreItem(item) > 0)
-    .map((item, index) => ({ item, index }))
-    .sort((a, b) => scoreItem(b.item) - scoreItem(a.item) || a.index - b.index);
-
-  for (const { item } of candidates) {
-    if (selected.length >= equipmentSlotLimit) break;
-    selected.push(item.id);
-  }
-
-  state.equippedItemIds = selected;
-  getEquippedItems();
-  state.selectedItemId = state.equippedItemIds[0] || state.inventory[0]?.id || "";
-  addLog(selected.length ? `已推荐装备 ${selected.length} 件。` : "没有可推荐装备。");
-  saveGame();
-  render();
-  return true;
-}
-
 function useSelectedConsumable() {
   if (isEquipmentLocked()) return false;
   const index = state.inventory.findIndex((item) => item.id === state.selectedItemId);
@@ -2862,7 +2805,6 @@ function render() {
 
   renderApiStatus();
   renderCameraStatus();
-  els.recommendEquipBtn.disabled = defeated || isEquipmentLocked() || !state.inventory.some((item) => !isConsumableItem(item) && scoreItem(item) > 0);
   renderEquipmentGrid();
   renderEquipmentDetail();
   renderLog();
@@ -2896,8 +2838,6 @@ function renderApiStatus() {
 }
 
 function renderCameraStatus() {
-  const filmText = `胶卷 ${getFilmCount()} · 碎片 ${state.filmShards}/10`;
-  els.photoStateBadge.textContent = filmText;
   els.analyzeBtn.disabled = !state.lastPhoto || getFilmCount() <= 0;
 }
 
@@ -3192,7 +3132,7 @@ function renderEquipmentDetail() {
     els.equipmentDetailName.textContent = "待鉴定照片";
     els.equipmentDetailMeta.textContent = `胶卷 ${getFilmCount()} · 碎片 ${state.filmShards}/10`;
     els.equipmentDetailStats.innerHTML = "";
-    els.equipmentDetailDesc.textContent = "点击鉴定后会生成装备并进入装备库。";
+    els.equipmentDetailDesc.textContent = "点击鉴定后会生成装备并进入背包。";
     return;
   }
 
@@ -3866,7 +3806,6 @@ window.__photoHeroTestHooks = {
     saveGame();
     render();
   },
-  recommendEquipment,
   useSelectedConsumable,
   getEnemyDamageEstimates,
   buildFloorEncounter,
