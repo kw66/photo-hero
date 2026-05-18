@@ -53,14 +53,15 @@
                     <span class="film-badge" id="filmCountBadge">胶卷 1.0</span>
                   </button>
                   <article class="equipment-detail" id="equipmentDetail" aria-label="装备详情" tabindex="0">
-                    <strong id="equipmentDetailName">未选择装备</strong>
-                    <div class="detail-meta" id="equipmentDetailMeta">上传或拍照后生成装备。</div>
+                    <div class="detail-head">
+                      <strong id="equipmentDetailName">未选择装备</strong>
+                      <div class="detail-actions" id="equipmentActions" hidden>
+                        <button class="secondary-button detail-action" id="useItemBtn" type="button">装备</button>
+                        <button class="ghost-button detail-action danger-button" id="discardItemBtn" type="button">丢弃</button>
+                      </div>
+                    </div>
                     <div class="detail-stats" id="equipmentDetailStats"></div>
                     <p id="equipmentDetailDesc">装备会显示缩略图，点击格子后在这里查看图片和描述。</p>
-                    <div class="detail-actions" id="equipmentActions" hidden>
-                      <button class="secondary-button detail-action" id="useItemBtn" type="button">使用</button>
-                      <button class="ghost-button detail-action danger-button" id="discardItemBtn" type="button">丢弃</button>
-                    </div>
                     <span id="loadingState"></span>
                   </article>
                 </div>
@@ -144,8 +145,6 @@
               <button class="primary-button" id="attackBtn" type="button">战斗</button>
               <button class="secondary-button" id="fleeBtn" type="button">逃跑</button>
             </div>
-
-            <div class="enemy-hint" id="enemyHint">点击敌人选择本层对手。</div>
 
             <div class="enemy-field" id="enemyField" aria-label="敌人列表"></div>
 
