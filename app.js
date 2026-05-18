@@ -2968,7 +2968,7 @@ function renderEnemyField() {
 
 function getEnemyDamageEstimates() {
   const estimates = new Map();
-  if (state.currentBattle || state.autoBattleTimer || isPlayerDefeated()) return estimates;
+  if (isPlayerDefeated()) return estimates;
 
   const aliveEnemies = state.enemies.filter((enemy) => enemy.hp > 0);
   const selectedIds = state.selectedEnemyIds.filter((id) => aliveEnemies.some((enemy) => enemy.id === id));
