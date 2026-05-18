@@ -1919,6 +1919,152 @@ textarea {
     font-size: 0.78rem;
   }
 
+  .enemy-hint {
+    min-height: 0;
+    padding: 5px 7px;
+    font-size: 0.68rem;
+    line-height: 1.22;
+  }
+
+  .enemy-field {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .enemy-card {
+    min-height: 122px;
+    gap: 4px;
+    padding: 5px;
+    border-width: 1px;
+  }
+
+  .enemy-card-back {
+    inset: 4px;
+    border-width: 1px;
+    font-size: 0.72rem;
+  }
+
+  .enemy-card-head {
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .monster-portrait {
+    width: 38px;
+    height: 38px;
+    border-width: 1px;
+    border-radius: 5px;
+  }
+
+  .monster-portrait img {
+    width: 34px;
+    height: 34px;
+  }
+
+  .selection-badge {
+    top: 3px;
+    right: 3px;
+    width: 18px;
+    height: 18px;
+    border-width: 1px;
+    font-size: 0.62rem;
+  }
+
+  .enemy-card-head strong {
+    font-size: 0.72rem;
+    line-height: 1;
+  }
+
+  .enemy-name-block > span {
+    margin-top: 0;
+    font-size: 0.55rem;
+    line-height: 1.05;
+  }
+
+  .enemy-hp-line {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px;
+    font-size: 0.58rem;
+  }
+
+  .enemy-hp-line .hp-track {
+    height: 7px;
+  }
+
+  .enemy-card-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .enemy-card-stats div {
+    justify-content: center;
+    gap: 2px;
+    padding: 2px 3px;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .enemy-card-stats div:nth-child(-n + 2) {
+    border-top: 0;
+  }
+
+  .enemy-card-stats div:nth-child(even) {
+    border-left: 1px solid var(--line);
+  }
+
+  .enemy-card-stats dt {
+    font-size: 0.54rem;
+  }
+
+  .enemy-card-stats dd {
+    font-size: 0.72rem;
+  }
+
+  .enemy-card-reward {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    min-height: 28px;
+    gap: 1px;
+    padding: 2px 4px;
+    font-size: 0.56rem;
+    line-height: 1.05;
+    text-align: center;
+  }
+
+  .enemy-card-reward span,
+  .enemy-card-reward strong {
+    max-width: 100%;
+    font-size: 0.56rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .battle-report {
+    padding: 6px;
+  }
+
+  .battle-report ol {
+    gap: 4px;
+  }
+
+  .battle-report li {
+    gap: 5px;
+    padding: 5px 6px;
+    font-size: 0.78rem;
+    line-height: 1.28;
+  }
+
+  .battle-report li.is-detail {
+    margin-left: 0;
+    font-size: 0.74rem;
+  }
+
+  .log-mark {
+    width: 19px;
+    height: 19px;
+    font-size: 0.62rem;
+  }
+
   .wide-field {
     grid-column: 1;
   }

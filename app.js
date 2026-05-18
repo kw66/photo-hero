@@ -3332,9 +3332,23 @@ function renderBattleEntry(entry, markText, canToggle) {
     li.lastChild.replaceWith(button);
   }
 
+  if (entry.type === "current" && isBattle) {
+    const details = entry.details?.length ? [...entry.details].reverse() : [];
+    for (const detail of details) {
+      els.battleLog.append(createBattleListItem({
+        mark: "·",
+        markClass: "detail",
+        text: detail,
+        className: "is-detail is-latest-first",
+      }));
+    }
+    els.battleLog.append(li);
+    return;
+  }
+
   els.battleLog.append(li);
 
-  if ((entry.expanded || entry.type === "current") && isBattle) {
+  if (entry.expanded && isBattle) {
     const details = entry.details?.length ? entry.details : ["暂无详细回合。"];
     for (const detail of details) {
       els.battleLog.append(createBattleListItem({
