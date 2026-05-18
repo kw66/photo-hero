@@ -2252,7 +2252,7 @@ function applyFloorShield() {
 }
 
 function createDefaultPlayer() {
-  return {
+  const player = {
     formId: defaultHeroFormId,
     baseHp: 50,
     hp: 50,
@@ -2265,6 +2265,19 @@ function createDefaultPlayer() {
     shield: 0,
     shieldMonsterId: "",
   };
+  player.hp = getPlayerMaxHpFromRaw(player);
+  player.shield = getPlayerShieldFromRaw(player);
+  return player;
+}
+
+function getPlayerMaxHpFromRaw(player) {
+  const form = heroFormMap.get(player?.formId) || heroFormMap.get(defaultHeroFormId);
+  return (Number.isFinite(player?.baseHp) ? player.baseHp : 50) + (form?.stats?.hp || 0);
+}
+
+function getPlayerShieldFromRaw(player) {
+  const form = heroFormMap.get(player?.formId) || heroFormMap.get(defaultHeroFormId);
+  return (Number.isFinite(player?.baseShield) ? player.baseShield : 0) + (form?.stats?.shield || 0);
 }
 
 function resetGame() {
@@ -3609,7 +3622,7 @@ function loadSave() {
 
 function normalizePlayer(player) {
   const defaults = createDefaultPlayer();
-  return {
+  const normalized = {
     formId: heroFormMap.has(player.formId) ? player.formId : defaults.formId,
     baseHp: Number.isFinite(player.baseHp) ? player.baseHp : defaults.baseHp,
     hp: Number.isFinite(player.hp) ? player.hp : defaults.hp,
@@ -3622,6 +3635,9 @@ function normalizePlayer(player) {
     shield: Number.isFinite(player.shield) ? player.shield : defaults.shield,
     shieldMonsterId: typeof player.shieldMonsterId === "string" ? player.shieldMonsterId : "",
   };
+  normalized.hp = Math.max(0, Math.min(normalized.hp, getPlayerMaxHpFromRaw(normalized)));
+  normalized.shield = Math.max(0, Math.min(normalized.shield, getPlayerShieldFromRaw(normalized)));
+  return normalized;
 }
 
 function normalizeBattleClock(clock) {
