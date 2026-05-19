@@ -4,13 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260519-slot-estimate">
+    <link rel="stylesheet" href="./styles.css?v=20260519-single-panel">
   </head>
   <body>
     <main class="app-shell">
       <section class="game-panel" aria-label="照片勇者游戏面板">
         <div class="game-board">
-          <section class="hero-zone" aria-label="勇者属性和装备">
+          <section class="hero-zone" aria-label="勇者属性、装备和战斗">
             <div class="zone-head hero-head">
               <h2>照片勇者</h2>
               <div class="panel-tools" aria-label="面板工具">
@@ -45,34 +45,20 @@
             <section class="loot-panel" aria-label="鉴定结果和背包">
               <input id="fileInput" type="file" accept="image/*">
               <div class="equipment-layout">
-                <div class="equipment-focus">
-                  <button class="detail-image-frame" id="cameraFrame" type="button" aria-label="拍照或上传图片">
-                    <img id="photoPreview" alt="待鉴定图片预览">
-                    <img id="equipmentDetailImage" alt="装备图片预览">
-                    <span id="equipmentDetailEmpty"></span>
-                    <span class="film-badge" id="filmCountBadge">胶卷 1.0</span>
-                  </button>
-                  <article class="equipment-detail" id="equipmentDetail" aria-label="装备详情" tabindex="0">
-                    <div class="detail-head">
-                      <strong id="equipmentDetailName">未选择装备</strong>
-                      <div class="detail-actions" id="equipmentActions" hidden>
-                        <button class="ghost-button detail-action icon-action danger-button" id="discardItemBtn" type="button" aria-label="丢弃装备">
-                          <svg aria-hidden="true" viewBox="0 0 24 24">
-                            <path d="M3 6h18"></path>
-                            <path d="M8 6V4h8v2"></path>
-                            <path d="M6 6l1 15h10l1-15"></path>
-                            <path d="M10 10v7"></path>
-                            <path d="M14 10v7"></path>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                    <div class="detail-stats" id="equipmentDetailStats"></div>
-                    <p id="equipmentDetailDesc">装备会显示缩略图，点击格子后在这里查看图片和描述。</p>
-                    <span id="loadingState"></span>
-                  </article>
-                </div>
                 <div class="equipment-grid" id="equipmentGrid" aria-label="装备格子"></div>
+                <article class="equipment-detail info-console" id="equipmentDetail" aria-label="装备详情和战斗播报" tabindex="0">
+                  <div class="detail-head">
+                    <strong id="equipmentDetailName">战斗播报</strong>
+                    <div class="detail-actions" id="equipmentActions" hidden>
+                      <button class="ghost-button detail-action danger-button" id="discardItemBtn" type="button" aria-label="分解装备">分解</button>
+                    </div>
+                  </div>
+                  <div class="detail-stats" id="equipmentDetailStats"></div>
+                  <p id="equipmentDetailDesc">选择装备查看信息；点击空装备格拍照/上传。</p>
+                  <span class="film-badge inline-film-badge" id="filmCountBadge">胶卷 1.0</span>
+                  <span id="loadingState"></span>
+                  <ol id="battleLog"></ol>
+                </article>
               </div>
             </section>
 
@@ -144,9 +130,6 @@
               </section>
 
             </section>
-          </section>
-
-          <section class="enemy-zone" aria-label="敌人和战报">
             <div class="floor-action-row" aria-label="楼层和战斗操作">
               <strong id="floorText">第 1 / 40 层</strong>
               <button class="primary-button" id="attackBtn" type="button">战斗</button>
@@ -154,10 +137,6 @@
             </div>
 
             <div class="enemy-field" id="enemyField" aria-label="敌人列表"></div>
-
-            <section class="battle-report" aria-label="战斗播报">
-              <ol id="battleLog"></ol>
-            </section>
           </section>
         </div>
       </section>
@@ -168,6 +147,6 @@
       <span id="imageViewerCaption"></span>
     </button>
 
-    <script defer src="./app.js?v=20260519-slot-estimate"></script>
+    <script defer src="./app.js?v=20260519-single-panel"></script>
   </body>
 </html>

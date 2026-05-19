@@ -90,10 +90,20 @@ const analysisImageQuality = 0.78;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
-const gameSaveVersion = 8;
+const gameSaveVersion = 9;
 const initialFilmRolls = 3;
 const bossFloors = new Set([10, 20, 30, 40]);
 const rewardBossFloors = new Set([25, 35, 39]);
+const bossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
+const bossDropTypesByFloor = new Map([
+  [10, new Set(["skeletonCaptain"])],
+  [20, new Set(["vampire"])],
+  [25, new Set(["octopus"])],
+  [30, new Set(["knightCaptain"])],
+  [35, new Set(["dragon"])],
+  [39, new Set(["archmage"])],
+  [40, new Set(["demon"])],
+]);
 
 const statLabels = {
   hp: "生命上限",
@@ -241,18 +251,18 @@ const monsterTypes = {
 };
 
 const normalMonsterUnlocks = [
-  { floor: 1, key: "slime", weight: 12 },
-  { floor: 2, key: "bat", weight: 5 },
-  { floor: 3, key: "skeleton", weight: 5 },
-  { floor: 4, key: "mage", weight: 4 },
-  { floor: 6, key: "orc", weight: 4 },
-  { floor: 8, key: "golem", weight: 3 },
-  { floor: 11, key: "wizard", weight: 4 },
-  { floor: 13, key: "guard", weight: 3 },
-  { floor: 15, key: "knight", weight: 4 },
-  { floor: 17, key: "patrol", weight: 3 },
-  { floor: 21, key: "warrior", weight: 4 },
-  { floor: 23, key: "swordsman", weight: 3 },
+  { floor: 1, key: "slime", weight: 20, tier: 1 },
+  { floor: 2, key: "bat", weight: 9, tier: 1 },
+  { floor: 3, key: "skeleton", weight: 9, tier: 1 },
+  { floor: 4, key: "mage", weight: 7, tier: 2 },
+  { floor: 6, key: "orc", weight: 7, tier: 2 },
+  { floor: 8, key: "golem", weight: 5, tier: 2 },
+  { floor: 11, key: "wizard", weight: 6, tier: 3 },
+  { floor: 13, key: "guard", weight: 5, tier: 3 },
+  { floor: 15, key: "knight", weight: 6, tier: 3 },
+  { floor: 17, key: "patrol", weight: 5, tier: 4 },
+  { floor: 21, key: "warrior", weight: 5, tier: 4 },
+  { floor: 23, key: "swordsman", weight: 4, tier: 4 },
 ];
 
 const els = {
@@ -272,8 +282,6 @@ const els = {
   fleeBtn: byId("fleeBtn"),
   resetGameBtn: byId("resetGameBtn"),
   fileInput: byId("fileInput"),
-  cameraFrame: byId("cameraFrame"),
-  photoPreview: byId("photoPreview"),
   filmCountBadge: byId("filmCountBadge"),
   configToggleBtn: byId("configToggleBtn"),
   secondaryArea: byId("secondaryArea"),
@@ -291,8 +299,6 @@ const els = {
   chatResult: byId("chatResult"),
   equipmentGrid: byId("equipmentGrid"),
   equipmentDetail: byId("equipmentDetail"),
-  equipmentDetailImage: byId("equipmentDetailImage"),
-  equipmentDetailEmpty: byId("equipmentDetailEmpty"),
   equipmentDetailName: byId("equipmentDetailName"),
   equipmentDetailStats: byId("equipmentDetailStats"),
   equipmentDetailDesc: byId("equipmentDetailDesc"),
@@ -316,6 +322,7 @@ const state = {
   battleReports: [],
   battleReportSeq: 0,
   currentBattle: null,
+  infoMode: "item",
   gameClear: false,
   inventory: createEmptyInventorySlots(),
   selectedSlotIndex: 0,
@@ -378,8 +385,6 @@ function bindEvents() {
     });
   });
 
-  els.cameraFrame.addEventListener("click", handleCameraFrameClick);
-
   els.fileInput.addEventListener("change", async () => {
     const file = els.fileInput.files?.[0];
     if (!file) return;
@@ -394,25 +399,16 @@ function bindEvents() {
     event.preventDefault();
     handleEquipmentDetailClick(event);
   });
+  document.addEventListener("click", handleDocumentClickForInfoMode);
   els.saveConfigBtn.addEventListener("click", saveConfig);
   els.testChatBtn.addEventListener("click", testVisionApi);
   els.toggleKeyBtn.addEventListener("click", toggleApiKeyVisibility);
   els.attackBtn.addEventListener("click", toggleAutoBattle);
   els.fleeBtn.addEventListener("click", fleeBattle);
   els.resetGameBtn.addEventListener("click", resetGame);
-  els.discardItemBtn.addEventListener("click", discardSelectedItem);
+  els.discardItemBtn.addEventListener("click", dismantleSelectedItem);
   els.imageViewer.addEventListener("click", closeImageViewer);
   renderHeroForms();
-}
-
-function handleCameraFrameClick() {
-  const selected = getSelectedInventoryItem();
-  if (selected?.image) {
-    openImageViewer(selected.image, formatItemDisplayName(selected));
-    return;
-  }
-  if (isEquipmentLocked()) return;
-  openPhotoPicker();
 }
 
 function openPhotoPicker() {
@@ -422,8 +418,19 @@ function openPhotoPicker() {
 
 function handleEquipmentDetailClick(event) {
   if (event.target.closest("button")) return;
-  if (state.lastPhoto) {
+  if (state.lastPhoto && state.infoMode === "item") {
     analyzePhoto();
+  }
+}
+
+function handleDocumentClickForInfoMode(event) {
+  if (event.target.closest("#fileInput")) return;
+  if (event.target.closest(".equipment-slot, .equipment-detail, .image-viewer, .secondary-area, [data-panel-target], .preset-button")) {
+    return;
+  }
+  if (state.infoMode === "item") {
+    state.infoMode = "log";
+    renderEquipmentDetail();
   }
 }
 
@@ -567,9 +574,7 @@ async function preparePhotoFromFile(file, successMessage, errorPrefix) {
     state.lastPhoto = await compressImage(file);
     state.pendingPhotoSlotIndex = getSelectedSlotIndex();
     state.lootError = "";
-    els.photoPreview.src = state.lastPhoto;
-    els.photoPreview.hidden = false;
-    els.cameraFrame.classList.add("has-photo");
+    state.infoMode = "item";
     renderCameraStatus();
     if (successMessage) {
       addLog(successMessage);
@@ -1329,6 +1334,7 @@ function addInventoryItem(item, message, preferredSlotIndex = getSelectedSlotInd
   }
   state.selectedSlotIndex = slotIndex;
   state.selectedItemId = item.id;
+  state.infoMode = "item";
   const newStats = getPlayerStats();
   if (!item.tooLarge && newStats.maxHp > oldStats.maxHp) {
     state.player.hp += newStats.maxHp - oldStats.maxHp;
@@ -1398,6 +1404,7 @@ function findFirstEmptyInventorySlot() {
 
 function toggleAutoBattle() {
   if (state.autoBattleTimer || state.gameClear || isPlayerDefeated()) return;
+  state.infoMode = "log";
   startAutoBattle();
 }
 
@@ -1673,7 +1680,9 @@ function defeatEnemy(enemy) {
   triggerKillSpecial(enemy);
   for (const drop of drops) {
     if (drop.kind === "shard") {
-  addFilmShards(drop.amount);
+      addFilmShards(drop.amount);
+    } else if (drop.kind === "film") {
+      state.filmRolls += drop.amount || 1;
     }
   }
   removeActiveEnemyIds([enemy.id]);
@@ -1712,6 +1721,7 @@ function ensureCurrentBattle(activeIds, stats = getBattleStats(activeIds)) {
     monsterName: enemies.map((enemy) => enemy.name).join("、"),
     startHp: state.player.hp,
     startShield: state.player.shield,
+    damageEstimates: Object.fromEntries(simulateDamageEstimateForIds(activeIds, { ignoreFrozen: true })),
     details: [],
     lootNames: [],
     defeatedIds: [],
@@ -1732,7 +1742,7 @@ function addLootNamesToCurrentBattle(drops) {
   if (!state.currentBattle) return;
   for (const drop of drops) {
     const amount = drop.amount || 1;
-    const name = drop.kind === "shard" ? "胶卷 +0.1" : drop.itemName;
+    const name = drop.kind === "shard" ? "胶卷 +0.1" : drop.kind === "film" ? "胶卷 +1.0" : drop.itemName;
     for (let i = 0; i < amount; i += 1) {
       state.currentBattle.lootNames.push(name);
     }
@@ -1743,11 +1753,14 @@ function finishCurrentBattle(result) {
   if (!state.currentBattle) return;
   const battle = state.currentBattle;
   const hpDelta = state.player.hp - battle.startHp;
+  const stats = getPlayerStats();
+  const endHp = Math.min(state.player.hp, stats.maxHp);
   const report = {
     ...battle,
     result,
     hpDelta,
-    endHp: state.player.hp,
+    endHp,
+    endMaxHp: stats.maxHp,
     endShield: state.player.shield,
     summary: makeBattleSummary(result, battle, hpDelta),
     expanded: false,
@@ -1809,17 +1822,17 @@ function makeBattleSummary(result, battle, hpDelta) {
   const lifeText = `生命变化 ${formatHpDelta(hpDelta)}`;
   const lootText = formatLootNames(battle?.lootNames || []);
   if (result === "victory") {
-    const stats = getPlayerStats();
     const endHp = Number.isFinite(battle?.endHp) ? battle.endHp : state.player.hp;
-    const hpPercent = stats.maxHp ? endHp / stats.maxHp : 1;
+    const endMaxHp = Number.isFinite(battle?.endMaxHp) ? battle.endMaxHp : getPlayerStats().maxHp;
+    const hpPercent = endMaxHp ? endHp / endMaxHp : 1;
     const label = hpPercent <= 0.2
       ? "险胜"
       : hpDelta >= 0
         ? "完胜"
-        : Math.abs(hpDelta) <= Math.max(3, Math.ceil(stats.maxHp * 0.15))
+        : Math.abs(hpDelta) <= Math.max(3, Math.ceil(endMaxHp * 0.15))
           ? "小胜"
           : "胜";
-    const remainText = label === "险胜" ? `，剩余生命 ${endHp}/${stats.maxHp}` : "";
+    const remainText = label === "险胜" ? `，剩余生命 ${endHp}/${endMaxHp}` : "";
     return `${label} · 第${floor}层${monsterName}，${lifeText}${remainText}，获得：${lootText}。`;
   }
   if (result === "defeat") {
@@ -1844,6 +1857,7 @@ function formatLootNames(names) {
   return [...counts.entries()]
     .map(([name, count]) => {
       if (name === "胶卷 +0.1") return `胶卷 +${(count / 10).toFixed(1)}`;
+      if (name === "胶卷 +1.0") return `胶卷 +${count.toFixed(1)}`;
       return count > 1 ? `${name}*${count}` : name;
     })
     .join("、");
@@ -1857,6 +1871,7 @@ function formatHpDelta(delta) {
 function fleeBattle() {
   if (isPlayerDefeated()) return;
   if (state.pendingFloorAdvance || state.battleStartTimer) return;
+  state.infoMode = "log";
   if (state.autoBattleTimer) stopAutoBattle();
   if (isBossFloor(state.floor)) {
     addBattleEvent(`第${state.floor}层无法逃跑。`, "info");
@@ -2023,16 +2038,22 @@ function getFloorMonsterTypes(floor) {
   if (floor === 39) return ["archmage"];
   if (floor === 40) return ["demon"];
   const pool = buildWeightedMonsterPool(floor);
-  return [0, 1, 2].map((slot) => pool[hashIndex(`${floor}:monster:${slot}`, pool.length)]);
+  const normalPool = pool.filter((key) => !isBossMonsterType(key));
+  const safePool = normalPool.length ? normalPool : ["slime"];
+  return [0, 1, 2].map((slot) => safePool[hashIndex(`${floor}:monster:${slot}`, safePool.length)]);
 }
 
 function buildWeightedMonsterPool(floor) {
-  const entries = normalMonsterUnlocks.filter((entry) => floor >= entry.floor);
+  const entries = normalMonsterUnlocks.filter((entry) => floor >= entry.floor && !isBossMonsterType(entry.key));
   const weighted = [];
   for (const entry of entries) {
     const age = Math.max(0, floor - entry.floor);
-    const decay = Math.max(1, entry.weight - Math.floor(age / 10));
-    for (let i = 0; i < decay; i += 1) weighted.push(entry.key);
+    const growth = Math.floor(Math.max(0, floor - 1) / 8);
+    const tierBoost = Math.max(0, (entry.tier || 1) - 1) * (growth + 1);
+    const weakRetention = entry.floor <= 3 ? Math.max(5, entry.weight - Math.floor(age / 5)) : 0;
+    const baseWeight = Math.max(1, entry.weight + tierBoost - Math.floor(age / 12));
+    const finalWeight = Math.max(baseWeight, weakRetention);
+    for (let i = 0; i < finalWeight; i += 1) weighted.push(entry.key);
   }
   return weighted.length ? weighted : ["slime"];
 }
@@ -2041,7 +2062,9 @@ function makeEnemy(typeKey, floor, slot) {
   const type = monsterTypes[typeKey] || monsterTypes.slime;
   const shield = getTraitValueFromList(type.traits, "shield", 0) || 0;
   const traits = cloneTraits(type.traits);
-  const maxHp = Math.max(1, type.hp);
+  const scale = getNormalMonsterScale(typeKey, floor);
+  const maxHp = Math.max(1, Math.round(type.hp * scale.hp));
+  const maxShield = Math.max(0, Math.round(shield * scale.hp));
   return {
     id: `${floor}-${slot}-${typeKey}`,
     floor,
@@ -2051,13 +2074,38 @@ function makeEnemy(typeKey, floor, slot) {
     name: type.name,
     maxHp,
     hp: maxHp,
-    atk: Math.max(0, type.atk),
-    def: Math.max(0, type.def),
-    speed: Math.max(1, type.speed),
-    maxShield: Math.max(0, shield),
-    shield: Math.max(0, shield),
+    atk: Math.max(0, Math.round(type.atk * scale.atk)),
+    def: Math.max(0, Math.round(type.def * scale.def)),
+    speed: Math.max(1, type.speed + scale.speed),
+    maxShield,
+    shield: maxShield,
     traits,
   };
+}
+
+function getNormalMonsterScale(typeKey, floor) {
+  if (isBossMonsterType(typeKey)) {
+    return { hp: 1, atk: 1, def: 1, speed: 0 };
+  }
+  const stage = Math.max(0, Math.floor((floor - 1) / 5));
+  const earlyDamp = floor <= 5 ? 0 : stage;
+  return {
+    hp: 1 + earlyDamp * 0.08,
+    atk: 1 + earlyDamp * 0.07,
+    def: 1 + earlyDamp * 0.055,
+    speed: Math.floor(Math.max(0, floor - 1) / 18),
+  };
+}
+
+function isBossMonsterType(typeKey) {
+  return bossMonsterKeys.has(typeKey);
+}
+
+function isBossDropEnemy(enemy) {
+  const typeKey = enemy?.typeKey;
+  const floor = Number.isFinite(enemy?.floor) ? enemy.floor : state.floor;
+  if (!isBossMonsterType(typeKey)) return false;
+  return Boolean(bossDropTypesByFloor.get(floor)?.has(typeKey));
 }
 
 function normalizeEnemy(enemy) {
@@ -2081,42 +2129,43 @@ function normalizeEnemy(enemy) {
       traits: Array.isArray(enemy.traits) ? cloneTraits(enemy.traits) : [],
     };
   }
+  return normalizeEnemyFromBase(enemy);
+}
+
+function normalizeEnemyFromBase(enemy) {
+  const floor = Number.isFinite(enemy.floor) ? enemy.floor : state.floor;
   const previousMaxHp = Number.isFinite(enemy.maxHp) ? enemy.maxHp : Number.isFinite(enemy.hp) ? enemy.hp : 1;
   const previousMaxShield = Number.isFinite(enemy.maxShield) ? enemy.maxShield : Number.isFinite(enemy.shield) ? enemy.shield : 0;
-  const typeName = typeof enemy.typeName === "string" ? enemy.typeName : monsterTypes[enemy.typeKey]?.name || "怪物";
-  const type = monsterTypes[enemy.typeKey];
-  const baseShield = type ? getTraitValueFromList(type.traits, "shield", 0) || 0 : 0;
-  const maxHp = type ? Math.max(1, type.hp) : Number.isFinite(enemy.maxHp) ? enemy.maxHp : Number.isFinite(enemy.hp) ? enemy.hp : 1;
-  const maxShield = type
-    ? Math.max(0, baseShield)
-    : Number.isFinite(enemy.maxShield)
-      ? enemy.maxShield
-      : Number.isFinite(enemy.shield)
-        ? enemy.shield
-        : 0;
-  const traits = type ? cloneTraits(type.traits) : Array.isArray(enemy.traits) ? enemy.traits : [];
+  const base = makeEnemy(enemy.typeKey || "slime", floor, Number.isFinite(enemy.slot) ? enemy.slot : 0);
   return {
+    ...base,
     ...enemy,
     id: typeof enemy.id === "string" ? enemy.id : makeId("enemy"),
-    name: typeName,
-    typeName,
-    maxHp,
+    name: base.name,
+    typeName: base.typeName,
+    maxHp: base.maxHp,
     hp: Number.isFinite(enemy.hp)
-      ? Math.max(0, Math.min(enemy.hp >= previousMaxHp ? maxHp : enemy.hp, maxHp))
-      : maxHp,
-    atk: type ? Math.max(0, type.atk) : Number.isFinite(enemy.atk) ? enemy.atk : 1,
-    def: type ? Math.max(0, type.def) : Number.isFinite(enemy.def) ? enemy.def : 0,
-    speed: type ? Math.max(1, type.speed) : Number.isFinite(enemy.speed) ? Math.max(1, enemy.speed) : 1,
-    maxShield,
+      ? Math.max(0, Math.min(enemy.hp >= previousMaxHp ? base.maxHp : enemy.hp, base.maxHp))
+      : base.maxHp,
+    atk: base.atk,
+    def: base.def,
+    speed: base.speed,
+    maxShield: base.maxShield,
     shield: Number.isFinite(enemy.shield)
-      ? Math.max(0, Math.min(enemy.shield >= previousMaxShield ? maxShield : enemy.shield, maxShield))
-      : maxShield,
-    traits,
+      ? Math.max(0, Math.min(enemy.shield >= previousMaxShield ? base.maxShield : enemy.shield, base.maxShield))
+      : base.maxShield,
+    traits: base.traits,
   };
 }
 
 function getEnemyDrops(enemy) {
-  void enemy;
+  if (isBossDropEnemy(enemy)) {
+    return [{
+      kind: "film",
+      itemName: "胶卷 +1.0",
+      amount: 1,
+    }];
+  }
   return [{
     kind: "shard",
     itemName: "胶卷 +0.1",
@@ -2415,6 +2464,7 @@ function resetGame() {
   state.battleReports = [];
   state.battleReportSeq = 0;
   state.currentBattle = null;
+  state.infoMode = "item";
   state.inventory = createEmptyInventorySlots();
   state.selectedSlotIndex = 0;
   state.pendingPhotoSlotIndex = 0;
@@ -2605,7 +2655,7 @@ function isEquipmentLocked() {
   return Boolean(state.autoBattleTimer) || Boolean(state.currentBattle);
 }
 
-function discardSelectedItem() {
+function dismantleSelectedItem() {
   if (isEquipmentLocked()) return false;
   ensureInventorySlots();
   const index = getSelectedSlotIndex();
@@ -2613,13 +2663,17 @@ function discardSelectedItem() {
   if (!removed) return false;
 
   const oldStats = getPlayerStats();
+  const returnedFilm = getDismantleFilmReturn(removed);
   state.inventory[index] = null;
   state.selectedItemId = "";
   state.latestItem = state.inventory.find(Boolean) || null;
+  state.infoMode = "log";
+  state.filmRolls += returnedFilm;
   const newStats = getPlayerStats();
   if (newStats.maxHp < oldStats.maxHp) state.player.hp = Math.min(state.player.hp, newStats.maxHp);
   state.lootError = "";
   setBusy("");
+  addBattleEvent(`分解 ${formatItemDisplayName(removed)}，返还胶卷 +${returnedFilm.toFixed(1)}。`, "item");
   saveGame();
   render();
   return true;
@@ -2653,6 +2707,7 @@ function balanceItem(item, image = "") {
     objectType,
     rarity,
     value: targetValue,
+    quality: getItemQuality(targetValue),
     stats,
     specialEffects,
     specialState: normalizeSpecialState(safe.specialState, specialEffects),
@@ -2693,6 +2748,22 @@ function normalizeInventorySlots(inventory) {
 function scoreItem(item) {
   if (!item) return 0;
   return calculateStatsValue(item.stats || {}) + calculateSpecialEffectsValue(getItemSpecialKeys(item));
+}
+
+function getItemQuality(value) {
+  const score = Number.isFinite(value) ? value : 0;
+  if (score >= 20) return { key: "legendary", label: "传说" };
+  if (score >= 15) return { key: "epic", label: "史诗" };
+  if (score >= 10) return { key: "rare", label: "稀有" };
+  return { key: "common", label: "普通" };
+}
+
+function getItemQualityKey(item) {
+  return getItemQuality(scoreItem(item)).key;
+}
+
+function getDismantleFilmReturn(item) {
+  return Math.max(0, Math.ceil(scoreItem(item) * 0.5));
 }
 
 function normalizeStats(stats, maxValue = 20) {
@@ -2959,7 +3030,6 @@ function render() {
   renderCameraStatus();
   renderEquipmentGrid();
   renderEquipmentDetail();
-  renderLog();
   renderGameTextOnly();
 }
 
@@ -3042,9 +3112,9 @@ function renderEnemyField() {
       render();
     });
 
-    const traitText = enemy.traits?.map((trait) => trait.text).filter(Boolean).join(" / ") || "无特性";
+    const traitText = enemy.traits?.map((trait) => trait.text).filter(Boolean).join(" / ") || "";
     const imageUrl = getMonsterImageUrl(enemy.typeKey);
-    const shieldText = `${enemy.shield || 0}/${getEnemyMaxShield(enemy)}`;
+    const dropText = isBossDropEnemy(enemy) ? "胶卷 1.0" : "胶卷 0.1";
     button.innerHTML = `
       ${selectionOrder ? `<span class="selection-badge">${selectionOrder}</span>` : ""}
       <div class="enemy-card-head">
@@ -3058,19 +3128,18 @@ function renderEnemyField() {
       </div>
       <dl class="enemy-card-stats">
         <div><dt>攻</dt><dd>${enemy.atk}</dd></div>
-        <div><dt>吸血</dt><dd>${getTraitValue(enemy, "lifesteal", 0)}</dd></div>
-        <div><dt>速度</dt><dd>${enemy.speed}</dd></div>
         <div><dt>防</dt><dd>${enemy.def}</dd></div>
-        <div><dt>回复</dt><dd>${getTraitValue(enemy, "regen", 0)}</dd></div>
-        <div><dt>护盾</dt><dd>${shieldText}</dd></div>
+        <div><dt>速</dt><dd>${enemy.speed}</dd></div>
       </dl>
+      <div class="enemy-card-loss">
+        <strong class="estimate-${estimate.state}">${escapeHtml(estimate.text)}</strong>
+      </div>
       <div class="enemy-hp-line">
-        <span>生命 ${enemy.hp}/${enemy.maxHp}</span>
+        <span>${enemy.hp}/${enemy.maxHp}</span>
         <div class="hp-track danger"><span style="width:${percent(enemy.hp, enemy.maxHp)}%"></span></div>
       </div>
       <div class="enemy-card-reward">
-        <span>胶卷 +0.1</span>
-        <strong class="estimate-${estimate.state}">${escapeHtml(estimate.text)}</strong>
+        <span>${dropText}</span>
       </div>
       <div class="enemy-card-back" aria-hidden="true">
         <span>${isDefeated ? "已击破" : "未参战"}</span>
@@ -3084,6 +3153,15 @@ function renderEnemyField() {
 function getEnemyDamageEstimates() {
   const estimates = new Map();
   if (isPlayerDefeated()) return estimates;
+  if (state.currentBattle?.damageEstimates) {
+    for (const [id, estimate] of Object.entries(state.currentBattle.damageEstimates)) {
+      estimates.set(id, estimate);
+    }
+    for (const enemy of state.enemies.filter((item) => item.hp > 0)) {
+      if (!estimates.has(enemy.id)) estimates.set(enemy.id, makeUnknownEstimate());
+    }
+    return estimates;
+  }
 
   const aliveEnemies = state.enemies.filter((enemy) => enemy.hp > 0);
   const selectedIds = state.selectedEnemyIds.filter((id) => aliveEnemies.some((enemy) => enemy.id === id));
@@ -3102,7 +3180,11 @@ function getEnemyDamageEstimates() {
   return estimates;
 }
 
-function simulateDamageEstimateForIds(enemyIds) {
+function simulateDamageEstimateForIds(enemyIds, options = {}) {
+  if (!options.ignoreFrozen && state.currentBattle?.damageEstimates) {
+    const frozen = new Map(Object.entries(state.currentBattle.damageEstimates));
+    return new Map(enemyIds.map((id) => [id, frozen.get(id) || makeUnknownEstimate()]));
+  }
   const estimates = new Map();
   const enemies = enemyIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
@@ -3115,6 +3197,8 @@ function simulateDamageEstimateForIds(enemyIds) {
   const startHp = actualStartHp + theoreticalBuffer;
   const sim = createBattleSimulation(enemies);
   sim.hp = startHp;
+  sim.initialHp = startHp;
+  sim.actualStartHp = actualStartHp;
   sim.maxHpBonus = theoreticalBuffer;
 
   while (sim.hp > 0 && sim.activeIds.length) {
@@ -3132,7 +3216,7 @@ function simulateDamageEstimateForIds(enemyIds) {
     if (!nextEnemyId || sim.heroTime <= enemyTime + Number.EPSILON) {
       const defeatedIds = simulateHeroStrike(sim, enemies, currentStats);
       for (const id of defeatedIds) {
-        estimates.set(id, formatHpLossEstimate(startHp - sim.hp, actualStartHp));
+        estimates.set(id, formatHpLossEstimate(sim.initialHp - sim.hp, sim.actualStartHp));
       }
       sim.heroTime += 1 / Math.max(1, currentStats.speed);
       sim.round = defeatedIds.length ? 1 : sim.round + 1;
@@ -3182,16 +3266,27 @@ function renderEquipmentGrid() {
   for (let i = 0; i < equipmentVisibleSlots; i += 1) {
     const item = state.inventory[i];
     const button = document.createElement("button");
-    button.className = `equipment-slot${item ? " has-item" : ""}${i === selectedSlotIndex ? " is-selected" : ""}${locked ? " is-locked" : ""}`;
+    const isSelected = i === selectedSlotIndex;
+    const qualityKey = item ? getItemQualityKey(item) : "empty";
+    button.className = `equipment-slot quality-${qualityKey}${item ? " has-item" : ""}${isSelected ? " is-selected" : ""}${locked ? " is-locked" : ""}`;
     button.type = "button";
-    button.setAttribute("aria-label", item ? `选择${item.itemName}` : `选择空装备格${i + 1}`);
+    button.setAttribute("aria-label", item ? `选择${item.itemName}` : `拍照上传到空装备格${i + 1}`);
     button.addEventListener("click", () => {
+      const wasSelected = i === getSelectedSlotIndex();
+      const wasItemMode = state.infoMode === "item";
+      const isRepeatClick = wasSelected && wasItemMode;
       state.selectedSlotIndex = i;
       state.selectedItemId = item?.id || "";
       state.lootError = "";
+      state.infoMode = "item";
       if (!item) {
         state.lastPhoto = "";
         state.pendingPhotoSlotIndex = i;
+        if (isRepeatClick && !locked) {
+          openPhotoPicker();
+        }
+      } else if (isRepeatClick && item.image) {
+        openImageViewer(item.image, formatItemDisplayName(item));
       }
       saveGame();
       render();
@@ -3203,7 +3298,7 @@ function renderEquipmentGrid() {
         <span>${escapeHtml(formatItemDisplayName(item))}</span>
       `;
     } else {
-      button.innerHTML = `<span class="empty-slot">+</span>`;
+      button.innerHTML = `<span class="empty-slot">${getCameraIconMarkup()}</span>`;
     }
 
     els.equipmentGrid.append(button);
@@ -3214,21 +3309,20 @@ function renderEquipmentDetail() {
   ensureInventorySlots();
   const selected = getSelectedInventoryItem();
   const locked = isEquipmentLocked();
+  const showingItem = state.infoMode === "item";
 
   els.equipmentActions.hidden = true;
   els.discardItemBtn.disabled = true;
-  els.equipmentDetail.classList.remove("is-error", "is-actionable");
-  els.cameraFrame.classList.remove("has-photo");
-  els.photoPreview.hidden = true;
-  els.equipmentDetailImage.removeAttribute("src");
-  els.equipmentDetailImage.hidden = true;
-  els.equipmentDetailEmpty.hidden = false;
-  els.equipmentDetailEmpty.innerHTML = getCameraIconMarkup();
+  els.battleLog.hidden = true;
+  els.equipmentDetailDesc.hidden = false;
+  els.filmCountBadge.hidden = true;
+  els.loadingState.hidden = false;
+  els.equipmentDetail.classList.remove("is-error", "is-actionable", "is-log");
   els.equipmentDetailStats.hidden = false;
+  delete els.equipmentDetailName.dataset.quality;
 
   if (state.lootError) {
     els.equipmentDetail.classList.add("is-error");
-    els.equipmentDetailEmpty.textContent = "!";
     els.equipmentDetailName.textContent = "鉴定失败";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
@@ -3236,12 +3330,7 @@ function renderEquipmentDetail() {
     return;
   }
 
-  if (state.lastPhoto) {
-    els.cameraFrame.classList.add("has-photo");
-    els.photoPreview.src = state.lastPhoto;
-    els.photoPreview.hidden = false;
-    els.equipmentDetailEmpty.hidden = true;
-    els.equipmentDetailEmpty.textContent = "";
+  if (state.lastPhoto && showingItem) {
     els.equipmentDetail.classList.add("is-actionable");
     els.equipmentDetailName.textContent = "待鉴定照片";
     els.equipmentDetailStats.innerHTML = "";
@@ -3252,24 +3341,37 @@ function renderEquipmentDetail() {
     return;
   }
 
-  if (!selected) {
-    els.equipmentDetailName.textContent = "空";
+  if (!showingItem) {
+    els.equipmentDetail.classList.add("is-log");
+    els.equipmentDetailName.textContent = "";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = locked ? "战斗中不能拍照鉴定。" : "点击左侧相机图标拍照/上传。";
-    els.equipmentActions.hidden = true;
+    els.equipmentDetailDesc.hidden = true;
+    els.battleLog.hidden = false;
+    els.filmCountBadge.hidden = true;
+    renderLog();
     return;
   }
 
-  els.equipmentDetailImage.src = selected.image || makePlaceholderImage();
-  els.equipmentDetailImage.hidden = false;
-  els.equipmentDetailEmpty.hidden = true;
+  if (!selected) {
+    els.equipmentDetailName.textContent = "空装备格";
+    els.equipmentDetailStats.innerHTML = "";
+    els.equipmentDetailStats.hidden = true;
+    els.equipmentDetailDesc.textContent = locked ? "战斗中不能拍照鉴定。" : "再次点击空装备格拍照/上传。";
+    els.filmCountBadge.hidden = false;
+    return;
+  }
+
+  const quality = getItemQuality(scoreItem(selected));
   els.equipmentDetailName.textContent = formatItemDisplayName(selected);
+  els.equipmentDetailName.dataset.quality = quality.label;
   els.equipmentDetailStats.innerHTML = renderItemDetailPills(selected);
   els.equipmentDetailStats.hidden = false;
   els.equipmentDetailDesc.textContent = selected.description;
   els.equipmentActions.hidden = false;
   els.discardItemBtn.disabled = locked;
+  const refund = getDismantleFilmReturn(selected);
+  els.discardItemBtn.textContent = `分解 +${refund.toFixed(1)}`;
 }
 
 function getCameraIconMarkup() {
@@ -3505,7 +3607,7 @@ function renderGameTextOnly() {
       def: enemy.def,
       speed: enemy.speed,
       traits: enemy.traits?.map((trait) => trait.text || trait.type) || [],
-      drop: "胶卷 +0.1",
+      drop: isBossDropEnemy(enemy) ? "胶卷 1.0" : "胶卷 0.1",
       damageEstimate: enemyDamageEstimates.get(enemy.id)?.text || "",
       damageEstimateState: enemyDamageEstimates.get(enemy.id)?.state || "",
       selected: state.selectedEnemyIds.includes(enemy.id),
@@ -3608,6 +3710,7 @@ function saveGame() {
     battleReports: state.battleReports,
     battleReportSeq: state.battleReportSeq,
     currentBattle: state.currentBattle,
+    infoMode: state.infoMode,
     battleSpecial: state.battleSpecial,
     inventory: state.inventory,
     selectedSlotIndex: state.selectedSlotIndex,
@@ -3655,6 +3758,7 @@ function loadSave() {
   state.battleReports = Array.isArray(save.battleReports) ? save.battleReports.map(normalizeBattleReport).filter(Boolean) : [];
   state.battleReportSeq = Number.isFinite(save.battleReportSeq) ? save.battleReportSeq : state.battleReports.length;
   state.currentBattle = normalizeCurrentBattle(save.currentBattle);
+  state.infoMode = save.infoMode === "log" ? "log" : "item";
   state.battleClock = normalizeBattleClock(save.battleClock);
   state.battleSpecial = state.currentBattle ? normalizeBattleSpecial(save.battleSpecial) : createDefaultBattleSpecial();
   clearEnemyCardMotion();
@@ -3715,6 +3819,7 @@ function normalizeCurrentBattle(battle) {
     monsterName: typeof battle.monsterName === "string" && battle.monsterName ? battle.monsterName : names || "敌人",
     startHp: Number.isFinite(battle.startHp) ? battle.startHp : state.player.hp,
     startShield: Number.isFinite(battle.startShield) ? battle.startShield : state.player.shield,
+    damageEstimates: battle.damageEstimates && typeof battle.damageEstimates === "object" ? battle.damageEstimates : {},
     details: Array.isArray(battle.details) ? battle.details.filter((item) => typeof item === "string").slice(-90) : [],
     lootNames: Array.isArray(battle.lootNames) ? battle.lootNames.filter((item) => typeof item === "string") : [],
     defeatedIds: Array.isArray(battle.defeatedIds) ? battle.defeatedIds.filter((item) => typeof item === "string") : [],
@@ -3855,9 +3960,7 @@ window.__photoHeroTestHooks = {
   },
   setPhoto(image) {
     state.lastPhoto = image || "";
-    if (state.lastPhoto) {
-      els.photoPreview.src = state.lastPhoto;
-    }
+    if (state.lastPhoto) state.infoMode = "item";
     render();
   },
   setHeroStats(next) {
