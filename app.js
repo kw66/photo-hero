@@ -90,7 +90,7 @@ const analysisImageQuality = 0.78;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
-const gameSaveVersion = 9;
+const gameSaveVersion = 10;
 const initialFilmRolls = 3;
 const bossFloors = new Set([10, 20, 30, 40]);
 const rewardBossFloors = new Set([25, 35, 39]);
@@ -319,6 +319,7 @@ const els = {
 
 const state = {
   player: createDefaultPlayer(),
+  runSeed: makeRunSeed(),
   floor: 1,
   encounterId: "",
   enemies: [],
@@ -2089,7 +2090,10 @@ function getFloorMonsterTypes(floor) {
   const pool = buildWeightedMonsterPool(floor);
   const normalPool = pool.filter((key) => !isBossMonsterType(key));
   const safePool = normalPool.length ? normalPool : ["slime"];
-  return [0, 1, 2].map((slot) => safePool[hashIndex(`${floor}:monster:${slot}`, safePool.length)]);
+  const seed = state.runSeed || "default";
+  const types = [0, 1, 2].map((slot) => safePool[hashIndex(`${seed}:${floor}:monster:${slot}`, safePool.length)]);
+  if (floor <= 5) types[0] = "slime";
+  return types;
 }
 
 function buildWeightedMonsterPool(floor) {
@@ -2111,9 +2115,8 @@ function makeEnemy(typeKey, floor, slot) {
   const type = monsterTypes[typeKey] || monsterTypes.slime;
   const shield = getTraitValueFromList(type.traits, "shield", 0) || 0;
   const traits = cloneTraits(type.traits);
-  const scale = getNormalMonsterScale(typeKey, floor);
-  const maxHp = Math.max(1, Math.round(type.hp * scale.hp));
-  const maxShield = Math.max(0, Math.round(shield * scale.hp));
+  const maxHp = Math.max(1, type.hp);
+  const maxShield = Math.max(0, shield);
   return {
     id: `${floor}-${slot}-${typeKey}`,
     floor,
@@ -2123,26 +2126,12 @@ function makeEnemy(typeKey, floor, slot) {
     name: type.name,
     maxHp,
     hp: maxHp,
-    atk: Math.max(0, Math.round(type.atk * scale.atk)),
-    def: Math.max(0, Math.round(type.def * scale.def)),
-    speed: Math.max(1, type.speed + scale.speed),
+    atk: Math.max(0, type.atk),
+    def: Math.max(0, type.def),
+    speed: Math.max(1, type.speed),
     maxShield,
     shield: maxShield,
     traits,
-  };
-}
-
-function getNormalMonsterScale(typeKey, floor) {
-  if (isBossMonsterType(typeKey)) {
-    return { hp: 1, atk: 1, def: 1, speed: 0 };
-  }
-  const stage = Math.max(0, Math.floor((floor - 1) / 5));
-  const earlyDamp = floor <= 5 ? 0 : stage;
-  return {
-    hp: 1 + earlyDamp * 0.08,
-    atk: 1 + earlyDamp * 0.07,
-    def: 1 + earlyDamp * 0.055,
-    speed: Math.floor(Math.max(0, floor - 1) / 18),
   };
 }
 
@@ -2480,6 +2469,11 @@ function makeEncounterId() {
   return `${state.floor}:${state.enemies.map((enemy) => enemy.id).join("|")}`;
 }
 
+function makeRunSeed() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function applyFloorShield() {
   const stats = getPlayerStats();
   if (state.player.shieldMonsterId === state.encounterId) return;
@@ -2521,6 +2515,7 @@ function resetGame() {
   stopBattleTimers();
   localStorage.removeItem(STORAGE_KEYS.save);
   state.player = createDefaultPlayer();
+  state.runSeed = makeRunSeed();
   state.floor = 1;
   state.gameClear = false;
   state.enemies = buildFloorEncounter(1);
@@ -3659,6 +3654,7 @@ function renderGameTextOnly() {
   const enemyDamageEstimates = getEnemyDamageEstimates();
   const inventoryItems = state.inventory.filter(Boolean);
   window.__photoHeroState = {
+    runSeed: state.runSeed,
     player: {
       hp: state.player.hp,
       shield: state.player.shield,
@@ -3787,6 +3783,7 @@ function getConfigFromInputs() {
 function saveGame() {
   const save = {
     version: gameSaveVersion,
+    runSeed: state.runSeed,
     player: state.player,
     floor: state.floor,
     encounterId: state.encounterId,
@@ -3822,6 +3819,7 @@ function loadSave() {
   }
 
   state.player = normalizePlayer(save.player || state.player);
+  state.runSeed = typeof save.runSeed === "string" && save.runSeed ? save.runSeed : makeRunSeed();
   state.inventory = normalizeInventorySlots(save.inventory);
   state.selectedSlotIndex = clampSlotIndex(save.selectedSlotIndex);
   state.pendingPhotoSlotIndex = clampSlotIndex(save.pendingPhotoSlotIndex ?? state.selectedSlotIndex);
