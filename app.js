@@ -199,6 +199,8 @@ const heroForms = [
   { id: "speed", label: "速度", image: "form-speed.png", stats: { speed: 1 }, desc: "速度 +1" },
   { id: "defense", label: "防御", image: "form-defense.png", stats: { defense: 2 }, desc: "防御 +2" },
   { id: "shield", label: "护盾", image: "form-shield.png", stats: { shield: 10 }, desc: "护盾 +10" },
+  { id: "greedy", label: "财迷", image: "form-greedy.png", stats: {}, filmDropBonus: 1, desc: "胶卷掉落 +0.1" },
+  { id: "angry", label: "愤怒", image: "form-angry.png", stats: { attack: 5, defense: 5 }, noFilmDrop: true, desc: "攻防 +5，不获得胶卷" },
 ];
 
 const heroFormMap = new Map(heroForms.map((form) => [form.id, form]));
@@ -1682,7 +1684,7 @@ function defeatEnemy(enemy) {
     if (drop.kind === "shard") {
       addFilmShards(drop.amount);
     } else if (drop.kind === "film") {
-      state.filmRolls += drop.amount || 1;
+      addFilmShards(Math.round((drop.amount || 1) * 10));
     }
   }
   removeActiveEnemyIds([enemy.id]);
@@ -1742,7 +1744,9 @@ function addLootNamesToCurrentBattle(drops) {
   if (!state.currentBattle) return;
   for (const drop of drops) {
     const amount = drop.amount || 1;
-    const name = drop.kind === "shard" ? "胶卷 +0.1" : drop.kind === "film" ? "胶卷 +1.0" : drop.itemName;
+    const name = drop.kind === "shard"
+      ? "胶卷碎片"
+      : drop.itemName || (drop.kind === "film" ? "胶卷 +1.0" : "胶卷 +0.1");
     for (let i = 0; i < amount; i += 1) {
       state.currentBattle.lootNames.push(name);
     }
@@ -1854,13 +1858,29 @@ function formatLootNames(names) {
     counts.set(name, (counts.get(name) || 0) + 1);
   }
   if (!counts.size) return "无";
-  return [...counts.entries()]
-    .map(([name, count]) => {
-      if (name === "胶卷 +0.1") return `胶卷 +${(count / 10).toFixed(1)}`;
-      if (name === "胶卷 +1.0") return `胶卷 +${count.toFixed(1)}`;
-      return count > 1 ? `${name}*${count}` : name;
-    })
-    .join("、");
+  const parts = [];
+  let filmTotal = 0;
+  for (const [name, count] of counts.entries()) {
+    if (name === "胶卷碎片" || name === "胶卷 +0.1") {
+      filmTotal += count / 10;
+      continue;
+    }
+    if (name.startsWith("胶卷碎片 +")) {
+      const shards = Number.parseInt(name.slice("胶卷碎片 +".length), 10) || 0;
+      filmTotal += (shards * count) / 10;
+      continue;
+    }
+    if (name.startsWith("胶卷 +")) {
+      const rolls = Number.parseFloat(name.slice("胶卷 +".length));
+      if (Number.isFinite(rolls)) {
+        filmTotal += rolls * count;
+        continue;
+      }
+    }
+    parts.push(count > 1 ? `${name}*${count}` : name);
+  }
+  if (filmTotal > 0) parts.unshift(`胶卷 +${filmTotal.toFixed(1)}`);
+  return parts.join("、") || "无";
 }
 
 function formatHpDelta(delta) {
@@ -2159,27 +2179,44 @@ function normalizeEnemyFromBase(enemy) {
 }
 
 function getEnemyDrops(enemy) {
-  if (isBossDropEnemy(enemy)) {
+  const shardAmount = getEnemyFilmShardDrop(enemy);
+  if (shardAmount <= 0) return [];
+  if (shardAmount % 10 === 0) {
     return [{
       kind: "film",
-      itemName: "胶卷 +1.0",
-      amount: 1,
+      itemName: `胶卷 +${(shardAmount / 10).toFixed(1)}`,
+      amount: shardAmount / 10,
     }];
   }
   return [{
     kind: "shard",
-    itemName: "胶卷 +0.1",
-    amount: 1,
+    itemName: `胶卷碎片 +${shardAmount}`,
+    amount: shardAmount,
   }];
 }
 
 function addFilmShards(amount) {
-  state.filmShards += amount;
+  state.filmShards = Math.max(0, state.filmShards + amount);
   const made = Math.floor(state.filmShards / 10);
   if (made > 0) {
     state.filmRolls += made;
     state.filmShards %= 10;
   }
+}
+
+function getHeroFormFilmShardBonus() {
+  if (getHeroForm()?.noFilmDrop) return 0;
+  return clampInt(getHeroForm()?.filmDropBonus || 0, -9, 9);
+}
+
+function getEnemyFilmShardDrop(enemy) {
+  if (getHeroForm()?.noFilmDrop) return 0;
+  const baseShards = isBossDropEnemy(enemy) ? 10 : 1;
+  return Math.max(0, baseShards + getHeroFormFilmShardBonus());
+}
+
+function formatEnemyFilmDrop(enemy) {
+  return `胶卷 ${(getEnemyFilmShardDrop(enemy) / 10).toFixed(1)}`;
 }
 
 function getFilmCount() {
@@ -3114,7 +3151,7 @@ function renderEnemyField() {
 
     const traitText = enemy.traits?.map((trait) => trait.text).filter(Boolean).join(" / ") || "";
     const imageUrl = getMonsterImageUrl(enemy.typeKey);
-    const dropText = isBossDropEnemy(enemy) ? "胶卷 1.0" : "胶卷 0.1";
+    const dropText = formatEnemyFilmDrop(enemy);
     button.innerHTML = `
       ${selectionOrder ? `<span class="selection-badge">${selectionOrder}</span>` : ""}
       <div class="enemy-card-head">
@@ -3270,7 +3307,7 @@ function renderEquipmentGrid() {
     const qualityKey = item ? getItemQualityKey(item) : "empty";
     button.className = `equipment-slot quality-${qualityKey}${item ? " has-item" : ""}${isSelected ? " is-selected" : ""}${locked ? " is-locked" : ""}`;
     button.type = "button";
-    button.setAttribute("aria-label", item ? `选择${item.itemName}` : `拍照上传到空装备格${i + 1}`);
+    button.setAttribute("aria-label", item ? `选择${item.itemName}` : `拍照到空装备格${i + 1}`);
     button.addEventListener("click", () => {
       const wasSelected = i === getSelectedSlotIndex();
       const wasItemMode = state.infoMode === "item";
@@ -3357,7 +3394,7 @@ function renderEquipmentDetail() {
     els.equipmentDetailName.textContent = "空装备格";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = locked ? "战斗中不能拍照鉴定。" : "再次点击空装备格拍照/上传。";
+    els.equipmentDetailDesc.textContent = locked ? "战斗中不能拍照鉴定。" : "再次点击空装备格拍照。";
     els.filmCountBadge.hidden = false;
     return;
   }
@@ -3578,6 +3615,8 @@ function renderGameTextOnly() {
         id: getHeroForm().id,
         label: getHeroForm().label,
         stats: getHeroFormStats(),
+        filmDropBonus: getHeroFormFilmShardBonus() / 10,
+        noFilmDrop: Boolean(getHeroForm()?.noFilmDrop),
       },
       stats: getPlayerStats(),
       equipmentCount: inventoryItems.length,
@@ -3607,7 +3646,7 @@ function renderGameTextOnly() {
       def: enemy.def,
       speed: enemy.speed,
       traits: enemy.traits?.map((trait) => trait.text || trait.type) || [],
-      drop: isBossDropEnemy(enemy) ? "胶卷 1.0" : "胶卷 0.1",
+      drop: formatEnemyFilmDrop(enemy),
       damageEstimate: enemyDamageEstimates.get(enemy.id)?.text || "",
       damageEstimateState: enemyDamageEstimates.get(enemy.id)?.state || "",
       selected: state.selectedEnemyIds.includes(enemy.id),
