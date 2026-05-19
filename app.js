@@ -305,6 +305,10 @@ const els = {
   equipmentDetailStats: byId("equipmentDetailStats"),
   equipmentDetailDesc: byId("equipmentDetailDesc"),
   equipmentActions: byId("equipmentActions"),
+  photoActionBtn: byId("photoActionBtn"),
+  analyzePhotoBtn: byId("analyzePhotoBtn"),
+  pendingPhotoPreview: byId("pendingPhotoPreview"),
+  pendingPhotoImage: byId("pendingPhotoImage"),
   discardItemBtn: byId("discardItemBtn"),
   loadingState: byId("loadingState"),
   battleLog: byId("battleLog"),
@@ -335,7 +339,7 @@ const state = {
   filmShards: 0,
   filmRolls: initialFilmRolls,
   lootError: "",
-  log: ["上传图片或拍一件现实物品，把它变成第一件装备。"],
+  log: ["选择空装备格，在详情栏拍照鉴定。"],
   autoBattleTimer: 0,
   battleSpecial: createDefaultBattleSpecial(),
   testEnemyOverride: null,
@@ -408,6 +412,9 @@ function bindEvents() {
   els.attackBtn.addEventListener("click", toggleAutoBattle);
   els.fleeBtn.addEventListener("click", fleeBattle);
   els.resetGameBtn.addEventListener("click", resetGame);
+  els.photoActionBtn.addEventListener("click", openPhotoPickerForSelectedSlot);
+  els.analyzePhotoBtn.addEventListener("click", analyzePhoto);
+  els.pendingPhotoPreview.addEventListener("click", () => openImageViewer(state.lastPhoto, "待鉴定照片"));
   els.discardItemBtn.addEventListener("click", dismantleSelectedItem);
   els.imageViewer.addEventListener("click", closeImageViewer);
   renderHeroForms();
@@ -418,11 +425,17 @@ function openPhotoPicker() {
   els.fileInput.click();
 }
 
+function openPhotoPickerForSelectedSlot() {
+  if (isEquipmentLocked() || hasPendingPhoto()) return;
+  const index = getSelectedSlotIndex();
+  if (getInventoryItemAt(index)) return;
+  state.pendingPhotoSlotIndex = index;
+  state.infoMode = "item";
+  openPhotoPicker();
+}
+
 function handleEquipmentDetailClick(event) {
   if (event.target.closest("button")) return;
-  if (state.lastPhoto && state.infoMode === "item") {
-    analyzePhoto();
-  }
 }
 
 function handleDocumentClickForInfoMode(event) {
@@ -430,6 +443,7 @@ function handleDocumentClickForInfoMode(event) {
   if (event.target.closest(".equipment-slot, .equipment-detail, .image-viewer, .secondary-area, [data-panel-target], .preset-button")) {
     return;
   }
+  if (hasPendingPhoto()) return;
   if (state.infoMode === "item") {
     state.infoMode = "log";
     renderEquipmentDetail();
@@ -801,6 +815,7 @@ async function analyzePhoto() {
 
   saveConfig(false);
   setBusy("鉴定中...");
+  render();
   try {
     const item = await analyzeDirectly(config, state.lastPhoto);
     const inventoryImage = await makeInventoryImage(state.lastPhoto);
@@ -1405,6 +1420,7 @@ function findFirstEmptyInventorySlot() {
 }
 
 function toggleAutoBattle() {
+  if (isBattleActionLocked()) return;
   if (state.autoBattleTimer || state.gameClear || isPlayerDefeated()) return;
   state.infoMode = "log";
   startAutoBattle();
@@ -1888,8 +1904,21 @@ function formatHpDelta(delta) {
   return String(delta);
 }
 
+function hasPendingPhoto() {
+  return Boolean(state.lastPhoto);
+}
+
+function isEquipmentSelectionLocked() {
+  return isEquipmentLocked() || hasPendingPhoto();
+}
+
+function isBattleActionLocked() {
+  return hasPendingPhoto();
+}
+
 function fleeBattle() {
   if (isPlayerDefeated()) return;
+  if (isBattleActionLocked()) return;
   if (state.pendingFloorAdvance || state.battleStartTimer) return;
   state.infoMode = "log";
   if (state.autoBattleTimer) stopAutoBattle();
@@ -3061,9 +3090,9 @@ function render() {
     ? "已通关"
     : `第 ${state.floor} / ${maxFloor} 层${isBossFloor(state.floor) ? " · Boss" : isRewardBossFloor(state.floor) ? " · 可选Boss" : ""}`;
   renderEnemyField();
-  els.attackBtn.disabled = defeated || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !getSelectedEnemies().length;
+  els.attackBtn.disabled = defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !getSelectedEnemies().length;
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
-  els.fleeBtn.disabled = defeated || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || isBossFloor(state.floor);
+  els.fleeBtn.disabled = defeated || isBattleActionLocked() || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || isBossFloor(state.floor);
 
   renderApiStatus();
   renderCameraStatus();
@@ -3297,6 +3326,7 @@ function getEnemyMaxShield(enemy) {
 function renderEquipmentGrid() {
   ensureInventorySlots();
   const locked = isEquipmentLocked();
+  const selectionLocked = isEquipmentSelectionLocked();
   const selectedSlotIndex = getSelectedSlotIndex();
 
   els.equipmentGrid.innerHTML = "";
@@ -3305,10 +3335,12 @@ function renderEquipmentGrid() {
     const button = document.createElement("button");
     const isSelected = i === selectedSlotIndex;
     const qualityKey = item ? getItemQualityKey(item) : "empty";
-    button.className = `equipment-slot quality-${qualityKey}${item ? " has-item" : ""}${isSelected ? " is-selected" : ""}${locked ? " is-locked" : ""}`;
+    button.className = `equipment-slot quality-${qualityKey}${item ? " has-item" : ""}${isSelected ? " is-selected" : ""}${selectionLocked ? " is-locked" : ""}`;
     button.type = "button";
-    button.setAttribute("aria-label", item ? `选择${item.itemName}` : `拍照到空装备格${i + 1}`);
+    button.disabled = selectionLocked;
+    button.setAttribute("aria-label", item ? `选择${item.itemName}` : `选择空装备格${i + 1}`);
     button.addEventListener("click", () => {
+      if (selectionLocked) return;
       const wasSelected = i === getSelectedSlotIndex();
       const wasItemMode = state.infoMode === "item";
       const isRepeatClick = wasSelected && wasItemMode;
@@ -3319,9 +3351,6 @@ function renderEquipmentGrid() {
       if (!item) {
         state.lastPhoto = "";
         state.pendingPhotoSlotIndex = i;
-        if (isRepeatClick && !locked) {
-          openPhotoPicker();
-        }
       } else if (isRepeatClick && item.image) {
         openImageViewer(item.image, formatItemDisplayName(item));
       }
@@ -3349,16 +3378,23 @@ function renderEquipmentDetail() {
   const showingItem = state.infoMode === "item";
 
   els.equipmentActions.hidden = true;
+  els.photoActionBtn.hidden = true;
+  els.photoActionBtn.disabled = true;
+  els.analyzePhotoBtn.hidden = true;
+  els.analyzePhotoBtn.disabled = true;
   els.discardItemBtn.disabled = true;
+  els.discardItemBtn.hidden = true;
   els.battleLog.hidden = true;
   els.equipmentDetailDesc.hidden = false;
   els.filmCountBadge.hidden = true;
+  els.pendingPhotoPreview.hidden = true;
+  els.pendingPhotoImage.removeAttribute("src");
   els.loadingState.hidden = false;
   els.equipmentDetail.classList.remove("is-error", "is-actionable", "is-log");
   els.equipmentDetailStats.hidden = false;
   delete els.equipmentDetailName.dataset.quality;
 
-  if (state.lootError) {
+  if (state.lootError && !state.lastPhoto) {
     els.equipmentDetail.classList.add("is-error");
     els.equipmentDetailName.textContent = "鉴定失败";
     els.equipmentDetailStats.innerHTML = "";
@@ -3368,13 +3404,20 @@ function renderEquipmentDetail() {
   }
 
   if (state.lastPhoto && showingItem) {
-    els.equipmentDetail.classList.add("is-actionable");
+    if (state.lootError) els.equipmentDetail.classList.add("is-error");
     els.equipmentDetailName.textContent = "待鉴定照片";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = state.filmRolls >= 1
-      ? "点击这里鉴定，生成装备并进入背包。"
-      : "数量不足，先击败怪物获得资源。";
+    els.equipmentDetailDesc.textContent = state.lootError
+      ? `${state.lootError} 可以重新鉴定。`
+      : state.filmRolls >= 1
+        ? "确认后鉴定并装入当前装备格。"
+        : "胶卷不足，先击败怪物获得资源。";
+    els.equipmentActions.hidden = false;
+    els.analyzePhotoBtn.hidden = false;
+    els.analyzePhotoBtn.disabled = locked || Boolean(els.loadingState.textContent) || state.filmRolls < 1;
+    els.pendingPhotoPreview.hidden = false;
+    els.pendingPhotoImage.src = state.lastPhoto;
     return;
   }
 
@@ -3394,8 +3437,15 @@ function renderEquipmentDetail() {
     els.equipmentDetailName.textContent = "空装备格";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = locked ? "战斗中不能拍照鉴定。" : "再次点击空装备格拍照。";
+    els.equipmentDetailDesc.textContent = locked
+      ? "战斗中不能拍照鉴定。"
+      : state.filmRolls >= 1
+        ? "点击拍照按钮获取装备照片。"
+        : "胶卷不足，先击败怪物获得资源。";
     els.filmCountBadge.hidden = false;
+    els.equipmentActions.hidden = false;
+    els.photoActionBtn.hidden = false;
+    els.photoActionBtn.disabled = locked || state.filmRolls < 1;
     return;
   }
 
@@ -3406,6 +3456,7 @@ function renderEquipmentDetail() {
   els.equipmentDetailStats.hidden = false;
   els.equipmentDetailDesc.textContent = selected.description;
   els.equipmentActions.hidden = false;
+  els.discardItemBtn.hidden = false;
   els.discardItemBtn.disabled = locked;
   const refund = getDismantleFilmReturn(selected);
   els.discardItemBtn.textContent = `分解 +${refund.toFixed(1)}`;

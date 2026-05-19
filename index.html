@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260519-review-fixes">
+    <link rel="stylesheet" href="./styles.css?v=20260519-photo-flow">
   </head>
   <body>
     <main class="app-shell">
@@ -51,11 +51,18 @@
                     <strong id="equipmentDetailName">战斗播报</strong>
                     <span class="film-badge inline-film-badge" id="filmCountBadge">胶卷 1.0</span>
                     <div class="detail-actions" id="equipmentActions" hidden>
+                      <button class="ghost-button detail-action" id="photoActionBtn" type="button">拍照</button>
+                      <button class="primary-button detail-action" id="analyzePhotoBtn" type="button">鉴定</button>
                       <button class="ghost-button detail-action danger-button" id="discardItemBtn" type="button" aria-label="分解装备">分解</button>
                     </div>
                   </div>
                   <div class="detail-stats" id="equipmentDetailStats"></div>
-                  <p id="equipmentDetailDesc">选择装备查看信息；点击空装备格拍照。</p>
+                  <div class="detail-body" id="equipmentDetailBody">
+                    <p id="equipmentDetailDesc">选择装备格后在这里拍照鉴定。</p>
+                    <button class="pending-photo-preview" id="pendingPhotoPreview" type="button" hidden aria-label="查看待鉴定照片">
+                      <img id="pendingPhotoImage" alt="待鉴定照片">
+                    </button>
+                  </div>
                   <span id="loadingState"></span>
                   <ol id="battleLog"></ol>
                 </article>
@@ -147,6 +154,6 @@
       <span id="imageViewerCaption"></span>
     </button>
 
-    <script defer src="./app.js?v=20260519-review-fixes"></script>
+    <script defer src="./app.js?v=20260519-photo-flow"></script>
   </body>
 </html>

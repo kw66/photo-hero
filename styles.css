@@ -849,6 +849,43 @@ dd {
   overflow-wrap: anywhere;
 }
 
+.detail-body {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.detail-body p {
+  margin: 0;
+}
+
+.pending-photo-preview {
+  width: 74px;
+  height: 74px;
+  min-width: 74px;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid color-mix(in srgb, var(--amber) 74%, var(--ink));
+  border-radius: 7px;
+  background: var(--paper);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 72%),
+    0 2px 0 rgb(23 19 15 / 14%);
+}
+
+.pending-photo-preview[hidden] {
+  display: none;
+}
+
+.pending-photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .detail-head {
   min-width: 0;
   display: flex;
@@ -1784,6 +1821,16 @@ textarea {
     min-height: 25px;
     padding-inline: 9px;
     font-size: 0.72rem;
+  }
+
+  .detail-body {
+    gap: 6px;
+  }
+
+  .pending-photo-preview {
+    width: 68px;
+    height: 68px;
+    min-width: 68px;
   }
 
   .forms-panel {
