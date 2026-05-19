@@ -2210,8 +2210,9 @@ function getHeroFormFilmShardBonus() {
 }
 
 function getEnemyFilmShardDrop(enemy) {
+  if (isBossDropEnemy(enemy)) return 10;
+  const baseShards = 1;
   if (getHeroForm()?.noFilmDrop) return 0;
-  const baseShards = isBossDropEnemy(enemy) ? 10 : 1;
   return Math.max(0, baseShards + getHeroFormFilmShardBonus());
 }
 
@@ -2784,6 +2785,7 @@ function normalizeInventorySlots(inventory) {
 
 function scoreItem(item) {
   if (!item) return 0;
+  if (Number.isFinite(item.value)) return Math.max(0, item.value);
   return calculateStatsValue(item.stats || {}) + calculateSpecialEffectsValue(getItemSpecialKeys(item));
 }
 
@@ -3168,15 +3170,13 @@ function renderEnemyField() {
         <div><dt>防</dt><dd>${enemy.def}</dd></div>
         <div><dt>速</dt><dd>${enemy.speed}</dd></div>
       </dl>
-      <div class="enemy-card-loss">
+      <div class="enemy-card-result">
+        <span>${dropText}</span>
         <strong class="estimate-${estimate.state}">${escapeHtml(estimate.text)}</strong>
       </div>
       <div class="enemy-hp-line">
         <span>${enemy.hp}/${enemy.maxHp}</span>
         <div class="hp-track danger"><span style="width:${percent(enemy.hp, enemy.maxHp)}%"></span></div>
-      </div>
-      <div class="enemy-card-reward">
-        <span>${dropText}</span>
       </div>
       <div class="enemy-card-back" aria-hidden="true">
         <span>${isDefeated ? "已击破" : "未参战"}</span>
