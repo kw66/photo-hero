@@ -1279,6 +1279,53 @@ dd {
   color: color-mix(in srgb, var(--ink) 54%, var(--muted));
 }
 
+.reward-card {
+  min-height: 126px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--amber-soft) 42%, white 58%), rgb(255 250 239 / 92%)),
+    var(--paper);
+}
+
+.reward-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 0 rgb(23 19 15 / 22%);
+}
+
+.reward-card .enemy-card-head {
+  grid-template-columns: 48px minmax(0, 1fr);
+}
+
+.reward-card .enemy-card-head strong,
+.reward-card .enemy-name-block > span {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.reward-card .enemy-name-block > span {
+  line-height: 1.25;
+}
+
+.reward-portrait {
+  background:
+    linear-gradient(160deg, #fff9de, #f3bf55 72%, #bc7430),
+    var(--amber-soft);
+}
+
+.reward-portrait span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: #fffaf0;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 950;
+}
+
 .info-console {
   min-height: 0;
   display: grid;

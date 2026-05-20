@@ -85,15 +85,17 @@ const equipmentSlotLimit = 10;
 const battleReportLimit = 18;
 const modelMaxTokens = 512;
 const modelImageDetail = "low";
+const defaultPhotoValueMin = 5;
+const defaultPhotoValueMax = 20;
 const analysisImageMaxEdge = 1024;
 const analysisImageQuality = 0.78;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
-const gameSaveVersion = 10;
+const gameSaveVersion = 11;
 const initialFilmRolls = 3;
 const bossFloors = new Set([10, 20, 30, 40]);
-const rewardBossFloors = new Set([25, 35, 39]);
+const rewardBossFloors = new Set([25, 35, 38]);
 const bossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
 const bossDropTypesByFloor = new Map([
   [10, new Set(["skeletonCaptain"])],
@@ -101,7 +103,7 @@ const bossDropTypesByFloor = new Map([
   [25, new Set(["octopus"])],
   [30, new Set(["knightCaptain"])],
   [35, new Set(["dragon"])],
-  [39, new Set(["archmage"])],
+  [38, new Set(["archmage"])],
   [40, new Set(["demon"])],
 ]);
 
@@ -119,10 +121,10 @@ const statValueWeights = {
   hp: 1,
   attack: 5,
   defense: 6,
-  speed: 18,
-  shield: 4,
-  lifesteal: 12,
-  regen: 12,
+  speed: 15,
+  shield: 3,
+  lifesteal: 8,
+  regen: 10,
 };
 
 const photoSpecialEffects = [
@@ -134,8 +136,8 @@ const photoSpecialEffects = [
   { key: "takeDamageDefense", label: "受到伤害临时防御+1", value: 15, kind: "takeDamageTemp", stat: "defense", amount: 1, cap: 8 },
   { key: "killMaxHp", label: "每次击杀生命上限+2", value: 15, kind: "killPermanent", stat: "hp", amount: 2 },
   { key: "killHpBoost", label: "每次击杀生命上限+8", value: 15, kind: "killPermanent", stat: "hp", amount: 8 },
-  { key: "doubleStrikeSpeedDown", label: "速度-5，二连击", value: 16, kind: "passive", stat: "speed", amount: -5, doubleStrike: true },
-  { key: "shieldCrashAttackDown", label: "攻击-5，附带当前护盾*0.5伤害", value: 16, kind: "passive", stat: "attack", amount: -5, shieldDamageRatio: 0.5 },
+  { key: "doubleStrikeSpeedDown", label: "速度-3，二连击", value: 16, kind: "passive", stat: "speed", amount: -3, doubleStrike: true },
+  { key: "shieldCrashAttackDown", label: "攻击-3，附带当前护盾*0.5伤害", value: 16, kind: "passive", stat: "attack", amount: -3, shieldDamageRatio: 0.5 },
 ];
 
 const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
@@ -165,11 +167,11 @@ const photoIdentificationUserPrompt = [
   "",
   "价值规则：",
   "1. tooLarge=true 时 value=0、所有 stats=0、specialEffects=[]。",
-  "2. 可装备时 value 必须是 5 到 20 的整数。基础 5 分；主体清楚 +3；主体占图面积大 +3；背景干净 +2；现实拍摄感强 +3；光线/对焦好 +2；物品有趣、让人想装备 +2；总分封顶 20。",
+  `2. 可装备时 value 默认是 ${defaultPhotoValueMin} 到 ${defaultPhotoValueMax} 的整数；游戏奖励可能提高这个范围，最终以本地规则为准。基础 ${defaultPhotoValueMin} 分；主体清楚 +3；主体占图面积大 +3；背景干净 +2；现实拍摄感强 +3；光线/对焦好 +2；物品有趣、让人想装备 +2；默认封顶 ${defaultPhotoValueMax}。`,
   "3. 价值不是价格，不是越精美越高，也不是越破旧越高；优先奖励清晰、有主体、有生活感、有趣。",
   "",
   "属性预算：",
-  "生命上限 hp 每点价值 1；攻击 attack 每点价值 5；防御 defense 每点价值 6；速度 speed 每点价值 18；护盾 shield 每点价值 4；吸血 lifesteal 每点价值 12；回复 regen 每点价值 12。",
+  "生命上限 hp 每点价值 1；攻击 attack 每点价值 5；防御 defense 每点价值 6；速度 speed 每点价值 15；护盾 shield 每点价值 3；吸血 lifesteal 每点价值 8；回复 regen 每点价值 10。",
   "stats 的总价值 + specialEffects 的价值不得超过 value。低价值装备宁可只给 1 到 2 种属性，不要平均撒点。",
   "",
   "属性语义：",
@@ -331,6 +333,10 @@ const state = {
   currentBattle: null,
   infoMode: "item",
   gameClear: false,
+  bossReward: null,
+  photoValueMin: defaultPhotoValueMin,
+  photoValueMax: defaultPhotoValueMax,
+  globalFilmDropBonus: 0,
   inventory: createEmptyInventorySlots(),
   selectedSlotIndex: 0,
   pendingPhotoSlotIndex: 0,
@@ -427,7 +433,7 @@ function openPhotoPicker() {
 }
 
 function openPhotoPickerForSelectedSlot() {
-  if (isEquipmentLocked() || hasPendingPhoto()) return;
+  if (isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || state.bossReward) return;
   const index = getSelectedSlotIndex();
   if (getInventoryItemAt(index)) return;
   state.pendingPhotoSlotIndex = index;
@@ -586,6 +592,7 @@ function rememberCustomDraft() {
 }
 
 async function preparePhotoFromFile(file, successMessage, errorPrefix) {
+  if (isPlayerDefeated() || state.bossReward) return;
   setBusy("处理图片...");
   try {
     state.lastPhoto = await compressImage(file);
@@ -775,6 +782,7 @@ function getMissingConfigFields(config) {
 }
 
 async function analyzePhoto() {
+  if (isPlayerDefeated() || state.bossReward) return;
   if (!state.lastPhoto) {
     addLog("还没有照片。");
     render();
@@ -871,7 +879,7 @@ async function analyzeDirectly(config, image) {
         content: [
           {
             type: "text",
-            text: photoIdentificationUserPrompt,
+            text: getPhotoIdentificationPrompt(),
           },
           {
             type: "image_url",
@@ -940,6 +948,10 @@ function buildChatEndpoint(input) {
 
   url.pathname = `${cleanPath}/chat/completions`;
   return url.toString();
+}
+
+function getPhotoIdentificationPrompt() {
+  return `${photoIdentificationUserPrompt}\n\n当前本局奖励后的有效价值范围：${getPhotoValueMin()} 到 ${getPhotoValueMax()}。可装备时 value 必须落在这个范围内，超过范围会被本地规则裁剪。`;
 }
 
 function readModelText(payload, options = {}) {
@@ -1171,7 +1183,7 @@ function normalizeModelItem(raw) {
   return {
     itemName: cleanName,
     objectType: cleanText(objectType, "", 18),
-    value: correctedTooLarge ? 0 : clampInt(value, 5, 20),
+    value: correctedTooLarge ? 0 : clampInt(value, getPhotoValueMin(), getPhotoValueMax()),
     tooLarge: correctedTooLarge,
     stats,
     specialEffects: normalizeSpecialEffects(specialEffects),
@@ -1546,9 +1558,16 @@ function resolveBattleAction() {
 
   const enemyClock = getNextEnemyClock();
   const heroTime = state.battleClock.hero;
+  if (heroTime === Infinity && (!enemyClock || enemyClock.time === Infinity)) {
+    addBattleDetail("双方速度不足，战斗陷入僵持。");
+    finishCurrentBattle("enemy-fled");
+    stopAutoBattle();
+    handleBattleEndAdvance("delay");
+    return true;
+  }
   if (!enemyClock || heroTime <= enemyClock.time + Number.EPSILON) {
     const defeated = resolveHeroStrike(stats, round);
-    state.battleClock.hero += 1 / Math.max(1, stats.speed);
+    state.battleClock.hero += getActionInterval(stats.speed);
     if (defeated) {
       state.battleClock.round = 1;
     } else {
@@ -1557,7 +1576,7 @@ function resolveBattleAction() {
   } else {
     const enemy = state.enemies.find((item) => item.id === enemyClock.id);
     if (enemy) resolveMonsterStrike(enemy, stats, round);
-    enemyClock.time += 1 / Math.max(1, enemy?.speed || 1);
+    enemyClock.time += getActionInterval(enemy?.speed || 0);
     state.battleClock.round += 1;
   }
 
@@ -1569,9 +1588,14 @@ function resolveBattleAction() {
   }
 
   if (!getActiveBattleEnemies().length) {
+    const completedFloor = state.floor;
     finishCurrentBattle("victory");
     stopAutoBattle();
-    handleBattleEndAdvance("delay");
+    if (isBossRewardFloor(completedFloor)) {
+      startBossRewardChoice(completedFloor);
+    } else {
+      handleBattleEndAdvance("delay");
+    }
     return true;
   }
 
@@ -1640,7 +1664,7 @@ function resolveMonsterStrike(enemy, stats, round) {
 
   for (let i = 0; i < hitCount; i += 1) {
     const currentStatsBeforeHit = getBattleStats(state.activeEnemyIds);
-    const damage = hasTrait(enemy, "magic") ? enemy.atk : Math.max(0, enemy.atk - currentStatsBeforeHit.def);
+    const damage = hasTrait(enemy, "magic") ? Math.max(0, enemy.atk) : Math.max(0, enemy.atk - currentStatsBeforeHit.def);
     const ignoresShield = hasTrait(enemy, "ignoreShield");
     const shieldLoss = ignoresShield ? 0 : Math.min(state.player.shield, damage);
     const hpLoss = damage - shieldLoss;
@@ -1819,6 +1843,72 @@ function revealEnemyCardsThen(callback) {
   }, 360);
 }
 
+function startBossRewardChoice(floor) {
+  state.bossReward = {
+    floor,
+    options: buildBossRewardOptions(floor),
+  };
+  state.pendingFloorAdvance = true;
+  state.infoMode = "log";
+  addBattleEvent(`第${floor}层胜利，选择一张奖励牌。`, "item");
+  saveGame();
+  render();
+}
+
+function buildBossRewardOptions(floor) {
+  const pool = [
+    { type: "filmDrop", title: "胶卷掉落 +0.1", desc: "之后击败怪物时，胶卷掉落永久 +0.1。" },
+    { type: "filmPercent", title: "当前胶卷 +20%", desc: "按当前胶卷数量增加 20%，向上取整到 0.1。" },
+    { type: "valueMin", title: "最低价值 +2", desc: "之后照片鉴定的最低价值永久 +2。" },
+    { type: "valueMax", title: "最高价值 +2", desc: "之后照片鉴定的最高价值永久 +2。" },
+  ];
+  const start = hashIndex(`${state.runSeed}:${floor}:boss-reward:start`, pool.length);
+  return [0, 1, 2].map((slot) => {
+    const reward = pool[(start + slot) % pool.length];
+    return { ...reward, id: `${floor}-${slot}-${reward.type}` };
+  });
+}
+
+function chooseBossReward(index) {
+  if (!state.bossReward) return;
+  const option = state.bossReward.options?.[index];
+  if (!option) return;
+  const text = applyBossReward(option);
+  const floor = state.bossReward.floor;
+  state.bossReward = null;
+  state.pendingFloorAdvance = false;
+  addBattleEvent(`${text} 进入下一层。`, "item");
+  clearEnemyCardMotion();
+  if (state.floor === floor) {
+    advanceFloor();
+  }
+  saveGame();
+  render();
+}
+
+function applyBossReward(option) {
+  if (option.type === "filmDrop") {
+    state.globalFilmDropBonus = getGlobalFilmDropBonus() + 1;
+    return "奖励：胶卷掉落 +0.1。";
+  }
+  if (option.type === "filmPercent") {
+    const before = getFilmCount();
+    const gain = Math.ceil(before * 2) / 10;
+    addFilmShards(Math.round(gain * 10));
+    return `奖励：当前胶卷 +${gain.toFixed(1)}。`;
+  }
+  if (option.type === "valueMin") {
+    state.photoValueMin = getPhotoValueMin() + 2;
+    if (getPhotoValueMax() < state.photoValueMin) state.photoValueMax = state.photoValueMin;
+    return `奖励：鉴定最低价值提升到 ${getPhotoValueMin()}。`;
+  }
+  if (option.type === "valueMax") {
+    state.photoValueMax = getPhotoValueMax() + 2;
+    return `奖励：鉴定最高价值提升到 ${getPhotoValueMax()}。`;
+  }
+  return "奖励已领取。";
+}
+
 function addBattleEvent(text, type = "item") {
   state.battleReportSeq += 1;
   state.battleReports.unshift({
@@ -1910,11 +2000,11 @@ function hasPendingPhoto() {
 }
 
 function isEquipmentSelectionLocked() {
-  return isEquipmentLocked() || hasPendingPhoto();
+  return isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || Boolean(state.bossReward);
 }
 
 function isBattleActionLocked() {
-  return hasPendingPhoto();
+  return hasPendingPhoto() || Boolean(state.bossReward);
 }
 
 function fleeBattle() {
@@ -1954,14 +2044,18 @@ function fleeBattle() {
 
 function makeBattleClock(stats, enemies) {
   return {
-    hero: 1 / Math.max(1, stats.speed),
+    hero: getActionInterval(stats.speed),
     enemies: enemies.map((enemy) => ({
       id: enemy.id,
-      time: 1 / Math.max(1, enemy.speed),
+      time: getActionInterval(enemy.speed),
     })),
     round: 1,
     encounterId: state.encounterId,
   };
+}
+
+function getActionInterval(speed) {
+  return speed > 0 ? 1 / speed : Infinity;
 }
 
 function getNextEnemyClock() {
@@ -2035,6 +2129,13 @@ function clearEnemyCardMotion() {
   state.pendingFloorAdvance = false;
 }
 
+function finishEnemyFlipDown(enemyId) {
+  if (!state.enemyFlipDownIds.has(enemyId)) return;
+  state.enemyFlipDownIds.delete(enemyId);
+  state.enemyFaceDownIds.add(enemyId);
+  render();
+}
+
 function ensureEncounter() {
   if (state.gameClear) return;
   if (!Number.isFinite(state.floor) || state.floor < 1) state.floor = 1;
@@ -2085,7 +2186,7 @@ function getFloorMonsterTypes(floor) {
   if (floor === 25) return ["octopus"];
   if (floor === 30) return ["warrior", "warrior", "knightCaptain"];
   if (floor === 35) return ["dragon"];
-  if (floor === 39) return ["archmage"];
+  if (floor === 38) return ["archmage"];
   if (floor === 40) return ["demon"];
   const pool = buildWeightedMonsterPool(floor);
   const normalPool = pool.filter((key) => !isBossMonsterType(key));
@@ -2214,12 +2315,16 @@ function getEnemyDrops(enemy) {
 }
 
 function addFilmShards(amount) {
-  state.filmShards = Math.max(0, state.filmShards + amount);
+  state.filmShards = normalizeFilmAmount(Math.max(0, state.filmShards + amount));
   const made = Math.floor(state.filmShards / 10);
   if (made > 0) {
     state.filmRolls += made;
-    state.filmShards %= 10;
+    state.filmShards = normalizeFilmAmount(state.filmShards % 10);
   }
+}
+
+function addFilmAmount(amount) {
+  addFilmShards(normalizeFilmAmount(amount) * 10);
 }
 
 function getHeroFormFilmShardBonus() {
@@ -2228,10 +2333,21 @@ function getHeroFormFilmShardBonus() {
 }
 
 function getEnemyFilmShardDrop(enemy) {
-  if (isBossDropEnemy(enemy)) return 10;
-  const baseShards = 1;
   if (getHeroForm()?.noFilmDrop) return 0;
-  return Math.max(0, baseShards + getHeroFormFilmShardBonus());
+  const baseShards = isBossDropEnemy(enemy) ? 10 : 1;
+  return Math.max(0, baseShards + getGlobalFilmDropBonus() + getHeroFormFilmShardBonus());
+}
+
+function getGlobalFilmDropBonus() {
+  return clampInt(state.globalFilmDropBonus, 0, 999);
+}
+
+function getPhotoValueMin() {
+  return clampInt(state.photoValueMin, defaultPhotoValueMin, 999);
+}
+
+function getPhotoValueMax() {
+  return Math.max(getPhotoValueMin(), clampInt(state.photoValueMax, defaultPhotoValueMax, 999));
 }
 
 function formatEnemyFilmDrop(enemy) {
@@ -2239,17 +2355,33 @@ function formatEnemyFilmDrop(enemy) {
 }
 
 function getFilmCount() {
-  return state.filmRolls + state.filmShards / 10;
+  return normalizeFilmAmount(state.filmRolls + state.filmShards / 10);
 }
 
 function consumeFilm() {
+  if (getFilmCount() < 1) return false;
+  if (state.filmRolls < 1) {
+    addFilmShards(0);
+  }
   if (state.filmRolls < 1) return false;
   state.filmRolls -= 1;
   return true;
 }
 
 function formatFilmCount() {
-  return getFilmCount().toFixed(1);
+  return formatFilmAmount(getFilmCount());
+}
+
+function formatFilmAmount(value) {
+  return normalizeFilmAmount(value).toFixed(1);
+}
+
+function normalizeFilmAmount(value) {
+  return Math.round(Math.max(0, Number(value) || 0) * 10) / 10;
+}
+
+function formatPhotoValueRange() {
+  return `${getPhotoValueMin()}-${getPhotoValueMax()}`;
 }
 
 function toggleEnemySelection(enemyId) {
@@ -2279,11 +2411,11 @@ function getBattleStats(activeIds = state.activeEnemyIds) {
     .filter(Boolean);
   if (activeEnemies.some((enemy) => hasTrait(enemy, "heroSpeedDown"))) {
     const value = Math.max(...activeEnemies.map((enemy) => getTraitValue(enemy, "heroSpeedDown", 0)));
-    stats.speed = Math.max(1, stats.speed - value);
+    stats.speed -= value;
   }
   if (activeEnemies.some((enemy) => hasTrait(enemy, "heroAttackDown"))) {
     const value = Math.max(...activeEnemies.map((enemy) => getTraitValue(enemy, "heroAttackDown", 0)));
-    stats.atk = Math.max(0, stats.atk - value);
+    stats.atk -= value;
   }
   applyBattleSpecialPassives(stats);
   return stats;
@@ -2302,19 +2434,17 @@ function getBattleStatsForEnemiesWithSpecial(enemies, battleSpecial) {
 function applyEnemyBattleModifiers(stats, enemies) {
   if (enemies.some((enemy) => hasTrait(enemy, "heroSpeedDown"))) {
     const value = Math.max(...enemies.map((enemy) => getTraitValue(enemy, "heroSpeedDown", 0)));
-    stats.speed = Math.max(1, stats.speed - value);
+    stats.speed -= value;
   }
   if (enemies.some((enemy) => hasTrait(enemy, "heroAttackDown"))) {
     const value = Math.max(...enemies.map((enemy) => getTraitValue(enemy, "heroAttackDown", 0)));
-    stats.atk = Math.max(0, stats.atk - value);
+    stats.atk -= value;
   }
   applyBattleSpecialPassives(stats);
   return stats;
 }
 
 function applyBattleSpecialPassives(stats) {
-  stats.speed = Math.max(1, stats.speed);
-  stats.atk = Math.max(0, stats.atk);
   return stats;
 }
 
@@ -2326,8 +2456,8 @@ function createBattleSimulation(enemies) {
     battleSpecial: createDefaultBattleSpecial(),
     maxHpBonus: 0,
     activeIds: enemies.map((enemy) => enemy.id),
-    heroTime: 1 / Math.max(1, stats.speed),
-    enemyTimes: new Map(enemies.map((enemy) => [enemy.id, 1 / Math.max(1, enemy.speed)])),
+    heroTime: getActionInterval(stats.speed),
+    enemyTimes: new Map(enemies.map((enemy) => [enemy.id, getActionInterval(enemy.speed)])),
     round: 1,
     rounds: 0,
     defeatedCount: 0,
@@ -2396,7 +2526,7 @@ function simulateHeroStrike(sim, enemies, stats) {
 function simulateMonsterStrike(sim, enemy, enemies, stats) {
   const hitCount = getTraitValue(enemy, "multiHit", 1);
   for (let i = 0; i < hitCount; i += 1) {
-    const damage = hasTrait(enemy, "magic") ? enemy.atk : Math.max(0, enemy.atk - stats.def);
+    const damage = hasTrait(enemy, "magic") ? Math.max(0, enemy.atk) : Math.max(0, enemy.atk - stats.def);
     const shieldLoss = hasTrait(enemy, "ignoreShield") ? 0 : Math.min(sim.shield, damage);
     const hpLoss = damage - shieldLoss;
     sim.shield -= shieldLoss;
@@ -2459,6 +2589,10 @@ function isBossFloor(floor) {
 
 function isRewardBossFloor(floor) {
   return rewardBossFloors.has(floor);
+}
+
+function isBossRewardFloor(floor) {
+  return isBossFloor(floor) || isRewardBossFloor(floor);
 }
 
 function isPlayerDefeated() {
@@ -2527,6 +2661,10 @@ function resetGame() {
   state.battleReportSeq = 0;
   state.currentBattle = null;
   state.infoMode = "item";
+  state.bossReward = null;
+  state.photoValueMin = defaultPhotoValueMin;
+  state.photoValueMax = defaultPhotoValueMax;
+  state.globalFilmDropBonus = 0;
   state.inventory = createEmptyInventorySlots();
   state.selectedSlotIndex = 0;
   state.pendingPhotoSlotIndex = 0;
@@ -2571,14 +2709,14 @@ function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpec
     return sum;
   }, bonus);
 
-  const passiveAttackPenalty = equippedItems.some((item) => getItemSpecialKeys(item).includes("shieldCrashAttackDown")) ? 5 : 0;
-  const passiveSpeedPenalty = equippedItems.some((item) => getItemSpecialKeys(item).includes("doubleStrikeSpeedDown")) ? 5 : 0;
+  const passiveAttackPenalty = equippedItems.some((item) => getItemSpecialKeys(item).includes("shieldCrashAttackDown")) ? 3 : 0;
+  const passiveSpeedPenalty = equippedItems.some((item) => getItemSpecialKeys(item).includes("doubleStrikeSpeedDown")) ? 3 : 0;
 
   return {
     maxHp: state.player.baseHp + (bonus.hp || 0),
-    atk: Math.max(0, state.player.baseAtk + (bonus.attack || 0) + (battleSpecial?.attack || 0) - passiveAttackPenalty),
-    def: Math.max(0, state.player.baseDef + (bonus.defense || 0) + (battleSpecial?.defense || 0)),
-    speed: Math.max(1, state.player.baseSpeed + (bonus.speed || 0) - passiveSpeedPenalty),
+    atk: state.player.baseAtk + (bonus.attack || 0) + (battleSpecial?.attack || 0) - passiveAttackPenalty,
+    def: state.player.baseDef + (bonus.defense || 0) + (battleSpecial?.defense || 0),
+    speed: state.player.baseSpeed + (bonus.speed || 0) - passiveSpeedPenalty,
     regen: state.player.baseRegen + (bonus.regen || 0),
     shield: state.player.baseShield + (bonus.shield || 0),
     lifesteal: state.player.baseLifesteal + (bonus.lifesteal || 0),
@@ -2599,14 +2737,26 @@ function getHeroFormImageUrl(form = getHeroForm()) {
 
 function setHeroForm(formId) {
   if (!heroFormMap.has(formId) || state.player.formId === formId) return;
+  if (isPlayerDefeated() || state.bossReward) return;
   const oldStats = getPlayerStats();
+  const targetForm = heroFormMap.get(formId);
+  const currentForm = getHeroForm();
+  const hpLoss = (currentForm?.stats?.hp || 0) - (targetForm?.stats?.hp || 0);
+  if (hpLoss > 0 && state.player.hp <= hpLoss) {
+    addBattleEvent("当前生命不足，无法切换会降低生命上限的形态。", "info");
+    render();
+    return;
+  }
   state.player.formId = formId;
   const newStats = getPlayerStats();
   if (newStats.maxHp > oldStats.maxHp) {
     state.player.hp += newStats.maxHp - oldStats.maxHp;
+  } else if (hpLoss > 0) {
+    state.player.hp = Math.min(state.player.hp - hpLoss, newStats.maxHp);
   } else {
     state.player.hp = Math.min(state.player.hp, newStats.maxHp);
   }
+  state.player.hp = Math.max(0, state.player.hp);
   if (newStats.shield > oldStats.shield) {
     state.player.shield += newStats.shield - oldStats.shield;
   } else {
@@ -2714,7 +2864,7 @@ function getEquippedItems() {
 }
 
 function isEquipmentLocked() {
-  return Boolean(state.autoBattleTimer) || Boolean(state.currentBattle);
+  return Boolean(state.autoBattleTimer) || Boolean(state.currentBattle) || isPlayerDefeated() || Boolean(state.bossReward);
 }
 
 function dismantleSelectedItem() {
@@ -2730,12 +2880,12 @@ function dismantleSelectedItem() {
   state.selectedItemId = "";
   state.latestItem = state.inventory.find(Boolean) || null;
   state.infoMode = "log";
-  state.filmRolls += returnedFilm;
+  addFilmAmount(returnedFilm);
   const newStats = getPlayerStats();
   if (newStats.maxHp < oldStats.maxHp) state.player.hp = Math.min(state.player.hp, newStats.maxHp);
   state.lootError = "";
   setBusy("");
-  addBattleEvent(`分解 ${formatItemDisplayName(removed)}，返还胶卷 +${returnedFilm.toFixed(1)}。`, "item");
+  addBattleEvent(`分解 ${formatItemDisplayName(removed)}，返还胶卷 +${formatFilmAmount(returnedFilm)}。`, "item");
   saveGame();
   render();
   return true;
@@ -2750,7 +2900,7 @@ function balanceItem(item, image = "") {
   const reason = cleanText(safe.reason, "", 72);
   const semanticText = [itemName, objectType, safe.description, reason, tags.join(" ")].filter(Boolean).join(" ");
   const tooLarge = shouldTreatAsTooLarge(itemName, semanticText, Boolean(safe.tooLarge));
-  const requestedValue = tooLarge ? 0 : clampInt(safe.value, 5, 20);
+  const requestedValue = tooLarge ? 0 : clampInt(safe.value, getPhotoValueMin(), getPhotoValueMax());
   const specialEffects = tooLarge
     ? []
     : choosePhotoSpecialEffects({ ...safe, itemName, objectType, reason, tags, description: semanticText }, image, requestedValue)
@@ -2826,7 +2976,7 @@ function getItemQualityKey(item) {
 }
 
 function getDismantleFilmReturn(item) {
-  return Math.max(0, Math.ceil(scoreItem(item) * 0.5));
+  return Math.min(0.8, Math.ceil(scoreItem(item) * 0.5) / 10);
 }
 
 function normalizeStats(stats, maxValue = 20) {
@@ -3064,6 +3214,7 @@ function render() {
   ensureInventorySlots();
   const stats = getPlayerStats();
   const defeated = isPlayerDefeated();
+  const bossRewardPending = Boolean(state.bossReward);
 
   state.player.hp = Math.max(0, Math.min(state.player.hp, stats.maxHp));
   const form = getHeroForm();
@@ -3085,9 +3236,9 @@ function render() {
     ? "已通关"
     : `第 ${state.floor} / ${maxFloor} 层${isBossFloor(state.floor) ? " · Boss" : isRewardBossFloor(state.floor) ? " · 可选Boss" : ""}`;
   renderEnemyField();
-  els.attackBtn.disabled = defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !getSelectedEnemies().length;
+  els.attackBtn.disabled = defeated || bossRewardPending || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !getSelectedEnemies().length;
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
-  els.fleeBtn.disabled = defeated || isBattleActionLocked() || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || isBossFloor(state.floor);
+  els.fleeBtn.disabled = defeated || bossRewardPending || isBattleActionLocked() || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || isBossFloor(state.floor);
 
   renderApiStatus();
   renderCameraStatus();
@@ -3131,6 +3282,11 @@ function renderEnemyField() {
   const enemyDamageEstimates = getEnemyDamageEstimates();
   const shouldFlipIn = state.enemyFlipEncounterId === state.encounterId && !state.currentBattle && !state.autoBattleTimer;
 
+  if (state.bossReward) {
+    renderBossRewardCards();
+    return;
+  }
+
   if (state.gameClear) {
     const clear = document.createElement("article");
     clear.className = "enemy-card is-active";
@@ -3166,6 +3322,10 @@ function renderEnemyField() {
     if (shouldFlipIn) {
       button.style.setProperty("--flip-delay", `${Math.min(2, index) * 80}ms`);
       button.addEventListener("animationend", () => button.classList.remove("is-entering"), { once: true });
+    }
+    if (isFlippingDown) {
+      button.addEventListener("animationend", () => finishEnemyFlipDown(enemy.id), { once: true });
+      window.setTimeout(() => finishEnemyFlipDown(enemy.id), 340);
     }
     button.setAttribute("aria-disabled", String(isLocked));
     button.addEventListener("click", () => {
@@ -3209,6 +3369,32 @@ function renderEnemyField() {
     els.enemyField.append(button);
   });
   if (shouldFlipIn) state.enemyFlipEncounterId = "";
+}
+
+function renderBossRewardCards() {
+  const options = Array.isArray(state.bossReward?.options) ? state.bossReward.options : [];
+  options.forEach((option, index) => {
+    const button = document.createElement("button");
+    button.className = "enemy-card reward-card";
+    button.type = "button";
+    button.addEventListener("click", () => chooseBossReward(index));
+    button.innerHTML = `
+      <div class="enemy-card-head">
+        <div class="monster-portrait reward-portrait">
+          <span>${index + 1}</span>
+        </div>
+        <div class="enemy-name-block">
+          <strong>${escapeHtml(option.title || "奖励")}</strong>
+          <span>${escapeHtml(option.desc || "选择后进入下一层。")}</span>
+        </div>
+      </div>
+      <div class="enemy-card-result">
+        <span>Boss奖励</span>
+        <strong class="estimate-safe">选择</strong>
+      </div>
+    `;
+    els.enemyField.append(button);
+  });
 }
 
 function getEnemyDamageEstimates() {
@@ -3273,18 +3459,22 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
     const enemyTime = nextEnemyId ? sim.enemyTimes.get(nextEnemyId) : Infinity;
     const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
     currentStats.maxHp += sim.maxHpBonus || 0;
+    if (sim.heroTime === Infinity && (!nextEnemyId || enemyTime === Infinity)) {
+      for (const id of sim.activeIds) estimates.set(id, makeUnknownEstimate());
+      break;
+    }
 
     if (!nextEnemyId || sim.heroTime <= enemyTime + Number.EPSILON) {
       const defeatedIds = simulateHeroStrike(sim, enemies, currentStats);
       for (const id of defeatedIds) {
         estimates.set(id, formatHpLossEstimate(sim.initialHp - sim.hp, sim.actualStartHp));
       }
-      sim.heroTime += 1 / Math.max(1, currentStats.speed);
+      sim.heroTime += getActionInterval(currentStats.speed);
       sim.round = defeatedIds.length ? 1 : sim.round + 1;
     } else {
       const enemy = enemies.find((item) => item.id === nextEnemyId);
       if (enemy) simulateMonsterStrike(sim, enemy, enemies, currentStats);
-      sim.enemyTimes.set(nextEnemyId, enemyTime + 1 / Math.max(1, enemy?.speed || 1));
+      sim.enemyTimes.set(nextEnemyId, enemyTime + getActionInterval(enemy?.speed || 0));
       sim.round += 1;
     }
   }
@@ -3406,7 +3596,7 @@ function renderEquipmentDetail() {
     els.equipmentDetailDesc.textContent = state.lootError
       ? `${state.lootError} 可以重新鉴定。`
       : state.filmRolls >= 1
-        ? "确认后鉴定并装入当前装备格。"
+        ? `确认后鉴定并装入当前装备格。当前价值范围 ${formatPhotoValueRange()}。`
         : "胶卷不足，先击败怪物获得资源。";
     els.equipmentActions.hidden = false;
     els.analyzePhotoBtn.hidden = false;
@@ -3433,9 +3623,13 @@ function renderEquipmentDetail() {
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
     els.equipmentDetailDesc.textContent = locked
-      ? "战斗中不能拍照鉴定。"
+      ? isPlayerDefeated()
+        ? "照片勇者已经倒下，只能重开。"
+        : state.bossReward
+          ? "先选择 Boss 奖励。"
+          : "战斗中不能拍照鉴定。"
       : state.filmRolls >= 1
-        ? "点击拍照按钮获取装备照片。"
+        ? `点击拍照按钮获取装备照片。当前价值范围 ${formatPhotoValueRange()}。`
         : "胶卷不足，先击败怪物获得资源。";
     els.filmCountBadge.hidden = false;
     els.equipmentActions.hidden = false;
@@ -3454,7 +3648,7 @@ function renderEquipmentDetail() {
   els.discardItemBtn.hidden = false;
   els.discardItemBtn.disabled = locked;
   const refund = getDismantleFilmReturn(selected);
-  els.discardItemBtn.textContent = `分解 +${refund.toFixed(1)}`;
+  els.discardItemBtn.textContent = `分解 +${formatFilmAmount(refund)}`;
 }
 
 function getCameraIconMarkup() {
@@ -3478,8 +3672,12 @@ function renderHeroForms() {
     button.className = "form-card";
     button.type = "button";
     button.dataset.formId = form.id;
+    const hpLoss = (currentForm?.stats?.hp || 0) - (form?.stats?.hp || 0);
+    const locked = isPlayerDefeated() || Boolean(state.bossReward) || (hpLoss > 0 && state.player.hp <= hpLoss);
+    button.disabled = locked;
     button.setAttribute("aria-pressed", String(form.id === currentForm.id));
     if (form.id === currentForm.id) button.classList.add("is-active");
+    if (locked) button.classList.add("is-locked");
 
     const img = document.createElement("img");
     img.src = getHeroFormImageUrl(form);
@@ -3512,8 +3710,13 @@ function getLootErrorHint(message) {
 function renderStatPills(stats) {
   const pills = Object.entries(statLabels)
     .filter(([key]) => stats[key])
-    .map(([key, label]) => `<span>${label} +${stats[key] || 0}</span>`);
+    .map(([key, label]) => `<span>${label} ${formatSignedNumber(stats[key] || 0)}</span>`);
   return pills.length ? pills.join("") : "<span>无属性</span>";
+}
+
+function formatSignedNumber(value) {
+  const numeric = Number(value) || 0;
+  return numeric > 0 ? `+${numeric}` : String(numeric);
 }
 
 function renderItemDetailPills(item) {
@@ -3671,6 +3874,9 @@ function renderGameTextOnly() {
       filmRolls: state.filmRolls,
       filmShards: state.filmShards,
       filmCount: getFilmCount(),
+      photoValueMin: getPhotoValueMin(),
+      photoValueMax: getPhotoValueMax(),
+      globalFilmDropBonus: getGlobalFilmDropBonus() / 10,
       battleSpecial: { ...(state.battleSpecial || {}) },
       selectedEquipment: selectedEquipment ? formatItemDisplayName(selectedEquipment) : null,
       selectedSlotIndex: getSelectedSlotIndex(),
@@ -3684,6 +3890,7 @@ function renderGameTextOnly() {
       index,
       id: enemy.id,
       name: enemy.name,
+      typeKey: enemy.typeKey,
       image: getMonsterImageUrl(enemy.typeKey),
       typeName: enemy.typeName,
       hp: enemy.hp,
@@ -3703,6 +3910,10 @@ function renderGameTextOnly() {
     selectedEnemyIds: [...state.selectedEnemyIds],
     selectedEnemyCount: state.selectedEnemyIds.length,
     activeEnemyIds: [...state.activeEnemyIds],
+    bossReward: state.bossReward ? {
+      floor: state.bossReward.floor,
+      options: state.bossReward.options,
+    } : null,
     hasPhoto: Boolean(state.lastPhoto),
     latestItem: state.latestItem,
     inventory: state.inventory.map((item, slotIndex) => item ? ({
@@ -3791,6 +4002,10 @@ function saveGame() {
     selectedEnemyIds: state.selectedEnemyIds,
     activeEnemyIds: state.activeEnemyIds,
     gameClear: state.gameClear,
+    bossReward: state.bossReward,
+    photoValueMin: state.photoValueMin,
+    photoValueMax: state.photoValueMax,
+    globalFilmDropBonus: state.globalFilmDropBonus,
     filmShards: state.filmShards,
     filmRolls: state.filmRolls,
     battleClock: state.battleClock,
@@ -3829,6 +4044,10 @@ function loadSave() {
 
   state.floor = clampInt(save.floor, 1, maxFloor);
   state.gameClear = Boolean(save.gameClear);
+  state.bossReward = normalizeBossReward(save.bossReward);
+  state.photoValueMin = clampInt(save.photoValueMin, defaultPhotoValueMin, 999);
+  state.photoValueMax = Math.max(state.photoValueMin, clampInt(save.photoValueMax, defaultPhotoValueMax, 999));
+  state.globalFilmDropBonus = clampInt(save.globalFilmDropBonus, 0, 999);
   state.enemies = Array.isArray(save.enemies) ? save.enemies.map(normalizeEnemy).filter(Boolean) : [];
   state.encounterId = typeof save.encounterId === "string" ? save.encounterId : "";
   if (!state.enemies.length && !state.gameClear) {
@@ -3872,6 +4091,30 @@ function normalizePlayer(player) {
   return normalized;
 }
 
+function normalizeBossReward(reward) {
+  if (!reward || typeof reward !== "object") return null;
+  const floor = clampInt(reward.floor, 1, maxFloor);
+  const options = Array.isArray(reward.options)
+    ? reward.options
+        .map((option, index) => normalizeBossRewardOption(option, floor, index))
+        .filter(Boolean)
+        .slice(0, 3)
+    : [];
+  return options.length ? { floor, options } : null;
+}
+
+function normalizeBossRewardOption(option, floor, index) {
+  const validTypes = new Set(["filmDrop", "filmPercent", "valueMin", "valueMax"]);
+  if (!option || typeof option !== "object" || !validTypes.has(option.type)) return null;
+  const fallback = buildBossRewardOptions(floor).find((item) => item.type === option.type) || {};
+  return {
+    id: typeof option.id === "string" && option.id ? option.id : `${floor}-${index}-${option.type}`,
+    type: option.type,
+    title: cleanText(option.title, fallback.title || "奖励", 24),
+    desc: cleanText(option.desc, fallback.desc || "选择后进入下一层。", 64),
+  };
+}
+
 function normalizeBattleClock(clock) {
   if (!clock || typeof clock !== "object" || clock.encounterId !== state.encounterId || !state.currentBattle) return null;
   const activeIds = new Set(state.activeEnemyIds);
@@ -3880,13 +4123,13 @@ function normalizeBattleClock(clock) {
         .filter((item) => typeof item?.id === "string" && activeIds.has(item.id))
         .map((item) => ({
           id: item.id,
-          time: Number.isFinite(item.time) ? Math.max(0, item.time) : 1 / Math.max(1, state.enemies.find((enemy) => enemy.id === item.id)?.speed || 1),
+          time: Number.isFinite(item.time) ? Math.max(0, item.time) : getActionInterval(state.enemies.find((enemy) => enemy.id === item.id)?.speed || 0),
         }))
     : [];
   const fallbackEnemies = getActiveBattleEnemies();
   return {
-    hero: Number.isFinite(clock.hero) ? Math.max(0, clock.hero) : 1 / Math.max(1, getBattleStats(state.activeEnemyIds).speed),
-    enemies: enemies.length ? enemies : fallbackEnemies.map((enemy) => ({ id: enemy.id, time: 1 / Math.max(1, enemy.speed) })),
+    hero: Number.isFinite(clock.hero) ? Math.max(0, clock.hero) : getActionInterval(getBattleStats(state.activeEnemyIds).speed),
+    enemies: enemies.length ? enemies : fallbackEnemies.map((enemy) => ({ id: enemy.id, time: getActionInterval(enemy.speed) })),
     round: Number.isFinite(clock.round) ? Math.max(1, clock.round) : 1,
     encounterId: state.encounterId,
   };
@@ -4055,6 +4298,21 @@ window.__photoHeroTestHooks = {
     Object.assign(state.player, next || {});
     saveGame();
     render();
+  },
+  setRunRewards(next = {}) {
+    if (Number.isFinite(next.photoValueMin)) state.photoValueMin = next.photoValueMin;
+    if (Number.isFinite(next.photoValueMax)) state.photoValueMax = next.photoValueMax;
+    if (Number.isFinite(next.globalFilmDropBonus)) state.globalFilmDropBonus = next.globalFilmDropBonus;
+    if (Number.isFinite(next.filmRolls)) state.filmRolls = next.filmRolls;
+    if (Number.isFinite(next.filmShards)) state.filmShards = next.filmShards;
+    saveGame();
+    render();
+  },
+  startBossRewardChoice,
+  chooseBossReward,
+  balanceItem,
+  getPhotoValueRange() {
+    return { min: getPhotoValueMin(), max: getPhotoValueMax() };
   },
   setHeroForm,
   selectEnemies(ids) {
