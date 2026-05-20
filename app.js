@@ -1744,7 +1744,6 @@ function defeatEnemy(enemy) {
   addLootNamesToCurrentBattle(drops);
   if (Array.isArray(defeatedIds)) defeatedIds.push(enemy.id);
   addBattleDetail(`${enemy.name} 被击败。`);
-  state.enemyFlipDownIds.add(enemy.id);
   triggerKillSpecial(enemy);
   for (const drop of drops) {
     if (drop.kind === "shard") {
@@ -1754,6 +1753,9 @@ function defeatEnemy(enemy) {
     }
   }
   removeActiveEnemyIds([enemy.id]);
+  if (state.activeEnemyIds.length > 0) {
+    state.enemyFlipDownIds.add(enemy.id);
+  }
 }
 
 function markEnemyHit(enemyId) {
