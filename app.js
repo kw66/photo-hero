@@ -87,6 +87,9 @@ const modelMaxTokens = 512;
 const modelImageDetail = "low";
 const defaultPhotoValueMin = 5;
 const defaultPhotoValueMax = 20;
+const battleSpeedOptions = [1, 2, 4];
+const battleRoundBaseMs = 1000;
+const battleHitEffectMs = 260;
 const analysisImageMaxEdge = 1024;
 const analysisImageQuality = 0.78;
 const inventoryImageMaxEdge = 420;
@@ -136,7 +139,7 @@ const photoSpecialEffects = [
   { key: "takeDamageDefense", label: "受到伤害临时防御+1", value: 15, kind: "takeDamageTemp", stat: "defense", amount: 1, cap: 8 },
   { key: "killMaxHp", label: "每次击杀生命上限+2", value: 15, kind: "killPermanent", stat: "hp", amount: 2 },
   { key: "killHpBoost", label: "每次击杀生命上限+8", value: 15, kind: "killPermanent", stat: "hp", amount: 8 },
-  { key: "doubleStrikeSpeedDown", label: "速度-3，二连击", value: 16, kind: "passive", stat: "speed", amount: -3, doubleStrike: true },
+  { key: "doubleStrikeSpeedDown", label: "速度-5，连击翻倍", value: 16, kind: "passive", stat: "speed", amount: -5, doubleStrikeMultiplier: 2 },
   { key: "shieldCrashAttackDown", label: "攻击-3，附带当前护盾*0.5伤害", value: 16, kind: "passive", stat: "attack", amount: -3, shieldDamageRatio: 0.5 },
 ];
 
@@ -282,6 +285,7 @@ const els = {
   formGrid: byId("formGrid"),
   floorText: byId("floorText"),
   enemyField: byId("enemyField"),
+  battleSpeedBtn: byId("battleSpeedBtn"),
   attackBtn: byId("attackBtn"),
   fleeBtn: byId("fleeBtn"),
   resetGameBtn: byId("resetGameBtn"),
@@ -337,6 +341,10 @@ const state = {
   photoValueMin: defaultPhotoValueMin,
   photoValueMax: defaultPhotoValueMax,
   globalFilmDropBonus: 0,
+  battleSpeed: 1,
+  hitEffectToken: 0,
+  heroHitEffectUntil: 0,
+  enemyHitEffectUntilById: {},
   inventory: createEmptyInventorySlots(),
   selectedSlotIndex: 0,
   pendingPhotoSlotIndex: 0,
@@ -353,9 +361,7 @@ const state = {
   enemyFlipEncounterId: "",
   enemyFaceDownIds: new Set(),
   enemyFlipDownIds: new Set(),
-  enemyFlipUpIds: new Set(),
   battleStartTimer: 0,
-  battleRevealTimer: 0,
   floorAdvanceTimer: 0,
   pendingFloorAdvance: false,
 };
@@ -417,6 +423,7 @@ function bindEvents() {
   els.testChatBtn.addEventListener("click", testVisionApi);
   els.toggleKeyBtn.addEventListener("click", toggleApiKeyVisibility);
   els.attackBtn.addEventListener("click", toggleAutoBattle);
+  els.battleSpeedBtn.addEventListener("click", cycleBattleSpeed);
   els.fleeBtn.addEventListener("click", fleeBattle);
   els.resetGameBtn.addEventListener("click", resetGame);
   els.photoActionBtn.addEventListener("click", openPhotoPickerForSelectedSlot);
@@ -1439,6 +1446,34 @@ function toggleAutoBattle() {
   startAutoBattle();
 }
 
+function cycleBattleSpeed() {
+  const currentIndex = battleSpeedOptions.indexOf(getBattleSpeed());
+  state.battleSpeed = battleSpeedOptions[(currentIndex + 1) % battleSpeedOptions.length];
+  restartAutoBattleInterval();
+  saveGame();
+  render();
+}
+
+function getBattleSpeed() {
+  return battleSpeedOptions.includes(state.battleSpeed) ? state.battleSpeed : 1;
+}
+
+function getBattleIntervalMs() {
+  return battleRoundBaseMs / getBattleSpeed();
+}
+
+function restartAutoBattleInterval() {
+  if (!state.autoBattleTimer) return;
+  window.clearInterval(state.autoBattleTimer);
+  state.autoBattleTimer = window.setInterval(runAutoBattleTick, getBattleIntervalMs());
+}
+
+function runAutoBattleTick() {
+  resolveBattleAction();
+  saveGame();
+  render();
+}
+
 function startAutoBattle() {
   if (isPlayerDefeated()) return;
   if (state.battleStartTimer || state.pendingFloorAdvance) return;
@@ -1469,11 +1504,7 @@ function startAutoBattle() {
       return;
     }
 
-    state.autoBattleTimer = window.setInterval(() => {
-      resolveBattleAction();
-      saveGame();
-      render();
-    }, 1000);
+    state.autoBattleTimer = window.setInterval(runAutoBattleTick, getBattleIntervalMs());
     saveGame();
     render();
   }, unselectedIds.length ? 320 : 0);
@@ -1490,10 +1521,6 @@ function stopBattleTimers() {
   if (state.battleStartTimer) {
     window.clearTimeout(state.battleStartTimer);
     state.battleStartTimer = 0;
-  }
-  if (state.battleRevealTimer) {
-    window.clearTimeout(state.battleRevealTimer);
-    state.battleRevealTimer = 0;
   }
   if (state.floorAdvanceTimer) {
     window.clearTimeout(state.floorAdvanceTimer);
@@ -1566,13 +1593,9 @@ function resolveBattleAction() {
     return true;
   }
   if (!enemyClock || heroTime <= enemyClock.time + Number.EPSILON) {
-    const defeated = resolveHeroStrike(stats, round);
+    resolveHeroStrike(stats, round);
     state.battleClock.hero += getActionInterval(stats.speed);
-    if (defeated) {
-      state.battleClock.round = 1;
-    } else {
-      state.battleClock.round += 1;
-    }
+    state.battleClock.round += 1;
   } else {
     const enemy = state.enemies.find((item) => item.id === enemyClock.id);
     if (enemy) resolveMonsterStrike(enemy, stats, round);
@@ -1604,7 +1627,7 @@ function resolveBattleAction() {
 
 function resolveHeroStrike(stats, round) {
   void stats;
-  const strikeCount = hasEquippedPhotoEffect("doubleStrikeSpeedDown") ? 2 : 1;
+  const strikeCount = getHeroStrikeCount();
   let defeatedAny = false;
 
   for (let strikeIndex = 0; strikeIndex < strikeCount; strikeIndex += 1) {
@@ -1622,6 +1645,7 @@ function resolveHeroStrike(stats, round) {
     const hpDamage = Math.max(0, damage - shieldLoss);
     enemy.hp = Math.max(0, enemy.hp - hpDamage);
     const totalDamage = shieldLoss + hpDamage;
+    if (totalDamage > 0) markEnemyHit(enemy.id);
 
     let healed = 0;
     if (!hasAnyActiveTrait("noLifesteal") && currentStats.lifesteal > 0) {
@@ -1672,6 +1696,7 @@ function resolveMonsterStrike(enemy, stats, round) {
     state.player.hp = Math.max(0, state.player.hp - hpLoss);
     totalHpLoss += hpLoss;
     totalShieldLoss += shieldLoss;
+    if (shieldLoss + hpLoss > 0) markHeroHit();
     if (shieldLoss + hpLoss > 0) {
       triggerTakeDamageSpecial();
     }
@@ -1729,6 +1754,28 @@ function defeatEnemy(enemy) {
     }
   }
   removeActiveEnemyIds([enemy.id]);
+}
+
+function markEnemyHit(enemyId) {
+  const token = state.hitEffectToken + 1;
+  state.hitEffectToken = token;
+  state.enemyHitEffectUntilById[enemyId] = token;
+  window.setTimeout(() => {
+    if (state.enemyHitEffectUntilById[enemyId] !== token) return;
+    delete state.enemyHitEffectUntilById[enemyId];
+    render();
+  }, battleHitEffectMs);
+}
+
+function markHeroHit() {
+  const token = state.hitEffectToken + 1;
+  state.hitEffectToken = token;
+  state.heroHitEffectUntil = token;
+  window.setTimeout(() => {
+    if (state.heroHitEffectUntil !== token) return;
+    state.heroHitEffectUntil = 0;
+    render();
+  }, battleHitEffectMs);
 }
 
 function removeEnemiesByIds(ids, reward = true) {
@@ -1820,34 +1867,13 @@ function finishCurrentBattle(result) {
   resetBattleSpecial();
 }
 
-function revealEnemyCardsThen(callback) {
-  const faceDownIds = new Set([
-    ...state.enemyFaceDownIds,
-    ...state.enemyFlipDownIds,
-  ]);
-  if (!faceDownIds.size) {
-    callback();
-    return;
-  }
-
-  state.enemyFlipUpIds = faceDownIds;
-  state.enemyFaceDownIds = new Set();
-  state.enemyFlipDownIds = new Set();
-  state.pendingFloorAdvance = true;
-  render();
-
-  state.battleRevealTimer = window.setTimeout(() => {
-    state.battleRevealTimer = 0;
-    state.enemyFlipUpIds = new Set();
-    callback();
-  }, 360);
-}
-
 function startBossRewardChoice(floor) {
   state.bossReward = {
     floor,
     options: buildBossRewardOptions(floor),
   };
+  state.pendingFloorAdvance = true;
+  clearEnemyCardMotion();
   state.pendingFloorAdvance = true;
   state.infoMode = "log";
   addBattleEvent(`第${floor}层胜利，选择一张奖励牌。`, "item");
@@ -2083,15 +2109,10 @@ function handleBattleEndAdvance(mode = "instant") {
     render();
     state.floorAdvanceTimer = window.setTimeout(() => {
       state.floorAdvanceTimer = 0;
-      revealEnemyCardsThen(() => {
-        state.floorAdvanceTimer = window.setTimeout(() => {
-          state.floorAdvanceTimer = 0;
-          state.pendingFloorAdvance = false;
-          advanceFloor();
-          saveGame();
-          render();
-        }, 420);
-      });
+      state.pendingFloorAdvance = false;
+      advanceFloor();
+      saveGame();
+      render();
     }, 360);
     return;
   }
@@ -2125,8 +2146,9 @@ function advanceFloor() {
 function clearEnemyCardMotion() {
   state.enemyFaceDownIds = new Set();
   state.enemyFlipDownIds = new Set();
-  state.enemyFlipUpIds = new Set();
   state.pendingFloorAdvance = false;
+  state.enemyHitEffectUntilById = {};
+  state.heroHitEffectUntil = 0;
 }
 
 function finishEnemyFlipDown(enemyId) {
@@ -2448,6 +2470,21 @@ function applyBattleSpecialPassives(stats) {
   return stats;
 }
 
+function getEquippedPhotoEffectInstances(key) {
+  const instances = [];
+  for (const item of getEquippedItems()) {
+    for (const instance of getItemSpecialInstances(item)) {
+      if (instance.key === key) instances.push(instance);
+    }
+  }
+  return instances;
+}
+
+function getHeroStrikeCount() {
+  const instances = getEquippedPhotoEffectInstances("doubleStrikeSpeedDown");
+  return instances.reduce((count, { effect }) => count * Math.max(1, effect.doubleStrikeMultiplier || 1), 1);
+}
+
 function createBattleSimulation(enemies) {
   const stats = getBattleStatsForEnemiesWithSpecial(enemies, createDefaultBattleSpecial());
   return {
@@ -2483,7 +2520,7 @@ function getSimActiveEnemies(sim, enemies) {
 
 function simulateHeroStrike(sim, enemies, stats) {
   void stats;
-  const strikeCount = hasEquippedPhotoEffect("doubleStrikeSpeedDown") ? 2 : 1;
+  const strikeCount = getHeroStrikeCount();
   const defeatedIds = [];
 
   for (let strikeIndex = 0; strikeIndex < strikeCount; strikeIndex += 1) {
@@ -2493,9 +2530,7 @@ function simulateHeroStrike(sim, enemies, stats) {
     const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
     currentStats.maxHp += sim.maxHpBonus || 0;
     const rawDamage = Math.max(0, currentStats.atk - enemy.def);
-    const shieldCrashDamage = hasEquippedPhotoEffect("shieldCrashAttackDown")
-      ? Math.floor(Math.max(0, sim.shield || 0) * 0.5)
-      : 0;
+    const shieldCrashDamage = getShieldCrashDamage(sim.shield);
     let damage = rawDamage + shieldCrashDamage;
     if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
     const shieldLoss = Math.min(enemy.shield || 0, damage);
@@ -2503,8 +2538,10 @@ function simulateHeroStrike(sim, enemies, stats) {
     const hpDamage = Math.max(0, damage - shieldLoss);
     enemy.hp = Math.max(0, enemy.hp - hpDamage);
 
-    if (shieldLoss + hpDamage > 0 && hasEquippedPhotoEffect("dealDamageAttack")) {
-      sim.battleSpecial.attack = Math.min(10, (sim.battleSpecial.attack || 0) + 1);
+    const dealDamageGain = getTempSpecialGain("dealDamageAttack");
+    if (shieldLoss + hpDamage > 0 && dealDamageGain > 0) {
+      const cap = getTempSpecialCap("dealDamageAttack");
+      sim.battleSpecial.attack = Math.min(cap, (sim.battleSpecial.attack || 0) + dealDamageGain);
     }
 
     if (!enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noLifesteal")) && currentStats.lifesteal > 0) {
@@ -2531,8 +2568,10 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
     const hpLoss = damage - shieldLoss;
     sim.shield -= shieldLoss;
     sim.hp = Math.max(0, sim.hp - hpLoss);
-    if (shieldLoss + hpLoss > 0 && hasEquippedPhotoEffect("takeDamageDefense")) {
-      sim.battleSpecial.defense = Math.min(8, (sim.battleSpecial.defense || 0) + 1);
+    const takeDamageGain = getTempSpecialGain("takeDamageDefense");
+    if (shieldLoss + hpLoss > 0 && takeDamageGain > 0) {
+      const cap = getTempSpecialCap("takeDamageDefense");
+      sim.battleSpecial.defense = Math.min(cap, (sim.battleSpecial.defense || 0) + takeDamageGain);
     }
 
     if (sim.hp > 0 && !enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noRegen")) && stats.regen > 0) {
@@ -2665,6 +2704,10 @@ function resetGame() {
   state.photoValueMin = defaultPhotoValueMin;
   state.photoValueMax = defaultPhotoValueMax;
   state.globalFilmDropBonus = 0;
+  state.battleSpeed = 1;
+  state.hitEffectToken = 0;
+  state.heroHitEffectUntil = 0;
+  state.enemyHitEffectUntilById = {};
   state.inventory = createEmptyInventorySlots();
   state.selectedSlotIndex = 0;
   state.pendingPhotoSlotIndex = 0;
@@ -2709,8 +2752,10 @@ function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpec
     return sum;
   }, bonus);
 
-  const passiveAttackPenalty = equippedItems.some((item) => getItemSpecialKeys(item).includes("shieldCrashAttackDown")) ? 3 : 0;
-  const passiveSpeedPenalty = equippedItems.some((item) => getItemSpecialKeys(item).includes("doubleStrikeSpeedDown")) ? 3 : 0;
+  const passiveAttackPenalty = getEquippedPhotoEffectInstances("shieldCrashAttackDown")
+    .reduce((sum, { effect }) => sum + Math.abs(effect.amount || 0), 0);
+  const passiveSpeedPenalty = getEquippedPhotoEffectInstances("doubleStrikeSpeedDown")
+    .reduce((sum, { effect }) => sum + Math.abs(effect.amount || 0), 0);
 
   return {
     maxHp: state.player.baseHp + (bonus.hp || 0),
@@ -2805,23 +2850,30 @@ function ensureItemSpecialState(item, key) {
   return data;
 }
 
-function hasEquippedPhotoEffect(key) {
-  return getEquippedItems().some((item) => getItemSpecialKeys(item).includes(key));
+function getShieldCrashDamage(shield = state.player.shield) {
+  const ratio = getEquippedPhotoEffectInstances("shieldCrashAttackDown")
+    .reduce((sum, { effect }) => sum + (effect.shieldDamageRatio || 0), 0);
+  return Math.floor(Math.max(0, shield || 0) * ratio);
 }
 
-function getShieldCrashDamage() {
-  if (!hasEquippedPhotoEffect("shieldCrashAttackDown")) return 0;
-  return Math.floor(Math.max(0, state.player.shield || 0) * 0.5);
+function getTempSpecialGain(key) {
+  return getEquippedPhotoEffectInstances(key).reduce((sum, { effect }) => sum + (effect.amount || 0), 0);
+}
+
+function getTempSpecialCap(key) {
+  return getEquippedPhotoEffectInstances(key).reduce((sum, { effect }) => sum + (effect.cap || 0), 0);
 }
 
 function triggerDealDamageSpecial() {
-  if (!hasEquippedPhotoEffect("dealDamageAttack")) return;
-  state.battleSpecial.attack = Math.min(10, (state.battleSpecial.attack || 0) + 1);
+  const gain = getTempSpecialGain("dealDamageAttack");
+  if (gain <= 0) return;
+  state.battleSpecial.attack = Math.min(getTempSpecialCap("dealDamageAttack"), (state.battleSpecial.attack || 0) + gain);
 }
 
 function triggerTakeDamageSpecial() {
-  if (!hasEquippedPhotoEffect("takeDamageDefense")) return;
-  state.battleSpecial.defense = Math.min(8, (state.battleSpecial.defense || 0) + 1);
+  const gain = getTempSpecialGain("takeDamageDefense");
+  if (gain <= 0) return;
+  state.battleSpecial.defense = Math.min(getTempSpecialCap("takeDamageDefense"), (state.battleSpecial.defense || 0) + gain);
 }
 
 function triggerKillSpecial(enemy) {
@@ -3105,7 +3157,7 @@ function normalizeSpecialEffectKey(value) {
     if (/受到伤害.*防|受击.*防/.test(text)) return "takeDamageDefense";
     if (/击杀.*生命上限/.test(text)) return "killMaxHp";
     if (/击杀.*生命|击杀.*回复|击杀.*回血/.test(text)) return "killHpBoost";
-    if (/二连击|连击2/.test(text)) return "doubleStrikeSpeedDown";
+    if (/二连击|连击2|连击翻倍/.test(text)) return "doubleStrikeSpeedDown";
     if (/当前护盾|护盾.*0\.?5|护盾.*一半/.test(text)) return "shieldCrashAttackDown";
   }
   if (value && typeof value === "object") {
@@ -3220,6 +3272,7 @@ function render() {
   const form = getHeroForm();
   els.heroAvatarImage.src = getHeroFormImageUrl(form);
   els.heroAvatarImage.alt = `照片勇者${form.label}形态`;
+  els.heroAvatarImage.closest(".hero-form-card")?.classList.toggle("is-hit", Boolean(state.heroHitEffectUntil));
   renderHeroForms();
 
   els.playerHpText.textContent = `${state.player.hp}/${stats.maxHp}`;
@@ -3238,6 +3291,9 @@ function render() {
   renderEnemyField();
   els.attackBtn.disabled = defeated || bossRewardPending || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !getSelectedEnemies().length;
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
+  els.battleSpeedBtn.textContent = `×${getBattleSpeed()}`;
+  els.battleSpeedBtn.setAttribute("aria-label", `切换战斗倍速，当前 ${getBattleSpeed()} 倍`);
+  els.battleSpeedBtn.disabled = defeated || state.gameClear;
   els.fleeBtn.disabled = defeated || bossRewardPending || isBattleActionLocked() || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || isBossFloor(state.floor);
 
   renderApiStatus();
@@ -3314,10 +3370,10 @@ function renderEnemyField() {
     const isSelected = selectionOrder > 0;
     const isFaceDown = state.enemyFaceDownIds.has(enemy.id);
     const isFlippingDown = state.enemyFlipDownIds.has(enemy.id);
-    const isFlippingUp = state.enemyFlipUpIds.has(enemy.id);
     const estimate = enemyDamageEstimates.get(enemy.id) || { text: "损失 ???", state: "unknown" };
     const button = document.createElement("button");
-    button.className = `enemy-card enemy-select-card${isSelected ? " is-selected" : ""}${state.activeEnemyIds?.includes(enemy.id) ? " is-active" : ""}${isLocked ? " is-locked" : ""}${isDefeated ? " is-defeated" : ""}${shouldFlipIn ? " is-entering" : ""}${isFaceDown ? " is-face-down" : ""}${isFlippingDown ? " is-flipping-down" : ""}${isFlippingUp ? " is-flipping-up" : ""}`;
+    const isHit = Boolean(state.enemyHitEffectUntilById[enemy.id]);
+    button.className = `enemy-card enemy-select-card${isSelected ? " is-selected" : ""}${state.activeEnemyIds?.includes(enemy.id) ? " is-active" : ""}${isLocked ? " is-locked" : ""}${isDefeated ? " is-defeated" : ""}${shouldFlipIn ? " is-entering" : ""}${isFaceDown ? " is-face-down" : ""}${isFlippingDown ? " is-flipping-down" : ""}${isHit ? " is-hit" : ""}`;
     button.type = "button";
     if (shouldFlipIn) {
       button.style.setProperty("--flip-delay", `${Math.min(2, index) * 80}ms`);
@@ -3470,7 +3526,7 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
         estimates.set(id, formatHpLossEstimate(sim.initialHp - sim.hp, sim.actualStartHp));
       }
       sim.heroTime += getActionInterval(currentStats.speed);
-      sim.round = defeatedIds.length ? 1 : sim.round + 1;
+      sim.round += 1;
     } else {
       const enemy = enemies.find((item) => item.id === nextEnemyId);
       if (enemy) simulateMonsterStrike(sim, enemy, enemies, currentStats);
@@ -3874,10 +3930,13 @@ function renderGameTextOnly() {
       filmRolls: state.filmRolls,
       filmShards: state.filmShards,
       filmCount: getFilmCount(),
-      photoValueMin: getPhotoValueMin(),
-      photoValueMax: getPhotoValueMax(),
-      globalFilmDropBonus: getGlobalFilmDropBonus() / 10,
-      battleSpecial: { ...(state.battleSpecial || {}) },
+    photoValueMin: getPhotoValueMin(),
+    photoValueMax: getPhotoValueMax(),
+    globalFilmDropBonus: getGlobalFilmDropBonus() / 10,
+    battleSpeed: getBattleSpeed(),
+    heroHit: Boolean(state.heroHitEffectUntil),
+    enemyHitIds: Object.keys(state.enemyHitEffectUntilById || {}),
+    battleSpecial: { ...(state.battleSpecial || {}) },
       selectedEquipment: selectedEquipment ? formatItemDisplayName(selectedEquipment) : null,
       selectedSlotIndex: getSelectedSlotIndex(),
       equippedItems: equippedItems.map((item) => formatItemDisplayName(item)),
@@ -4006,6 +4065,7 @@ function saveGame() {
     photoValueMin: state.photoValueMin,
     photoValueMax: state.photoValueMax,
     globalFilmDropBonus: state.globalFilmDropBonus,
+    battleSpeed: getBattleSpeed(),
     filmShards: state.filmShards,
     filmRolls: state.filmRolls,
     battleClock: state.battleClock,
@@ -4048,6 +4108,7 @@ function loadSave() {
   state.photoValueMin = clampInt(save.photoValueMin, defaultPhotoValueMin, 999);
   state.photoValueMax = Math.max(state.photoValueMin, clampInt(save.photoValueMax, defaultPhotoValueMax, 999));
   state.globalFilmDropBonus = clampInt(save.globalFilmDropBonus, 0, 999);
+  state.battleSpeed = battleSpeedOptions.includes(save.battleSpeed) ? save.battleSpeed : 1;
   state.enemies = Array.isArray(save.enemies) ? save.enemies.map(normalizeEnemy).filter(Boolean) : [];
   state.encounterId = typeof save.encounterId === "string" ? save.encounterId : "";
   if (!state.enemies.length && !state.gameClear) {
