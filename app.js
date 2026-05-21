@@ -235,7 +235,7 @@ const heroForms = [
   { id: "defense", label: "防御", image: "form-defense.png", stats: { defense: 2 }, desc: "防御 +2" },
   { id: "shield", label: "护盾", image: "form-shield.png", stats: { shield: 10 }, desc: "护盾 +10" },
   { id: "greedy", label: "财迷", image: "form-greedy.png", stats: {}, filmDropBonus: 1, desc: "胶卷掉落 +0.1" },
-  { id: "angry", label: "愤怒", image: "form-angry.png", stats: { attack: 5, defense: 5 }, noFilmDrop: true, desc: "攻防 +5，不获得胶卷" },
+  { id: "angry", label: "生气", image: "form-angry.png", stats: { attack: 5, defense: 5 }, noFilmDrop: true, desc: "攻防 +5，不获得胶卷" },
 ];
 
 const heroFormMap = new Map(heroForms.map((form) => [form.id, form]));
@@ -4307,7 +4307,7 @@ function renderEnemyField() {
     const isFlippingDown = state.enemyFlipDownIds.has(enemy.id);
     const estimate = enemyDamageEstimates.get(enemy.id) || makeUnknownEstimate();
     const button = document.createElement("button");
-    const isHit = Boolean(state.enemyHitEffectUntilById[enemy.id]);
+    const isHit = Boolean(state.enemyHitEffectUntilById[enemy.id]) && !isFlippingDown && !isFaceDown;
     button.className = `enemy-card enemy-select-card${isSelected ? " is-selected" : ""}${state.activeEnemyIds?.includes(enemy.id) ? " is-active" : ""}${isLocked ? " is-locked" : ""}${isDefeated ? " is-defeated" : ""}${shouldFlipIn ? " is-entering" : ""}${isFaceDown ? " is-face-down" : ""}${isFlippingDown ? " is-flipping-down" : ""}${isHit ? " is-hit" : ""}`;
     button.type = "button";
     if (shouldFlipIn) {
