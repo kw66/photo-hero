@@ -99,8 +99,9 @@ const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const hpEquipHealPerPoint = 2;
 const maxFloor = 40;
-const gameSaveVersion = 14;
+const gameSaveVersion = 15;
 const initialFilmRolls = 3;
+const heroFormUpgradeKills = 20;
 const bossFloors = new Set([10, 20, 30, 40]);
 const rewardBossFloors = new Set([25, 35, 38]);
 const bossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
@@ -227,15 +228,87 @@ const photoIdentificationUserPrompt = [
 const statOrder = ["hp", "attack", "defense", "speed", "shield", "lifesteal", "regen"];
 
 const heroForms = [
-  { id: "hp", label: "生命", image: "form-hp.png", stats: { hp: 30 }, desc: "生命上限 +30" },
-  { id: "attack", label: "攻击", image: "form-attack.png", stats: { attack: 2 }, desc: "攻击 +2" },
-  { id: "lifesteal", label: "吸血", image: "form-lifesteal.png", stats: { lifesteal: 1 }, desc: "吸血 +1" },
-  { id: "regen", label: "回复", image: "form-regen.png", stats: { regen: 1 }, desc: "回复 +1" },
-  { id: "speed", label: "速度", image: "form-speed.png", stats: { speed: 1 }, desc: "速度 +1" },
-  { id: "defense", label: "防御", image: "form-defense.png", stats: { defense: 2 }, desc: "防御 +2" },
-  { id: "shield", label: "护盾", image: "form-shield.png", stats: { shield: 10 }, desc: "护盾 +10" },
-  { id: "greedy", label: "财迷", image: "form-greedy.png", stats: {}, filmDropBonus: 1, desc: "胶卷掉落 +0.1" },
-  { id: "angry", label: "生气", image: "form-angry.png", stats: { attack: 5, defense: 5 }, noFilmDrop: true, desc: "攻防 +5，不获得胶卷" },
+  {
+    id: "hp",
+    label: "生命",
+    image: "form-hp.png",
+    levels: {
+      1: { stats: { hp: 30 }, effects: ["生命上限 +30"] },
+      2: { stats: { hp: 40 }, effects: ["生命上限 +40", "战后生命上限 +3"], afterVictoryMaxHp: 3 },
+    },
+  },
+  {
+    id: "attack",
+    label: "攻击",
+    image: "form-attack.png",
+    levels: {
+      1: { stats: { attack: 2 }, effects: ["攻击 +2"] },
+      2: { stats: { attack: 3 }, effects: ["攻击 +3", "无视25%防御（下取整）"], ignoreDefenseRatio: 0.25 },
+    },
+  },
+  {
+    id: "lifesteal",
+    label: "吸血",
+    image: "form-lifesteal.png",
+    levels: {
+      1: { stats: { lifesteal: 1 }, effects: ["吸血 +1"] },
+      2: { stats: { lifesteal: 2 }, effects: ["吸血 +2", "击杀回血 4"], killHeal: 4 },
+    },
+  },
+  {
+    id: "regen",
+    label: "回复",
+    image: "form-regen.png",
+    levels: {
+      1: { stats: { regen: 1 }, effects: ["回复 +1"] },
+      2: { stats: { regen: 2 }, effects: ["回复 +2", "战后回血 6"], afterVictoryHeal: 6 },
+    },
+  },
+  {
+    id: "speed",
+    label: "速度",
+    image: "form-speed.png",
+    levels: {
+      1: { stats: { speed: 1 }, effects: ["速度 +1"] },
+      2: { stats: { speed: 2 }, effects: ["速度 +2", "战前先攻击每个怪"], preBattleStrike: true },
+    },
+  },
+  {
+    id: "defense",
+    label: "防御",
+    image: "form-defense.png",
+    levels: {
+      1: { stats: { defense: 2 }, effects: ["防御 +2"] },
+      2: { stats: { defense: 3 }, effects: ["防御 +3", "免疫前2次伤害"], damageImmunity: 2 },
+    },
+  },
+  {
+    id: "shield",
+    label: "护盾",
+    image: "form-shield.png",
+    levels: {
+      1: { stats: { shield: 10 }, effects: ["护盾 +10"] },
+      2: { stats: { shield: 10 }, effects: ["护盾 +10", "护盾减少转为治疗"], shieldLossToHeal: true },
+    },
+  },
+  {
+    id: "greedy",
+    label: "财迷",
+    image: "form-greedy.png",
+    levels: {
+      1: { stats: {}, effects: ["胶卷掉落 +0.1"], filmDropBonus: 1 },
+      2: { stats: {}, effects: ["胶卷掉落 +0.1", "逃跑胶卷 +0.1"], filmDropBonus: 1, fleeFilmBonus: 1 },
+    },
+  },
+  {
+    id: "angry",
+    label: "生气",
+    image: "form-angry.png",
+    levels: {
+      1: { stats: { attack: 5, defense: 5 }, effects: ["攻防 +5", "不获得胶卷"], noFilmDrop: true },
+      2: { stats: { attack: 6, defense: 6 }, effects: ["攻防 +6", "不获得胶卷"], noFilmDrop: true },
+    },
+  },
 ];
 
 const heroFormMap = new Map(heroForms.map((form) => [form.id, form]));
@@ -392,6 +465,7 @@ const state = {
   infoMode: "item",
   gameClear: false,
   bossReward: null,
+  formProgress: createDefaultFormProgress(),
   photoValueMin: defaultPhotoValueMin,
   photoValueMax: defaultPhotoValueMax,
   globalFilmDropBonus: 0,
@@ -2014,13 +2088,14 @@ function startAutoBattle() {
     state.enemyFlipDownIds = new Set();
     beginBattle(selectedEnemies);
     resolveBattleAction();
+    if (state.currentBattle && state.player.hp > 0) {
+      state.autoBattleTimer = window.setInterval(runAutoBattleTick, getBattleIntervalMs());
+    }
     if (!state.currentBattle || state.player.hp <= 0) {
       saveGame();
       render();
       return;
     }
-
-    state.autoBattleTimer = window.setInterval(runAutoBattleTick, getBattleIntervalMs());
     saveGame();
     render();
   }, unselectedIds.length ? 320 : 0);
@@ -2049,6 +2124,8 @@ function createDefaultBattleSpecial() {
   return {
     attack: 0,
     defense: 0,
+    damageImmuneUsed: 0,
+    preBattleStruck: false,
   };
 }
 
@@ -2057,6 +2134,8 @@ function normalizeBattleSpecial(value) {
   return {
     attack: clampInt(source.attack, 0, 10),
     defense: clampInt(source.defense, 0, 8),
+    damageImmuneUsed: clampInt(source.damageImmuneUsed, 0, 999),
+    preBattleStruck: Boolean(source.preBattleStruck),
   };
 }
 
@@ -2073,6 +2152,7 @@ function beginBattle(enemies) {
   state.player.shieldMonsterId = state.encounterId;
   state.battleClock = makeBattleClock(stats, enemies);
   ensureCurrentBattle(activeIds, stats);
+  applyPreBattleFormEffects();
 }
 
 function getBattleRoundLimit(count = state.activeEnemyIds.length || state.selectedEnemyIds.length || 1) {
@@ -2157,17 +2237,12 @@ function resolveHeroStrike(stats, round) {
     if (!enemy) break;
 
     const currentStats = getBattleStats(state.activeEnemyIds);
-    const rawDamage = Math.max(0, currentStats.atk - enemy.def);
-    const shieldCrashDamage = getShieldCrashDamage();
-    let damage = rawDamage + shieldCrashDamage;
-    if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
-
-    const shieldLoss = Math.min(enemy.shield || 0, damage);
-    enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
-    const hpDamage = Math.max(0, damage - shieldLoss);
-    enemy.hp = Math.max(0, enemy.hp - hpDamage);
-    const totalDamage = shieldLoss + hpDamage;
-    if (totalDamage > 0) markEnemyHit(enemy.id);
+    const hitResult = applyHeroDamageToEnemy(enemy, currentStats);
+    const rawDamage = hitResult.rawDamage;
+    const shieldCrashDamage = hitResult.shieldCrashDamage;
+    const shieldLoss = hitResult.shieldLoss;
+    const hpDamage = hitResult.hpDamage;
+    const totalDamage = hitResult.totalDamage;
 
     let healed = 0;
     if (!hasAnyActiveTrait("noLifesteal") && currentStats.lifesteal > 0) {
@@ -2181,7 +2256,7 @@ function resolveHeroStrike(stats, round) {
     }
 
     const parts = [];
-    if (damage <= 0) {
+    if (rawDamage + shieldCrashDamage <= 0) {
       parts.push("未破防");
     } else {
       parts.push(`造成 ${hpDamage}伤害`);
@@ -2201,24 +2276,77 @@ function resolveHeroStrike(stats, round) {
   return defeatedAny;
 }
 
+function applyHeroDamageToEnemy(enemy, stats, source = "attack") {
+  const rawDamage = Math.max(0, stats.atk - getEffectiveEnemyDefense(enemy, stats));
+  const shieldCrashDamage = getShieldCrashDamage();
+  let damage = rawDamage + shieldCrashDamage;
+  if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
+
+  const shieldLoss = Math.min(enemy.shield || 0, damage);
+  enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
+  const hpDamage = Math.max(0, damage - shieldLoss);
+  enemy.hp = Math.max(0, enemy.hp - hpDamage);
+  const totalDamage = shieldLoss + hpDamage;
+  if (totalDamage > 0) markEnemyHit(enemy.id);
+
+  return {
+    rawDamage,
+    shieldCrashDamage,
+    shieldLoss,
+    hpDamage,
+    totalDamage,
+    source,
+  };
+}
+
+function applyPreBattleFormEffects() {
+  const config = getHeroFormLevelConfig();
+  if (!config.preBattleStrike || state.battleSpecial.preBattleStruck) return;
+  state.battleSpecial.preBattleStruck = true;
+  const targets = getActiveBattleEnemies();
+  if (!targets.length) return;
+  const hitNames = [];
+  for (const enemy of targets) {
+    if (enemy.hp <= 0) continue;
+    const stats = getBattleStats(state.activeEnemyIds);
+    const result = applyHeroDamageToEnemy(enemy, stats, "prebattle");
+    hitNames.push(`${enemy.name}${result.hpDamage}`);
+    if (enemy.hp <= 0) defeatEnemy(enemy);
+  }
+  if (hitNames.length) addBattleDetail(`速度形态先攻：${hitNames.join("，")}。`);
+}
+
 function resolveMonsterStrike(enemy, stats, round) {
   const hitCount = getTraitValue(enemy, "multiHit", 1);
   let totalHpLoss = 0;
   let totalShieldLoss = 0;
   let totalRegen = 0;
   let monsterStealTotal = 0;
+  let immuneCount = 0;
 
   for (let i = 0; i < hitCount; i += 1) {
     const currentStatsBeforeHit = getBattleStats(state.activeEnemyIds);
     const damage = hasTrait(enemy, "magic") ? Math.max(0, enemy.atk) : Math.max(0, enemy.atk - currentStatsBeforeHit.def);
+    const immunity = getHeroFormLevelConfig().damageImmunity || 0;
+    const isImmune = state.battleSpecial.damageImmuneUsed < immunity && damage > 0;
+    if (isImmune) {
+      state.battleSpecial.damageImmuneUsed += 1;
+      immuneCount += 1;
+    }
+    const effectiveDamage = isImmune ? 0 : damage;
     const ignoresShield = hasTrait(enemy, "ignoreShield");
-    const shieldLoss = ignoresShield ? 0 : Math.min(state.player.shield, damage);
-    const hpLoss = damage - shieldLoss;
+    const shieldLoss = ignoresShield ? 0 : Math.min(state.player.shield, effectiveDamage);
+    const hpLoss = effectiveDamage - shieldLoss;
     state.player.shield -= shieldLoss;
     state.player.hp = Math.max(0, state.player.hp - hpLoss);
     totalHpLoss += hpLoss;
     totalShieldLoss += shieldLoss;
-    if (shieldLoss + hpLoss > 0) markHeroHit();
+    if (shieldLoss + hpLoss > 0 || isImmune) markHeroHit();
+    if (shieldLoss > 0 && getHeroFormLevelConfig().shieldLossToHeal) {
+      const beforeHp = state.player.hp;
+      state.player.hp = Math.min(currentStatsBeforeHit.maxHp, state.player.hp + shieldLoss);
+      totalRegen += state.player.hp - beforeHp;
+    }
     if (shieldLoss + hpLoss > 0) {
       triggerTakeDamageSpecial();
     }
@@ -2250,6 +2378,7 @@ function resolveMonsterStrike(enemy, stats, round) {
 
   const parts = [];
   if (hitCount > 1) parts.push(`连击${hitCount}`);
+  if (immuneCount > 0) parts.push(`免疫${immuneCount}次`);
   parts.push(totalHpLoss > 0 ? `生命损失 ${Math.max(0, totalHpLoss - totalRegen)}` : "生命无损失");
   if (totalShieldLoss > 0) parts.push(`护盾承受 ${totalShieldLoss}`);
   if (totalRegen > 0) parts.push(`回复 ${totalRegen}`);
@@ -2266,6 +2395,7 @@ function defeatEnemy(enemy) {
   addLootNamesToCurrentBattle(drops);
   if (Array.isArray(defeatedIds)) defeatedIds.push(enemy.id);
   addBattleDetail(`${enemy.name} 被击败。`);
+  applyFormKillEffects();
   triggerKillSpecial(enemy);
   for (const drop of drops) {
     if (drop.kind === "shard") {
@@ -2278,6 +2408,16 @@ function defeatEnemy(enemy) {
   if (state.activeEnemyIds.length > 0) {
     state.enemyFlipDownIds.add(enemy.id);
   }
+}
+
+function applyFormKillEffects() {
+  const heal = getHeroFormLevelConfig().killHeal || 0;
+  if (heal <= 0) return;
+  const stats = getBattleStats(state.activeEnemyIds);
+  const beforeHp = state.player.hp;
+  state.player.hp = Math.min(stats.maxHp, state.player.hp + heal);
+  const healed = state.player.hp - beforeHp;
+  if (healed > 0) addBattleDetail(`${getHeroForm().label}形态击杀回血 ${healed}。`);
 }
 
 function markEnemyHit(enemyId) {
@@ -2374,6 +2514,8 @@ function addLootNamesToCurrentBattle(drops) {
 function finishCurrentBattle(result) {
   if (!state.currentBattle) return;
   const battle = state.currentBattle;
+  applyFormBattleEndEffects(result, battle);
+  settleFormProgressAfterBattle(result, battle);
   const hpDelta = state.player.hp - battle.startHp;
   const stats = getPlayerStats();
   const endHp = Math.min(state.player.hp, stats.maxHp);
@@ -2395,6 +2537,32 @@ function finishCurrentBattle(result) {
   state.activeEnemyIds = [];
   state.battleClock = null;
   resetBattleSpecial();
+}
+
+function applyFormBattleEndEffects(result, battle) {
+  if (result !== "victory") return;
+  const config = getHeroFormLevelConfig();
+  const defeatedCount = Array.isArray(battle.defeatedIds) ? battle.defeatedIds.length : 0;
+  if (config.afterVictoryMaxHp && defeatedCount > 0) {
+    const gain = config.afterVictoryMaxHp;
+    state.player.baseHp += gain;
+    state.player.hp += gain;
+    addBattleDetail(`${getHeroForm().label}形态战后生命上限 +${gain}。`);
+  }
+  if (config.afterVictoryHeal) {
+    const stats = getPlayerStats();
+    const beforeHp = state.player.hp;
+    state.player.hp = Math.min(stats.maxHp, state.player.hp + config.afterVictoryHeal);
+    const healed = state.player.hp - beforeHp;
+    if (healed > 0) addBattleDetail(`${getHeroForm().label}形态战后回血 ${healed}。`);
+  }
+}
+
+function settleFormProgressAfterBattle(result, battle) {
+  if (result === "defeat") return;
+  const defeatedCount = Array.isArray(battle.defeatedIds) ? battle.defeatedIds.length : 0;
+  if (defeatedCount <= 0) return;
+  addCurrentFormKill(defeatedCount);
 }
 
 function startBossRewardChoice(floor) {
@@ -2624,11 +2792,20 @@ function fleeBattle() {
   } else {
     addBattleDetail(`勇者跳过第${state.floor}层，进入下一层。`);
   }
+  applyFormFleeEffects();
   finishCurrentBattle("hero-fled");
   clearEnemyCardMotion();
   advanceFloor();
   saveGame();
   render();
+}
+
+function applyFormFleeEffects() {
+  const bonus = getHeroFormLevelConfig().fleeFilmBonus || 0;
+  if (bonus <= 0) return;
+  addFilmShards(bonus);
+  addLootNamesToCurrentBattle([{ kind: "shard", itemName: `胶卷碎片 +${bonus}`, amount: bonus }]);
+  addBattleDetail(`${getHeroForm().label}形态逃跑获得胶卷 +${(bonus / 10).toFixed(1)}。`);
 }
 
 function makeBattleClock(stats, enemies) {
@@ -2924,18 +3101,19 @@ function addFilmAmount(amount) {
 }
 
 function getHeroFormFilmShardBonus() {
-  if (getHeroForm()?.noFilmDrop) return 0;
-  return clampInt(getHeroForm()?.filmDropBonus || 0, -9, 9);
+  const config = getHeroFormLevelConfig();
+  if (config.noFilmDrop) return 0;
+  return clampInt(config.filmDropBonus || 0, -9, 9);
 }
 
 function getEnemyFilmShardDrop(enemy) {
-  if (getHeroForm()?.noFilmDrop) return 0;
+  if (getHeroFormLevelConfig().noFilmDrop) return 0;
   const baseShards = isBossDropEnemy(enemy) ? 10 : 1;
   return Math.max(0, baseShards + getGlobalFilmDropBonus() + getHeroFormFilmShardBonus());
 }
 
 function getEnemyBattleBonusShards(enemy) {
-  if (getHeroForm()?.noFilmDrop) return 0;
+  if (getHeroFormLevelConfig().noFilmDrop) return 0;
   const battle = state.currentBattle;
   if (!battle || battle.initialEnemyCount < 2 || getEnemyFilmShardDrop(enemy) <= 0) return 0;
   const defeatedCount = Array.isArray(battle.defeatedIds) ? battle.defeatedIds.length : 0;
@@ -2946,7 +3124,7 @@ function getEnemyBattleBonusShards(enemy) {
 }
 
 function getEnemySelectionBonusShards(enemy) {
-  if (getHeroForm()?.noFilmDrop || getEnemyFilmShardDrop(enemy) <= 0) return 0;
+  if (getHeroFormLevelConfig().noFilmDrop || getEnemyFilmShardDrop(enemy) <= 0) return 0;
   const order = getEnemySelectionOrder(enemy?.id);
   if (order <= 1) return 0;
   return order === 2 ? 1 : 2;
@@ -2959,6 +3137,96 @@ function getEnemyPreviewFilmShardDrop(enemy) {
 
 function getGlobalFilmDropBonus() {
   return clampInt(state.globalFilmDropBonus, 0, 999);
+}
+
+function createDefaultFormProgress() {
+  return Object.fromEntries(heroForms.map((form) => [form.id, { kills: 0, level: 1 }]));
+}
+
+function normalizeFormProgress(progress) {
+  const source = progress && typeof progress === "object" ? progress : {};
+  const result = createDefaultFormProgress();
+  for (const form of heroForms) {
+    const item = source[form.id] || {};
+    const kills = clampInt(item.kills, 0, heroFormUpgradeKills);
+    const level = item.level >= 2 || kills >= heroFormUpgradeKills ? 2 : 1;
+    result[form.id] = {
+      kills: level >= 2 ? heroFormUpgradeKills : kills,
+      level,
+    };
+  }
+  return result;
+}
+
+function getHeroFormProgress(formId = state.player.formId) {
+  if (!state.formProgress || typeof state.formProgress !== "object") {
+    state.formProgress = createDefaultFormProgress();
+  }
+  if (!state.formProgress[formId]) {
+    state.formProgress[formId] = { kills: 0, level: 1 };
+  }
+  return state.formProgress[formId];
+}
+
+function getHeroFormLevel(form = getHeroForm()) {
+  const progress = getHeroFormProgress(form?.id || defaultHeroFormId);
+  return progress.level >= 2 ? 2 : 1;
+}
+
+function getHeroFormLevelConfig(form = getHeroForm(), level = getHeroFormLevel(form)) {
+  return form?.levels?.[level] || form?.levels?.[1] || { stats: {}, effects: [] };
+}
+
+function getHeroFormEffectLines(form = getHeroForm(), level = getHeroFormLevel(form)) {
+  return getHeroFormLevelConfig(form, level).effects || [];
+}
+
+function getHeroFormProgressText(form = getHeroForm()) {
+  const progress = getHeroFormProgress(form.id);
+  if (progress.level >= 2) return `${heroFormUpgradeKills}/???`;
+  return `${Math.min(progress.kills, heroFormUpgradeKills)}/${heroFormUpgradeKills}`;
+}
+
+function getHeroFormLevelLabel(form = getHeroForm()) {
+  return `Lv.${getHeroFormLevel(form)}`;
+}
+
+function adjustHeroResourcesAfterStatChange(oldStats, newStats, oldShield = state.player.shield) {
+  if (!oldStats || !newStats) return;
+  const maxHpDelta = (newStats.maxHp || 0) - (oldStats.maxHp || 0);
+  if (maxHpDelta > 0) {
+    state.player.hp += maxHpDelta;
+  } else if (maxHpDelta < 0) {
+    state.player.hp = Math.min(state.player.hp, newStats.maxHp);
+  } else {
+    state.player.hp = Math.min(state.player.hp, newStats.maxHp);
+  }
+  state.player.hp = Math.max(0, Math.min(state.player.hp, newStats.maxHp));
+  const oldMaxShield = Math.max(0, oldStats.shield || 0);
+  const newMaxShield = Math.max(0, newStats.shield || 0);
+  if (newMaxShield > oldMaxShield) {
+    state.player.shield = Math.min(newMaxShield, Math.max(0, oldShield) + (newMaxShield - oldMaxShield));
+  } else {
+    state.player.shield = Math.min(Math.max(0, oldShield), newMaxShield);
+  }
+}
+
+function addCurrentFormKill(count = 1) {
+  const form = getHeroForm();
+  const progress = getHeroFormProgress(form.id);
+  if (progress.level >= 2) return false;
+  const oldStats = getPlayerStats();
+  const oldShield = state.player.shield;
+  progress.kills = Math.min(heroFormUpgradeKills, progress.kills + Math.max(0, clampInt(count, 0, 999)));
+  if (progress.kills >= heroFormUpgradeKills) {
+    progress.kills = heroFormUpgradeKills;
+    progress.level = 2;
+    const newStats = getPlayerStats();
+    adjustHeroResourcesAfterStatChange(oldStats, newStats, oldShield);
+    addBattleDetail(`${form.label}形态提升到 Lv.2。`);
+    return true;
+  }
+  return false;
 }
 
 function getPhotoValueMin() {
@@ -3098,7 +3366,7 @@ function getHeroStrikeCount() {
 
 function createBattleSimulation(enemies) {
   const stats = getBattleStatsForEnemiesWithSpecial(enemies, createDefaultBattleSpecial());
-  return {
+  const sim = {
     hp: state.player.hp,
     shield: stats.shield,
     battleSpecial: createDefaultBattleSpecial(),
@@ -3110,6 +3378,8 @@ function createBattleSimulation(enemies) {
     rounds: 0,
     defeatedCount: 0,
   };
+  applySimPreBattleFormEffects(sim, enemies);
+  return sim;
 }
 
 function cloneEnemyForSimulation(enemy) {
@@ -3140,14 +3410,9 @@ function simulateHeroStrike(sim, enemies, stats) {
 
     const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
     currentStats.maxHp += sim.maxHpBonus || 0;
-    const rawDamage = Math.max(0, currentStats.atk - enemy.def);
-    const shieldCrashDamage = getShieldCrashDamage(sim.shield);
-    let damage = rawDamage + shieldCrashDamage;
-    if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
-    const shieldLoss = Math.min(enemy.shield || 0, damage);
-    enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
-    const hpDamage = Math.max(0, damage - shieldLoss);
-    enemy.hp = Math.max(0, enemy.hp - hpDamage);
+    const hitResult = applySimHeroDamageToEnemy(sim, enemy, currentStats);
+    const shieldLoss = hitResult.shieldLoss;
+    const hpDamage = hitResult.hpDamage;
 
     const dealDamageGain = getTempSpecialGain("dealDamageAttack");
     if (shieldLoss + hpDamage > 0 && dealDamageGain > 0) {
@@ -3160,6 +3425,7 @@ function simulateHeroStrike(sim, enemies, stats) {
     }
 
     if (enemy.hp <= 0) {
+      simulateFormKillEffects(sim, currentStats);
       simulateKillSpecial(sim, currentStats);
       sim.activeIds = sim.activeIds.filter((id) => id !== enemy.id);
       sim.enemyTimes.delete(enemy.id);
@@ -3175,10 +3441,17 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
   const hitCount = getTraitValue(enemy, "multiHit", 1);
   for (let i = 0; i < hitCount; i += 1) {
     const damage = hasTrait(enemy, "magic") ? Math.max(0, enemy.atk) : Math.max(0, enemy.atk - stats.def);
-    const shieldLoss = hasTrait(enemy, "ignoreShield") ? 0 : Math.min(sim.shield, damage);
-    const hpLoss = damage - shieldLoss;
+    const immunity = getHeroFormLevelConfig().damageImmunity || 0;
+    const isImmune = sim.battleSpecial.damageImmuneUsed < immunity && damage > 0;
+    if (isImmune) sim.battleSpecial.damageImmuneUsed += 1;
+    const effectiveDamage = isImmune ? 0 : damage;
+    const shieldLoss = hasTrait(enemy, "ignoreShield") ? 0 : Math.min(sim.shield, effectiveDamage);
+    const hpLoss = effectiveDamage - shieldLoss;
     sim.shield -= shieldLoss;
     sim.hp = Math.max(0, sim.hp - hpLoss);
+    if (shieldLoss > 0 && getHeroFormLevelConfig().shieldLossToHeal) {
+      sim.hp = Math.min(stats.maxHp, sim.hp + shieldLoss);
+    }
     const takeDamageGain = getTempSpecialGain("takeDamageDefense");
     if (shieldLoss + hpLoss > 0 && takeDamageGain > 0) {
       const cap = getTempSpecialCap("takeDamageDefense");
@@ -3198,6 +3471,41 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
   if (monsterRegen > 0 && enemy.hp > 0) {
     enemy.hp = Math.min(enemy.maxHp, enemy.hp + monsterRegen);
   }
+}
+
+function applySimHeroDamageToEnemy(sim, enemy, stats) {
+  const rawDamage = Math.max(0, stats.atk - getEffectiveEnemyDefense(enemy, stats));
+  const shieldCrashDamage = getShieldCrashDamage(sim.shield);
+  let damage = rawDamage + shieldCrashDamage;
+  if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
+  const shieldLoss = Math.min(enemy.shield || 0, damage);
+  enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
+  const hpDamage = Math.max(0, damage - shieldLoss);
+  enemy.hp = Math.max(0, enemy.hp - hpDamage);
+  return { rawDamage, shieldCrashDamage, shieldLoss, hpDamage };
+}
+
+function applySimPreBattleFormEffects(sim, enemies) {
+  if (!getHeroFormLevelConfig().preBattleStrike || sim.battleSpecial.preBattleStruck) return;
+  sim.battleSpecial.preBattleStruck = true;
+  for (const enemy of enemies.filter((item) => sim.activeIds.includes(item.id))) {
+    if (enemy.hp <= 0) continue;
+    const stats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
+    stats.maxHp += sim.maxHpBonus || 0;
+    applySimHeroDamageToEnemy(sim, enemy, stats);
+    if (enemy.hp <= 0) {
+      simulateFormKillEffects(sim, stats);
+      simulateKillSpecial(sim, stats);
+      sim.activeIds = sim.activeIds.filter((id) => id !== enemy.id);
+      sim.enemyTimes.delete(enemy.id);
+      sim.defeatedCount += 1;
+    }
+  }
+}
+
+function simulateFormKillEffects(sim, stats) {
+  const heal = getHeroFormLevelConfig().killHeal || 0;
+  if (heal > 0) sim.hp = Math.min(stats.maxHp, sim.hp + heal);
 }
 
 function simulateKillSpecial(sim, stats) {
@@ -3266,6 +3574,8 @@ function applyFloorShield() {
 }
 
 function createDefaultPlayer() {
+  const defaultForm = heroFormMap.get(defaultHeroFormId);
+  const defaultStats = defaultForm?.levels?.[1]?.stats || {};
   const player = {
     formId: defaultHeroFormId,
     baseHp: 50,
@@ -3279,19 +3589,27 @@ function createDefaultPlayer() {
     shield: 0,
     shieldMonsterId: "",
   };
-  player.hp = getPlayerMaxHpFromRaw(player);
-  player.shield = getPlayerShieldFromRaw(player);
+  player.hp = player.baseHp + (defaultStats.hp || 0);
+  player.shield = player.baseShield + (defaultStats.shield || 0);
   return player;
 }
 
 function getPlayerMaxHpFromRaw(player) {
   const form = heroFormMap.get(player?.formId) || heroFormMap.get(defaultHeroFormId);
-  return (Number.isFinite(player?.baseHp) ? player.baseHp : 50) + (form?.stats?.hp || 0);
+  const formStats = getHeroFormStatsFor(form);
+  const equipmentStats = getInventoryStatBonus();
+  return (Number.isFinite(player?.baseHp) ? player.baseHp : 50)
+    + (formStats.hp || 0)
+    + (equipmentStats.hp || 0);
 }
 
 function getPlayerShieldFromRaw(player) {
   const form = heroFormMap.get(player?.formId) || heroFormMap.get(defaultHeroFormId);
-  return (Number.isFinite(player?.baseShield) ? player.baseShield : 0) + (form?.stats?.shield || 0);
+  const formStats = getHeroFormStatsFor(form);
+  const equipmentStats = getInventoryStatBonus();
+  return (Number.isFinite(player?.baseShield) ? player.baseShield : 0)
+    + (formStats.shield || 0)
+    + (equipmentStats.shield || 0);
 }
 
 function resetGame() {
@@ -3312,6 +3630,7 @@ function resetGame() {
   state.currentBattle = null;
   state.infoMode = "item";
   state.bossReward = null;
+  state.formProgress = createDefaultFormProgress();
   state.photoValueMin = defaultPhotoValueMin;
   state.photoValueMax = defaultPhotoValueMax;
   state.globalFilmDropBonus = 0;
@@ -3351,18 +3670,11 @@ function getPlayerStats() {
 }
 
 function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpecial()) {
-  const equippedItems = getEquippedItems();
   const bonus = { ...getHeroFormStats() };
-  equippedItems.reduce((sum, item) => {
-    for (const key of statOrder) {
-      sum[key] = (sum[key] || 0) + (item.stats?.[key] || 0);
-    }
-    const effectStats = getItemSpecialStats(item);
-    for (const key of statOrder) {
-      sum[key] = (sum[key] || 0) + (effectStats[key] || 0);
-    }
-    return sum;
-  }, bonus);
+  const inventoryBonus = getInventoryStatBonus();
+  for (const key of statOrder) {
+    bonus[key] = (bonus[key] || 0) + (inventoryBonus[key] || 0);
+  }
 
   const passiveAttackPenalty = getEquippedPhotoEffectInstances("shieldCrashAttackDown")
     .reduce((sum, { effect }) => sum + Math.abs(effect.amount || 0), 0);
@@ -3380,12 +3692,36 @@ function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpec
   };
 }
 
+function getEffectiveEnemyDefense(enemy, stats = getBattleStats(state.activeEnemyIds)) {
+  const ratio = getHeroFormLevelConfig().ignoreDefenseRatio || 0;
+  const ignored = Math.floor(Math.max(0, enemy?.def || 0) * ratio);
+  return (enemy?.def || 0) - ignored;
+}
+
 function getHeroForm() {
   return heroFormMap.get(state.player.formId) || heroFormMap.get(defaultHeroFormId);
 }
 
 function getHeroFormStats() {
-  return normalizeStats(getHeroForm()?.stats || {}, 999);
+  return normalizeStats(getHeroFormLevelConfig().stats || {}, 999);
+}
+
+function getHeroFormStatsFor(form = getHeroForm()) {
+  return normalizeStats(getHeroFormLevelConfig(form).stats || {}, 999);
+}
+
+function getInventoryStatBonus() {
+  const bonus = normalizeStats({}, 999);
+  for (const item of getEquippedItems()) {
+    for (const key of statOrder) {
+      bonus[key] += item.stats?.[key] || 0;
+    }
+    const effectStats = getItemSpecialStats(item);
+    for (const key of statOrder) {
+      bonus[key] += effectStats[key] || 0;
+    }
+  }
+  return bonus;
 }
 
 function getHeroFormImageUrl(form = getHeroForm()) {
@@ -3399,7 +3735,7 @@ function setHeroForm(formId) {
   const oldShield = state.player.shield;
   const targetForm = heroFormMap.get(formId);
   const currentForm = getHeroForm();
-  const hpLoss = (currentForm?.stats?.hp || 0) - (targetForm?.stats?.hp || 0);
+  const hpLoss = (getHeroFormLevelConfig(currentForm).stats?.hp || 0) - (getHeroFormLevelConfig(targetForm).stats?.hp || 0);
   if (hpLoss > 0 && state.player.hp <= hpLoss) {
     addBattleEvent("当前生命不足，无法切换会降低生命上限的形态。", "info");
     render();
@@ -4708,15 +5044,18 @@ function renderHeroForms() {
   els.formGrid.innerHTML = "";
   const currentForm = getHeroForm();
   document.querySelectorAll("[data-form-label]").forEach((node) => {
-    node.textContent = `${currentForm.label}形态`;
+    node.textContent = `${currentForm.label}形态 · ${getHeroFormLevelLabel(currentForm)} · ${getHeroFormProgressText(currentForm)}`;
   });
 
   for (const form of heroForms) {
+    const level = getHeroFormLevel(form);
+    const progressText = getHeroFormProgressText(form);
+    const effectLines = getHeroFormEffectLines(form, level);
     const button = document.createElement("button");
     button.className = "form-card";
     button.type = "button";
     button.dataset.formId = form.id;
-    const hpLoss = (currentForm?.stats?.hp || 0) - (form?.stats?.hp || 0);
+    const hpLoss = (getHeroFormLevelConfig(currentForm).stats?.hp || 0) - (getHeroFormLevelConfig(form).stats?.hp || 0);
     const locked = isPlayerDefeated() || Boolean(state.bossReward) || (hpLoss > 0 && state.player.hp <= hpLoss);
     button.disabled = locked;
     button.setAttribute("aria-pressed", String(form.id === currentForm.id));
@@ -4727,9 +5066,16 @@ function renderHeroForms() {
     img.src = getHeroFormImageUrl(form);
     img.alt = `${form.label}形态`;
 
-    const copy = document.createElement("span");
+    const copy = document.createElement("div");
     copy.className = "form-copy";
-    copy.innerHTML = `<strong>${escapeHtml(form.label)}</strong><small>${escapeHtml(form.desc)}</small>`;
+    copy.innerHTML = `
+      <div class="form-card-head">
+        <strong>${escapeHtml(form.label)}</strong>
+        <b>${escapeHtml(getHeroFormLevelLabel(form))}</b>
+      </div>
+      <small>${escapeHtml(progressText)}</small>
+      <span>${effectLines.map((line) => `<i>${escapeHtml(line)}</i>`).join("")}</span>
+    `;
 
     button.append(img, copy);
     button.addEventListener("click", () => setHeroForm(form.id));
@@ -4979,9 +5325,12 @@ function renderGameTextOnly() {
       form: {
         id: getHeroForm().id,
         label: getHeroForm().label,
+        level: getHeroFormLevel(),
+        progress: getHeroFormProgressText(),
+        effects: getHeroFormEffectLines(),
         stats: getHeroFormStats(),
         filmDropBonus: getHeroFormFilmShardBonus() / 10,
-        noFilmDrop: Boolean(getHeroForm()?.noFilmDrop),
+        noFilmDrop: Boolean(getHeroFormLevelConfig().noFilmDrop),
       },
       stats: getPlayerStats(),
       equipmentCount: inventoryItems.length,
@@ -5139,6 +5488,7 @@ function saveGame() {
     photoValueMin: state.photoValueMin,
     photoValueMax: state.photoValueMax,
     globalFilmDropBonus: state.globalFilmDropBonus,
+    formProgress: state.formProgress,
     battleSpeed: getBattleSpeed(),
     filmShards: state.filmShards,
     filmRolls: state.filmRolls,
@@ -5173,10 +5523,11 @@ function loadSave() {
   state.photoValueMin = clampInt(save.photoValueMin, defaultPhotoValueMin, 999);
   state.photoValueMax = Math.max(state.photoValueMin, clampInt(save.photoValueMax, defaultPhotoValueMax, 999));
   state.globalFilmDropBonus = clampInt(save.globalFilmDropBonus, 0, 999);
+  state.formProgress = normalizeFormProgress(save.formProgress);
   state.battleSpeed = battleSpeedOptions.includes(save.battleSpeed) ? save.battleSpeed : 1;
+  state.inventory = normalizeInventorySlots(save.inventory);
   state.player = normalizePlayer(save.player || state.player);
   state.runSeed = typeof save.runSeed === "string" && save.runSeed ? save.runSeed : makeRunSeed();
-  state.inventory = normalizeInventorySlots(save.inventory);
   state.selectedSlotIndex = clampSlotIndex(save.selectedSlotIndex);
   state.pendingPhotoSlotIndex = clampSlotIndex(save.pendingPhotoSlotIndex ?? state.selectedSlotIndex);
   state.selectedItemId = state.inventory[state.selectedSlotIndex]?.id || "";
@@ -5450,6 +5801,24 @@ window.__photoHeroTestHooks = {
     saveGame();
     render();
   },
+  setFormProgress(next = {}) {
+    state.formProgress = normalizeFormProgress(next);
+    const stats = getPlayerStats();
+    state.player.hp = Math.min(state.player.hp, stats.maxHp);
+    state.player.shield = Math.min(state.player.shield, stats.shield);
+    saveGame();
+    render();
+  },
+  addFormKills(count = 1) {
+    const upgraded = addCurrentFormKill(count);
+    saveGame();
+    render();
+    return upgraded;
+  },
+  getFormProgress() {
+    return JSON.parse(JSON.stringify(state.formProgress));
+  },
+  getPlayerStats,
   startBossRewardChoice,
   chooseBossReward,
   balanceItem,
