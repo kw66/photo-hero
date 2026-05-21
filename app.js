@@ -93,6 +93,12 @@ const battleSpeedOptions = [1, 2, 4];
 const battleRoundBaseMs = 1000;
 const battleHitEffectMs = 260;
 const battleRoundLimitsByEnemyCount = [0, 100, 150, 200];
+const bossBattleRoundLimit = 200;
+const visionTestTimeoutMs = 30000;
+const photoAnalyzeTimeoutMs = 45000;
+const duplicateCompareTimeoutMs = 20000;
+const imageDecodeTimeoutMs = 15000;
+const uploadImageMaxBytes = 24 * 1024 * 1024;
 const analysisImageMaxEdge = 1024;
 const analysisImageQuality = 0.78;
 const inventoryImageMaxEdge = 420;
@@ -166,7 +172,8 @@ const photoIdentificationSystemPrompt = [
   "你必须只输出一个 JSON 对象，不要 Markdown，不要代码块，不要额外解释。",
   "第一字符必须是 {，最后一个字符必须是 }。",
   "你不负责计算最终价值、最终属性点或最终特殊效果；这些数值由本地游戏规则统一结算。",
-  "你的目标不是保守拒绝，而是把照片里的主要主体转成有趣、可解释的装备素材；高分不只给手持生活用品，也可以给清晰有趣的小型自然物、玩具、模型、贴纸、图案、摆件和可搬动物；只有明显比人大的主体或纯场景才判为不可装备。",
+  "你的目标不是保守拒绝，而是把玩家亲自拍到的现实主体转成有趣、可解释的装备素材；高分奖励现实实拍、主体清楚、近距离、背景干净、有互动感的小物件。",
+  "不要奖励网图、搜索图、截图、游戏装备图、AI 渲染图、插画、卡牌素材或纯虚拟道具；这些不是现实物体，不能因为画得酷就当成强装备。",
 ].join("\n");
 
 const photoIdentificationUserPrompt = [
@@ -174,10 +181,12 @@ const photoIdentificationUserPrompt = [
   "",
   "识别规则：",
   "1. 先找画面中最大、最清楚、最像单个实体的主体；忽略背景、桌面、墙面和边缘杂物。",
-  "2. 主体尺寸小于或接近手持/桌面/可搬动小物时，isEquipable=true，即使它普通、破旧、卡通、包装、屏幕画面、贴纸、玩具、模型、小型植物、石头、叶片或装饰物也可以。",
+  "2. 主体尺寸小于或接近手持/桌面/可搬动小物时，isEquipable=true，即使它普通、破旧、包装、贴纸、玩具、模型、小型植物、石头、叶片或装饰物也可以。",
   "3. 真实汽车、公交、火车、飞机、船、整栋建筑、整间房、床、沙发、冰箱、道路、天空、山海河湖等人尺寸以上主体必须 isEquipable=false。",
   "4. 如果图片里有巨大背景但前景有明确小物品，优先鉴定前景小物品，不要因为背景过大而拒绝。",
-  "5. 如果画面是卡通图案、贴纸、屏幕里的图案、包装上的图案，请鉴定承载它的小物品或图案本身，除非整张图只是大场景。",
+  "5. 如果画面只是网页、相册、截图、游戏界面、游戏装备卡图、AI 渲染、插画、原画、透明背景素材或白底电商图，说明它不是玩家拍到的现实物体：isEquipable=false，realPhoto=0 或 1，specialAffinity=[]。",
+  "6. 如果玩家拍到的是现实中的纸质卡片、贴纸、包装、海报或屏幕载体，主体应写成卡片/贴纸/包装/屏幕本身，不要把里面的幻想武器、角色或游戏道具当成实物；这类载体通常只给低 photoQuality、低 statAffinity，specialAffinity=[]。",
+  "7. 现实玩具、模型、手办、摆件、道具、纸板/塑料/金属小物可以正常鉴定；关键是它必须像真实存在、可触碰、被玩家实际拍摄的物体。",
   "",
   "必须输出这个 JSON 结构，字段名使用英文：",
   "{\"itemName\":\"短装备名\",\"subjectName\":\"照片主体\",\"objectType\":\"主体物品类型\",\"identityDescription\":\"用于判断是否同一个现实物体的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
@@ -192,11 +201,12 @@ const photoIdentificationUserPrompt = [
   "",
   "照片质量 photoQuality：",
   "clarity 主体清楚程度 0-3；subjectArea 主体占图面积 0-3；backgroundClean 背景干净 0-2；realPhoto 现实实拍感 0-3；focusLight 光线/对焦 0-2；interesting 有趣、让人想装备 0-2。",
-  "评分校准：只有主体边缘清晰且不需猜测时 clarity=3；主体占画面接近一半或更大时 subjectArea=3；背景几乎不抢主体时 backgroundClean=2；确实像玩家亲自拍摄的现实物体时 realPhoto=3；普通但不惊喜的物品 interesting 通常只能给 0 或 1。",
+  "评分校准：只有主体边缘清晰且不需猜测时 clarity=3；主体占画面接近一半或更大时 subjectArea=3；如果画面里有多个显眼物品、主体只是其中一个、或主体占比不到三分之一，subjectArea 通常只能给 1；背景和其他物品明显抢注意力时 backgroundClean=0 或 1，不能给 2；确实像玩家亲自拍摄的现实物体时 realPhoto=3；普通但不惊喜的物品 interesting 通常只能给 0 或 1。",
   "高分应该奖励玩家主动拍好的照片：主体明确、近距离、主体占比大、背景干净、光线清楚、物品或主体有互动感、故事感或装备联想；不要只按物品贵不贵、是不是生活用品来评分。",
-  "请主动拉开分值：随手拍、主体偏小或普通背景通常总分 6-9；主体清楚但构图一般通常 9-12；主体很清楚且有装备联想通常 12-14；只有清晰、近景、背景干净、实拍感强且有趣的照片才给 14-15。",
-  "如果主体模糊、占比小、背景杂、只是屏幕/海报/风景/大场景的一小部分，或只是抽象光斑/远景纹理，应降低 clarity、subjectArea、backgroundClean、realPhoto 或 interesting。",
-  "普通生活用品、自然小物、玩具模型、贴纸图案、桌面摆件只要清晰拍好都可以高分；昂贵物、宏大景观、真实载具、人物整体、抽象光影即使好看，也不能因为好看就高分。",
+  "请主动拉开分值：随手拍、主体偏小、物品很多或普通背景通常总分 6-9；主体清楚但构图一般通常 9-12；主体很清楚且有装备联想通常 12-14；只有主体近景占比大、背景干净、实拍感强且有趣的照片才给 14-15。",
+  "如果主体模糊、占比小、背景杂、只是风景/大场景的一小部分，或只是抽象光斑/远景纹理，应降低 clarity、subjectArea、backgroundClean、realPhoto 或 interesting。",
+  "网图、搜索图、截图、游戏装备图、AI 渲染图、插画、卡牌素材、透明背景图、白底商品图的 realPhoto 必须很低；即使画面精美、武器很酷，也不能给高分或特殊效果。",
+  "普通生活用品、自然小物、现实玩具模型、现实贴纸/包装/桌面摆件只要清晰拍好都可以高分；昂贵物、宏大景观、真实载具、人物整体、抽象光影、虚拟装备图即使好看，也不能因为好看就高分。",
   "",
   "属性语义：",
   "statAffinity 只输出属性倾向，score 用 1-3，最多 3 项。可选 stat：hp、attack、defense、speed、shield、lifesteal、regen。",
@@ -213,7 +223,8 @@ const photoIdentificationUserPrompt = [
   "",
   `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}(价值${effect.value})`).join("；")}。`,
   "特殊效果只给语义很强的候选，普通物品可以 specialAffinity=[]；不要为了显得厉害乱给特殊效果。",
-  "工具、武器、越打越顺手的物品可选 dealDamageAttack；盾牌、外壳、硬保护物可选 takeDamageDefense 或 shieldCrashAttackDown；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、成对/双件/高速物品可选 doubleStrikeSpeedDown。",
+  "工具、现实玩具/模型武器、越打越顺手的现实物品可选 dealDamageAttack；盾牌、外壳、硬保护物可选 takeDamageDefense 或 shieldCrashAttackDown；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、成对/双件/高速物品可选 doubleStrikeSpeedDown。",
+  "不要给网图、截图、游戏装备图、AI 渲染图、插画、卡牌素材 specialAffinity；现实卡片/贴纸/包装上的幻想武器也不要因为图案像武器就给强攻击或特殊效果。",
   "",
   "命名和描述：",
   "itemName、subjectName、objectType、description、reason、tags 都用中文；只有图片主体本身是英文品牌/文字时，才可保留必要英文。",
@@ -351,7 +362,7 @@ const monsterTypes = {
   patrol: { name: "警卫", atk: 16, def: 6, hp: 50, speed: 4, traits: [{ type: "ignoreShield", text: "无视护盾" }] },
   octopus: { name: "章鱼", atk: 18, def: 0, hp: 120, speed: 3, traits: [{ type: "regen", value: 20, text: "回复20" }] },
   dragon: { name: "魔龙", atk: 24, def: 10, hp: 80, speed: 4, traits: [{ type: "heroSpeedDown", value: 3, text: "龙威：勇士速度-3" }] },
-  vampire: { name: "吸血鬼", atk: 15, def: 6, hp: 66, speed: 7, traits: [{ type: "lifesteal", value: 6, text: "吸血6" }] },
+  vampire: { name: "吸血鬼", atk: 15, def: 0, hp: 66, speed: 7, traits: [{ type: "lifesteal", value: 6, text: "吸血6" }] },
   demon: { name: "魔王", atk: 25, def: 15, hp: 75, speed: 5, traits: [{ type: "heroAttackDown", value: 5, text: "压制：勇士攻击-5" }] },
   orc: { name: "兽人", atk: 10, def: 8, hp: 60, speed: 3, traits: [{ type: "regen", value: 4, text: "回复4" }] },
   swordsman: { name: "剑士", atk: 30, def: 0, hp: 20, speed: 6, traits: [{ type: "multiHit", value: 2, text: "连击2" }] },
@@ -493,6 +504,7 @@ const state = {
   battleStartTimer: 0,
   floorAdvanceTimer: 0,
   pendingFloorAdvance: false,
+  analysisRequest: null,
 };
 
 loadConfig();
@@ -557,7 +569,13 @@ function bindEvents() {
   els.fleeBtn.addEventListener("click", fleeBattle);
   els.resetGameBtn.addEventListener("click", resetGame);
   els.photoActionBtn.addEventListener("click", openPhotoPickerForSelectedSlot);
-  els.analyzePhotoBtn.addEventListener("click", analyzePhoto);
+  els.analyzePhotoBtn.addEventListener("click", () => {
+    if (isAnalyzingPhoto()) {
+      cancelAnalyzePhoto();
+      return;
+    }
+    analyzePhoto();
+  });
   els.pendingPhotoPreview.addEventListener("click", () => openImageViewer(state.lastPhoto, "待鉴定照片"));
   els.discardItemBtn.addEventListener("click", dismantleSelectedItem);
   els.imageViewer.addEventListener("click", closeImageViewer);
@@ -617,7 +635,7 @@ function toggleApiKeyVisibility() {
 }
 
 function setSecondaryPanel(panelId) {
-  const target = ["config", "forms"].includes(panelId) ? panelId : "";
+  const target = ["config", "forms", "info"].includes(panelId) ? panelId : "";
   els.secondaryArea.classList.toggle("is-collapsed", !target);
 
   document.querySelectorAll(".secondary-content").forEach((panel) => {
@@ -833,25 +851,24 @@ async function callVisionText(config, image) {
   });
 
   try {
-    response = await fetch(buildChatEndpoint(config.baseUrl), {
+    response = await fetchJsonWithTimeout(buildChatEndpoint(config.baseUrl), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify(body),
-    });
+    }, visionTestTimeoutMs, "图文模型测试");
   } catch (error) {
-    throw new Error(
-      `浏览器直连失败：${error.message || "请求被浏览器拦截"}。如果这是 CORS 错误，说明该 API 不允许网页直接调用。`,
-    );
+    if (isAbortError(error) || isTimeoutError(error)) throw error;
+    throw new Error(`浏览器直连失败：${error.message || "请求被浏览器拦截"}。如果这是 CORS 错误，说明该 API 不允许网页直接调用。`);
   }
 
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(readUpstreamError(payload) || `模型接口返回 ${response.status}`);
+  if (!response.response.ok) {
+    throw new Error(readUpstreamError(response.payload) || `模型接口返回 ${response.response.status}`);
   }
 
+  const payload = response.payload;
   const content = readModelText(payload);
   if (content) return content;
   const reasoning = readModelText(payload, { reasoningOnly: true });
@@ -970,14 +987,18 @@ async function analyzePhoto() {
   }
 
   saveConfig(false);
+  const request = startAnalysisRequest();
   setBusy("鉴定中...");
   render();
   try {
-    const item = await analyzeDirectly(config, state.lastPhoto);
+    const item = await analyzeDirectly(config, state.lastPhoto, { signal: request.controller.signal });
+    if (request.id !== state.analysisRequest?.id) return;
     const inventoryImage = await makeInventoryImage(state.lastPhoto);
+    if (request.id !== state.analysisRequest?.id) return;
     const balancedItem = balanceItem({ ...item, photoKey }, inventoryImage);
     balancedItem.image = inventoryImage;
-    const duplicate = await findDuplicateIdentifiedItem(balancedItem, config);
+    const duplicate = await findDuplicateIdentifiedItem(balancedItem, config, request.controller.signal);
+    if (request.id !== state.analysisRequest?.id) return;
     if (duplicate) {
       throw new Error(`这个物品已经鉴定过：${formatItemDisplayName(duplicate)}。请拍摄新的物品。`);
     }
@@ -986,13 +1007,17 @@ async function analyzePhoto() {
     }
     receiveItem(balancedItem, "鉴定完成。");
   } catch (error) {
+    if (request.id !== state.analysisRequest?.id && isAbortError(error)) return;
     const message = normalizeAnalyzeError(error);
     showLootError(`鉴定失败：${message}（胶卷未消耗）`);
     addLog(`鉴定失败：${message}（胶卷未消耗）`);
     clearPendingPhoto();
   } finally {
-    setBusy("");
-    render();
+    if (request.id === state.analysisRequest?.id) {
+      finishAnalysisRequest(request.id);
+      setBusy("");
+      render();
+    }
   }
 }
 
@@ -1004,6 +1029,8 @@ function isLikelyVisionModel(config) {
 
 function normalizeAnalyzeError(error) {
   const message = error?.message || "未知错误";
+  if (isAbortError(error)) return "鉴定已取消。";
+  if (isTimeoutError(error)) return message;
   if (
     message.includes("unknown variant `image_url`") ||
     message.includes("expected `text`") ||
@@ -1024,7 +1051,41 @@ function clearPendingPhoto() {
   state.pendingPhotoSlotIndex = getSelectedSlotIndex();
 }
 
-async function analyzeDirectly(config, image) {
+function isAnalyzingPhoto() {
+  return Boolean(state.analysisRequest);
+}
+
+function startAnalysisRequest() {
+  finishAnalysisRequest();
+  const request = {
+    id: makeId("analysis"),
+    controller: new AbortController(),
+    startedAt: Date.now(),
+  };
+  state.analysisRequest = request;
+  return request;
+}
+
+function finishAnalysisRequest(id = "") {
+  if (id && state.analysisRequest?.id !== id) return;
+  state.analysisRequest = null;
+}
+
+function cancelAnalyzePhoto() {
+  if (!state.analysisRequest) return;
+  const request = state.analysisRequest;
+  request.controller.abort();
+  finishAnalysisRequest(request.id);
+  const message = "已取消鉴定，胶卷未消耗。";
+  showLootError(message);
+  addLog(message);
+  clearPendingPhoto();
+  setBusy("");
+  saveGame();
+  render();
+}
+
+async function analyzeDirectly(config, image, options = {}) {
   let response;
   const body = withProviderRequestOptions(config, {
     model: config.model,
@@ -1052,25 +1113,25 @@ async function analyzeDirectly(config, image) {
   });
 
   try {
-    response = await fetch(buildChatEndpoint(config.baseUrl), {
+    response = await fetchJsonWithTimeout(buildChatEndpoint(config.baseUrl), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify(body),
-    });
+      signal: options.signal,
+    }, photoAnalyzeTimeoutMs, "照片鉴定");
   } catch (error) {
-    throw new Error(
-      `浏览器直连失败：${error.message || "请求被浏览器拦截"}。常见原因是模型服务没有允许 CORS。`,
-    );
+    if (isAbortError(error) || isTimeoutError(error)) throw error;
+    throw new Error(`浏览器直连失败：${error.message || "请求被浏览器拦截"}。常见原因是模型服务没有允许 CORS。`);
   }
 
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(readUpstreamError(payload) || `模型接口返回 ${response.status}`);
+  if (!response.response.ok) {
+    throw new Error(readUpstreamError(response.payload) || `模型接口返回 ${response.response.status}`);
   }
 
+  const payload = response.payload;
   const finalText = readModelText(payload);
   if (finalText) return extractJson(finalText, payload);
 
@@ -1082,7 +1143,7 @@ async function analyzeDirectly(config, image) {
   return extractJson("", payload);
 }
 
-async function compareIdentifiedObjects(config, currentItem, knownItem) {
+async function compareIdentifiedObjects(config, currentItem, knownItem, signal = null) {
   if (!currentItem?.image || !knownItem?.image) return false;
   let response;
   const prompt = [
@@ -1112,20 +1173,21 @@ async function compareIdentifiedObjects(config, currentItem, knownItem) {
   });
 
   try {
-    response = await fetch(buildChatEndpoint(config.baseUrl), {
+    response = await fetchJsonWithTimeout(buildChatEndpoint(config.baseUrl), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify(body),
-    });
+      signal,
+    }, duplicateCompareTimeoutMs, "重复物品比对");
   } catch {
     return false;
   }
 
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) return false;
+  const payload = response.payload;
+  if (!response.response.ok) return false;
   const text = readModelText(payload) || readModelText(payload, { reasoningOnly: true });
   let parsed = null;
   for (const candidate of collectJsonCandidates(text)) {
@@ -1153,6 +1215,46 @@ function shouldDisableThinking(config) {
   const baseUrl = String(config?.baseUrl || "").toLowerCase();
   const model = String(config?.model || "").toLowerCase();
   return preset === "siliconflow" || baseUrl.includes("siliconflow") || model.includes("qwen");
+}
+
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 30000, label = "请求") {
+  const upstreamSignal = options.signal || null;
+  if (upstreamSignal?.aborted) {
+    throw new DOMException("请求已取消。", "AbortError");
+  }
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => {
+    controller.abort(new DOMException(`${label}超时。`, "TimeoutError"));
+  }, timeoutMs);
+
+  const abortFromUpstream = () => controller.abort(upstreamSignal.reason || new DOMException("请求已取消。", "AbortError"));
+  if (upstreamSignal) upstreamSignal.addEventListener("abort", abortFromUpstream, { once: true });
+
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const payload = await response.json().catch(() => null);
+    return { response, payload };
+  } catch (error) {
+    if (isAbortError(error)) {
+      if (upstreamSignal?.aborted) {
+        throw new DOMException("请求已取消。", "AbortError");
+      }
+      throw new Error(`${label}超过${Math.round(timeoutMs / 1000)}秒没有响应，请重试或换一张更简单清晰的照片。`);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+    if (upstreamSignal) upstreamSignal.removeEventListener("abort", abortFromUpstream);
+  }
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError";
+}
+
+function isTimeoutError(error) {
+  return error?.name === "TimeoutError" || /超时|timeout/i.test(error?.message || "");
 }
 
 function buildChatEndpoint(input) {
@@ -1344,6 +1446,10 @@ function collectJsonCandidates(text) {
     }
   }
 
+  if (start >= 0) {
+    candidates.push(normalized.slice(start).trim());
+  }
+
   return [...new Set(candidates.filter(Boolean))];
 }
 
@@ -1365,12 +1471,76 @@ function makeJsonVariants(candidate) {
     .trim()
     .replace(/^\uFEFF/, "")
     .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'");
+    .replace(/[‘’]/g, "'")
+    .replace(/^\s*JSON\s*[:：]\s*/i, "");
   const relaxed = base
     .replace(/,\s*([}\]])/g, "$1")
     .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":')
     .replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, ': "$1"');
-  return [...new Set([base, relaxed])];
+  const variants = [base, relaxed];
+  for (const text of [base, relaxed]) {
+    variants.push(...makeJsonCompletionVariants(text));
+  }
+  return [...new Set(variants.filter(Boolean))];
+}
+
+function makeJsonCompletionVariants(text) {
+  const source = String(text || "").trim();
+  if (!source || !source.includes("{")) return [];
+  const variants = [];
+  const sliced = source.slice(source.indexOf("{"));
+  const closingIndex = Math.max(sliced.lastIndexOf("}"), sliced.lastIndexOf("]"));
+  if (closingIndex >= 0) variants.push(sliced.slice(0, closingIndex + 1));
+
+  const fixed = completeLikelyJsonObject(sliced);
+  if (fixed && fixed !== sliced) variants.push(fixed);
+  return variants;
+}
+
+function completeLikelyJsonObject(text) {
+  let source = String(text || "").trim();
+  if (!source.startsWith("{")) return "";
+
+  let objectDepth = 0;
+  let arrayDepth = 0;
+  let inString = false;
+  let quote = "";
+  let escaped = false;
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quote) {
+        inString = false;
+        quote = "";
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      inString = true;
+      quote = char;
+      continue;
+    }
+    if (char === "{") objectDepth += 1;
+    if (char === "}") objectDepth = Math.max(0, objectDepth - 1);
+    if (char === "[") arrayDepth += 1;
+    if (char === "]") arrayDepth = Math.max(0, arrayDepth - 1);
+  }
+
+  if (inString) source += quote || '"';
+  source = source.replace(/,\s*$/, "");
+  while (arrayDepth > 0) {
+    source += "]";
+    arrayDepth -= 1;
+  }
+  while (objectDepth > 0) {
+    source += "}";
+    objectDepth -= 1;
+  }
+  return source;
 }
 
 function pickJsonObject(value) {
@@ -1585,6 +1755,134 @@ function isClearlySmallModelOrPatternText(text) {
   return /(?:手持|桌面|小型|小物|可搬动|pocket|handheld|tabletop|small|miniature|toy)/i.test(source);
 }
 
+function getVirtualImagePenalty(text, photoQuality = {}) {
+  const source = String(text || "");
+  if (!source.trim()) {
+    return { level: "none", noEffect: false, cap: null, suppressSpecial: false, description: "" };
+  }
+  const quality = normalizePhotoQuality(photoQuality);
+  const physicalCarrier = isPhysicalImageCarrierText(source);
+  const realObjectEvidence = isRealObjectPhotoEvidenceText(source);
+  const realToyOrProp = isRealToyModelOrPropText(source);
+  const screenshot = isScreenshotOnlyText(source);
+  const digitalImage = isWebOrDigitalImageText(source);
+  const gameArt = isGameOrCardArtText(source);
+  const fantasyEquipment = isFantasyEquipmentImageText(source);
+  const lowRealismFantasy = quality.realPhoto <= 1 && (gameArt || fantasyEquipment || isImageLikeSubjectText(source));
+  const explicitDigital = digitalImage || gameArt || isScreenshotOnlyText(source);
+
+  if (screenshot) {
+    return makeVirtualImagePenalty("noEffect");
+  }
+
+  if (explicitDigital && !physicalCarrier && !realToyOrProp) {
+    return makeVirtualImagePenalty("noEffect");
+  }
+
+  if ((digitalImage || gameArt || lowRealismFantasy) && !physicalCarrier && !realToyOrProp && !realObjectEvidence) {
+    return makeVirtualImagePenalty("noEffect");
+  }
+
+  if (fantasyEquipment && !physicalCarrier && !realToyOrProp && !realObjectEvidence) {
+    return makeVirtualImagePenalty("noEffect");
+  }
+
+  if ((digitalImage || gameArt || fantasyEquipment || isPrintedFantasyCarrierText(source)) && physicalCarrier && !realToyOrProp) {
+    return makeVirtualImagePenalty("ordinaryCap");
+  }
+
+  return { level: "none", noEffect: false, cap: null, suppressSpecial: false, description: "" };
+}
+
+function makeVirtualImagePenalty(level) {
+  if (level === "noEffect") {
+    return {
+      level,
+      noEffect: true,
+      cap: 0,
+      suppressSpecial: true,
+      description: "这更像网图或虚拟装备，没有转化成现实装备。",
+    };
+  }
+  return {
+    level,
+    noEffect: false,
+    cap: 12,
+    suppressSpecial: true,
+    description: "",
+  };
+}
+
+function isScreenshotOnlyText(text) {
+  return /(?:截图|屏幕截图|游戏截图|网页截图|聊天截图|相册截图|screenshot|screen capture)/i.test(String(text || ""));
+}
+
+function isWebOrDigitalImageText(text) {
+  return /(?:网图|网络图片|网上图片|搜索图|搜图|下载图片|线上图片|网页图片|素材图|素材|透明背景|免抠|图标|图鉴|壁纸|白底商品图|电商图|商品展示图|AI图|AI生成|AI绘图|AI作图|生成图|渲染图|3D渲染|CG|概念图|设定图|原画|立绘|插画|二次元|虚拟道具|虚拟装备|digital image|web image|stock image|asset|icon|render|rendered|illustration|concept art|game asset)/i.test(String(text || ""));
+}
+
+function isGameOrCardArtText(text) {
+  return /(?:游戏.{0,8}(装备|道具|卡牌|物品|界面|图标|图鉴)|(?:装备|道具|卡牌|物品).{0,8}(游戏|图鉴|界面)|卡牌素材|卡面|装备图|道具图|游戏图|卡牌图|武器图|盾牌图|角色卡|技能卡|game item|game card|card art|item card|weapon card)/i.test(String(text || ""));
+}
+
+function isFantasyEquipmentImageText(text) {
+  return /(?:龙胆亮银枪|狮纹金盾|金盾配剑|恶魔之眼|恶魔.*巨刃|巨刃|亮银枪|神器|神兵|魔剑|圣剑|神剑|宝剑|战斧|法杖|魔杖|权杖|符文|龙鳞|魔法武器|奇幻武器|幻想武器|史诗武器|传说武器|暗黑武器|legendary weapon|fantasy weapon|magic weapon|artifact weapon)/i.test(String(text || ""));
+}
+
+function isImageLikeSubjectText(text) {
+  return /(?:图片|图像|图案|画面|卡图|卡面|海报|插画|图标|image|picture|artwork|poster)/i.test(String(text || ""));
+}
+
+function isPhysicalImageCarrierText(text) {
+  const source = String(text || "");
+  if (isScreenshotOnlyText(source)) return false;
+  if (hasNegatedRealPhotoText(source)) return false;
+  if (/(?:纸质|印刷|印刷品|实体|实物|现实|真实|实拍|拍摄|手持|桌面|相框|画框|明信片|照片纸|包装|贴纸|卡片|海报|手机屏幕|显示器|屏幕上|屏幕里的|屏幕显示|printed|physical|real photo|photographed|paper card|sticker|package|poster|phone screen|monitor)/i.test(source)) return true;
+  return /(?:卡片|贴纸|包装|海报|屏幕).{0,16}(?:放在|贴在|拿着|手持|桌面|拍摄|实拍|纸质|印刷|实体|实物)|(?:放在|贴在|拿着|手持|桌面|拍摄|实拍|纸质|印刷|实体|实物).{0,16}(?:卡片|贴纸|包装|海报|屏幕)/i.test(source);
+}
+
+function isRealObjectPhotoEvidenceText(text) {
+  const source = String(text || "");
+  if (isScreenshotOnlyText(source)) return false;
+  if (hasNegatedRealPhotoText(source)) return false;
+  return /(?:实拍|拍摄|现实|真实|实物|实体|手持|桌面|近景|放在|拿着|材质|塑料|金属|木质|纸质|陶瓷|玻璃|橡胶|布料|磨损|纹理|阴影|反光|real photo|photographed|physical|real object|on desk|handheld)/i.test(source);
+}
+
+function hasNegatedRealPhotoText(text) {
+  return /(?:不是|并非|非|不像|没有).{0,6}(?:现实|真实|实物|实体|实拍|拍摄|可触碰|可拿|real|physical|photographed)|(?:现实|真实|实物|实体|实拍|拍摄|可触碰|可拿).{0,6}(?:不是|并非|没有)|not.{0,8}(?:real|physical|photographed|photo)/i.test(String(text || ""));
+}
+
+function isRealToyModelOrPropText(text) {
+  const source = String(text || "");
+  if (isScreenshotOnlyText(source)) return false;
+  if (isWebOrDigitalImageText(source) && !isRealObjectPhotoEvidenceText(source)) return false;
+  return /(?:玩具|模型|手办|公仔|摆件|道具|车模|乐高|积木|塑料模型|金属模型|木质模型|纸板道具|toy|model|figure|prop|lego|miniature)/i.test(source)
+    && isRealObjectPhotoEvidenceText(source);
+}
+
+function isPrintedFantasyCarrierText(text) {
+  const source = String(text || "");
+  if (!isPhysicalImageCarrierText(source)) return false;
+  return /(?:游戏|幻想|奇幻|虚拟|装备|武器|盾牌|角色|二次元|插画|原画|渲染|AI|卡牌|卡面|artwork|fantasy|game|weapon|shield|character)/i.test(source);
+}
+
+function makePhysicalCarrierStatText(text) {
+  const source = String(text || "");
+  if (/(?:屏幕|手机|显示器|平板|电脑|screen|monitor|phone|tablet)/i.test(source)) {
+    return "现实拍摄的屏幕载体 玻璃 电子设备 外壳 防御 回复";
+  }
+  if (/(?:贴纸|sticker)/i.test(source)) {
+    return "现实拍摄的贴纸 纸张 胶面 小物件 防御 回复";
+  }
+  if (/(?:包装|package|packaging)/i.test(source)) {
+    return "现实拍摄的包装 纸盒 外壳 容器 防御 护盾";
+  }
+  if (/(?:海报|poster)/i.test(source)) {
+    return "现实拍摄的海报 纸张 印刷品 防御 回复";
+  }
+  return "现实拍摄的纸质卡片 印刷品 纸张 小物件 防御 回复";
+}
+
 function isSceneDisguisedAsPortableText(text) {
   const source = String(text || "");
   const scenePhoto = /(?:风景照片|海景照片|山景照片|街景照片|天空照片|道路照片|城市全景|自然景观|海岸风景|山丘风景|海边风景|照片主体为(?:风景|天空|道路|街道|海岸|山|海|建筑)|landscape photo|sky photo|road photo|street photo|scenery)/i.test(source);
@@ -1629,7 +1927,7 @@ function hasDefenseSemanticText(text) {
 }
 
 function hasAttackSemanticText(text) {
-  return /(?:工具|武器|敲|打|锤|棒|棍|砖|石|球|键盘|鼠标|笔|刀|剪|针|钩|刺|尖|刃|爪|牙|攻击|冲击|运动|飞行|展翅|风车|旋转|数字|显示屏|tool|weapon|hit|hammer|club|brick|stone|ball|keyboard|mouse|pen|knife|scissor|needle|hook|sharp|claw|tooth|attack|sport|fly|wing|windmill|rotate|screen)/i.test(String(text || ""));
+  return /(?:工具|武器|敲|打|锤|棒|棍|枪|长枪|短枪|矛|戟|砖|石|球|键盘|鼠标|笔|刀|剪|针|钩|刺|尖|刃|爪|牙|攻击|冲击|运动|飞行|展翅|风车|旋转|数字|显示屏|tool|weapon|hit|hammer|club|spear|lance|pike|brick|stone|ball|keyboard|mouse|pen|knife|scissor|needle|hook|sharp|claw|tooth|attack|sport|fly|wing|windmill|rotate|screen)/i.test(String(text || ""));
 }
 
 function hasSpeedSemanticText(text) {
@@ -1786,12 +2084,12 @@ function receiveItem(item, message) {
   }
 }
 
-async function findDuplicateIdentifiedItem(item, config = null) {
+async function findDuplicateIdentifiedItem(item, config = null, signal = null) {
   const duplicate = findDuplicateByStoredIdentity(item);
   if (!duplicate) return null;
   if (duplicate.confidence !== "possible") return duplicate.item || null;
   if (!duplicate.item?.image || !item?.image || !config) return null;
-  const same = await compareIdentifiedObjects(config, item, duplicate.item);
+  const same = await compareIdentifiedObjects(config, item, duplicate.item, signal);
   return same ? duplicate.item : null;
 }
 
@@ -2156,7 +2454,8 @@ function beginBattle(enemies) {
   applyPreBattleFormEffects();
 }
 
-function getBattleRoundLimit(count = state.activeEnemyIds.length || state.selectedEnemyIds.length || 1) {
+function getBattleRoundLimit(count = state.activeEnemyIds.length || state.selectedEnemyIds.length || 1, floor = state.floor) {
+  if (isBossRewardFloor(floor)) return bossBattleRoundLimit;
   const enemyCount = clampInt(count, 1, 3);
   return battleRoundLimitsByEnemyCount[enemyCount] || battleRoundLimitsByEnemyCount[1];
 }
@@ -2177,10 +2476,13 @@ function resolveBattleAction() {
 
   const roundLimit = state.currentBattle.roundLimit || getBattleRoundLimit();
   if (round >= roundLimit) {
-    addBattleDetail(`第${roundLimit}回合敌方逃跑。`);
+    const bossTimeout = isBossRewardFloor(state.currentBattle.floor);
+    addBattleDetail(bossTimeout
+      ? `第${roundLimit}回合照片勇者撑过强敌，继续前进。`
+      : `第${roundLimit}回合敌方逃跑。`);
     for (const id of state.activeEnemyIds) state.enemyFlipDownIds.add(id);
     removeEnemiesByIds(state.activeEnemyIds, false);
-    finishCurrentBattle("enemy-fled");
+    finishCurrentBattle(bossTimeout ? "boss-timeout" : "enemy-fled");
     stopAutoBattle();
     handleBattleEndAdvance("delay");
     return true;
@@ -2709,6 +3011,10 @@ function makeBattleSummary(result, battle, hpDelta) {
   if (result === "enemy-fled") {
     const roundLimit = Number.isFinite(battle?.roundLimit) ? battle.roundLimit : getBattleRoundLimit(battle?.initialEnemyCount || 1);
     return `敌逃 · 第${floor}层缠斗${roundLimit}回合，敌方逃跑，${lifeText}，获得：${lootText}。`;
+  }
+  if (result === "boss-timeout") {
+    const roundLimit = Number.isFinite(battle?.roundLimit) ? battle.roundLimit : getBattleRoundLimit(battle?.initialEnemyCount || 1, floor);
+    return `拖过 · 第${floor}层撑过${roundLimit}回合，继续前进，${lifeText}，获得：无。`;
   }
   if (result === "hero-fled") {
     return `跳过 · 照片勇者进入下一层，${lifeText}，获得：${lootText}。`;
@@ -3885,7 +4191,8 @@ function isEquipmentLocked() {
     || Boolean(state.battleStartTimer)
     || state.pendingFloorAdvance
     || isPlayerDefeated()
-    || Boolean(state.bossReward);
+    || Boolean(state.bossReward)
+    || isAnalyzingPhoto();
 }
 
 function dismantleSelectedItem() {
@@ -3938,26 +4245,35 @@ function balanceItem(item, image = "") {
     || safeIsEquipable === false
     || isOversizedSizeClass(sizeClass);
   const tooLarge = shouldTreatAsTooLarge(itemName, semanticText, modelRejected);
-  let requestedValue = tooLarge
+  const virtualPenalty = getVirtualImagePenalty(semanticText, photoQuality);
+  const noEffect = tooLarge || virtualPenalty.noEffect;
+  let requestedValue = noEffect
     ? 0
     : preserveSettledOutput && Number.isFinite(safe.value)
       ? Math.max(0, safe.value)
       : calculatePhotoItemValue(safe, semanticText);
-  if (!tooLarge) {
+  if (!noEffect) {
     requestedValue = preserveSettledOutput
       ? requestedValue
       : adjustPhotoItemValueForSemanticMinimum(requestedValue, semanticText, statAffinity);
+    if (!preserveSettledOutput && Number.isFinite(virtualPenalty.cap)) {
+      requestedValue = Math.min(requestedValue, virtualPenalty.cap);
+    }
   }
-  const specialEffects = tooLarge
+  const specialEffects = noEffect || virtualPenalty.suppressSpecial
     ? []
     : choosePhotoSpecialEffects({ ...safe, itemName, objectType, reason, tags, description: semanticText, ignoreDirectSpecialEffects: semanticSchema && !preserveSettledOutput }, image, requestedValue)
       .filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue);
   const specialValue = calculateSpecialEffectsValue(specialEffects);
   const statBudget = Math.max(0, requestedValue - specialValue);
-  const targetValue = tooLarge ? 0 : requestedValue;
-  const stats = tooLarge
+  const targetValue = noEffect ? 0 : requestedValue;
+  const statSemanticText = virtualPenalty.level === "ordinaryCap"
+    ? makePhysicalCarrierStatText(semanticText)
+    : semanticText || itemName;
+  const statAffinityForAllocation = virtualPenalty.level === "ordinaryCap" ? [] : safe.statAffinity;
+  const stats = noEffect
       ? normalizeStats({}, 20)
-      : clampStatsToValue(allocateStatsForItem(semanticSchema ? {} : safe.stats || {}, semanticText || itemName, statBudget, safe.statAffinity), statBudget);
+      : clampStatsToValue(allocateStatsForItem(semanticSchema || virtualPenalty.level === "ordinaryCap" ? {} : safe.stats || {}, statSemanticText, statBudget, statAffinityForAllocation), statBudget);
 
   const balanced = {
     itemName,
@@ -3965,14 +4281,14 @@ function balanceItem(item, image = "") {
     objectType,
     sizeClass,
     isScene: safeIsScene || isOversizedSizeClass(sizeClass),
-    isEquipable: safeIsEquipable !== false && !tooLarge,
+    isEquipable: safeIsEquipable !== false && !noEffect,
     rarity,
     value: targetValue,
     quality: getItemQuality(targetValue),
     stats,
     specialEffects,
     specialState: normalizeSpecialState(safe.specialState, specialEffects),
-    description: tooLarge ? "主体过大或主要是场景，无法提供属性。" : cleanText(safe.description || reason, "由照片鉴定出的装备。", 72),
+    description: noEffect ? virtualPenalty.description || "主体过大或主要是场景，无法提供属性。" : cleanText(safe.description || reason, "由照片鉴定出的装备。", 72),
     identityDescription,
     reason,
     tags,
@@ -3986,7 +4302,8 @@ function balanceItem(item, image = "") {
     objectKey: cleanText(safe.objectKey, "", 80),
     film: Boolean(safe.film),
     skipSpecialRoll: Boolean(safe.skipSpecialRoll),
-    tooLarge,
+    tooLarge: noEffect,
+    virtualImage: virtualPenalty.level !== "none",
     image,
   };
   balanced.objectKey = cleanText(balanced.objectKey || makeObjectDuplicateKey(balanced), "", 80);
@@ -4132,15 +4449,20 @@ function getMinimumSemanticStatCost(text, statAffinity = []) {
 function getPhotoValueCapFromQuality(photoQuality, semanticText = "") {
   const quality = normalizePhotoQuality(photoQuality);
   const text = String(semanticText || "");
+  const virtualPenalty = getVirtualImagePenalty(text, quality);
+  if (virtualPenalty.noEffect) return 0;
+  if (Number.isFinite(virtualPenalty.cap)) return Math.min(getPhotoValueMax(), virtualPenalty.cap);
   if (quality.clarity <= 1 || quality.subjectArea <= 1 || quality.realPhoto <= 1) return Math.min(getPhotoValueMax(), 12);
   if (quality.backgroundClean <= 0 || quality.focusLight <= 0) return Math.min(getPhotoValueMax(), 14);
+  if (hasCrowdedOrSmallSubjectText(text)) return Math.min(getPhotoValueMax(), 14);
   if (/抽象|光斑|远景|纹理|风景|海岸|山|天空|道路|街道|森林|荒原|人物|人像|动物|猫|狗|abstract|bokeh|landscape|sky|road|street|forest|portrait|animal|cat|dog/i.test(text) && !isSmallEquipableNaturalText(text) && !isPortableEquipmentText(text)) {
     return Math.min(getPhotoValueMax(), 14);
   }
   if (quality.interesting <= 0) return Math.min(getPhotoValueMax(), 15);
   if (quality.clarity < 3 || quality.subjectArea < 2 || quality.backgroundClean < 1) return Math.min(getPhotoValueMax(), 16);
-  if (quality.clarity < 3 || quality.subjectArea < 3 || quality.backgroundClean < 2) return Math.min(getPhotoValueMax(), 18);
-  if (quality.interesting < 2) return Math.min(getPhotoValueMax(), hasStrongEquipmentFantasyText(text) ? 19 : 18);
+  if (quality.subjectArea < 3 || quality.backgroundClean < 2) return Math.min(getPhotoValueMax(), 16);
+  if (quality.clarity < 3) return Math.min(getPhotoValueMax(), 16);
+  if (quality.interesting < 2) return Math.min(getPhotoValueMax(), hasStrongEquipmentFantasyText(text) ? 17 : 16);
   return getPhotoValueMax();
 }
 
@@ -4170,20 +4492,30 @@ function calculateAdjustedPhotoQualityScore(photoQuality, semanticText = "") {
   const quality = normalizePhotoQuality(photoQuality);
   let score = calculatePhotoQualityTotal(quality);
   const text = String(semanticText || "");
+  const virtualPenalty = getVirtualImagePenalty(text, quality);
+  if (virtualPenalty.noEffect) return 0;
 
   if (quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 3 && quality.focusLight >= 2 && quality.interesting >= 1) score += 1;
   if (quality.clarity >= 3 && quality.subjectArea >= 3 && quality.backgroundClean >= 2) score += 1;
-  if (quality.interesting >= 2 && isPortableEquipmentText(text)) score += 1;
+  if (quality.interesting >= 2 && isPortableEquipmentText(text) && virtualPenalty.level === "none") score += 1;
 
   if (quality.clarity <= 1) score -= 2;
   if (quality.subjectArea <= 1) score -= 2;
+  if (quality.subjectArea < 3) score -= 1;
   if (quality.backgroundClean <= 0) score -= 1;
+  if (quality.backgroundClean < 2) score -= 1;
   if (quality.realPhoto <= 1) score -= 3;
   if (quality.interesting <= 0) score -= 2;
   if (quality.interesting <= 1 && !hasStrongEquipmentFantasyText(text)) score -= 1;
+  if (hasCrowdedOrSmallSubjectText(text)) score -= 2;
+  if (virtualPenalty.level === "ordinaryCap") score -= 3;
   if (/抽象|光斑|远景|纹理|风景|海岸|山|天空|道路|街道|森林|荒原|人物|人像|动物|猫|狗|abstract|bokeh|landscape|sky|road|street|forest|portrait|animal|cat|dog/i.test(text) && !isSmallEquipableNaturalText(text) && !isPortableEquipmentText(text)) score -= 3;
 
   return Math.max(0, Math.min(15, score));
+}
+
+function hasCrowdedOrSmallSubjectText(text) {
+  return /物品很多|很多物品|多个物品|许多物品|很多东西|一堆|堆满|杂乱|凌乱|背景杂|背景乱|背景复杂|主体(?:较|偏)?小|主体不大|占比(?:较|偏)?小|占画面(?:较|偏)?小|周围有|旁边有|其中一|角落|边缘|远处|many objects|clutter|messy|small subject|busy background/i.test(String(text || ""));
 }
 
 function calculatePhotoQualityTotal(photoQuality) {
@@ -4200,10 +4532,13 @@ function calculatePhotoQualityTotal(photoQuality) {
 
 function inferFallbackQualityScore(text) {
   const source = String(text || "");
+  const virtualPenalty = getVirtualImagePenalty(source, normalizePhotoQuality({}));
+  if (virtualPenalty.noEffect) return 0;
   let score = 6;
   if (/(?:清晰|主体突出|占比大|近景|干净|明亮|有趣|动心|实拍|现实)/.test(source)) score += 4;
   if (/(?:模糊|杂乱|不清楚|遮挡|占比小|背景多|昏暗)/.test(source)) score -= 3;
   if (isPortableEquipmentText(source)) score += 2;
+  if (virtualPenalty.level === "ordinaryCap") score = Math.min(score, 8);
   return Math.max(0, Math.min(15, score));
 }
 
@@ -4350,17 +4685,18 @@ function choosePhotoSpecialEffects(item, image, valueBudget) {
   const semanticText = `${item.itemName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`;
   const directAffinity = normalizeSpecialEffects(item.specialAffinity || item.special_affinity || item.specialCandidates);
   const inferredAffinity = inferSemanticSpecialEffects(semanticText);
-  const preferred = [
-    ...directAffinity,
-    ...inferredAffinity,
-  ];
-  if (!directAffinity.length || valueBudget < getPhotoValueMax()) return [];
-  const eligible = [...new Set(directAffinity)]
+  const candidateKeys = directAffinity.length ? directAffinity : valueBudget >= 16 ? inferredAffinity : [];
+  if (!candidateKeys.length) return [];
+  const eligible = [...new Set(candidateKeys)]
     .map((key) => photoSpecialEffectMap.get(key))
     .filter((effect) => effect && isSpecialEffectSemanticallyAllowed(effect.key, item) && isPhotoSpecialEffectEligible(effect.key, valueBudget, item));
   if (!eligible.length) return [];
+  if (directAffinity.length) {
+    const picked = eligible[hashIndex(`${seed}:special-pick`, eligible.length)];
+    return picked ? [picked.key] : [];
+  }
 
-  const chance = valueBudget >= 20 ? 16 : 0;
+  const chance = valueBudget >= 20 ? 45 : 25;
   const roll = hashIndex(`${seed}:special-roll`, 100);
   if (roll >= chance) return [];
 
@@ -4493,6 +4829,22 @@ async function compressImage(file) {
   if (!file.type.startsWith("image/")) {
     throw new Error("请选择图片文件。");
   }
+  if (file.size > uploadImageMaxBytes) {
+    throw new Error("图片文件过大，请先截图或裁剪后再上传。");
+  }
+
+  if ("createImageBitmap" in window) {
+    try {
+      const bitmap = await loadBitmapWithTimeout(file);
+      try {
+        return resizeImageToDataUrl(bitmap, analysisImageMaxEdge, analysisImageQuality);
+      } finally {
+        bitmap.close?.();
+      }
+    } catch {
+      // Some mobile browsers fail createImageBitmap for camera HEIC/JPEG variants; fall back to Image decoding.
+    }
+  }
 
   const objectUrl = URL.createObjectURL(file);
   try {
@@ -4508,9 +4860,21 @@ async function makeInventoryImage(src) {
   return resizeImageToDataUrl(image, inventoryImageMaxEdge, inventoryImageQuality);
 }
 
+function loadBitmapWithTimeout(file) {
+  return Promise.race([
+    createImageBitmap(file, { imageOrientation: "from-image" }),
+    new Promise((_, reject) => {
+      window.setTimeout(() => reject(new Error("图片解码超时，请重新拍摄或换一张图片。")), imageDecodeTimeoutMs);
+    }),
+  ]);
+}
+
 function resizeImageToDataUrl(image, maxEdge, quality) {
   const sourceWidth = image.naturalWidth || image.width;
   const sourceHeight = image.naturalHeight || image.height;
+  if (!sourceWidth || !sourceHeight) {
+    throw new Error("图片尺寸读取失败，请重新拍摄或换一张图片。");
+  }
   const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
   const width = Math.max(1, Math.round(sourceWidth * scale));
   const height = Math.max(1, Math.round(sourceHeight * scale));
@@ -4519,7 +4883,11 @@ function resizeImageToDataUrl(image, maxEdge, quality) {
   canvas.height = height;
   const ctx = canvas.getContext("2d", { alpha: false });
   ctx.drawImage(image, 0, 0, width, height);
-  return canvas.toDataURL("image/jpeg", quality);
+  try {
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    throw new Error("图片压缩失败，请尝试截图后上传。");
+  }
 }
 
 function makeVisionTestImage() {
@@ -4542,8 +4910,26 @@ function makeVisionTestImage() {
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("图片解码失败。"));
+    let settled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      image.onload = null;
+      image.onerror = null;
+      reject(new Error("图片解码超时，请重新拍摄或换一张图片。"));
+    }, imageDecodeTimeoutMs);
+    image.onload = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      resolve(image);
+    };
+    image.onerror = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      reject(new Error("图片解码失败。"));
+    };
     image.src = src;
   });
 }
@@ -4957,6 +5343,7 @@ function renderEquipmentDetail() {
   ensureInventorySlots();
   const selected = getSelectedInventoryItem();
   const locked = isEquipmentLocked();
+  const analyzing = isAnalyzingPhoto();
   const showingItem = state.infoMode === "item";
 
   els.equipmentActions.hidden = true;
@@ -4964,6 +5351,8 @@ function renderEquipmentDetail() {
   els.photoActionBtn.disabled = true;
   els.analyzePhotoBtn.hidden = true;
   els.analyzePhotoBtn.disabled = true;
+  els.analyzePhotoBtn.textContent = "鉴定";
+  els.analyzePhotoBtn.classList.remove("is-cancel");
   els.discardItemBtn.disabled = true;
   els.discardItemBtn.hidden = true;
   els.battleLog.hidden = true;
@@ -4996,14 +5385,18 @@ function renderEquipmentDetail() {
     els.equipmentDetailName.textContent = "待鉴定照片";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = state.lootError
+    els.equipmentDetailDesc.textContent = analyzing
+      ? "正在鉴定照片。若接口长时间无响应，可以取消后重新拍摄更清晰、主体更明确的照片。"
+      : state.lootError
       ? `${state.lootError} 可以重新鉴定。`
       : state.filmRolls >= 1
         ? `确认后鉴定并装入当前装备格。当前价值范围 ${formatPhotoValueRange()}。`
         : "胶卷不足，先击败怪物获得资源。";
     els.equipmentActions.hidden = false;
     els.analyzePhotoBtn.hidden = false;
-    els.analyzePhotoBtn.disabled = locked || Boolean(els.loadingState.textContent) || state.filmRolls < 1;
+    els.analyzePhotoBtn.textContent = analyzing ? "取消鉴定" : "鉴定";
+    els.analyzePhotoBtn.classList.toggle("is-cancel", analyzing);
+    els.analyzePhotoBtn.disabled = analyzing ? false : locked || Boolean(els.loadingState.textContent) || state.filmRolls < 1;
     els.pendingPhotoPreview.hidden = false;
     els.pendingPhotoImage.src = state.lastPhoto;
     return;
@@ -5127,6 +5520,12 @@ function getLootErrorHint(message) {
   }
   if (text.includes("响应结构")) {
     return "接口返回结构不标准，请把错误里的响应结构发给开发者适配。";
+  }
+  if (text.includes("已取消鉴定")) {
+    return "本次照片已经放弃，可以重新拍照。";
+  }
+  if (text.includes("超时") || text.includes("没有响应")) {
+    return "可能是接口拥堵、图片过大、模型卡住或中转站无响应；建议重试，或换一张主体更清楚、背景更简单的照片。";
   }
   return "模型已返回内容，但格式不符合游戏约束；可以换模型或重试一张更清晰的现实物品照片。";
 }
@@ -5675,7 +6074,7 @@ function normalizeCurrentBattle(battle) {
     startShield: Number.isFinite(battle.startShield) ? battle.startShield : state.player.shield,
     damageEstimates: battle.damageEstimates && typeof battle.damageEstimates === "object" ? battle.damageEstimates : {},
     initialEnemyCount: clampInt(battle.initialEnemyCount || activeIds.length || 1, 1, 3),
-    roundLimit: getBattleRoundLimit(battle.initialEnemyCount || activeIds.length || 1),
+    roundLimit: getBattleRoundLimit(battle.initialEnemyCount || activeIds.length || 1, Number.isFinite(battle.floor) ? battle.floor : state.floor),
     details: Array.isArray(battle.details) ? battle.details.filter((item) => typeof item === "string").slice(-90) : [],
     lootNames: Array.isArray(battle.lootNames) ? battle.lootNames.filter((item) => typeof item === "string") : [],
     defeatedIds: Array.isArray(battle.defeatedIds) ? battle.defeatedIds.filter((item) => typeof item === "string") : [],

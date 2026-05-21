@@ -259,6 +259,14 @@ h3 {
   color: #fffaf0;
 }
 
+.info-button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--hero) 70%, var(--ink));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hero) 82%, white 18%), var(--hero)),
+    var(--hero);
+  color: #fffaf0;
+}
+
 .api-config-button[aria-pressed="true"] .api-state-icon::before {
   color: #fffaf0;
 }
@@ -413,6 +421,25 @@ h3 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hero-switch-badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 2;
+  min-width: 36px;
+  padding: 2px 5px;
+  border: 1px solid rgb(23 19 15 / 76%);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgb(255 253 248 / 96%), rgb(246 223 180 / 94%));
+  color: var(--ink);
+  font-size: 0.66rem;
+  font-weight: 950;
+  line-height: 1.1;
+  box-shadow: 0 2px 0 rgb(23 19 15 / 18%);
+  pointer-events: none;
 }
 
 .avatar-ring {
@@ -616,7 +643,8 @@ dd {
 }
 
 .config-panel,
-.forms-panel {
+.forms-panel,
+.info-panel {
   min-width: 0;
   padding: 8px;
   border: 1px solid var(--line);
@@ -663,6 +691,13 @@ dd {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 850;
+}
+
+#analyzePhotoBtn.is-cancel {
+  border-color: color-mix(in srgb, var(--red) 54%, var(--ink));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--red) 72%, white 28%), var(--red));
+  color: #fffaf0;
 }
 
 #fileInput {
@@ -1613,7 +1648,8 @@ dd {
 }
 
 .secondary-area:has([data-secondary-panel="forms"]:not([hidden])),
-.secondary-area:has([data-secondary-panel="config"]:not([hidden])) {
+.secondary-area:has([data-secondary-panel="config"]:not([hidden])),
+.secondary-area:has([data-secondary-panel="info"]:not([hidden])) {
   bottom: auto;
 }
 
@@ -1622,7 +1658,8 @@ dd {
   overflow: visible;
 }
 
-.secondary-area:has([data-secondary-panel="config"]:not([hidden])) {
+.secondary-area:has([data-secondary-panel="config"]:not([hidden])),
+.secondary-area:has([data-secondary-panel="info"]:not([hidden])) {
   max-height: calc(100% - 52px);
 }
 
@@ -1630,9 +1667,49 @@ dd {
   display: none;
 }
 
-.config-panel {
+.config-panel,
+.info-panel {
   align-self: start;
   background: color-mix(in srgb, var(--paper) 88%, white 12%);
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.info-block {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 46%, var(--line));
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgb(255 253 248 / 86%), rgb(245 235 215 / 70%));
+}
+
+.info-block h3 {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.1;
+}
+
+.info-block p {
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.info-block a {
+  color: var(--hero);
+  font-weight: 950;
+  overflow-wrap: anywhere;
+}
+
+.wide-info {
+  grid-column: 1 / -1;
 }
 
 .form-grid {
@@ -2014,6 +2091,10 @@ textarea {
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 620px) {
@@ -2141,14 +2222,18 @@ textarea {
   .panel-tools {
     flex-wrap: nowrap;
     justify-content: flex-end;
-    gap: 5px;
+    gap: 4px;
+  }
+
+  .hero-head h2 {
+    font-size: 0.92rem;
   }
 
   .panel-tools button {
     min-height: 31px;
-    min-width: 72px;
-    padding-inline: 12px;
-    font-size: 0.78rem;
+    min-width: 56px;
+    padding-inline: 7px;
+    font-size: 0.72rem;
   }
 
   .hero-summary {
@@ -2169,6 +2254,14 @@ textarea {
 
   .hero-form-card img {
     padding: 5px 5px 22px;
+  }
+
+  .hero-switch-badge {
+    top: 4px;
+    right: 4px;
+    min-width: 32px;
+    padding: 1px 4px;
+    font-size: 0.58rem;
   }
 
   .hero-stat-strip {
