@@ -1354,6 +1354,12 @@ dd {
   text-align: left;
 }
 
+.enemy-card.is-single-boss {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  width: 100%;
+}
+
 .enemy-card.is-entering {
   transform-origin: center center;
   animation: enemyFlipIn 420ms var(--ease-out-quart) both;
@@ -1860,13 +1866,17 @@ dd {
 
 .form-card {
   position: relative;
-  min-height: 104px;
+  min-height: 126px;
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  justify-items: start;
-  align-items: stretch;
-  gap: 7px;
-  padding: 26px 7px 7px;
+  grid-template-columns: 66px minmax(0, 1fr);
+  grid-template-areas:
+    "avatar meta"
+    "effects effects";
+  grid-template-rows: minmax(78px, auto) auto;
+  justify-items: stretch;
+  align-items: start;
+  gap: 6px 8px;
+  padding: 8px;
   border: 2px solid color-mix(in srgb, var(--ink) 48%, var(--line));
   border-radius: 8px;
   background:
@@ -1877,10 +1887,11 @@ dd {
 }
 
 .form-card img {
-  align-self: end;
+  grid-area: avatar;
+  align-self: start;
   justify-self: start;
-  width: 52px;
-  height: 70px;
+  width: 64px;
+  height: 78px;
   object-fit: contain;
 }
 
@@ -1895,33 +1906,40 @@ dd {
 }
 
 .form-copy {
+  grid-area: effects;
   min-width: 0;
   display: grid;
-  align-content: end;
-  gap: 3px;
+  align-content: start;
+  gap: 2px;
   text-align: left;
   line-height: 1.1;
 }
 
-.form-copy strong {
-  font-size: 0.82rem;
+.form-card-meta {
+  grid-area: meta;
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 3px;
+  pointer-events: none;
+  text-align: left;
 }
 
-.form-card-meta {
-  position: absolute;
-  top: 5px;
-  left: 7px;
-  right: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  pointer-events: none;
+.form-card-meta strong {
+  max-width: 100%;
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 950;
+  line-height: 1.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .form-card-meta small {
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 850;
   line-height: 1.1;
   white-space: nowrap;
@@ -1933,22 +1951,16 @@ dd {
   border-radius: 999px;
   background: color-mix(in srgb, var(--hero-soft) 68%, white 32%);
   color: #1f4f7f;
-  font-size: 0.58rem;
+  font-size: 0.62rem;
   font-weight: 950;
   line-height: 1.1;
   white-space: nowrap;
 }
 
-.form-copy > span {
-  min-width: 0;
-  display: grid;
-  gap: 1px;
-}
-
 .form-copy i {
   display: block;
   color: var(--ink);
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   font-style: normal;
   font-weight: 850;
   line-height: 1.12;
@@ -2383,47 +2395,45 @@ textarea {
   }
 
   .form-card {
-    min-height: 88px;
-    grid-template-columns: 38px minmax(0, 1fr);
-    gap: 4px;
-    padding: 20px 5px 5px;
+    min-height: 112px;
+    grid-template-columns: 46px minmax(0, 1fr);
+    grid-template-rows: minmax(62px, auto) auto;
+    gap: 4px 5px;
+    padding: 6px;
     border-width: 1px;
     border-radius: 7px;
   }
 
   .form-card img {
-    width: 37px;
+    width: 45px;
     height: 62px;
   }
 
   .form-copy {
-    gap: 2px;
-    line-height: 1.04;
-  }
-
-  .form-copy strong {
-    font-size: 0.66rem;
+    gap: 1px;
+    line-height: 1.06;
   }
 
   .form-card-meta {
-    top: 4px;
-    left: 5px;
-    right: 5px;
-    gap: 4px;
+    gap: 2px;
+  }
+
+  .form-card-meta strong {
+    font-size: 0.68rem;
   }
 
   .form-card-meta small {
-    font-size: 0.54rem;
+    font-size: 0.56rem;
   }
 
   .form-card-meta b {
     padding: 1px 3px;
-    font-size: 0.48rem;
+    font-size: 0.5rem;
   }
 
   .form-copy i {
-    font-size: 0.51rem;
-    line-height: 1.06;
+    font-size: 0.54rem;
+    line-height: 1.08;
   }
 
   .panel-tools {

@@ -5163,7 +5163,8 @@ function renderEnemyField() {
     const estimate = enemyDamageEstimates.get(enemy.id) || makeUnknownEstimate();
     const button = document.createElement("button");
     const isHit = Boolean(state.enemyHitEffectUntilById[enemy.id]) && !isFlippingDown && !isFaceDown;
-    button.className = `enemy-card enemy-select-card${isSelected ? " is-selected" : ""}${state.activeEnemyIds?.includes(enemy.id) ? " is-active" : ""}${isLocked ? " is-locked" : ""}${isDefeated ? " is-defeated" : ""}${shouldFlipIn ? " is-entering" : ""}${isFaceDown ? " is-face-down" : ""}${isFlippingDown ? " is-flipping-down" : ""}${isHit ? " is-hit" : ""}`;
+    const isSingleBossCard = isBossRewardFloor(state.floor) && state.enemies.length === 1;
+    button.className = `enemy-card enemy-select-card${isSingleBossCard ? " is-single-boss" : ""}${isSelected ? " is-selected" : ""}${state.activeEnemyIds?.includes(enemy.id) ? " is-active" : ""}${isLocked ? " is-locked" : ""}${isDefeated ? " is-defeated" : ""}${shouldFlipIn ? " is-entering" : ""}${isFaceDown ? " is-face-down" : ""}${isFlippingDown ? " is-flipping-down" : ""}${isHit ? " is-hit" : ""}`;
     button.type = "button";
     if (shouldFlipIn) {
       button.style.setProperty("--flip-delay", `${Math.min(2, index) * 80}ms`);
@@ -5645,21 +5646,19 @@ function renderHeroForms() {
     img.src = getHeroFormImageUrl(form);
     img.alt = `${form.label}形态`;
 
-    const copy = document.createElement("div");
-    copy.className = "form-copy";
-    copy.innerHTML = `
-      <strong>${escapeHtml(form.label)}</strong>
-      <span>${effectLines.map((line) => `<i>${escapeHtml(line)}</i>`).join("")}</span>
-    `;
-
     const meta = document.createElement("div");
     meta.className = "form-card-meta";
     meta.innerHTML = `
+      <strong>${escapeHtml(form.label)}</strong>
       <b>${escapeHtml(getHeroFormLevelLabel(form))}</b>
       <small>${escapeHtml(progressText)}</small>
     `;
 
-    button.append(meta, img, copy);
+    const copy = document.createElement("div");
+    copy.className = "form-copy";
+    copy.innerHTML = effectLines.map((line) => `<i>${escapeHtml(line)}</i>`).join("");
+
+    button.append(img, meta, copy);
     button.addEventListener("click", () => setHeroForm(form.id));
     els.formGrid.append(button);
   }
