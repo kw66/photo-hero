@@ -157,8 +157,8 @@ const photoSpecialEffects = [
   { key: "takeDamageDefense", label: "受到伤害临时防御+1", value: 15, kind: "takeDamageTemp", stat: "defense", amount: 1, cap: 8 },
   { key: "killMaxHp", label: "每次击杀生命上限+2", value: 15, kind: "killPermanent", stat: "hp", amount: 2 },
   { key: "killHpBoost", label: "每次击杀生命+8", value: 15, kind: "killHeal", amount: 8 },
-  { key: "doubleStrikeSpeedDown", label: "速度-5，连击翻倍", value: 16, kind: "passive", stat: "speed", amount: -5, doubleStrikeMultiplier: 2 },
-  { key: "shieldCrashAttackDown", label: "攻击-3，附带当前护盾*0.5伤害", value: 16, kind: "passive", stat: "attack", amount: -3, shieldDamageRatio: 0.5 },
+  { key: "doubleStrikeSpeedDown", label: "速度-3，连击翻倍", value: 16, kind: "passive", stat: "speed", amount: -3, doubleStrikeMultiplier: 2 },
+  { key: "shieldCrashAttackDown", label: "攻击-3，附带当前护盾伤害", value: 16, kind: "passive", stat: "attack", amount: -3, shieldDamageRatio: 1 },
 ];
 
 const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
