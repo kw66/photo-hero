@@ -315,6 +315,7 @@ const heroFormMap = new Map(heroForms.map((form) => [form.id, form]));
 const defaultHeroFormId = heroForms[0].id;
 const heroFormImageBase = "./assets/heroes/";
 const monsterImageBase = "./assets/monsters/";
+const rewardIconBase = "./assets/rewards/";
 
 const monsterImages = {
   slime: "slime.png",
@@ -2581,10 +2582,10 @@ function startBossRewardChoice(floor) {
 
 function buildBossRewardOptions(floor) {
   const pool = [
-    { type: "filmDrop", title: "胶卷掉落 +0.1", desc: "之后击败怪物时，胶卷掉落永久 +0.1。" },
-    { type: "filmPercent", title: "当前胶卷 +20%", desc: "按当前胶卷数量增加 20%，向上取整到 0.1。" },
-    { type: "valueMin", title: "最低价值 +2", desc: "之后照片鉴定的最低价值永久 +2。" },
-    { type: "valueMax", title: "最高价值 +3", desc: "之后照片鉴定的最高价值永久 +3。" },
+    { type: "filmDrop", title: "胶卷掉落 +0.1", desc: "之后击败怪物时，胶卷掉落永久 +0.1。", icon: "boss-film-drop.png" },
+    { type: "filmPercent", title: "当前胶卷 +20%", desc: "按当前胶卷数量增加 20%，向上取整到 0.1。", icon: "boss-film-percent.png" },
+    { type: "valueMin", title: "最低价值 +2", desc: "之后照片鉴定的最低价值永久 +2。", icon: "boss-value-min.png" },
+    { type: "valueMax", title: "最高价值 +3", desc: "之后照片鉴定的最高价值永久 +3。", icon: "boss-value-max.png" },
   ];
   const start = hashIndex(`${state.runSeed}:${floor}:boss-reward:start`, pool.length);
   return [0, 1, 2].map((slot) => {
@@ -4711,15 +4712,20 @@ function renderEnemyField() {
 
 function renderBossRewardCards() {
   const options = Array.isArray(state.bossReward?.options) ? state.bossReward.options : [];
+  const title = document.createElement("div");
+  title.className = "boss-reward-prompt";
+  title.textContent = "Boss 奖励 · 三选一";
+  els.enemyField.append(title);
   options.forEach((option, index) => {
     const button = document.createElement("button");
     button.className = "enemy-card reward-card";
     button.type = "button";
     button.addEventListener("click", () => chooseBossReward(index));
+    const icon = option.icon || getBossRewardIcon(option.type);
     button.innerHTML = `
       <div class="enemy-card-head">
         <div class="monster-portrait reward-portrait">
-          <span>${index + 1}</span>
+          <img src="${rewardIconBase}${escapeHtml(icon)}" alt="" aria-hidden="true">
         </div>
         <div class="enemy-name-block">
           <strong>${escapeHtml(option.title || "奖励")}</strong>
@@ -4727,12 +4733,22 @@ function renderBossRewardCards() {
         </div>
       </div>
       <div class="enemy-card-result">
-        <span>Boss奖励</span>
-        <strong class="estimate-safe">选择</strong>
+        <span>三选一</span>
+        <strong class="estimate-safe">选择 ${index + 1}</strong>
       </div>
     `;
     els.enemyField.append(button);
   });
+}
+
+function getBossRewardIcon(type) {
+  const icons = {
+    filmDrop: "boss-film-drop.png",
+    filmPercent: "boss-film-percent.png",
+    valueMin: "boss-value-min.png",
+    valueMax: "boss-value-max.png",
+  };
+  return icons[type] || icons.filmDrop;
 }
 
 function getEnemyDamageEstimates() {
