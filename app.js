@@ -111,15 +111,6 @@ const heroFormUpgradeKills = 20;
 const bossFloors = new Set([10, 20, 30, 40]);
 const rewardBossFloors = new Set([25, 35, 38]);
 const bossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
-const bossDropTypesByFloor = new Map([
-  [10, new Set(["skeletonCaptain"])],
-  [20, new Set(["vampire"])],
-  [25, new Set(["octopus"])],
-  [30, new Set(["knightCaptain"])],
-  [35, new Set(["dragon"])],
-  [38, new Set(["archmage"])],
-  [40, new Set(["demon"])],
-]);
 
 const statLabels = {
   hp: "生命上限",
@@ -2933,17 +2924,27 @@ function startBossRewardChoice(floor) {
 }
 
 function buildBossRewardOptions(floor) {
-  const pool = [
-    { type: "filmDrop", title: "胶卷掉落 +0.1", desc: "之后击败怪物时，胶卷掉落永久 +0.1。", icon: "boss-film-drop.png" },
-    { type: "filmPercent", title: "当前胶卷 +20%", desc: "按当前胶卷数量增加 20%，向上取整到 0.1。", icon: "boss-film-percent.png" },
-    { type: "valueMin", title: "最低价值 +2", desc: "之后照片鉴定的最低价值永久 +2。", icon: "boss-value-min.png" },
-    { type: "valueMax", title: "最高价值 +3", desc: "之后照片鉴定的最高价值永久 +3。", icon: "boss-value-max.png" },
-  ];
+  const fixed = getBossRewardCatalog().find((reward) => reward.type === "filmFlat");
+  const pool = getBossRewardCatalog().filter((reward) => reward.type !== "filmFlat");
   const start = hashIndex(`${state.runSeed}:${floor}:boss-reward:start`, pool.length);
-  return [0, 1, 2].map((slot) => {
+  const rotating = [0, 1].map((slot) => {
     const reward = pool[(start + slot) % pool.length];
     return { ...reward, id: `${floor}-${slot}-${reward.type}` };
   });
+  return [
+    { ...fixed, id: `${floor}-0-${fixed.type}` },
+    ...rotating.map((reward, index) => ({ ...reward, id: `${floor}-${index + 1}-${reward.type}` })),
+  ];
+}
+
+function getBossRewardCatalog() {
+  return [
+    { type: "filmFlat", title: "胶卷 +1.0", desc: "立刻获得 1.0 胶卷。", icon: "boss-value-min.png" },
+    { type: "filmDrop", title: "胶卷掉落 +0.1", desc: "之后击败怪物永久 +0.1。", icon: "boss-film-drop.png" },
+    { type: "filmPercent", title: "当前胶卷 +50%", desc: "按当前数量 +50%，向上取整。", icon: "boss-film-percent.png" },
+    { type: "valueMin", title: "最低价值 +2", desc: "之后照片最低价值永久 +2。", icon: "boss-value-min.png" },
+    { type: "valueMax", title: "最高价值 +3", desc: "之后照片最高价值永久 +3。", icon: "boss-value-max.png" },
+  ];
 }
 
 function chooseBossReward(index) {
@@ -2991,9 +2992,13 @@ function applyBossReward(option) {
   }
   if (option.type === "filmPercent") {
     const before = getFilmCount();
-    const gain = ceilFilmTenth(before * 0.2);
+    const gain = ceilFilmTenth(before * 0.5);
     addFilmShards(Math.round(gain * 10));
     return `奖励：当前胶卷 +${gain.toFixed(1)}。`;
+  }
+  if (option.type === "filmFlat") {
+    addFilmShards(10);
+    return "奖励：胶卷 +1.0。";
   }
   if (option.type === "valueMin") {
     state.photoValueMin = getPhotoValueMin() + 2;
@@ -3378,13 +3383,6 @@ function isBossMonsterType(typeKey) {
   return bossMonsterKeys.has(typeKey);
 }
 
-function isBossDropEnemy(enemy) {
-  const typeKey = enemy?.typeKey;
-  const floor = Number.isFinite(enemy?.floor) ? enemy.floor : state.floor;
-  if (!isBossMonsterType(typeKey)) return false;
-  return Boolean(bossDropTypesByFloor.get(floor)?.has(typeKey));
-}
-
 function normalizeEnemy(enemy) {
   if (!enemy || typeof enemy !== "object") return null;
   if (enemy.testEnemy) {
@@ -3486,26 +3484,18 @@ function getHeroFormFilmShardBonus() {
 
 function getEnemyFilmShardDrop(enemy) {
   if (getHeroFormLevelConfig().noFilmDrop) return 0;
-  const baseShards = isBossDropEnemy(enemy) ? 10 : 1;
+  const baseShards = 1;
   return Math.max(0, baseShards + getGlobalFilmDropBonus() + getHeroFormFilmShardBonus());
 }
 
 function getEnemyBattleBonusShards(enemy) {
-  if (getHeroFormLevelConfig().noFilmDrop) return 0;
-  const battle = state.currentBattle;
-  if (!battle || battle.initialEnemyCount < 2 || getEnemyFilmShardDrop(enemy) <= 0) return 0;
-  const defeatedCount = Array.isArray(battle.defeatedIds) ? battle.defeatedIds.length : 0;
-  const defeatedIndex = Array.isArray(battle.defeatedIds) ? battle.defeatedIds.indexOf(enemy?.id) : -1;
-  if (defeatedIndex >= 0) return defeatedIndex === 0 ? 0 : defeatedIndex === 1 ? 1 : 2;
-  if (defeatedCount <= 0) return 0;
-  return defeatedCount === 1 ? 1 : 2;
+  void enemy;
+  return 0;
 }
 
 function getEnemySelectionBonusShards(enemy) {
-  if (getHeroFormLevelConfig().noFilmDrop || getEnemyFilmShardDrop(enemy) <= 0) return 0;
-  const order = getEnemySelectionOrder(enemy?.id);
-  if (order <= 1) return 0;
-  return order === 2 ? 1 : 2;
+  void enemy;
+  return 0;
 }
 
 function getEnemyPreviewFilmShardDrop(enemy) {
@@ -5076,14 +5066,16 @@ function render() {
     ? "已通关"
     : `第 ${state.floor} / ${maxFloor} 层${isBossFloor(state.floor) ? " · Boss" : isRewardBossFloor(state.floor) ? " · 可选Boss" : ""}`;
   renderEnemyField();
-  els.attackBtn.closest(".floor-action-row")?.classList.toggle("is-reward-choice", bossRewardPending);
+  const actionRow = els.attackBtn.closest(".floor-action-row");
+  actionRow?.classList.toggle("is-reward-choice", bossRewardPending);
   els.attackBtn.textContent = bossRewardPending ? "选择" : "战斗";
   els.attackBtn.disabled = bossRewardPending
     ? defeated || !selectedBossReward
     : defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !canStartSelectedBattle();
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
   els.attackBtn.setAttribute("aria-label", bossRewardPending ? "确认选择 Boss 奖励" : "开始战斗");
-  els.battleSpeedBtn.textContent = bossRewardPending ? "奖励" : `×${getBattleSpeed()}`;
+  els.battleSpeedBtn.hidden = bossRewardPending;
+  els.battleSpeedBtn.textContent = bossRewardPending ? "" : `×${getBattleSpeed()}`;
   els.battleSpeedBtn.setAttribute("aria-label", bossRewardPending ? "Boss 奖励选择阶段" : `切换战斗倍速，当前 ${getBattleSpeed()} 倍`);
   els.battleSpeedBtn.disabled = defeated || state.gameClear || bossRewardPending;
   els.fleeBtn.hidden = bossRewardPending;
@@ -5234,7 +5226,7 @@ function renderBossRewardCards() {
     button.addEventListener("click", () => selectBossReward(index));
     const icon = option.icon || getBossRewardIcon(option.type);
     button.innerHTML = `
-      <div class="enemy-card-head">
+      <div class="reward-card-main">
         <div class="monster-portrait reward-portrait">
           <img src="${rewardIconBase}${escapeHtml(icon)}" alt="" aria-hidden="true">
         </div>
@@ -5243,9 +5235,9 @@ function renderBossRewardCards() {
           <span>${escapeHtml(option.desc || "选择后进入下一层。")}</span>
         </div>
       </div>
-      <div class="enemy-card-result">
+      <div class="reward-card-foot">
         <span>${selected ? "已选中" : "可切换"}</span>
-        <strong class="estimate-safe">${selected ? "点选择确认" : `奖励 ${index + 1}`}</strong>
+        <strong>${selected ? "点选择确认" : "点选"}</strong>
       </div>
     `;
     els.enemyField.append(button);
@@ -5266,6 +5258,7 @@ function getSelectedBossRewardOption() {
 function getBossRewardIcon(type) {
   const icons = {
     filmDrop: "boss-film-drop.png",
+    filmFlat: "boss-value-min.png",
     filmPercent: "boss-film-percent.png",
     valueMin: "boss-value-min.png",
     valueMax: "boss-value-max.png",
@@ -6178,14 +6171,17 @@ function normalizeBossReward(reward) {
 }
 
 function normalizeBossRewardOption(option, floor, index) {
-  const validTypes = new Set(["filmDrop", "filmPercent", "valueMin", "valueMax"]);
+  const validTypes = new Set(["filmDrop", "filmFlat", "filmPercent", "valueMin", "valueMax"]);
   if (!option || typeof option !== "object" || !validTypes.has(option.type)) return null;
-  const fallback = buildBossRewardOptions(floor).find((item) => item.type === option.type) || {};
+  const fallback = getBossRewardCatalog().find((item) => item.type === option.type)
+    || buildBossRewardOptions(floor).find((item) => item.type === option.type)
+    || {};
   return {
     id: typeof option.id === "string" && option.id ? option.id : `${floor}-${index}-${option.type}`,
     type: option.type,
-    title: cleanText(option.title, fallback.title || "奖励", 24),
-    desc: cleanText(option.desc, fallback.desc || "选择后进入下一层。", 64),
+    title: fallback.title || cleanText(option.title, "奖励", 24),
+    desc: fallback.desc || cleanText(option.desc, "选择后进入下一层。", 64),
+    icon: fallback.icon || option.icon || getBossRewardIcon(option.type),
   };
 }
 

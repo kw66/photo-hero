@@ -1284,11 +1284,11 @@ dd {
 }
 
 .floor-action-row.is-reward-choice {
-  grid-template-columns: minmax(0, 1fr) minmax(52px, auto) minmax(188px, 0.76fr);
+  grid-template-columns: minmax(0, 1fr) minmax(188px, 0.76fr);
 }
 
 .floor-action-row.is-reward-choice #attackBtn {
-  grid-column: 3;
+  grid-column: 2;
 }
 
 .floor-action-row strong {
@@ -1610,7 +1610,10 @@ dd {
 }
 
 .reward-card {
-  min-height: 126px;
+  min-height: 110px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 5px;
+  padding: 8px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--amber-soft) 42%, white 58%), rgb(255 250 239 / 92%)),
     var(--paper);
@@ -1621,11 +1624,19 @@ dd {
   box-shadow: 0 5px 0 rgb(23 19 15 / 22%);
 }
 
-.reward-card .enemy-card-head {
+.reward-card-main {
+  min-width: 0;
+  display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
 }
 
-.reward-card .enemy-card-head strong,
+.reward-card .enemy-name-block {
+  min-width: 0;
+}
+
+.reward-card .enemy-name-block strong,
 .reward-card .enemy-name-block > span {
   display: block;
   overflow: visible;
@@ -1635,6 +1646,24 @@ dd {
 
 .reward-card .enemy-name-block > span {
   line-height: 1.25;
+}
+
+.reward-card-foot {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.reward-card-foot strong {
+  color: #246d38;
+  font-weight: 950;
+  white-space: nowrap;
 }
 
 .reward-portrait {
@@ -2517,6 +2546,14 @@ textarea {
     gap: 5px;
   }
 
+  .floor-action-row.is-reward-choice {
+    grid-template-columns: minmax(0, 1fr) minmax(118px, 0.8fr);
+  }
+
+  .floor-action-row.is-reward-choice #attackBtn {
+    grid-column: 2;
+  }
+
   .floor-action-row strong {
     min-height: 31px;
     padding-inline: 7px;
@@ -2580,6 +2617,38 @@ textarea {
   .reward-portrait img {
     width: 25px;
     height: 25px;
+  }
+
+  .reward-card {
+    min-height: 108px;
+    gap: 4px;
+    padding: 6px 5px;
+  }
+
+  .reward-card-main {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 5px;
+  }
+
+  .reward-card .enemy-name-block strong {
+    font-size: 0.66rem;
+    line-height: 1.08;
+  }
+
+  .reward-card .enemy-name-block > span {
+    margin-top: 3px;
+    font-size: 0.52rem;
+    line-height: 1.16;
+    display: block;
+    overflow: visible;
+    text-overflow: clip;
+    -webkit-line-clamp: unset;
+  }
+
+  .reward-card-foot {
+    min-height: 16px;
+    gap: 3px;
+    font-size: 0.58rem;
   }
 
   .selection-badge {
