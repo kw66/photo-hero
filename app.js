@@ -5496,15 +5496,18 @@ function renderHeroForms() {
     const copy = document.createElement("div");
     copy.className = "form-copy";
     copy.innerHTML = `
-      <div class="form-card-head">
-        <strong>${escapeHtml(form.label)}</strong>
-        <b>${escapeHtml(getHeroFormLevelLabel(form))}</b>
-      </div>
-      <small>${escapeHtml(progressText)}</small>
+      <strong>${escapeHtml(form.label)}</strong>
       <span>${effectLines.map((line) => `<i>${escapeHtml(line)}</i>`).join("")}</span>
     `;
 
-    button.append(img, copy);
+    const meta = document.createElement("div");
+    meta.className = "form-card-meta";
+    meta.innerHTML = `
+      <b>${escapeHtml(getHeroFormLevelLabel(form))}</b>
+      <small>${escapeHtml(progressText)}</small>
+    `;
+
+    button.append(meta, img, copy);
     button.addEventListener("click", () => setHeroForm(form.id));
     els.formGrid.append(button);
   }

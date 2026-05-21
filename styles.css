@@ -1720,13 +1720,14 @@ dd {
 }
 
 .form-card {
+  position: relative;
   min-height: 104px;
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
   justify-items: start;
   align-items: stretch;
   gap: 7px;
-  padding: 7px;
+  padding: 26px 7px 7px;
   border: 2px solid color-mix(in srgb, var(--ink) 48%, var(--line));
   border-radius: 8px;
   background:
@@ -1737,7 +1738,7 @@ dd {
 }
 
 .form-card img {
-  align-self: center;
+  align-self: end;
   justify-self: start;
   width: 52px;
   height: 70px;
@@ -1757,7 +1758,7 @@ dd {
 .form-copy {
   min-width: 0;
   display: grid;
-  align-content: start;
+  align-content: end;
   gap: 3px;
   text-align: left;
   line-height: 1.1;
@@ -1767,21 +1768,27 @@ dd {
   font-size: 0.82rem;
 }
 
-.form-copy small {
+.form-card-meta {
+  position: absolute;
+  top: 5px;
+  left: 7px;
+  right: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.form-card-meta small {
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 850;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
-.form-card-head {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 4px;
-}
-
-.form-card-head b {
+.form-card-meta b {
   padding: 1px 4px;
   border: 1px solid color-mix(in srgb, var(--hero) 38%, var(--line));
   border-radius: 999px;
@@ -2186,7 +2193,7 @@ textarea {
     min-height: 88px;
     grid-template-columns: 38px minmax(0, 1fr);
     gap: 4px;
-    padding: 5px;
+    padding: 20px 5px 5px;
     border-width: 1px;
     border-radius: 7px;
   }
@@ -2205,11 +2212,18 @@ textarea {
     font-size: 0.66rem;
   }
 
-  .form-copy small {
+  .form-card-meta {
+    top: 4px;
+    left: 5px;
+    right: 5px;
+    gap: 4px;
+  }
+
+  .form-card-meta small {
     font-size: 0.54rem;
   }
 
-  .form-card-head b {
+  .form-card-meta b {
     padding: 1px 3px;
     font-size: 0.48rem;
   }
