@@ -200,12 +200,14 @@ const photoIdentificationUserPrompt = [
   "属性语义：",
   "statAffinity 只输出属性倾向，score 用 1-3，最多 3 项。可选 stat：hp、attack、defense、speed、shield、lifesteal、regen。",
   `hp=生命上限：食物、饮料、药品、植物、柔软温暖物、能量补给、可爱治愈物；本地结算为生命上限+1，并在首次装入时额外回复生命+${hpEquipHealPerPoint}。`,
+  "生命恢复、回血、被打后恢复都属于 regen，不属于 hp；只有明确增加生命上限/耐久上限时才倾向 hp。",
   "attack=攻击：工具、硬物、敲击物、键盘鼠标、笔、砖石、运动器材、尖锐或能主动施力的物品。",
   "defense=防御：厚重、坚硬、支撑、抗压、保护、外壳、锁具、金属/硬塑料物品。",
   "speed=速度：鞋、轮子、滑板、风扇、空气流动、轻便快速、旋转、遥控器；没有运动/气流/轮/鞋含义时不要给高 speed。",
   "shield=护盾：容器、盒、包、锅盖、伞、镜子、壳、套、罩、防护用品、能挡在身前的物品。",
   "lifesteal=吸血：刀、剪刀、针、钩、指甲刀、尖锐小工具、吸附/抽取/红色血感物品；没有尖锐/吸附/夺取含义时不要给。",
-  "regen=回复：水、咖啡、药品、清洁用品、毛巾纸巾、灯、充电器、电池、修复/补能/清洁感物品。",
+  "regen=回复：水、咖啡、药品、清洁用品、空气净化器/过滤器、毛巾纸巾、灯、充电器、电池、修复/补能/清洁感物品。",
+  "空气净化器、滤芯、过滤器这类净化空气的物品，优先倾向 regen 和 defense，不要倾向 hp，除非它同时明显像食物/药品/植物/治愈物。",
   "属性倾向必须来自物品功能或形态，不要为了凑满 3 项而添加牵强属性；不确定时只给 1-2 项。",
   "",
   `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}(价值${effect.value})`).join("；")}。`,
@@ -1429,6 +1431,7 @@ function normalizeStatKey(value) {
     recovery: "regen",
   };
   if (direct[text]) return direct[text];
+  if (/生命恢复|恢复生命|回血|回复/.test(text)) return "regen";
   if (/生命|血|体力/.test(text)) return "hp";
   if (/攻击|攻|伤害/.test(text)) return "attack";
   if (/防御|防/.test(text)) return "defense";
@@ -1519,6 +1522,10 @@ function hasStrongEquipmentFantasyText(text) {
   return /(?:锋利|尖锐|厚重|坚硬|防护|护盾|容器|外壳|工具|武器|速度|旋转|气流|修复|补能|吸附|抽取|成长|训练|奖牌|有趣|动心|奇特|故事感|装备联想|sharp|solid|protect|shield|tool|weapon|speed|rotate|airflow|heal|energy|grow|medal|interesting|fantasy)/i.test(source);
 }
 
+function hasAirPurifierSemanticText(text) {
+  return /(?:空气净化器|净化器|过滤器|滤芯|滤网|空气过滤|净化空气|清新空气|污浊空气|除尘|除味|除菌|防尘|空气清洁|air purifier|air filter|purify air|clean air)/i.test(String(text || ""));
+}
+
 function hasHpSemanticText(text) {
   return /(?:咖啡|矿泉水|饮料|药|汤|茶|牛奶|果汁|食物|饭团|面包|糖果|饼干|肉|蔬菜|水果|香蕉|番茄|西红柿|能量|植物|花朵|叶片|种子|可爱|治愈|毛绒|玩偶|娃娃|贴纸|卡通|图案|青蛙|coffee|water|drink|medicine|tea|milk|juice|food|bread|candy|fruit|banana|tomato|energy|plant|flower|seed|cute|heal|healing|plush|doll|toy|sticker|cartoon|pattern)/i.test(String(text || ""));
 }
@@ -1536,7 +1543,8 @@ function hasShieldSemanticText(text) {
 }
 
 function hasDefenseSemanticText(text) {
-  return /(?:厚|重|硬|坚|金属|石|木|壳|骨|甲|板|锁|支撑|抗压|防御|保护|框|架|陶瓷|玻璃|橡胶|岩|盾|hard|solid|metal|stone|wood|shell|armor|lock|support|ceramic|glass|rubber)/i.test(String(text || ""));
+  const source = String(text || "");
+  return hasAirPurifierSemanticText(source) || /(?:厚|重|硬|坚|金属|石|木|壳|骨|甲|板|锁|支撑|抗压|防御|防护|保护|过滤|防尘|框|架|陶瓷|玻璃|橡胶|岩|盾|hard|solid|metal|stone|wood|shell|armor|lock|support|ceramic|glass|rubber|filter)/i.test(source);
 }
 
 function hasAttackSemanticText(text) {
@@ -1552,7 +1560,8 @@ function hasLifestealSemanticText(text) {
 }
 
 function hasRegenSemanticText(text) {
-  return /(?:回复|恢复|治愈|修复|补能|清洁|水|咖啡|饮|药|茶|奶|充电|电池|灯|纸巾|毛巾|植物|花|叶|种子|可爱|柔软|贴纸|卡通|图案|青蛙|heal|regen|repair|clean|water|coffee|drink|medicine|charger|battery|light|tissue|towel|plant|flower|leaf|seed|cute|soft|sticker|cartoon|pattern)/i.test(String(text || ""));
+  const source = String(text || "");
+  return hasAirPurifierSemanticText(source) || /(?:回复|恢复|治愈|修复|补能|清洁|净化|清新|水|咖啡|饮|药|茶|奶|充电|电池|灯|纸巾|毛巾|植物|花|叶|种子|可爱|柔软|贴纸|卡通|图案|青蛙|heal|regen|repair|clean|purify|water|coffee|drink|medicine|charger|battery|light|tissue|towel|plant|flower|leaf|seed|cute|soft|sticker|cartoon|pattern)/i.test(source);
 }
 
 function normalizeModelStats(stats) {
@@ -3831,7 +3840,9 @@ function inferFallbackQualityScore(text) {
 
 function allocateStatsForItem(rawStats, itemName, valueBudget, statAffinity = []) {
   const normalized = normalizeStats(rawStats, 20);
-  if (calculateStatsValue(normalized) > 0) return normalized;
+  if (calculateStatsValue(normalized) > 0 && areProvidedStatsSemanticallyConsistent(normalized, itemName)) {
+    return normalized;
+  }
   const keys = getPreferredStatKeys(itemName, statAffinity);
   const result = normalizeStats({}, 20);
   let remaining = Math.max(0, valueBudget);
@@ -3885,6 +3896,13 @@ function allocateStatsForItem(rawStats, itemName, valueBudget, statAffinity = []
     result.hp += remaining;
   }
   return result;
+}
+
+function areProvidedStatsSemanticallyConsistent(stats, text) {
+  const normalized = normalizeStats(stats, 20);
+  const activeKeys = statOrder.filter((key) => (normalized[key] || 0) > 0);
+  if (!activeKeys.length) return false;
+  return activeKeys.every((key) => hasSemanticForPhotoStat(key, text));
 }
 
 function canSpendOnPhotoStat(key, text, remainingBudget, totalBudget) {
@@ -4094,6 +4112,7 @@ function getSpecialEffectDefinitions(effectKeys) {
 function inferPreferredStats(name) {
   const text = String(name || "");
   if (/刺|尖刺|荆棘|倒刺|玻璃片|碎玻璃|铁丝网|cactus|thorn|spike|barb|broken glass|wire fence/i.test(text)) return ["attack", "defense", "lifesteal"];
+  if (hasAirPurifierSemanticText(text)) return ["regen", "defense", "shield"];
   if (/咖啡|水|饮|药|汤|茶|奶|果汁|杯|瓶|喷雾|清洁|纸巾|毛巾|湿巾|coffee|water|drink|medicine|tea|milk|juice|cup|bottle|clean|tissue|towel/i.test(text)) return ["regen", "hp", "shield"];
   if (/番茄|西红柿|香蕉|饭|面|糖|饼|肉|菜|水果|食|能量|糖果|零食|植物|花|叶|种子|tomato|banana|rice|bread|candy|meat|vegetable|fruit|food|energy|snack|plant|flower|leaf|seed/i.test(text)) return ["hp", "regen", "shield"];
   if (/刀|剪|针|钉|锥|刃|指甲刀|钩|夹|钳|锯|尖锐|knife|scissor|needle|nail|blade|clipper|hook|pliers|saw|sharp/i.test(text)) return ["lifesteal", "attack", "speed"];
