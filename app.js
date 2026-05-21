@@ -116,12 +116,12 @@ const bossDropTypesByFloor = new Map([
 
 const statLabels = {
   hp: "生命上限",
-  attack: "攻",
-  defense: "防",
-  speed: "速",
-  regen: "回",
-  shield: "盾",
-  lifesteal: "吸",
+  attack: "攻击",
+  defense: "防御",
+  speed: "速度",
+  regen: "回复",
+  shield: "护盾",
+  lifesteal: "吸血",
 };
 
 const statValueWeights = {
@@ -914,6 +914,7 @@ async function analyzePhoto() {
     const message = normalizeAnalyzeError(error);
     showLootError(`鉴定失败：${message}（胶卷未消耗）`);
     addLog(`鉴定失败：${message}（胶卷未消耗）`);
+    clearPendingPhoto();
   } finally {
     setBusy("");
     render();
@@ -941,6 +942,11 @@ function normalizeAnalyzeError(error) {
 function showLootError(message) {
   state.latestItem = null;
   state.lootError = message;
+}
+
+function clearPendingPhoto() {
+  state.lastPhoto = "";
+  state.pendingPhotoSlotIndex = getSelectedSlotIndex();
 }
 
 async function analyzeDirectly(config, image) {
@@ -4596,11 +4602,17 @@ function renderEquipmentDetail() {
   els.equipmentDetailStats.hidden = false;
 
   if (state.lootError && !state.lastPhoto) {
+    const canRetake = showingItem && !selected && !locked && state.filmRolls >= 1;
     els.equipmentDetail.classList.add("is-error");
     els.equipmentDetailName.textContent = "鉴定失败";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = `${state.lootError} ${getLootErrorHint(state.lootError)}`;
+    els.equipmentDetailDesc.textContent = `${state.lootError} 已自动放弃本次照片，可以重新拍照或继续战斗。${getLootErrorHint(state.lootError)}`;
+    if (canRetake) {
+      els.equipmentActions.hidden = false;
+      els.photoActionBtn.hidden = false;
+      els.photoActionBtn.disabled = false;
+    }
     return;
   }
 
