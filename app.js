@@ -3,6 +3,8 @@ const STORAGE_KEYS = {
   save: "photoHero.save",
 };
 
+const pendingDuplicatePhotoKey = "pending";
+
 const SILICONFLOW_MODELS = [
   { value: "Qwen/Qwen3.6-35B-A3B" },
   { value: "Pro/moonshotai/Kimi-K2.6" },
@@ -90,12 +92,14 @@ const defaultPhotoValueMax = 20;
 const battleSpeedOptions = [1, 2, 4];
 const battleRoundBaseMs = 1000;
 const battleHitEffectMs = 260;
+const battleRoundLimitsByEnemyCount = [0, 100, 150, 200];
 const analysisImageMaxEdge = 1024;
 const analysisImageQuality = 0.78;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
+const hpEquipHealPerPoint = 2;
 const maxFloor = 40;
-const gameSaveVersion = 11;
+const gameSaveVersion = 14;
 const initialFilmRolls = 3;
 const bossFloors = new Set([10, 20, 30, 40]);
 const rewardBossFloors = new Set([25, 35, 38]);
@@ -124,10 +128,17 @@ const statValueWeights = {
   hp: 1,
   attack: 5,
   defense: 6,
-  speed: 15,
+  speed: 12,
   shield: 3,
   lifesteal: 8,
   regen: 10,
+};
+
+const itemQualityRefunds = {
+  common: 0.2,
+  rare: 0.4,
+  epic: 0.6,
+  legendary: 0.8,
 };
 
 const photoSpecialEffects = [
@@ -145,53 +156,70 @@ const photoSpecialEffects = [
 
 const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
 
-const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|鞋|拖鞋|滑板|风扇|橡皮|橡皮擦|胶带|刷|梳|钥匙|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|椅|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物/i;
-const oversizedScenePattern = /汽车|车辆|公交|火车|飞机|船|房|楼|建筑|天空|风景|街道|道路|山|海|河|湖|树|大型家具|床|沙发|衣柜|冰箱|洗衣机|大面积背景/i;
+const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|鞋|拖鞋|滑板|风扇|橡皮|橡皮擦|胶带|刷|梳|钥匙|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物|毛巾|纸巾|湿巾|电池|灯|勺|叉|筷|盘|碗|玩偶|娃娃|徽章|挂件/i;
+const oversizedScenePattern = /汽车|车辆|公交|火车|飞机|船|房|楼|建筑|天空|风景|街道|道路|公路|山|海|河|湖|森林|荒原|全景|远景|大型家具|床|沙发|衣柜|冰箱|洗衣机|大面积背景/i;
 const explicitOversizePattern = /比人.{0,8}(大|高)|比一个人.{0,8}(大|高)|尺寸.{0,8}(超过|大于|高于).{0,4}人|人.{0,4}(还要)?大|巨大|无法搬动|不能搬动|主要是.{0,6}(场景|背景)|大面积背景/i;
 
 const photoIdentificationSystemPrompt = [
-  "你是《照片勇者》的照片装备鉴定器，也是低数值 RPG 装备设计师。",
+  "你是《照片勇者》的照片装备鉴定器，负责识别照片主体、判断尺寸、评价照片质量，并给出装备语义倾向。",
   "你必须只输出一个 JSON 对象，不要 Markdown，不要代码块，不要额外解释。",
   "第一字符必须是 {，最后一个字符必须是 }。",
-  "你的目标不是保守拒绝，而是把现实照片里的主要物品转成有趣、低数值、可解释的装备。",
+  "你不负责计算最终价值、最终属性点或最终特殊效果；这些数值由本地游戏规则统一结算。",
+  "你的目标不是保守拒绝，而是把照片里的主要主体转成有趣、可解释的装备素材；高分不只给手持生活用品，也可以给清晰有趣的小型自然物、玩具、模型、贴纸、图案、摆件和可搬动物；只有明显比人大的主体或纯场景才判为不可装备。",
 ].join("\n");
 
 const photoIdentificationUserPrompt = [
-  "请鉴定图片里的一个主要物品，生成《照片勇者》装备 JSON。",
+  "请按步骤鉴定图片里的一个主要主体，生成《照片勇者》装备素材 JSON。",
   "",
   "识别规则：",
-  "1. 先找画面中最主要、最像单个实体的物品；忽略背景、桌面、墙面和无关杂物。",
-  "2. 只要主体不明显比成年人更大，就视为可装备道具。可装备不等于能穿戴，杯子、书、工具、玩具、贴纸、纸面图案、键盘、椅子、小桌、小电器、小摆件都可以。",
-  "3. 只有主体明显大于成年人，或图片主要是场景/背景/交通工具/建筑/天空/道路/山海河湖时，才允许 tooLarge=true。",
-  "4. 如果画面是卡通图案、贴纸、屏幕里的图案、包装上的图案，只要承载它的物品不是巨大场景，就按小物件鉴定，不要直接拒绝。",
+  "1. 先找画面中最大、最清楚、最像单个实体的主体；忽略背景、桌面、墙面和边缘杂物。",
+  "2. 主体尺寸小于或接近手持/桌面/可搬动小物时，isEquipable=true，即使它普通、破旧、卡通、包装、屏幕画面、贴纸、玩具、模型、小型植物、石头、叶片或装饰物也可以。",
+  "3. 真实汽车、公交、火车、飞机、船、整栋建筑、整间房、床、沙发、冰箱、道路、天空、山海河湖等人尺寸以上主体必须 isEquipable=false。",
+  "4. 如果图片里有巨大背景但前景有明确小物品，优先鉴定前景小物品，不要因为背景过大而拒绝。",
+  "5. 如果画面是卡通图案、贴纸、屏幕里的图案、包装上的图案，请鉴定承载它的小物品或图案本身，除非整张图只是大场景。",
   "",
   "必须输出这个 JSON 结构，字段名使用英文：",
-  "{\"itemName\":\"短装备名\",\"objectType\":\"主体物品类型\",\"value\":0,\"tooLarge\":false,\"stats\":{\"hp\":0,\"attack\":0,\"defense\":0,\"speed\":0,\"shield\":0,\"lifesteal\":0,\"regen\":0},\"specialEffects\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
+  "{\"itemName\":\"短装备名\",\"subjectName\":\"照片主体\",\"objectType\":\"主体物品类型\",\"identityDescription\":\"用于判断是否同一个现实物体的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
   "",
-  "价值规则：",
-  "1. tooLarge=true 时 value=0、所有 stats=0、specialEffects=[]。",
-  `2. 可装备时 value 默认是 ${defaultPhotoValueMin} 到 ${defaultPhotoValueMax} 的整数；游戏奖励可能提高这个范围，最终以本地规则为准。基础 ${defaultPhotoValueMin} 分；主体清楚 +3；主体占图面积大 +3；背景干净 +2；现实拍摄感强 +3；光线/对焦好 +2；物品有趣、让人想装备 +2；默认封顶 ${defaultPhotoValueMax}。`,
-  "3. 价值不是价格，不是越精美越高，也不是越破旧越高；优先奖励清晰、有主体、有生活感、有趣。",
+  "字段规则：",
+  "1. itemName 要具体、短、有画面感，例如 蓝柄剪刀、旧陶瓷杯、青蛙贴纸、黑色键盘；不要叫 照片装备、神秘物品。",
+  "2. sizeClass 只能写 handheld、pocket、tabletop、small_furniture、human_scale、vehicle、building、landscape、scene、unknown 之一。",
+  "3. isEquipable 表示是否不是比人大的可携带/可当道具的小物件；模型、小车、玩具车可以 true，但真实汽车/巴士/火车/飞机/船必须 false。",
+  "4. isScene 只有在画面主体是风景、天空、街道、建筑、大型车辆、房间整体等场景时才 true。",
+  "5. 不要输出最终 value、最终 stats 或最终 specialEffects；本地规则会根据 photoQuality、statAffinity、specialAffinity 计算。",
+  "6. 同一个现实物体只能鉴定一次，但同类型不同款式的物体可以分别鉴定。identityDescription 必须写清颜色、材质、形状、品牌/文字、磨损、纹理、局部特征、背景位置等可区分细节，用于后续和旧照片比较是否同一个物体。",
   "",
-  "属性预算：",
-  "生命上限 hp 每点价值 1；攻击 attack 每点价值 5；防御 defense 每点价值 6；速度 speed 每点价值 15；护盾 shield 每点价值 3；吸血 lifesteal 每点价值 8；回复 regen 每点价值 10。",
-  "stats 的总价值 + specialEffects 的价值不得超过 value。低价值装备宁可只给 1 到 2 种属性，不要平均撒点。",
+  "照片质量 photoQuality：",
+  "clarity 主体清楚程度 0-3；subjectArea 主体占图面积 0-3；backgroundClean 背景干净 0-2；realPhoto 现实实拍感 0-3；focusLight 光线/对焦 0-2；interesting 有趣、让人想装备 0-2。",
+  "评分校准：只有主体边缘清晰且不需猜测时 clarity=3；主体占画面接近一半或更大时 subjectArea=3；背景几乎不抢主体时 backgroundClean=2；确实像玩家亲自拍摄的现实物体时 realPhoto=3；普通但不惊喜的物品 interesting 通常只能给 0 或 1。",
+  "高分应该奖励玩家主动拍好的照片：主体明确、近距离、主体占比大、背景干净、光线清楚、物品或主体有互动感、故事感或装备联想；不要只按物品贵不贵、是不是生活用品来评分。",
+  "请主动拉开分值：随手拍、主体偏小或普通背景通常总分 6-9；主体清楚但构图一般通常 9-12；主体很清楚且有装备联想通常 12-14；只有清晰、近景、背景干净、实拍感强且有趣的照片才给 14-15。",
+  "如果主体模糊、占比小、背景杂、只是屏幕/海报/风景/大场景的一小部分，或只是抽象光斑/远景纹理，应降低 clarity、subjectArea、backgroundClean、realPhoto 或 interesting。",
+  "普通生活用品、自然小物、玩具模型、贴纸图案、桌面摆件只要清晰拍好都可以高分；昂贵物、宏大景观、真实载具、人物整体、抽象光影即使好看，也不能因为好看就高分。",
   "",
   "属性语义：",
-  "食物、饮料、药品、植物、柔软温暖物品：优先 hp/regen。",
-  "工具、硬物、敲击物、键盘鼠标、笔、砖石、运动器材：优先 attack，次选 defense/hp。",
-  "容器、盒、包、锅盖、伞、镜子、壳、套、头盔、防护用品：优先 shield/defense。",
-  "鞋、轮子、滑板、风扇、空气流动、轻便快速、遥控器：优先 speed；没有运动/气流/轮/鞋含义时不要给高 speed。",
-  "刀、剪刀、针、钩、指甲刀、尖锐小工具、吸附/抽取/红色血感物品：可给 lifesteal；没有尖锐/吸附/夺取含义时不要给 lifesteal。",
-  "电池、充电器、线缆、灯、喷雾、清洁用品：按用途给 shield/regen/speed/attack，不要机械固定。",
+  "statAffinity 只输出属性倾向，score 用 1-3，最多 3 项。可选 stat：hp、attack、defense、speed、shield、lifesteal、regen。",
+  `hp=生命上限：食物、饮料、药品、植物、柔软温暖物、能量补给、可爱治愈物；本地结算为生命上限+1，并在首次装入时额外回复生命+${hpEquipHealPerPoint}。`,
+  "attack=攻击：工具、硬物、敲击物、键盘鼠标、笔、砖石、运动器材、尖锐或能主动施力的物品。",
+  "defense=防御：厚重、坚硬、支撑、抗压、保护、外壳、锁具、金属/硬塑料物品。",
+  "speed=速度：鞋、轮子、滑板、风扇、空气流动、轻便快速、旋转、遥控器；没有运动/气流/轮/鞋含义时不要给高 speed。",
+  "shield=护盾：容器、盒、包、锅盖、伞、镜子、壳、套、罩、防护用品、能挡在身前的物品。",
+  "lifesteal=吸血：刀、剪刀、针、钩、指甲刀、尖锐小工具、吸附/抽取/红色血感物品；没有尖锐/吸附/夺取含义时不要给。",
+  "regen=回复：水、咖啡、药品、清洁用品、毛巾纸巾、灯、充电器、电池、修复/补能/清洁感物品。",
+  "属性倾向必须来自物品功能或形态，不要为了凑满 3 项而添加牵强属性；不确定时只给 1-2 项。",
   "",
-  `特殊效果只能从这些 key 里选，且只能在语义合适并且预算足够时给 0 或 1 个：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}(价值${effect.value})`).join("；")}。`,
-  "工具、武器、越打越顺手的物品可选 dealDamageAttack；盾牌、外壳、硬保护物可选 takeDamageDefense 或 shieldCrashAttackDown；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、双件物品可选 doubleStrikeSpeedDown。",
+  `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}(价值${effect.value})`).join("；")}。`,
+  "特殊效果只给语义很强的候选，普通物品可以 specialAffinity=[]；不要为了显得厉害乱给特殊效果。",
+  "工具、武器、越打越顺手的物品可选 dealDamageAttack；盾牌、外壳、硬保护物可选 takeDamageDefense 或 shieldCrashAttackDown；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、成对/双件/高速物品可选 doubleStrikeSpeedDown。",
   "",
   "命名和描述：",
-  "itemName 要具体、短、有画面感，例如 蓝柄剪刀、旧陶瓷杯、青蛙贴纸、黑色键盘；不要叫 照片装备、神秘物品。",
-  "description 用一句中文说明为什么这些属性合理，不要列 rarity/价值/是否装备。",
-  "reason 只写一句内部依据，越短越好。",
+  "itemName、subjectName、objectType、description、reason、tags 都用中文；只有图片主体本身是英文品牌/文字时，才可保留必要英文。",
+  "description 用一句中文写成装备味道，像玩家捡到一件奇怪但能上阵的小道具；要说明它如何转成属性倾向，不要列 rarity/价值/是否装备。",
+  "description 要有一点冒险感，但保持克制，不要使用夸张神器、无敌、传说降临这类空泛词。",
+  "reason 只写一句内部依据，格式尽量像：主体=剪刀；尺寸=手持；质量=清晰；倾向=锋利。",
+  "",
+  "输出示例：",
+  "{\"itemName\":\"蓝柄剪刀\",\"subjectName\":\"剪刀\",\"objectType\":\"手持工具\",\"identityDescription\":\"蓝色塑料手柄、金属剪刀刃、桌面近景、主体占画面大，没有明显品牌文字。\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":3,\"subjectArea\":3,\"backgroundClean\":2,\"realPhoto\":3,\"focusLight\":2,\"interesting\":2},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3},{\"stat\":\"lifesteal\",\"score\":2}],\"specialAffinity\":[\"dealDamageAttack\"],\"description\":\"锋利的剪刀适合切开敌人的防线。\",\"reason\":\"手持尖锐工具，主体清晰。\",\"tags\":[\"尖锐\",\"工具\"],\"confidence\":0.9}",
 ].join("\n");
 
 const statOrder = ["hp", "attack", "defense", "speed", "shield", "lifesteal", "regen"];
@@ -238,8 +266,8 @@ const monsterImages = {
 const monsterTypes = {
   slime: { name: "史莱姆", atk: 6, def: 0, hp: 20, speed: 2, traits: [{ type: "regen", value: 1, text: "回复1" }] },
   skeleton: { name: "骷髅", atk: 8, def: 5, hp: 36, speed: 3, traits: [{ type: "noLifesteal", text: "制裁：无法吸血" }] },
-  bat: { name: "蝙蝠", atk: 9, def: 0, hp: 24, speed: 8, traits: [{ type: "lifesteal", value: 1, text: "吸血1" }] },
-  mage: { name: "法师", atk: 10, def: 2, hp: 30, speed: 3, traits: [{ type: "magic", text: "魔攻：无视防御" }] },
+  bat: { name: "蝙蝠", atk: 9, def: 0, hp: 24, speed: 6, traits: [{ type: "lifesteal", value: 1, text: "吸血1" }] },
+  mage: { name: "法师", atk: 8, def: 2, hp: 30, speed: 3, traits: [{ type: "magic", text: "魔攻：无视防御" }] },
   wizard: { name: "巫师", atk: 12, def: 6, hp: 42, speed: 4, traits: [{ type: "magic", text: "魔攻：无视防御" }] },
   guard: { name: "卫兵", atk: 8, def: 8, hp: 60, speed: 2, traits: [{ type: "shield", value: 20, text: "护盾20" }] },
   knight: { name: "骑士", atk: 15, def: 6, hp: 45, speed: 4, traits: [{ type: "noRegen", text: "红莲：无法回复" }] },
@@ -261,7 +289,7 @@ const normalMonsterUnlocks = [
   { floor: 1, key: "slime", weight: 20, tier: 1 },
   { floor: 2, key: "bat", weight: 9, tier: 1 },
   { floor: 3, key: "skeleton", weight: 9, tier: 1 },
-  { floor: 4, key: "mage", weight: 7, tier: 2 },
+  { floor: 5, key: "mage", weight: 7, tier: 2 },
   { floor: 6, key: "orc", weight: 7, tier: 2 },
   { floor: 8, key: "golem", weight: 5, tier: 2 },
   { floor: 11, key: "wizard", weight: 6, tier: 3 },
@@ -271,6 +299,30 @@ const normalMonsterUnlocks = [
   { floor: 21, key: "warrior", weight: 5, tier: 4 },
   { floor: 23, key: "swordsman", weight: 4, tier: 4 },
 ];
+
+const floorNarratives = {
+  1: "塔门打开，潮湿的石阶上只剩一点胶卷味。先用最弱的怪物试试手。",
+  2: "墙缝里有翅影掠过，速度开始变得重要。",
+  3: "旧骨头敲着地面，防御高的敌人会考验你的破防能力。",
+  5: "空气里亮起细小火星，法师会绕过防御直接烧到生命。",
+  8: "石块在楼道尽头滚动，低攻击会被坚固外壳拖住。",
+  11: "楼层开始变冷，前面的弱怪仍会出现，但塔里混进了更硬的东西。",
+  21: "墙上的划痕变深，之后每多贪一只怪，都要认真算血。",
+  37: "塔顶的风从门缝灌下来，最后几层不会给勇者太多喘息。",
+};
+
+const bossFloorNarratives = {
+  10: "第十层的门自己合上了。骷髅队长守着第一道坎，逃跑已经来不及。",
+  20: "烛火变成暗红色，吸血鬼正在等一个生命值不够谨慎的勇者。",
+  30: "骑士队长带着两名战士列阵。它不算最强，但会用人数拖垮冒进的人。",
+  40: "塔顶只剩魔王的影子。照片里的每一点数值都会在这里结算。",
+};
+
+const rewardBossFloorNarratives = {
+  25: "水声从楼梯下方漫上来。章鱼挡着一张可跳过的奖励牌。",
+  35: "龙翼扫过墙面，击败魔龙会让之后的拍照更有价值。",
+  38: "大法师把通往塔顶的路照得发白。这一战之后，还有一层缓冲。",
+};
 
 const els = {
   playerHpText: byId("playerHpText"),
@@ -369,6 +421,7 @@ const state = {
 loadConfig();
 loadSave();
 ensureEncounter();
+ensureInitialFloorNarrative();
 bindEvents();
 render();
 
@@ -829,14 +882,32 @@ async function analyzePhoto() {
     return;
   }
 
+  const photoKey = makePhotoDuplicateKey(state.lastPhoto);
+  const photoDuplicate = findCurrentPhotoDuplicate(photoKey);
+  if (photoDuplicate) {
+    const message = `当前装备栏已经有这张照片生成的装备：${formatItemDisplayName(photoDuplicate)}。`;
+    showLootError(`${message} 请拍摄新的物品。`);
+    addLog(`${message} 胶卷未消耗。`);
+    render();
+    return;
+  }
+
   saveConfig(false);
   setBusy("鉴定中...");
   render();
   try {
     const item = await analyzeDirectly(config, state.lastPhoto);
     const inventoryImage = await makeInventoryImage(state.lastPhoto);
-    consumeFilm();
-    receiveItem(balanceItem(item, inventoryImage), "鉴定完成。");
+    const balancedItem = balanceItem({ ...item, photoKey }, inventoryImage);
+    balancedItem.image = inventoryImage;
+    const duplicate = await findDuplicateIdentifiedItem(balancedItem, config);
+    if (duplicate) {
+      throw new Error(`这个物品已经鉴定过：${formatItemDisplayName(duplicate)}。请拍摄新的物品。`);
+    }
+    if (!consumeFilm()) {
+      throw new Error("胶卷不足，未生成装备。");
+    }
+    receiveItem(balancedItem, "鉴定完成。");
   } catch (error) {
     const message = normalizeAnalyzeError(error);
     showLootError(`鉴定失败：${message}（胶卷未消耗）`);
@@ -928,6 +999,63 @@ async function analyzeDirectly(config, image) {
   return extractJson("", payload);
 }
 
+async function compareIdentifiedObjects(config, currentItem, knownItem) {
+  if (!currentItem?.image || !knownItem?.image) return false;
+  let response;
+  const prompt = [
+    "请判断两张图片中的主要装备主体是否是同一个现实物体。",
+    "只比较主要主体，不要因为同类型、同颜色、同品牌或都是白色小风扇就判定相同。",
+    "如果是同一个实体在不同角度、距离、光线下拍摄，sameObject=true。",
+    "如果只是同类但款式、结构、贴纸、纹理、磨损、背景位置或可见细节不同，sameObject=false。",
+    "必须只输出 JSON：{\"sameObject\":false,\"confidence\":0.0,\"reason\":\"一句中文理由\"}。",
+    "",
+    `已存物品描述：${knownItem.identityDescription || knownItem.description || knownItem.reason || formatItemDisplayName(knownItem)}`,
+    `新物品描述：${currentItem.identityDescription || currentItem.description || currentItem.reason || formatItemDisplayName(currentItem)}`,
+  ].join("\n");
+  const body = withProviderRequestOptions(config, {
+    model: config.model,
+    temperature: 0.1,
+    max_tokens: 160,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: knownItem.image, detail: modelImageDetail } },
+          { type: "image_url", image_url: { url: currentItem.image, detail: modelImageDetail } },
+        ],
+      },
+    ],
+  });
+
+  try {
+    response = await fetch(buildChatEndpoint(config.baseUrl), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return false;
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) return false;
+  const text = readModelText(payload) || readModelText(payload, { reasoningOnly: true });
+  let parsed = null;
+  for (const candidate of collectJsonCandidates(text)) {
+    parsed = parseJsonCandidate(candidate);
+    if (parsed) break;
+  }
+  const source = parsed || {};
+  const sameObject = parseBooleanLike(source.sameObject ?? source.same_object ?? source.same ?? source["同一物体"]);
+  const rawConfidence = source.confidence ?? source.score ?? source["置信度"];
+  const confidence = Number.isFinite(Number(rawConfidence)) ? clampNumber(rawConfidence, 0, 1) : sameObject ? 0.75 : 0;
+  return sameObject && confidence >= 0.65;
+}
+
 function withProviderRequestOptions(config, body) {
   const next = { ...body };
   if (shouldDisableThinking(config)) {
@@ -958,7 +1086,7 @@ function buildChatEndpoint(input) {
 }
 
 function getPhotoIdentificationPrompt() {
-  return `${photoIdentificationUserPrompt}\n\n当前本局奖励后的有效价值范围：${getPhotoValueMin()} 到 ${getPhotoValueMax()}。可装备时 value 必须落在这个范围内，超过范围会被本地规则裁剪。`;
+  return `${photoIdentificationUserPrompt}\n\n当前本局本地结算的装备价值范围：${getPhotoValueMin()} 到 ${getPhotoValueMax()}。你仍然不要输出最终 value 或最终 stats，只需要按 rubric 输出质量分与倾向。`;
 }
 
 function readModelText(payload, options = {}) {
@@ -1175,26 +1303,56 @@ function normalizeModelItem(raw) {
     .find((value) => value && typeof value === "object" && !Array.isArray(value)) || raw;
   const safe = source && typeof source === "object" ? source : {};
   const stats = normalizeModelStats(safe.stats || safe.attributes || safe["属性"] || {});
-  const itemName = safe.itemName || safe.name || safe.item || safe["物品名称"] || safe["装备名"] || safe["名称"];
-  const value = safe.value ?? safe.score ?? safe.quality ?? safe["价值"] ?? safe["品质"];
+  const subjectName = safe.subjectName || safe.subject_name || safe.subject || safe["主体名称"] || safe["主体"];
+  const itemName = safe.itemName || safe.name || (typeof safe.item === "string" ? safe.item : "") || subjectName || safe["物品名称"] || safe["装备名"] || safe["名称"];
+  const value = safe.value ?? safe.score ?? (typeof safe.quality === "object" ? null : safe.quality) ?? safe["价值"] ?? safe["品质"];
   const tooLarge = safe.tooLarge ?? safe.too_large ?? safe.oversized ?? safe["过大"] ?? safe["无法装备"];
-  const objectType = safe.objectType || safe.object_type || safe.category || safe.type || safe["主体"] || safe["类型"];
+  const objectType = safe.objectType || safe.object_type || safe.category || safe.type || safe["主体类型"] || safe["类型"];
+  const sizeClass = safe.sizeClass || safe.size_class || safe.size || safe["尺寸类型"] || safe["大小"];
+  const isScene = parseBooleanMaybe(safe.isScene ?? safe.is_scene ?? safe.scene ?? safe["场景"]);
+  const isEquipable = parseBooleanMaybe(safe.isEquipable ?? safe.is_equipable ?? safe.equipable ?? safe["可装备"]);
+  const rawPhotoQuality = safe.photoQuality || safe.photo_quality || safe.qualityScore || (typeof safe.quality === "object" ? safe.quality : null) || safe["照片质量"];
+  const rawStatAffinity = safe.statAffinity || safe.stat_affinity || safe.affinity || safe.statPreference || safe["属性倾向"];
+  const rawSpecialAffinity = safe.specialAffinity || safe.special_affinity || safe.specialCandidates || safe["特殊倾向"];
+  const photoQuality = normalizePhotoQuality(rawPhotoQuality || {});
+  const statAffinity = normalizeStatAffinity(rawStatAffinity);
+  const specialAffinity = normalizeSpecialEffects(rawSpecialAffinity);
   const tags = normalizeStringList(safe.tags || safe.keywords || safe["标签"] || safe["关键词"]);
   const reason = safe.reason || safe.analysis || safe.rationale || safe["理由"] || safe["判断依据"] || safe["分析"];
   const description = safe.description || safe.desc || safe["描述"] || reason;
+  const identityDescription = safe.identityDescription || safe.identity_description || safe.appearance || safe.objectIdentity || safe["外观描述"] || safe["身份描述"];
   const specialEffects = safe.specialEffects || safe.special_effects || safe.effects || safe.special || safe.specialEffect || safe["特殊效果"] || safe["特效"];
   const cleanName = cleanText(itemName, "照片装备", 18);
   const rejected = parseBooleanLike(tooLarge);
-  const contextText = [cleanName, objectType, description, reason, tags.join(" ")].filter(Boolean).join(" ");
-  const correctedTooLarge = shouldTreatAsTooLarge(cleanName, contextText, rejected);
+  const sceneRejected = isScene === true || isOversizedSizeClass(sizeClass);
+  const contextText = [cleanName, subjectName, objectType, sizeClass, description, reason, tags.join(" ")].filter(Boolean).join(" ");
+  const modelRejectsEquipment = rejected || sceneRejected || isScene === true || isEquipable === false;
+  const correctedTooLarge = shouldTreatAsTooLarge(cleanName, contextText, modelRejectsEquipment);
   return {
     itemName: cleanName,
+    subjectName: cleanText(subjectName, cleanName, 18),
     objectType: cleanText(objectType, "", 18),
-    value: correctedTooLarge ? 0 : clampInt(value, getPhotoValueMin(), getPhotoValueMax()),
+    sizeClass: cleanText(sizeClass, "", 18),
+    isScene: isScene === true,
+    isEquipable: isEquipable !== false && !correctedTooLarge,
+    value: correctedTooLarge ? 0 : normalizeOptionalValue(value),
     tooLarge: correctedTooLarge,
     stats,
+    photoQuality,
+    statAffinity,
+    specialAffinity,
+    semanticAppraisal: hasSemanticIdentificationData({
+      subjectName,
+      sizeClass,
+      isScene,
+      isEquipable,
+      photoQuality: rawPhotoQuality,
+      statAffinity: rawStatAffinity,
+      specialAffinity: rawSpecialAffinity,
+    }),
     specialEffects: normalizeSpecialEffects(specialEffects),
     description: cleanText(description, "由照片鉴定出的装备。", 72),
+    identityDescription: cleanText(identityDescription, "", 160),
     reason: cleanText(reason, "", 72),
     tags,
     confidence: clampNumber(safe.confidence ?? safe["置信度"], 0, 1),
@@ -1210,15 +1368,191 @@ function normalizeStringList(input) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))].slice(0, 8);
 }
 
+function normalizePhotoQuality(input) {
+  const safe = input && typeof input === "object" ? input : {};
+  return {
+    clarity: clampInt(safe.clarity ?? safe.clear ?? safe.subjectClear ?? safe["清晰度"] ?? safe["主体清楚"], 0, 3),
+    subjectArea: clampInt(safe.subjectArea ?? safe.area ?? safe.subjectSize ?? safe["主体占比"], 0, 3),
+    backgroundClean: clampInt(safe.backgroundClean ?? safe.cleanBackground ?? safe.background ?? safe["背景干净"], 0, 2),
+    realPhoto: clampInt(safe.realPhoto ?? safe.realism ?? safe.lifeLike ?? safe["实拍感"] ?? safe["现实感"], 0, 3),
+    focusLight: clampInt(safe.focusLight ?? safe.light ?? safe.lighting ?? safe.focus ?? safe["光线对焦"], 0, 2),
+    interesting: clampInt(safe.interesting ?? safe.fun ?? safe.charm ?? safe["有趣"], 0, 2),
+  };
+}
+
+function normalizeStatAffinity(input) {
+  const values = Array.isArray(input)
+    ? input
+    : input && typeof input === "object"
+      ? (input.stat || input.key || input.name || input.type || input["属性"])
+        ? [input]
+        : Object.entries(input).map(([stat, score]) => ({ stat, score }))
+      : typeof input === "string"
+        ? input.split(/[，,、;；>\s]+/).filter(Boolean).map((stat, index) => ({ stat, score: 3 - index }))
+        : [];
+  const best = new Map();
+  for (const value of values) {
+    const rawStat = typeof value === "string" ? value : value?.stat || value?.key || value?.name || value?.type || value?.["属性"];
+    const stat = normalizeStatKey(rawStat);
+    if (!stat) continue;
+    const score = clampInt(
+      typeof value === "string" ? 2 : value.score ?? value.weight ?? value.value ?? value["分数"],
+      1,
+      3,
+    );
+    best.set(stat, Math.max(best.get(stat) || 0, score));
+  }
+  return [...best.entries()]
+    .map(([stat, score]) => ({ stat, score }))
+    .sort((a, b) => b.score - a.score || statOrder.indexOf(a.stat) - statOrder.indexOf(b.stat))
+    .slice(0, 3);
+}
+
+function normalizeStatKey(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return "";
+  const direct = {
+    hp: "hp",
+    health: "hp",
+    maxhp: "hp",
+    max_hp: "hp",
+    attack: "attack",
+    atk: "attack",
+    defense: "defense",
+    def: "defense",
+    speed: "speed",
+    spd: "speed",
+    shield: "shield",
+    lifesteal: "lifesteal",
+    life_steal: "lifesteal",
+    regen: "regen",
+    recovery: "regen",
+  };
+  if (direct[text]) return direct[text];
+  if (/生命|血|体力/.test(text)) return "hp";
+  if (/攻击|攻|伤害/.test(text)) return "attack";
+  if (/防御|防/.test(text)) return "defense";
+  if (/速度|速|敏捷/.test(text)) return "speed";
+  if (/护盾|盾/.test(text)) return "shield";
+  if (/吸血|吸/.test(text)) return "lifesteal";
+  if (/回复|恢复|回/.test(text)) return "regen";
+  return "";
+}
+
+function parseBooleanMaybe(value) {
+  if (typeof value === "boolean") return value;
+  if (value == null || value === "") return null;
+  return parseBooleanLike(value);
+}
+
+function isOversizedSizeClass(value) {
+  return /^(?:human_scale|vehicle|building|landscape|scene)$/i.test(String(value || "").trim());
+}
+
+function normalizeOptionalValue(value) {
+  const numeric = Number.parseInt(value, 10);
+  return Number.isFinite(numeric) ? clampInt(numeric, getPhotoValueMin(), getPhotoValueMax()) : null;
+}
+
 function shouldTreatAsTooLarge(itemName, description = "", modelRejected = false) {
   const text = `${itemName || ""} ${description || ""}`;
-  if (isPortableEquipmentText(text)) return false;
+  if (isClearlyOversizedSubjectText(text)) return true;
+  if (isSceneDisguisedAsPortableText(text)) return true;
+  if (isLivingCreatureMainSubjectText(text)) return true;
+  if (isDefinitelyPortableEquipmentText(text)) return false;
+  if (isSmallEquipableNaturalText(text)) return false;
+  if (isClearlySmallModelOrPatternText(text)) return false;
   if (oversizedScenePattern.test(text) || explicitOversizePattern.test(text)) return true;
-  return Boolean(modelRejected && explicitOversizePattern.test(text));
+  if (modelRejected) return true;
+  return false;
+}
+
+function isClearlyOversizedSubjectText(text) {
+  const source = String(text || "");
+  if (/(?:车模|玩具车|小车|模型车|微缩|摆件|乐高|公仔|手办|贴纸|海报|图案|屏幕|包装)/.test(source)) return false;
+  return /(?:真实|大型|整辆|一辆|一台|双层|重型|交通工具|载具|车辆主体|人尺寸|人型|成人|巨大|无法搬动).{0,12}(?:汽车|车顶|公交|巴士|火车|飞机|船|自行车|摩托|拖拉机|沙发|床|冰箱|建筑|房子|楼)|(?:汽车|车顶|公交|巴士|火车|飞机|船|自行车|摩托|拖拉机|沙发|床|冰箱|建筑|房子|楼).{0,12}(?:真实|大型|整辆|一辆|双层|重型|交通工具|载具|车辆主体|尺寸超过|人尺寸|人型|巨大|无法搬动)/.test(source);
 }
 
 function isPortableEquipmentText(text) {
   return portableEquipmentPattern.test(String(text || ""));
+}
+
+function isDefinitelyPortableEquipmentText(text) {
+  const source = String(text || "");
+  if (isClearlyOversizedSubjectText(source)) return false;
+  if (!isPortableEquipmentText(source)) return false;
+  if (/(?:风景|场景|天空|道路|公路|街道|地平线|山|海|河|湖|建筑|房子|楼|整间房|大面积背景|延伸|远景)/.test(source)) return false;
+  if (/(?:真实|大型|整辆|一辆|路上|公路|道路|街道).{0,8}(?:汽车|车辆|公交|火车|飞机|船)|(?:汽车|车辆|公交|火车|飞机|船).{0,8}(?:道路|街道|公路|路上|真实|大型|整辆)/.test(source)) return false;
+  return true;
+}
+
+function isSmallEquipableNaturalText(text) {
+  const source = String(text || "");
+  if (isClearlyOversizedSubjectText(source)) return false;
+  if (/(?:风景|远景|全景|森林|草地|花园|道路|街道|人物|人像|动物整体|猫|狗|鸟|鱼|昆虫整体|landscape|forest|road|street|portrait|animal|cat|dog)/i.test(source)) return false;
+  return /(?:叶片|叶子|花朵|花瓣|种子|松果|果实|石头|石子|贝壳|羽毛|树枝|树叶|水滴|冰块|小植物|盆栽|多肉|仙人掌|小自然物|leaf|flower|seed|pinecone|stone|pebble|shell|feather|twig|droplet|ice|succulent|cactus)/i.test(source);
+}
+
+function isClearlySmallModelOrPatternText(text) {
+  const source = String(text || "");
+  if (isClearlyOversizedSubjectText(source)) return false;
+  if (isSceneDisguisedAsPortableText(source)) return false;
+  if (!/(?:模型|微缩|玩具|手办|公仔|贴纸|卡片|图案|摆件|包装|屏幕|model|miniature|toy|figure|sticker|card|pattern)/i.test(source)) return false;
+  return /(?:手持|桌面|小型|小物|可搬动|pocket|handheld|tabletop|small|miniature|toy)/i.test(source);
+}
+
+function isSceneDisguisedAsPortableText(text) {
+  const source = String(text || "");
+  const scenePhoto = /(?:风景照片|海景照片|山景照片|街景照片|天空照片|道路照片|城市全景|自然景观|海岸风景|山丘风景|海边风景|照片主体为(?:风景|天空|道路|街道|海岸|山|海|建筑)|landscape photo|sky photo|road photo|street photo|scenery)/i.test(source);
+  if (!scenePhoto) return false;
+  return !/(?:明信片|海报|卡片|贴纸|相框|画框|纸质|印刷|包装|屏幕|显示器|postcard|poster|card|sticker|frame|printed|package|screen)/i.test(source);
+}
+
+function isLivingCreatureMainSubjectText(text) {
+  const source = String(text || "");
+  if (/(?:玩具|模型|手办|公仔|贴纸|卡通|图案|标本|局部|鼻头|爪|羽毛|壳|玩偶|toy|model|figure|sticker|cartoon|pattern|specimen|part|nose|paw|feather|shell|plush)/i.test(source)) return false;
+  return /(?:主体为|主体=|subjectName|照片主体).{0,16}(?:人物|儿童|小孩|成人|男人|女人|人群|猫|狗|鸟|鹦鹉|飞鸟|鱼|动物|昆虫|活体|person|people|child|man|woman|cat|dog|bird|fish|animal|insect)/i.test(source);
+}
+
+function hasStrongEquipmentFantasyText(text) {
+  const source = String(text || "");
+  return /(?:锋利|尖锐|厚重|坚硬|防护|护盾|容器|外壳|工具|武器|速度|旋转|气流|修复|补能|吸附|抽取|成长|训练|奖牌|有趣|动心|奇特|故事感|装备联想|sharp|solid|protect|shield|tool|weapon|speed|rotate|airflow|heal|energy|grow|medal|interesting|fantasy)/i.test(source);
+}
+
+function hasHpSemanticText(text) {
+  return /(?:咖啡|矿泉水|饮料|药|汤|茶|牛奶|果汁|食物|饭团|面包|糖果|饼干|肉|蔬菜|水果|香蕉|番茄|西红柿|能量|植物|花朵|叶片|种子|可爱|治愈|毛绒|玩偶|娃娃|贴纸|卡通|图案|青蛙|coffee|water|drink|medicine|tea|milk|juice|food|bread|candy|fruit|banana|tomato|energy|plant|flower|seed|cute|heal|healing|plush|doll|toy|sticker|cartoon|pattern)/i.test(String(text || ""));
+}
+
+function hasStrongHpSemanticText(text) {
+  return /(?:咖啡|矿泉水|饮料|药|汤|茶|牛奶|果汁|食物|饭团|面包|糖果|饼干|肉|蔬菜|水果|香蕉|番茄|西红柿|能量|植物|花朵|叶片|种子|治愈|毛绒|玩偶|娃娃|coffee|water|drink|medicine|tea|milk|juice|food|bread|candy|fruit|banana|tomato|energy|plant|flower|seed|heal|healing|plush|doll)/i.test(String(text || ""));
+}
+
+function hasStrongSpeedSemanticText(text) {
+  return /(?:风扇|小风扇|桌面小风扇|空气动力|气流|旋转|扇叶|电扇|fan|airflow|rotate|blade)/i.test(String(text || ""));
+}
+
+function hasShieldSemanticText(text) {
+  return /(?:盾|护盾|防护|保护|挡|遮挡|容器|盒|箱|包|壳|套|罩|伞|镜|锅盖|杯|瓶|碗|盘|盖|帽|头盔|眼镜|锁|门|甲|外壳|金属板|木板|shield|protect|guard|block|container|box|case|bag|shell|cover|umbrella|mirror|lid|helmet|glasses|armor)/i.test(String(text || ""));
+}
+
+function hasDefenseSemanticText(text) {
+  return /(?:厚|重|硬|坚|金属|石|木|壳|骨|甲|板|锁|支撑|抗压|防御|保护|框|架|陶瓷|玻璃|橡胶|岩|盾|hard|solid|metal|stone|wood|shell|armor|lock|support|ceramic|glass|rubber)/i.test(String(text || ""));
+}
+
+function hasAttackSemanticText(text) {
+  return /(?:工具|武器|敲|打|锤|棒|棍|砖|石|球|键盘|鼠标|笔|刀|剪|针|钩|刺|尖|刃|爪|牙|攻击|冲击|运动|飞行|展翅|风车|旋转|数字|显示屏|tool|weapon|hit|hammer|club|brick|stone|ball|keyboard|mouse|pen|knife|scissor|needle|hook|sharp|claw|tooth|attack|sport|fly|wing|windmill|rotate|screen)/i.test(String(text || ""));
+}
+
+function hasSpeedSemanticText(text) {
+  return /(?:鞋|轮|滑板|风|扇|羽|飞|跑|跳|旋转|气流|车模|遥控|线缆|电|速度|敏捷|运动|球|shoe|wheel|skateboard|wind|fan|feather|fly|run|jump|rotate|airflow|remote|cable|electric|speed|sport|ball)/i.test(String(text || ""));
+}
+
+function hasLifestealSemanticText(text) {
+  return /(?:吸血|吸附|抽取|红色|血|刀|剪|针|钩|刺|尖|刃|指甲刀|夹|钳|牙|爪|leech|blood|absorb|knife|scissor|needle|hook|sharp|blade|claw|tooth|plier)/i.test(String(text || ""));
+}
+
+function hasRegenSemanticText(text) {
+  return /(?:回复|恢复|治愈|修复|补能|清洁|水|咖啡|饮|药|茶|奶|充电|电池|灯|纸巾|毛巾|植物|花|叶|种子|可爱|柔软|贴纸|卡通|图案|青蛙|heal|regen|repair|clean|water|coffee|drink|medicine|charger|battery|light|tissue|towel|plant|flower|leaf|seed|cute|soft|sticker|cartoon|pattern)/i.test(String(text || ""));
 }
 
 function normalizeModelStats(stats) {
@@ -1254,9 +1588,14 @@ function makeFallbackItemFromModelText(text) {
   const correctedTooLarge = shouldTreatAsTooLarge(itemName, source, tooLarge);
   return {
     itemName,
+    subjectName: itemName,
     value: correctedTooLarge ? 0 : inferFallbackValue(source),
     tooLarge: correctedTooLarge,
     stats: {},
+    photoQuality: normalizePhotoQuality({}),
+    statAffinity: normalizeStatAffinity([]),
+    specialAffinity: [],
+    identityDescription: cleanText(source, "", 160),
     description: cleanText(`按模型文字保守鉴定：${source}`, "由照片鉴定出的装备。", 72),
     reason: cleanText(source, "", 72),
     tags: normalizeStringList(source),
@@ -1351,7 +1690,154 @@ function receiveItem(item, message) {
   const rewardText = fullItem.tooLarge
     ? `${message} 记录 ${fullItem.itemName}，无法提供属性。`
     : `${message} 获得 ${fullItem.itemName}。`;
-  addInventoryItem(fullItem, rewardText, targetSlot);
+  if (addInventoryItem(fullItem, rewardText, targetSlot)) {
+    saveGame();
+    render();
+  }
+}
+
+async function findDuplicateIdentifiedItem(item, config = null) {
+  const duplicate = findDuplicateByStoredIdentity(item);
+  if (!duplicate) return null;
+  if (duplicate.confidence !== "possible") return duplicate.item || null;
+  if (!duplicate.item?.image || !item?.image || !config) return null;
+  const same = await compareIdentifiedObjects(config, item, duplicate.item);
+  return same ? duplicate.item : null;
+}
+
+function findCurrentPhotoDuplicate(photoKey) {
+  const normalized = makePhotoDuplicateKey(photoKey);
+  if (!normalized) return null;
+  return getKnownIdentifiedItems().find((known) => known.photoKey === normalized)?.item || null;
+}
+
+function findDuplicateByStoredIdentity(item) {
+  const candidates = getKnownIdentifiedItems()
+    .filter((known) => known.item && !known.item.tooLarge);
+  for (const known of candidates) {
+    const match = compareObjectIdentity(item, known.item);
+    if (match) return { item: known.item, confidence: match };
+  }
+  return null;
+}
+
+function getKnownIdentifiedItems() {
+  const known = [];
+  for (const item of state.inventory || []) {
+    if (!item) continue;
+    known.push({
+      item,
+      photoKey: makePhotoDuplicateKey(item.photoKey),
+      objectKey: makeStoredObjectDuplicateKey(item),
+    });
+  }
+
+  return known.filter((entry) => entry.photoKey || entry.objectKey);
+}
+
+function makePhotoDuplicateKey(image) {
+  const text = String(image || "").trim();
+  if (!text) return "";
+  if (text === pendingDuplicatePhotoKey) return pendingDuplicatePhotoKey;
+  if (/^img:[a-z0-9]+$/i.test(text)) return text.toLowerCase();
+  return `img:${fnv1aHash(text)}`;
+}
+
+function makeObjectDuplicateKey(item) {
+  if (!item || item.tooLarge) return "";
+  return makeExactObjectDuplicateKey(item) || makeObjectTypeKey(item);
+}
+
+function makeStoredObjectDuplicateKey(item) {
+  if (!item || item.tooLarge) return "";
+  return makeObjectDuplicateKey(item);
+}
+
+function makeExactObjectDuplicateKey(item) {
+  if (!item || item.tooLarge) return "";
+  if (typeof item.objectKey === "string" && /^obj:exact:/i.test(item.objectKey)) return item.objectKey.toLowerCase();
+  const identity = normalizeDuplicateText(item.identityDescription);
+  if (!identity || identity.length < 8) return "";
+  const subject = normalizeDuplicateText(item.subjectName || item.itemName);
+  const parts = normalizeDuplicateTokens([subject, identity]);
+  return parts ? `obj:exact:${fnv1aHash(parts)}` : "";
+}
+
+function makeObjectTypeKey(item) {
+  if (!item || item.tooLarge) return "";
+  if (typeof item.objectKey === "string" && /^obj:type:/i.test(item.objectKey)) return item.objectKey.toLowerCase();
+  const subject = normalizeDuplicateText(item.subjectName);
+  const objectType = normalizeDuplicateText(item.objectType);
+  const itemName = normalizeDuplicateText(item.itemName);
+  const tags = normalizeStringList(item.tags)
+    .map(normalizeDuplicateText)
+    .filter((tag) => tag && !isGenericObjectToken(tag));
+  const parts = subject
+    ? [subject, objectType && objectType !== subject ? objectType : ""]
+    : [objectType, itemName, tags.slice(0, 2).join(" ")];
+  const normalized = normalizeDuplicateTokens(parts);
+  return normalized ? `obj:type:${normalized}` : "";
+}
+
+function compareObjectIdentity(a, b) {
+  if (!a || !b || a.tooLarge || b.tooLarge) return "";
+  const photoA = makePhotoDuplicateKey(a.photoKey);
+  const photoB = makePhotoDuplicateKey(b.photoKey);
+  if (photoA && photoB && photoA !== pendingDuplicatePhotoKey && photoB !== pendingDuplicatePhotoKey && photoA === photoB) return "exact";
+  if (photoA === pendingDuplicatePhotoKey || photoB === pendingDuplicatePhotoKey) return "";
+  const exactA = makeExactObjectDuplicateKey(a);
+  const exactB = makeExactObjectDuplicateKey(b);
+  if (exactA && exactB && exactA === exactB) return "exact";
+
+  const typeA = makeObjectTypeKey(a);
+  const typeB = makeObjectTypeKey(b);
+  if (!typeA || !typeB || typeA !== typeB) return "";
+
+  const identityA = normalizeDuplicateText(a.identityDescription);
+  const identityB = normalizeDuplicateText(b.identityDescription);
+  if (identityA && identityB && identityA === identityB) return "exact";
+  if (!identityA || !identityB) return "";
+  if (identityA.length < 8 || identityB.length < 8) return "";
+  if (identityA.includes(identityB) || identityB.includes(identityA)) return "exact";
+  return "possible";
+}
+
+function normalizeDuplicateTokens(parts) {
+  const tokens = [];
+  for (const part of parts) {
+    const token = normalizeDuplicateText(part);
+    if (!token || isGenericObjectToken(token) || tokens.includes(token)) continue;
+    tokens.push(token);
+  }
+  return tokens.slice(0, 4).join("|").slice(0, 64);
+}
+
+function normalizeDuplicateText(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/^(?:一个|一件|一把|一只|一台|一瓶|一双|一张|普通|清晰|现实|实拍|极简|旧|新|黑柄|蓝柄|红色|银色|白色|黑色)+/u, "")
+    .replace(/(?:装备|照片|图案|卡通|实物|物品|主体|主要|清晰|现实|实拍)+$/u, "")
+    .replace(/[^\p{L}\p{N}\u4e00-\u9fff]+/gu, "")
+    .slice(0, 24);
+}
+
+function isGenericObjectToken(text) {
+  return /^(?:handheld|pocket|tabletop|smallfurniture|unknown|手持|桌面|小物|桌面物品|手持小物|口袋小物|小家具|工具|物品|东西|道具|图案|卡通图案|实物|主体|可装备|装备|普通|清晰)$/.test(normalizeDuplicateText(text));
+}
+
+function normalizeKeyList(list) {
+  return Array.isArray(list)
+    ? [...new Set(list.map((item) => String(item || "").trim()).filter(Boolean))]
+    : [];
+}
+
+function fnv1aHash(text) {
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 function getSelectedInventoryItem() {
@@ -1362,26 +1848,31 @@ function addInventoryItem(item, message, preferredSlotIndex = getSelectedSlotInd
   state.latestItem = item;
   state.lootError = "";
   const oldStats = getPlayerStats();
+  const oldShield = state.player.shield;
   const slotIndex = addInventoryItemDirect(item, preferredSlotIndex);
   if (slotIndex < 0) {
     showLootError("装备格已满，先丢弃一个装备再鉴定。");
     addLog("装备格已满。");
     render();
-    return;
+    return false;
   }
   state.selectedSlotIndex = slotIndex;
   state.selectedItemId = item.id;
   state.infoMode = "item";
   const newStats = getPlayerStats();
   if (!item.tooLarge && newStats.maxHp > oldStats.maxHp) {
-    state.player.hp += newStats.maxHp - oldStats.maxHp;
+    const hpGain = newStats.maxHp - oldStats.maxHp;
+    state.player.hp += hpGain * hpEquipHealPerPoint;
+    state.player.hp = Math.min(state.player.hp, newStats.maxHp);
   } else {
     state.player.hp = Math.min(state.player.hp, newStats.maxHp);
   }
+  syncShieldAfterEquipmentChange(oldStats.shield, newStats.shield, oldShield);
   addLog(message);
   addBattleEvent(message, "item");
   saveGame();
   render();
+  return true;
 }
 
 function addInventoryItemDirect(item, preferredSlotIndex = getSelectedSlotIndex()) {
@@ -1393,6 +1884,18 @@ function addInventoryItemDirect(item, preferredSlotIndex = getSelectedSlotIndex(
   }
   state.inventory[slotIndex] = item;
   return slotIndex;
+}
+
+function syncShieldAfterEquipmentChange(oldMaxShield, newMaxShield, oldCurrentShield = state.player.shield) {
+  const oldMax = Math.max(0, Number(oldMaxShield) || 0);
+  const newMax = Math.max(0, Number(newMaxShield) || 0);
+  const current = Math.max(0, Number(oldCurrentShield) || 0);
+  if (newMax > oldMax) {
+    state.player.shield = newMax;
+  } else {
+    state.player.shield = Math.min(current, newMax);
+  }
+  state.player.shieldMonsterId = "";
 }
 
 function formatItemDisplayName(item) {
@@ -1559,6 +2062,11 @@ function beginBattle(enemies) {
   ensureCurrentBattle(activeIds, stats);
 }
 
+function getBattleRoundLimit(count = state.activeEnemyIds.length || state.selectedEnemyIds.length || 1) {
+  const enemyCount = clampInt(count, 1, 3);
+  return battleRoundLimitsByEnemyCount[enemyCount] || battleRoundLimitsByEnemyCount[1];
+}
+
 function resolveBattleAction() {
   if (!state.currentBattle) return true;
   if (!state.battleClock) {
@@ -1573,8 +2081,9 @@ function resolveBattleAction() {
   const stats = getBattleStats(state.activeEnemyIds);
   const round = state.battleClock?.round || 1;
 
-  if (round >= 50) {
-    addBattleDetail(`第50回合敌方逃跑。`);
+  const roundLimit = state.currentBattle.roundLimit || getBattleRoundLimit();
+  if (round >= roundLimit) {
+    addBattleDetail(`第${roundLimit}回合敌方逃跑。`);
     for (const id of state.activeEnemyIds) state.enemyFlipDownIds.add(id);
     removeEnemiesByIds(state.activeEnemyIds, false);
     finishCurrentBattle("enemy-fled");
@@ -1739,7 +2248,7 @@ function resolveMonsterStrike(enemy, stats, round) {
 }
 
 function defeatEnemy(enemy) {
-  const drops = getEnemyDrops(enemy);
+  const drops = getEnemyDrops(enemy, getEnemyBattleBonusShards(enemy));
   const defeatedIds = state.currentBattle?.defeatedIds;
   addLootNamesToCurrentBattle(drops);
   if (Array.isArray(defeatedIds)) defeatedIds.push(enemy.id);
@@ -1814,6 +2323,8 @@ function ensureCurrentBattle(activeIds, stats = getBattleStats(activeIds)) {
     startHp: state.player.hp,
     startShield: state.player.shield,
     damageEstimates: Object.fromEntries(simulateDamageEstimateForIds(activeIds, { ignoreFrozen: true })),
+    initialEnemyCount: activeIds.length,
+    roundLimit: getBattleRoundLimit(activeIds.length),
     details: [],
     lootNames: [],
     defeatedIds: [],
@@ -1837,6 +2348,10 @@ function addLootNamesToCurrentBattle(drops) {
     const name = drop.kind === "shard"
       ? "胶卷碎片"
       : drop.itemName || (drop.kind === "film" ? "胶卷 +1.0" : "胶卷 +0.1");
+    if (drop.kind === "shard" || drop.kind === "film") {
+      state.currentBattle.lootNames.push(drop.itemName || name);
+      continue;
+    }
     for (let i = 0; i < amount; i += 1) {
       state.currentBattle.lootNames.push(name);
     }
@@ -1888,7 +2403,7 @@ function buildBossRewardOptions(floor) {
     { type: "filmDrop", title: "胶卷掉落 +0.1", desc: "之后击败怪物时，胶卷掉落永久 +0.1。" },
     { type: "filmPercent", title: "当前胶卷 +20%", desc: "按当前胶卷数量增加 20%，向上取整到 0.1。" },
     { type: "valueMin", title: "最低价值 +2", desc: "之后照片鉴定的最低价值永久 +2。" },
-    { type: "valueMax", title: "最高价值 +2", desc: "之后照片鉴定的最高价值永久 +2。" },
+    { type: "valueMax", title: "最高价值 +3", desc: "之后照片鉴定的最高价值永久 +3。" },
   ];
   const start = hashIndex(`${state.runSeed}:${floor}:boss-reward:start`, pool.length);
   return [0, 1, 2].map((slot) => {
@@ -1921,7 +2436,7 @@ function applyBossReward(option) {
   }
   if (option.type === "filmPercent") {
     const before = getFilmCount();
-    const gain = Math.ceil(before * 2) / 10;
+    const gain = ceilFilmTenth(before * 0.2);
     addFilmShards(Math.round(gain * 10));
     return `奖励：当前胶卷 +${gain.toFixed(1)}。`;
   }
@@ -1931,7 +2446,7 @@ function applyBossReward(option) {
     return `奖励：鉴定最低价值提升到 ${getPhotoValueMin()}。`;
   }
   if (option.type === "valueMax") {
-    state.photoValueMax = getPhotoValueMax() + 2;
+    state.photoValueMax = getPhotoValueMax() + 3;
     return `奖励：鉴定最高价值提升到 ${getPhotoValueMax()}。`;
   }
   return "奖励已领取。";
@@ -1943,12 +2458,44 @@ function addBattleEvent(text, type = "item") {
     id: makeId(`event-${state.battleReportSeq}`),
     type: "event",
     eventType: type,
+    floor: state.floor,
     summary: text,
     details: [],
     expanded: false,
     createdAt: Date.now(),
   });
   state.battleReports = state.battleReports.slice(0, battleReportLimit);
+}
+
+function addFloorNarrative(floor = state.floor) {
+  const text = getFloorNarrative(floor);
+  if (!text) return;
+  if (hasRecentFloorNarrative(floor, text)) return;
+  addBattleEvent(text, isBossRewardFloor(floor) ? "hero" : "info");
+}
+
+function ensureInitialFloorNarrative() {
+  if (state.gameClear || state.currentBattle || state.bossReward) return;
+  addFloorNarrative(state.floor);
+}
+
+function hasRecentFloorNarrative(floor, text) {
+  return state.battleReports.some((entry) =>
+    entry?.type === "event" &&
+    entry.summary === text &&
+    Math.abs((entry.floor || floor) - floor) <= 0
+  );
+}
+
+function getFloorNarrative(floor) {
+  const safeFloor = clampInt(floor, 1, maxFloor);
+  if (bossFloorNarratives[safeFloor]) return bossFloorNarratives[safeFloor];
+  if (rewardBossFloorNarratives[safeFloor]) return rewardBossFloorNarratives[safeFloor];
+  if (floorNarratives[safeFloor]) return floorNarratives[safeFloor];
+  if (safeFloor > 1 && safeFloor % 10 === 1) {
+    return `第${safeFloor}层的空气换了一种味道，旧怪仍在游荡，新怪也混了进来。`;
+  }
+  return "";
 }
 
 function makeBattleSummary(result, battle, hpDelta) {
@@ -1978,7 +2525,8 @@ function makeBattleSummary(result, battle, hpDelta) {
     return `败 · 第${floor}层${monsterName}击倒照片勇者，${lifeText}，获得：${lootText}。`;
   }
   if (result === "enemy-fled") {
-    return `敌逃 · 第${floor}层缠斗50回合，敌方逃跑，${lifeText}，获得：${lootText}。`;
+    const roundLimit = Number.isFinite(battle?.roundLimit) ? battle.roundLimit : getBattleRoundLimit(battle?.initialEnemyCount || 1);
+    return `敌逃 · 第${floor}层缠斗${roundLimit}回合，敌方逃跑，${lifeText}，获得：${lootText}。`;
   }
   if (result === "hero-fled") {
     return `跳过 · 照片勇者进入下一层，${lifeText}，获得：${lootText}。`;
@@ -2130,7 +2678,7 @@ function advanceFloor() {
     state.enemies = [];
     state.encounterId = "clear";
     resetBattleSpecial();
-    addBattleEvent("照片勇者通关了40层魔塔。", "hero");
+    addBattleEvent("塔顶的门被推开，照片勇者带着一包奇怪装备通关了40层。", "hero");
     return;
   }
   state.floor += 1;
@@ -2143,6 +2691,7 @@ function advanceFloor() {
   state.encounterId = makeEncounterId();
   state.enemyFlipEncounterId = state.encounterId;
   applyFloorShield();
+  addFloorNarrative(state.floor);
 }
 
 function clearEnemyCardMotion() {
@@ -2205,7 +2754,7 @@ function buildFloorEncounter(floor) {
 }
 
 function getFloorMonsterTypes(floor) {
-  if (floor === 10) return ["skeleton", "skeleton", "skeletonCaptain"];
+  if (floor === 10) return ["skeletonCaptain"];
   if (floor === 20) return ["vampire"];
   if (floor === 25) return ["octopus"];
   if (floor === 30) return ["warrior", "warrior", "knightCaptain"];
@@ -2321,8 +2870,21 @@ function normalizeEnemyFromBase(enemy) {
   };
 }
 
-function getEnemyDrops(enemy) {
-  const shardAmount = getEnemyFilmShardDrop(enemy);
+function getRawSemanticFlag(input) {
+  if (!input || typeof input !== "object") return false;
+  return hasSemanticIdentificationData({
+    semanticAppraisal: input.semanticAppraisal,
+    sizeClass: input.sizeClass || input.size_class,
+    isScene: input.isScene ?? input.is_scene,
+    isEquipable: input.isEquipable ?? input.is_equipable,
+    photoQuality: input.photoQuality || input.photo_quality,
+    statAffinity: input.statAffinity || input.stat_affinity || input.affinity || input.statPreference,
+    specialAffinity: input.specialAffinity || input.special_affinity || input.specialCandidates,
+  });
+}
+
+function getEnemyDrops(enemy, bonusShards = 0) {
+  const shardAmount = getEnemyFilmShardDrop(enemy) + Math.max(0, clampInt(bonusShards, 0, 2));
   if (shardAmount <= 0) return [];
   if (shardAmount % 10 === 0) {
     return [{
@@ -2362,6 +2924,29 @@ function getEnemyFilmShardDrop(enemy) {
   return Math.max(0, baseShards + getGlobalFilmDropBonus() + getHeroFormFilmShardBonus());
 }
 
+function getEnemyBattleBonusShards(enemy) {
+  if (getHeroForm()?.noFilmDrop) return 0;
+  const battle = state.currentBattle;
+  if (!battle || battle.initialEnemyCount < 2 || getEnemyFilmShardDrop(enemy) <= 0) return 0;
+  const defeatedCount = Array.isArray(battle.defeatedIds) ? battle.defeatedIds.length : 0;
+  const defeatedIndex = Array.isArray(battle.defeatedIds) ? battle.defeatedIds.indexOf(enemy?.id) : -1;
+  if (defeatedIndex >= 0) return defeatedIndex === 0 ? 0 : defeatedIndex === 1 ? 1 : 2;
+  if (defeatedCount <= 0) return 0;
+  return defeatedCount === 1 ? 1 : 2;
+}
+
+function getEnemySelectionBonusShards(enemy) {
+  if (getHeroForm()?.noFilmDrop || getEnemyFilmShardDrop(enemy) <= 0) return 0;
+  const order = getEnemySelectionOrder(enemy?.id);
+  if (order <= 1) return 0;
+  return order === 2 ? 1 : 2;
+}
+
+function getEnemyPreviewFilmShardDrop(enemy) {
+  if (state.currentBattle) return getEnemyFilmShardDrop(enemy) + getEnemyBattleBonusShards(enemy);
+  return getEnemyFilmShardDrop(enemy) + getEnemySelectionBonusShards(enemy);
+}
+
 function getGlobalFilmDropBonus() {
   return clampInt(state.globalFilmDropBonus, 0, 999);
 }
@@ -2375,7 +2960,7 @@ function getPhotoValueMax() {
 }
 
 function formatEnemyFilmDrop(enemy) {
-  return `胶卷 ${(getEnemyFilmShardDrop(enemy) / 10).toFixed(1)}`;
+  return `胶卷 ${(getEnemyPreviewFilmShardDrop(enemy) / 10).toFixed(1)}`;
 }
 
 function getFilmCount() {
@@ -2723,6 +3308,7 @@ function resetGame() {
   resetBattleSpecial();
   clearEnemyCardMotion();
   applyFloorShield();
+  addFloorNarrative(1);
   saveGame();
   render();
 }
@@ -2786,6 +3372,7 @@ function setHeroForm(formId) {
   if (!heroFormMap.has(formId) || state.player.formId === formId) return;
   if (isPlayerDefeated() || state.bossReward) return;
   const oldStats = getPlayerStats();
+  const oldShield = state.player.shield;
   const targetForm = heroFormMap.get(formId);
   const currentForm = getHeroForm();
   const hpLoss = (currentForm?.stats?.hp || 0) - (targetForm?.stats?.hp || 0);
@@ -2804,12 +3391,7 @@ function setHeroForm(formId) {
     state.player.hp = Math.min(state.player.hp, newStats.maxHp);
   }
   state.player.hp = Math.max(0, state.player.hp);
-  if (newStats.shield > oldStats.shield) {
-    state.player.shield += newStats.shield - oldStats.shield;
-  } else {
-    state.player.shield = Math.min(state.player.shield, newStats.shield);
-  }
-  state.player.shieldMonsterId = "";
+  syncShieldAfterEquipmentChange(oldStats.shield, newStats.shield, oldShield);
   saveGame();
   render();
 }
@@ -2912,9 +3494,16 @@ function triggerKillSpecial(enemy) {
 
 function getEquippedItems() {
   ensureInventorySlots();
+  const seen = [];
   return state.inventory
     .slice(0, equipmentSlotLimit)
-    .filter((item) => item && !item.tooLarge);
+    .filter((item) => {
+      if (!item || item.tooLarge) return false;
+      const key = makeExactObjectDuplicateKey(item);
+      if (key && seen.includes(key)) return false;
+      if (key) seen.push(key);
+      return true;
+    });
 }
 
 function isEquipmentLocked() {
@@ -2929,6 +3518,7 @@ function dismantleSelectedItem() {
   if (!removed) return false;
 
   const oldStats = getPlayerStats();
+  const oldShield = state.player.shield;
   const returnedFilm = getDismantleFilmReturn(removed);
   state.inventory[index] = null;
   state.selectedItemId = "";
@@ -2937,6 +3527,7 @@ function dismantleSelectedItem() {
   addFilmAmount(returnedFilm);
   const newStats = getPlayerStats();
   if (newStats.maxHp < oldStats.maxHp) state.player.hp = Math.min(state.player.hp, newStats.maxHp);
+  syncShieldAfterEquipmentChange(oldStats.shield, newStats.shield, oldShield);
   state.lootError = "";
   setBusy("");
   addBattleEvent(`分解 ${formatItemDisplayName(removed)}，返还胶卷 +${formatFilmAmount(returnedFilm)}。`, "item");
@@ -2949,28 +3540,54 @@ function balanceItem(item, image = "") {
   const safe = item && typeof item === "object" ? item : {};
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
   const itemName = cleanText(safe.itemName, "照片装备", 18);
+  const subjectName = cleanText(safe.subjectName, itemName, 18);
   const tags = normalizeStringList(safe.tags);
   const objectType = cleanText(safe.objectType, "", 18);
+  const sizeClass = cleanText(safe.sizeClass, "", 18);
   const reason = cleanText(safe.reason, "", 72);
-  const semanticText = [itemName, objectType, safe.description, reason, tags.join(" ")].filter(Boolean).join(" ");
-  const tooLarge = shouldTreatAsTooLarge(itemName, semanticText, Boolean(safe.tooLarge));
-  const requestedValue = tooLarge ? 0 : clampInt(safe.value, getPhotoValueMin(), getPhotoValueMax());
+  const semanticSchema = getRawSemanticFlag(safe);
+  const photoQuality = normalizePhotoQuality(safe.photoQuality || {});
+  const statAffinity = normalizeStatAffinity(safe.statAffinity || []);
+  const specialAffinity = normalizeSpecialEffects(safe.specialAffinity || []);
+  const preserveSettledOutput = Boolean(safe.skipSpecialRoll);
+  const identityDescription = cleanText(safe.identityDescription || safe.identity_description || safe.appearance || safe.objectIdentity || "", "", 160);
+  const semanticText = [itemName, subjectName, objectType, sizeClass, identityDescription, safe.description, reason, tags.join(" ")].filter(Boolean).join(" ");
+  const safeTooLarge = parseBooleanMaybe(safe.tooLarge) === true;
+  const safeIsScene = parseBooleanMaybe(safe.isScene) === true;
+  const safeIsEquipable = parseBooleanMaybe(safe.isEquipable);
+  const modelRejected = safeTooLarge
+    || safeIsScene
+    || safeIsEquipable === false
+    || isOversizedSizeClass(sizeClass);
+  const tooLarge = shouldTreatAsTooLarge(itemName, semanticText, modelRejected);
+  let requestedValue = tooLarge
+    ? 0
+    : preserveSettledOutput && Number.isFinite(safe.value)
+      ? Math.max(0, safe.value)
+      : calculatePhotoItemValue(safe, semanticText);
+  if (!tooLarge) {
+    requestedValue = preserveSettledOutput
+      ? requestedValue
+      : adjustPhotoItemValueForSemanticMinimum(requestedValue, semanticText, statAffinity);
+  }
   const specialEffects = tooLarge
     ? []
-    : choosePhotoSpecialEffects({ ...safe, itemName, objectType, reason, tags, description: semanticText }, image, requestedValue)
+    : choosePhotoSpecialEffects({ ...safe, itemName, objectType, reason, tags, description: semanticText, ignoreDirectSpecialEffects: semanticSchema && !preserveSettledOutput }, image, requestedValue)
       .filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue);
   const specialValue = calculateSpecialEffectsValue(specialEffects);
   const statBudget = Math.max(0, requestedValue - specialValue);
-  const targetValue = tooLarge
-      ? 0
-      : Math.max(requestedValue, specialValue);
+  const targetValue = tooLarge ? 0 : requestedValue;
   const stats = tooLarge
       ? normalizeStats({}, 20)
-      : clampStatsToValue(allocateStatsForItem(safe.stats || {}, semanticText || itemName, statBudget), statBudget);
+      : clampStatsToValue(allocateStatsForItem(semanticSchema ? {} : safe.stats || {}, semanticText || itemName, statBudget, safe.statAffinity), statBudget);
 
-  return {
+  const balanced = {
     itemName,
+    subjectName,
     objectType,
+    sizeClass,
+    isScene: safeIsScene || isOversizedSizeClass(sizeClass),
+    isEquipable: safeIsEquipable !== false && !tooLarge,
     rarity,
     value: targetValue,
     quality: getItemQuality(targetValue),
@@ -2978,14 +3595,24 @@ function balanceItem(item, image = "") {
     specialEffects,
     specialState: normalizeSpecialState(safe.specialState, specialEffects),
     description: tooLarge ? "主体过大或主要是场景，无法提供属性。" : cleanText(safe.description || reason, "由照片鉴定出的装备。", 72),
+    identityDescription,
     reason,
     tags,
+    photoQuality,
+    photoQualityScore: semanticSchema ? calculatePhotoQualityScore(photoQuality, semanticText) : null,
+    statAffinity,
+    specialAffinity,
+    semanticAppraisal: semanticSchema,
     confidence: clampNumber(safe.confidence, 0, 1),
+    photoKey: cleanText(safe.photoKey, "", 48),
+    objectKey: cleanText(safe.objectKey, "", 80),
     film: Boolean(safe.film),
     skipSpecialRoll: Boolean(safe.skipSpecialRoll),
     tooLarge,
     image,
   };
+  balanced.objectKey = cleanText(balanced.objectKey || makeObjectDuplicateKey(balanced), "", 80);
+  return balanced;
 }
 
 function normalizeInventoryItem(item) {
@@ -2996,6 +3623,16 @@ function normalizeInventoryItem(item) {
   };
   normalized.specialEffects = normalizeSpecialEffects(item?.specialEffects || balanced.specialEffects);
   normalized.specialState = normalizeSpecialState(item?.specialState || balanced.specialState, normalized.specialEffects);
+  normalized.photoQuality = normalizePhotoQuality(item?.photoQuality || balanced.photoQuality || {});
+  normalized.photoQualityScore = Number.isFinite(item?.photoQualityScore)
+    ? clampInt(item.photoQualityScore, 0, 15)
+    : balanced.photoQualityScore;
+  normalized.statAffinity = normalizeStatAffinity(item?.statAffinity || balanced.statAffinity || []);
+  normalized.specialAffinity = normalizeSpecialEffects(item?.specialAffinity || balanced.specialAffinity || []);
+  normalized.semanticAppraisal = getRawSemanticFlag(item || {});
+  normalized.photoKey = cleanText(item?.photoKey || balanced.photoKey, "", 48);
+  normalized.objectKey = cleanText(item?.objectKey || balanced.objectKey || makeObjectDuplicateKey(normalized), "", 80);
+  normalized.identityDescription = cleanText(item?.identityDescription || balanced.identityDescription, "", 160);
   delete normalized.healAmount;
   delete normalized.consumable;
   return normalized;
@@ -3017,11 +3654,16 @@ function scoreItem(item) {
   return calculateStatsValue(item.stats || {}) + calculateSpecialEffectsValue(getItemSpecialKeys(item));
 }
 
+function getItemEffectValue(item) {
+  if (!item || item.tooLarge) return 0;
+  return calculateStatsValue(item.stats || {}) + calculateSpecialEffectsValue(getItemSpecialKeys(item));
+}
+
 function getItemQuality(value) {
   const score = Number.isFinite(value) ? value : 0;
-  if (score >= 20) return { key: "legendary", label: "传说" };
-  if (score >= 15) return { key: "epic", label: "史诗" };
-  if (score >= 10) return { key: "rare", label: "稀有" };
+  if (score >= 21) return { key: "legendary", label: "传说" };
+  if (score >= 17) return { key: "epic", label: "史诗" };
+  if (score >= 13) return { key: "rare", label: "稀有" };
   return { key: "common", label: "普通" };
 }
 
@@ -3030,7 +3672,13 @@ function getItemQualityKey(item) {
 }
 
 function getDismantleFilmReturn(item) {
-  return Math.min(0.8, Math.ceil(scoreItem(item) * 0.5) / 10);
+  if (!item || item.tooLarge || scoreItem(item) <= 0) return 0;
+  const quality = getItemQuality(scoreItem(item));
+  return itemQualityRefunds[quality.key] || 0;
+}
+
+function ceilFilmTenth(value) {
+  return normalizeFilmAmount(Math.ceil(Math.max(0, Number(value) || 0) * 10) / 10);
 }
 
 function normalizeStats(stats, maxValue = 20) {
@@ -3063,47 +3711,298 @@ function clampStatsToValue(stats, valueBudget) {
   return result;
 }
 
-function allocateStatsForItem(rawStats, itemName, valueBudget) {
+function calculatePhotoItemValue(item, semanticText = "") {
+  const quality = normalizePhotoQuality(item.photoQuality);
+  const hasQuality = calculatePhotoQualityTotal(quality) > 0;
+  if (!hasQuality && Number.isFinite(item.value) && item.value > 0) {
+    return clampInt(item.value, getPhotoValueMin(), getPhotoValueMax());
+  }
+  const qualityScore = hasQuality ? calculateAdjustedPhotoQualityScore(quality, semanticText) : inferFallbackQualityScore(semanticText);
+  const min = getPhotoValueMin();
+  const max = getPhotoValueMax();
+  if (max <= min) return min;
+  const normalized = Math.max(0, Math.min(1, qualityScore / 15));
+  const curved = Math.pow(normalized, 1.8);
+  let value = min + Math.round(curved * (max - min));
+  const cap = getPhotoValueCapFromQuality(quality, semanticText);
+  value = Math.min(value, cap);
+  return Math.max(min, Math.min(max, value));
+}
+
+function adjustPhotoItemValueForSemanticMinimum(value, semanticText = "", statAffinity = []) {
+  const current = clampInt(value, getPhotoValueMin(), getPhotoValueMax());
+  if (current <= 0) return current;
+  if (calculateStatsValue(allocateStatsForItem({}, semanticText, current, statAffinity)) > 0) return current;
+  const minAffordable = getMinimumSemanticStatCost(semanticText, statAffinity);
+  if (!minAffordable || minAffordable > getPhotoValueMax()) return current;
+  const cap = getPhotoValueCapFromQuality(normalizePhotoQuality({}), semanticText);
+  return Math.max(current, Math.min(minAffordable, cap, getPhotoValueMax()));
+}
+
+function getMinimumSemanticStatCost(text, statAffinity = []) {
+  const keys = [
+    ...getPreferredStatKeys(text, statAffinity),
+    ...getAffordableFallbackStatKeys(text, getPhotoValueMax()),
+  ];
+  const costs = [...new Set(keys)]
+    .filter((key) => hasSemanticForPhotoStat(key, text))
+    .map((key) => statValueWeights[key])
+    .filter((cost) => Number.isFinite(cost) && cost > 0);
+  return costs.length ? Math.min(...costs) : 0;
+}
+
+function getPhotoValueCapFromQuality(photoQuality, semanticText = "") {
+  const quality = normalizePhotoQuality(photoQuality);
+  const text = String(semanticText || "");
+  if (quality.clarity <= 1 || quality.subjectArea <= 1 || quality.realPhoto <= 1) return Math.min(getPhotoValueMax(), 12);
+  if (quality.backgroundClean <= 0 || quality.focusLight <= 0) return Math.min(getPhotoValueMax(), 14);
+  if (/抽象|光斑|远景|纹理|风景|海岸|山|天空|道路|街道|森林|荒原|人物|人像|动物|猫|狗|abstract|bokeh|landscape|sky|road|street|forest|portrait|animal|cat|dog/i.test(text) && !isSmallEquipableNaturalText(text) && !isPortableEquipmentText(text)) {
+    return Math.min(getPhotoValueMax(), 14);
+  }
+  if (quality.interesting <= 0) return Math.min(getPhotoValueMax(), 15);
+  if (quality.clarity < 3 || quality.subjectArea < 2 || quality.backgroundClean < 1) return Math.min(getPhotoValueMax(), 16);
+  if (quality.clarity < 3 || quality.subjectArea < 3 || quality.backgroundClean < 2) return Math.min(getPhotoValueMax(), 18);
+  if (quality.interesting < 2) return Math.min(getPhotoValueMax(), hasStrongEquipmentFantasyText(text) ? 19 : 18);
+  return getPhotoValueMax();
+}
+
+function hasSemanticIdentificationData(item) {
+  if (!item || typeof item !== "object") return false;
+  if (item.semanticAppraisal === true) return true;
+  const sizeClass = item.sizeClass || item.size_class;
+  if (typeof sizeClass === "string" && sizeClass.trim()) return true;
+  if (item.isScene === true || item.is_scene === true) return true;
+  if (calculatePhotoQualityTotal(item.photoQuality || item.photo_quality || {}) > 0) return true;
+  if (normalizeStatAffinity(item.statAffinity || item.stat_affinity || item.affinity || item.statPreference).length) return true;
+  if (normalizeSpecialEffects(item.specialAffinity || item.special_affinity || item.specialCandidates).length) return true;
+  return Boolean(
+    item.isEquipable === false ||
+    item.is_equipable === false,
+  );
+}
+
+function calculatePhotoQualityScore(photoQuality, semanticText = "") {
+  const quality = normalizePhotoQuality(photoQuality);
+  const total = calculatePhotoQualityTotal(quality);
+  if (total > 0) return calculateAdjustedPhotoQualityScore(quality, semanticText);
+  return inferFallbackQualityScore(semanticText);
+}
+
+function calculateAdjustedPhotoQualityScore(photoQuality, semanticText = "") {
+  const quality = normalizePhotoQuality(photoQuality);
+  let score = calculatePhotoQualityTotal(quality);
+  const text = String(semanticText || "");
+
+  if (quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 3 && quality.focusLight >= 2 && quality.interesting >= 1) score += 1;
+  if (quality.clarity >= 3 && quality.subjectArea >= 3 && quality.backgroundClean >= 2) score += 1;
+  if (quality.interesting >= 2 && isPortableEquipmentText(text)) score += 1;
+
+  if (quality.clarity <= 1) score -= 2;
+  if (quality.subjectArea <= 1) score -= 2;
+  if (quality.backgroundClean <= 0) score -= 1;
+  if (quality.realPhoto <= 1) score -= 3;
+  if (quality.interesting <= 0) score -= 2;
+  if (quality.interesting <= 1 && !hasStrongEquipmentFantasyText(text)) score -= 1;
+  if (/抽象|光斑|远景|纹理|风景|海岸|山|天空|道路|街道|森林|荒原|人物|人像|动物|猫|狗|abstract|bokeh|landscape|sky|road|street|forest|portrait|animal|cat|dog/i.test(text) && !isSmallEquipableNaturalText(text) && !isPortableEquipmentText(text)) score -= 3;
+
+  return Math.max(0, Math.min(15, score));
+}
+
+function calculatePhotoQualityTotal(photoQuality) {
+  const quality = normalizePhotoQuality(photoQuality);
+  return Math.max(0, Math.min(15,
+    quality.clarity +
+    quality.subjectArea +
+    quality.backgroundClean +
+    quality.realPhoto +
+    quality.focusLight +
+    quality.interesting,
+  ));
+}
+
+function inferFallbackQualityScore(text) {
+  const source = String(text || "");
+  let score = 6;
+  if (/(?:清晰|主体突出|占比大|近景|干净|明亮|有趣|动心|实拍|现实)/.test(source)) score += 4;
+  if (/(?:模糊|杂乱|不清楚|遮挡|占比小|背景多|昏暗)/.test(source)) score -= 3;
+  if (isPortableEquipmentText(source)) score += 2;
+  return Math.max(0, Math.min(15, score));
+}
+
+function allocateStatsForItem(rawStats, itemName, valueBudget, statAffinity = []) {
   const normalized = normalizeStats(rawStats, 20);
   if (calculateStatsValue(normalized) > 0) return normalized;
-  const keys = inferPreferredStats(itemName);
+  const keys = getPreferredStatKeys(itemName, statAffinity);
   const result = normalizeStats({}, 20);
-  let remaining = valueBudget;
-  for (const key of keys) {
-    const points = Math.floor(remaining / statValueWeights[key]);
-    if (points > 0) {
-      result[key] += points;
-      remaining -= points * statValueWeights[key];
+  let remaining = Math.max(0, valueBudget);
+  if (!keys.length || remaining <= 0) return result;
+
+  const affinityCount = normalizeStatAffinity(statAffinity).length;
+  const targetCount = remaining >= 15
+    ? Math.min(3, Math.max(1, affinityCount || 2))
+    : remaining >= 8
+      ? Math.min(2, Math.max(1, affinityCount || 1))
+      : 1;
+  const chosen = keys
+    .filter((key) => canSpendOnPhotoStat(key, itemName, remaining, valueBudget))
+    .slice(0, targetCount);
+
+  chosen.forEach((key) => {
+    const weight = statValueWeights[key];
+    if (remaining < weight) return;
+    result[key] += 1;
+    remaining -= weight;
+  });
+
+  const fillKeys = keys.filter((key) => canSpendOnPhotoStat(key, itemName, remaining, valueBudget));
+  let safety = 0;
+  while (remaining > 0 && safety < 80) {
+    safety += 1;
+    let spent = false;
+    for (const key of fillKeys) {
+      const weight = statValueWeights[key];
+      if (remaining >= weight && result[key] < getPhotoStatSoftCap(key, itemName, valueBudget)) {
+        result[key] += 1;
+        remaining -= weight;
+        spent = true;
+      }
+    }
+    if (!spent) break;
+  }
+
+  if (calculateStatsValue(result) <= 0) {
+    for (const key of getAffordableFallbackStatKeys(itemName, valueBudget)) {
+      const weight = statValueWeights[key];
+      if (remaining >= weight) {
+        result[key] += 1;
+        remaining -= weight;
+        break;
+      }
     }
   }
-  if (!calculateStatsValue(result)) result.hp = Math.max(0, remaining);
+
+  if (remaining > 0 && shouldConvertRemainingBudgetToHp(itemName, keys, result, remaining)) {
+    result.hp += remaining;
+  }
   return result;
 }
 
+function canSpendOnPhotoStat(key, text, remainingBudget, totalBudget) {
+  if (!statOrder.includes(key)) return false;
+  if (remainingBudget < statValueWeights[key]) return false;
+  if (getPhotoStatSoftCap(key, text, totalBudget) <= 0) return false;
+  if (!hasSemanticForPhotoStat(key, text)) return false;
+  return true;
+}
+
+function hasSemanticForPhotoStat(key, text) {
+  switch (key) {
+    case "hp": return hasHpSemanticText(text);
+    case "attack": return hasAttackSemanticText(text);
+    case "defense": return hasDefenseSemanticText(text);
+    case "speed": return hasSpeedSemanticText(text);
+    case "shield": return hasShieldSemanticText(text);
+    case "lifesteal": return hasLifestealSemanticText(text);
+    case "regen": return hasRegenSemanticText(text);
+    default: return false;
+  }
+}
+
+function getAffordableSemanticStatKeys(text, statAffinity, budget) {
+  return getPreferredStatKeys(text, statAffinity)
+    .filter((key) => canSpendOnPhotoStat(key, text, budget, budget));
+}
+
+function getAffordableFallbackStatKeys(text, budget) {
+  const keys = [];
+  const add = (key) => {
+    if (!keys.includes(key) && canSpendOnPhotoStat(key, text, budget, budget)) keys.push(key);
+  };
+  if (hasStrongSpeedSemanticText(text)) add("speed");
+  if (hasAttackSemanticText(text)) add("attack");
+  if (hasDefenseSemanticText(text)) add("defense");
+  if (hasShieldSemanticText(text)) add("shield");
+  if (hasRegenSemanticText(text)) add("regen");
+  if (hasHpSemanticText(text)) add("hp");
+  if (hasLifestealSemanticText(text)) add("lifesteal");
+  if (hasSpeedSemanticText(text)) add("speed");
+  return keys;
+}
+
+function getPhotoStatSoftCap(key, text, valueBudget) {
+  if (key === "hp") return /食|饭|面|糖|饼|肉|菜|果|香蕉|番茄|西红柿|药|茶|奶|水|饮|咖啡|汤|补给|能量|植物|花|叶|种子|food|fruit|banana|tomato|coffee|water|drink|plant|flower|seed/i.test(text) ? 99 : 6;
+  if (key === "shield") {
+    if (valueBudget >= 18) return 4;
+    if (valueBudget >= 13) return 3;
+    return 2;
+  }
+  if (valueBudget >= 18) return 4;
+  if (valueBudget >= 13) return 2;
+  return 1;
+}
+
+function shouldConvertRemainingBudgetToHp(text, preferredKeys, currentStats, remaining) {
+  if (remaining <= 0) return false;
+  const hpSemantic = hasStrongHpSemanticText(text);
+  if (preferredKeys.includes("hp") && hpSemantic && (currentStats.hp > 0 || remaining >= statValueWeights.hp)) return true;
+  if (hpSemantic) return true;
+  return false;
+}
+
 function choosePhotoSpecialEffects(item, image, valueBudget) {
-  const provided = normalizeSpecialEffects(item.specialEffects || item.effects || item.special || item.specialEffect)
-    .filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= valueBudget);
-  if (provided.length) return provided.slice(0, 1);
+  if (!item.ignoreDirectSpecialEffects) {
+    const provided = normalizeSpecialEffects(item.specialEffects || item.effects || item.special || item.specialEffect)
+      .filter((key) => isSpecialEffectSemanticallyAllowed(key, item))
+      .filter((key) => isPhotoSpecialEffectEligible(key, valueBudget, item));
+    if (provided.length) return provided.slice(0, 1);
+  }
   if (item.skipSpecialRoll) return [];
-  if (valueBudget < 10) return [];
+  if (valueBudget < 12) return [];
 
   const seed = `${item.itemName || ""}:${item.description || ""}:${image ? image.slice(0, 96) : ""}:${item.value || ""}`;
-  const semanticPick = inferSemanticSpecialEffect(`${item.itemName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`);
-  if (semanticPick && (photoSpecialEffectMap.get(semanticPick)?.value || Infinity) <= valueBudget) {
-    const semanticRoll = hashIndex(`${seed}:semantic-special-roll`, 100);
-    if (semanticRoll < 45) return [semanticPick];
-  }
-
-  const roll = hashIndex(`${seed}:special-roll`, 100);
-  if (roll >= 20) return [];
-
-  const preferred = inferSemanticSpecialEffects(`${item.itemName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`);
-  const eligible = (preferred.length ? preferred : photoSpecialEffects.map((effect) => effect.key))
+  const semanticText = `${item.itemName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`;
+  const directAffinity = normalizeSpecialEffects(item.specialAffinity || item.special_affinity || item.specialCandidates);
+  const inferredAffinity = inferSemanticSpecialEffects(semanticText);
+  const preferred = [
+    ...directAffinity,
+    ...inferredAffinity,
+  ];
+  if (!directAffinity.length || valueBudget < getPhotoValueMax()) return [];
+  const eligible = [...new Set(directAffinity)]
     .map((key) => photoSpecialEffectMap.get(key))
-    .filter((effect) => effect && effect.value <= valueBudget);
+    .filter((effect) => effect && isSpecialEffectSemanticallyAllowed(effect.key, item) && isPhotoSpecialEffectEligible(effect.key, valueBudget, item));
   if (!eligible.length) return [];
+
+  const chance = valueBudget >= 20 ? 16 : 0;
+  const roll = hashIndex(`${seed}:special-roll`, 100);
+  if (roll >= chance) return [];
+
   const picked = eligible[hashIndex(`${seed}:special-pick`, eligible.length)];
   return picked ? [picked.key] : [];
+}
+
+function isPhotoSpecialEffectEligible(effectKey, valueBudget, item = {}) {
+  const effect = photoSpecialEffectMap.get(effectKey);
+  if (!effect || effect.value > valueBudget) return false;
+  if (valueBudget < 18) return false;
+  const statBudget = valueBudget - effect.value;
+  const semanticText = `${item.itemName || ""} ${item.subjectName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`;
+  if (statBudget < 10) return false;
+  if (!getAffordableSemanticStatKeys(semanticText, item.statAffinity || [], statBudget).length) return false;
+  if (valueBudget < 20 && statBudget < 10) return false;
+  return true;
+}
+
+function isSpecialEffectSemanticallyAllowed(effectKey, item) {
+  const text = `${item?.itemName || ""} ${item?.subjectName || ""} ${item?.objectType || ""} ${item?.description || ""} ${item?.reason || ""} ${normalizeStringList(item?.tags).join(" ")}`;
+  return inferSemanticSpecialEffects(text).includes(effectKey);
+}
+
+function getPreferredStatKeys(text, statAffinity = []) {
+  const preferred = normalizeStatAffinity(statAffinity).map((item) => item.stat);
+  const inferred = inferPreferredStats(text);
+  return [...new Set([...preferred, ...inferred])]
+    .filter((key) => statOrder.includes(key));
 }
 
 function inferSemanticSpecialEffect(text) {
@@ -3117,23 +4016,23 @@ function inferSemanticSpecialEffects(text) {
     if (photoSpecialEffectMap.has(key) && !effects.includes(key)) effects.push(key);
   };
 
-  if (/鞋|拖鞋|滑板|轮|风扇|扇|双|一对|速度|疾|飞|跑|旋转|气流/.test(source)) add("doubleStrikeSpeedDown");
-  if (/刀|剪|针|钩|指甲刀|锥|刃|锯|尖|夹|钳/.test(source)) add("dealDamageAttack");
-  if (/锤|棍|棒|砖|石|键盘|鼠标|工具|扳手|螺丝刀|球拍|拍子|硬物|武器/.test(source)) {
+  if (/鞋|拖鞋|滑板|轮|风扇|扇|双|一对|速度|疾|飞|跑|旋转|气流|shoe|slipper|skateboard|wheel|fan|pair|speed|run|rotate|airflow/i.test(source)) add("doubleStrikeSpeedDown");
+  if (/刀|剪|针|钩|指甲刀|锥|刃|锯|尖|夹|钳|knife|scissor|needle|hook|clipper|blade|sharp|pliers/i.test(source)) add("dealDamageAttack");
+  if (/锤|棍|棒|砖|石|键盘|鼠标|扳手|螺丝刀|球拍|拍子|硬物|武器|hammer|club|brick|stone|keyboard|mouse|tool|wrench|screwdriver|racket|weapon/i.test(source)) {
     add("dealDamageAttack");
     add("killAttack");
   }
-  if (/盾|锅盖|壳|盒|箱|套|盔|伞|镜|护|防|金属外壳|玻璃罩|甲/.test(source)) {
+  if (/盾|锅盖|壳|盒|箱|套|盔|伞|镜|护|防|金属外壳|玻璃罩|甲|shield|lid|shell|box|case|helmet|umbrella|mirror|protect|guard|armor/i.test(source)) {
     add("shieldCrashAttackDown");
     add("takeDamageDefense");
     add("killShield");
   }
-  if (/书|本|笔|尺|奖|证|牌|训练|练习|种子|植物|成长|学习|日记|笔记/.test(source)) {
+  if (/书|本|笔|尺|奖|证|牌|训练|练习|种子|植物|成长|学习|日记|笔记|book|pen|ruler|award|medal|train|practice|seed|plant|grow|study|note/i.test(source)) {
     add("killAttack");
     add("killDefense");
     add("killSpeed");
   }
-  if (/食|饭|面|糖|饼|肉|菜|果|西红柿|番茄|香蕉|药|茶|奶|水|饮|咖啡|汤|杯|瓶|补给|能量/.test(source)) {
+  if (/食|饭|面|糖|饼|肉|菜|果|西红柿|番茄|香蕉|药|茶|奶|水|饮|咖啡|汤|杯|瓶|补给|能量|food|rice|bread|candy|meat|fruit|tomato|banana|medicine|tea|milk|water|drink|coffee|soup|cup|bottle|energy/i.test(source)) {
     add("killMaxHp");
     add("killHpBoost");
   }
@@ -3194,14 +4093,18 @@ function getSpecialEffectDefinitions(effectKeys) {
 
 function inferPreferredStats(name) {
   const text = String(name || "");
-  if (/咖啡|水|饮|药|汤|茶|奶|果汁|杯|瓶|喷雾|清洁|纸巾|毛巾|湿巾/.test(text)) return ["regen", "hp", "shield"];
-  if (/番茄|西红柿|香蕉|饭|面|糖|饼|肉|菜|水果|食|能量|糖果|零食|植物|花|叶|种子/.test(text)) return ["hp", "regen", "shield"];
-  if (/刀|剪|针|钉|锥|刃|指甲刀|钩|夹|钳|锯|尖锐/.test(text)) return ["lifesteal", "attack", "speed"];
-  if (/键盘|鼠标|锤|棍|棒|笔|工具|扳手|螺丝刀|砖|石|球拍|拍子|遥控器|手机|相机/.test(text)) return ["attack", "defense", "hp"];
-  if (/锅盖|镜|盾|伞|盔|盒|箱|包|壳|套|口罩|眼镜|锁|钥匙|防护|保护|容器/.test(text)) return ["shield", "defense", "hp"];
-  if (/鞋|拖鞋|滑板|风扇|轮|轻|羽|飞|跑|车模|陀螺|旋转|气流|线缆|充电器|电池/.test(text)) return ["speed", "attack", "hp"];
-  if (/书|本|笔记|卡片|贴纸|玩具|模型|摆件|公仔|青蛙|卡通|图案/.test(text)) return ["hp", "shield", "attack"];
-  return ["attack", "shield", "hp"];
+  if (/刺|尖刺|荆棘|倒刺|玻璃片|碎玻璃|铁丝网|cactus|thorn|spike|barb|broken glass|wire fence/i.test(text)) return ["attack", "defense", "lifesteal"];
+  if (/咖啡|水|饮|药|汤|茶|奶|果汁|杯|瓶|喷雾|清洁|纸巾|毛巾|湿巾|coffee|water|drink|medicine|tea|milk|juice|cup|bottle|clean|tissue|towel/i.test(text)) return ["regen", "hp", "shield"];
+  if (/番茄|西红柿|香蕉|饭|面|糖|饼|肉|菜|水果|食|能量|糖果|零食|植物|花|叶|种子|tomato|banana|rice|bread|candy|meat|vegetable|fruit|food|energy|snack|plant|flower|leaf|seed/i.test(text)) return ["hp", "regen", "shield"];
+  if (/刀|剪|针|钉|锥|刃|指甲刀|钩|夹|钳|锯|尖锐|knife|scissor|needle|nail|blade|clipper|hook|pliers|saw|sharp/i.test(text)) return ["lifesteal", "attack", "speed"];
+  if (/键盘|鼠标|锤|棍|棒|笔|扳手|螺丝刀|砖|石|球拍|拍子|遥控器|手机|相机|keyboard|mouse|hammer|club|pen|tool|wrench|screwdriver|brick|stone|racket|remote|phone|camera/i.test(text)) return ["attack", "defense", "shield"];
+  if (/锅盖|镜|盾|伞|盔|盒|箱|包|壳|套|口罩|眼镜|锁|钥匙|防护|保护|容器|lid|mirror|shield|umbrella|helmet|box|case|bag|shell|mask|glasses|lock|key|protect|container/i.test(text)) return ["shield", "defense", "hp"];
+  if (/鞋|拖鞋|滑板|风扇|轮|轻|羽|飞|跑|车模|陀螺|旋转|气流|线缆|充电器|电池|shoe|slipper|skateboard|fan|wheel|lightweight|feather|fly|run|toy car|spinning|airflow|cable|charger|battery/i.test(text)) return ["speed", "attack", "regen"];
+  if (/书|本|笔记|book|notebook/i.test(text)) return ["regen", "defense", "hp"];
+  if (/卡片|贴纸|图案|card|sticker|pattern/i.test(text)) return ["regen", "hp", "defense"];
+  if (/玩具|模型|摆件|公仔|手办|青蛙|卡通|toy|model|figure|cartoon/i.test(text)) return ["hp", "defense", "attack"];
+  if (isSmallEquipableNaturalText(text)) return ["hp", "regen", "defense"];
+  return [];
 }
 
 async function compressImage(file) {
@@ -3372,7 +4275,7 @@ function renderEnemyField() {
     const isSelected = selectionOrder > 0;
     const isFaceDown = state.enemyFaceDownIds.has(enemy.id);
     const isFlippingDown = state.enemyFlipDownIds.has(enemy.id);
-    const estimate = enemyDamageEstimates.get(enemy.id) || { text: "损失 ???", state: "unknown" };
+    const estimate = enemyDamageEstimates.get(enemy.id) || makeUnknownEstimate();
     const button = document.createElement("button");
     const isHit = Boolean(state.enemyHitEffectUntilById[enemy.id]);
     button.className = `enemy-card enemy-select-card${isSelected ? " is-selected" : ""}${state.activeEnemyIds?.includes(enemy.id) ? " is-active" : ""}${isLocked ? " is-locked" : ""}${isDefeated ? " is-defeated" : ""}${shouldFlipIn ? " is-entering" : ""}${isFaceDown ? " is-face-down" : ""}${isFlippingDown ? " is-flipping-down" : ""}${isHit ? " is-hit" : ""}`;
@@ -3505,11 +4408,12 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
   sim.initialHp = startHp;
   sim.actualStartHp = actualStartHp;
   sim.maxHpBonus = theoreticalBuffer;
+  const roundLimit = getBattleRoundLimit(enemies.length);
 
   while (sim.hp > 0 && sim.activeIds.length) {
-    if (sim.round >= 50) {
+    if (sim.round >= roundLimit) {
       for (const id of sim.activeIds) {
-        estimates.set(id, makeUnknownEstimate());
+        estimates.set(id, makeUnresolvedEstimate("round-limit", enemies.find((enemy) => enemy.id === id), enemies));
       }
       break;
     }
@@ -3518,7 +4422,9 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
     const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
     currentStats.maxHp += sim.maxHpBonus || 0;
     if (sim.heroTime === Infinity && (!nextEnemyId || enemyTime === Infinity)) {
-      for (const id of sim.activeIds) estimates.set(id, makeUnknownEstimate());
+      for (const id of sim.activeIds) {
+        estimates.set(id, makeUnresolvedEstimate("speed", enemies.find((enemy) => enemy.id === id), enemies));
+      }
       break;
     }
 
@@ -3539,7 +4445,7 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
 
   for (const id of enemyIds) {
     if (!estimates.has(id)) {
-      estimates.set(id, makeUnknownEstimate());
+      estimates.set(id, makeUnresolvedEstimate("unresolved", enemies.find((enemy) => enemy.id === id), enemies));
     }
   }
   return estimates;
@@ -3555,7 +4461,39 @@ function formatHpLossEstimate(loss, actualStartHp) {
 }
 
 function makeUnknownEstimate() {
-  return { text: "损失 ???", state: "unknown" };
+  return makeUnresolvedEstimate("unresolved");
+}
+
+function makeUnresolvedEstimate(reason = "unresolved", enemy = null, enemies = []) {
+  const labels = {
+    noDamage: "破防不足",
+    speed: "速度不足",
+    roundLimit: "回合不够",
+    death: "会倒下",
+    unresolved: "难以战胜",
+  };
+  const resolvedReason = reason === "round-limit" ? inferRoundLimitReason(enemy, enemies) : reason;
+  return {
+    text: labels[resolvedReason] || labels.unresolved,
+    state: resolvedReason === "death" ? "danger" : "unknown",
+  };
+}
+
+function inferRoundLimitReason(enemy, enemies = []) {
+  const activeEnemies = Array.isArray(enemies) && enemies.length ? enemies : enemy ? [enemy] : [];
+  const stats = getBattleStatsForEnemiesWithSpecial(activeEnemies, createDefaultBattleSpecial());
+  if (getActionInterval(stats.speed) === Infinity) return "speed";
+  if (enemy && getEstimatedHeroDamageToEnemy(enemy, stats) <= 0) return "noDamage";
+  return "roundLimit";
+}
+
+function getEstimatedHeroDamageToEnemy(enemy, stats) {
+  if (!enemy || !stats) return 0;
+  const rawDamage = Math.max(0, stats.atk - enemy.def);
+  const shieldCrashDamage = getShieldCrashDamage();
+  let damage = rawDamage + shieldCrashDamage;
+  if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
+  return Math.max(0, damage);
 }
 
 function getMonsterImageUrl(typeKey) {
@@ -3602,9 +4540,10 @@ function renderEquipmentGrid() {
     });
 
     if (item) {
+      const quality = getItemQuality(scoreItem(item));
       button.innerHTML = `
-        <img src="${item.image || makePlaceholderImage()}" alt="">
-        <span>${escapeHtml(formatItemDisplayName(item))}</span>
+        <span class="slot-image"><img src="${item.image || makePlaceholderImage()}" alt=""></span>
+        <span class="slot-name" data-quality="${quality.key}">${escapeHtml(formatItemDisplayName(item))}</span>
       `;
     } else {
       button.innerHTML = `<span class="empty-slot">${getCameraIconMarkup()}</span>`;
@@ -3634,8 +4573,8 @@ function renderEquipmentDetail() {
   els.pendingPhotoImage.removeAttribute("src");
   els.loadingState.hidden = false;
   els.equipmentDetail.classList.remove("is-error", "is-actionable", "is-log");
+  clearEquipmentDetailQuality();
   els.equipmentDetailStats.hidden = false;
-  delete els.equipmentDetailName.dataset.quality;
 
   if (state.lootError && !state.lastPhoto) {
     els.equipmentDetail.classList.add("is-error");
@@ -3697,16 +4636,27 @@ function renderEquipmentDetail() {
   }
 
   const quality = getItemQuality(scoreItem(selected));
+  setEquipmentDetailQuality(quality);
   els.equipmentDetailName.textContent = formatItemDisplayName(selected);
   els.equipmentDetailName.dataset.quality = quality.label;
   els.equipmentDetailStats.innerHTML = renderItemDetailPills(selected);
   els.equipmentDetailStats.hidden = false;
-  els.equipmentDetailDesc.textContent = selected.description;
+  els.equipmentDetailDesc.textContent = renderItemDescription(selected);
   els.equipmentActions.hidden = false;
   els.discardItemBtn.hidden = false;
   els.discardItemBtn.disabled = locked;
   const refund = getDismantleFilmReturn(selected);
   els.discardItemBtn.textContent = `分解 +${formatFilmAmount(refund)}`;
+}
+
+function clearEquipmentDetailQuality() {
+  delete els.equipmentDetail.dataset.quality;
+  delete els.equipmentDetailName.dataset.quality;
+}
+
+function setEquipmentDetailQuality(quality) {
+  const safe = quality && quality.key ? quality : getItemQuality(0);
+  els.equipmentDetail.dataset.quality = safe.key;
 }
 
 function getCameraIconMarkup() {
@@ -3768,8 +4718,15 @@ function getLootErrorHint(message) {
 function renderStatPills(stats) {
   const pills = Object.entries(statLabels)
     .filter(([key]) => stats[key])
-    .map(([key, label]) => `<span>${label} ${formatSignedNumber(stats[key] || 0)}</span>`);
+    .map(([key, label]) => `<span>${label} ${formatItemStatValue(key, stats[key] || 0)}</span>`);
   return pills.length ? pills.join("") : "<span>无属性</span>";
+}
+
+function formatItemStatValue(key, value) {
+  if (key === "hp" && value > 0) {
+    return `+${value}，生命+${value * hpEquipHealPerPoint}`;
+  }
+  return formatSignedNumber(value);
 }
 
 function formatSignedNumber(value) {
@@ -3783,6 +4740,131 @@ function renderItemDetailPills(item) {
   const statHtml = renderStatPills(item.stats);
   if (effectHtml) return `${statHtml}${effectHtml}`;
   return statHtml;
+}
+
+function renderItemDescription(item) {
+  if (!item) return "";
+  const lines = [];
+  const description = improveItemDescription(item);
+  const appraisalLine = formatAppraisalLine(item);
+  if (description) lines.push(description);
+  if (item.stats?.hp > 0) lines.push(`装备时每点生命上限额外回复 ${hpEquipHealPerPoint} 点生命。`);
+  if (appraisalLine) lines.push(appraisalLine);
+  return lines.join("\n");
+}
+
+function improveItemDescription(item) {
+  const original = cleanText(item?.description, "", 88);
+  if (original && !isGenericItemDescription(original) && isItemDescriptionConsistent(item, original)) return original;
+  return makeSettledItemDescription(item);
+}
+
+function makeSettledItemDescription(item) {
+  const name = formatItemDisplayName(item);
+  const stats = item?.stats || {};
+  const effects = getItemSpecialKeys(item || {});
+  if (effects.includes("doubleStrikeSpeedDown")) return `${name}让动作变重，却能把每次进攻拆成更密的连击。`;
+  if (effects.includes("shieldCrashAttackDown")) return `${name}把护盾压到锋线上，出手时顺带撞出一段额外伤害。`;
+  if (effects.includes("dealDamageAttack")) return `${name}越打越顺手，命中后会临时磨出更高攻击。`;
+  if (effects.includes("takeDamageDefense")) return `${name}挨打后更稳，战斗中会临时堆起防御。`;
+  if (effects.includes("killMaxHp")) return `${name}会把击败的余温存进生命上限。`;
+  if (effects.includes("killHpBoost")) return `${name}适合边打边补，每次击败怪物都会抬高生命。`;
+  if (stats.attack > 0 && stats.lifesteal > 0) return `${name}又利又贪，既能破开敌人，也能从进攻里追回生命。`;
+  if (stats.attack > 0 && stats.speed > 0) return `${name}拿在手里很顺，出手更快，也更容易打出伤害。`;
+  if (stats.defense > 0 && stats.shield > 0) return `${name}像一块临时护板，先挡住冲击，再稳住防线。`;
+  if (stats.hp > 0 && stats.regen > 0) return `${name}带着补给感，会撑大生命上限，也让挨打后更容易缓过来。`;
+  if (stats.speed > 0) return `${name}带着风和惯性，适合抢在怪物前面行动。`;
+  if (stats.attack > 0) return `${name}有明显的施力感，适合把照片里的棱角变成攻击。`;
+  if (stats.defense > 0) return `${name}结实可靠，可以把一部分伤害硬接下来。`;
+  if (stats.shield > 0) return `${name}像临时举起的遮挡物，每场战斗开始时先撑起护盾。`;
+  if (stats.lifesteal > 0) return `${name}带一点尖锐的掠夺感，进攻时能吸回生命。`;
+  if (stats.regen > 0) return `${name}有补能和修复的味道，被打后能慢慢把生命拉回来。`;
+  if (stats.hp > 0) return `${name}让勇者更耐打，装上时还会顺手回一口生命。`;
+  if (item?.tooLarge) return "主体太大，照片只能留下回忆，不能塞进装备格。";
+  return `${name}被收进装备格，等待下一次战斗证明它的用处。`;
+}
+
+function isGenericItemDescription(text) {
+  return /^(由照片鉴定出的装备|测试用拍照特殊装备|按模型文字保守鉴定|主体过大或主要是场景|装备|物品)/.test(String(text || "").trim());
+}
+
+function isItemDescriptionConsistent(item, description) {
+  if (!item || item.tooLarge) return true;
+  const text = String(description || "");
+  const stats = item.stats || {};
+  const effects = getItemSpecialKeys(item);
+  const claims = [
+    { key: "attack", hit: /攻击|伤害|打击|破防|锋利|进攻|输出|攻势|attack/i.test(text) },
+    { key: "defense", hit: /防御|防线|抗打|硬接|坚固|稳住|减伤|defen[cs]e/i.test(text) },
+    { key: "speed", hit: /速度|更快|抢先|迅捷|敏捷|行动|speed/i.test(text) },
+    { key: "shield", hit: /护盾|屏障|挡住|遮挡|盾|shield/i.test(text) },
+    { key: "lifesteal", hit: /吸血|吸取|夺取|追回生命|lifesteal/i.test(text) },
+    { key: "regen", hit: /回复|恢复|回血|修复|补能|再生|regen/i.test(text) },
+  ];
+  const hasStat = (key) => (stats[key] || 0) > 0 || effects.some((effectKey) => {
+    const effect = photoSpecialEffectMap.get(effectKey);
+    return effect?.stat === key || (key === "attack" && effect?.shieldDamageRatio);
+  });
+  return claims.every((claim) => !claim.hit || hasStat(claim.key));
+}
+
+function formatAppraisalLine(item) {
+  if (!item.semanticAppraisal) return "";
+  if (item.tooLarge) {
+    const subject = item.subjectName || item.objectType || item.itemName;
+    return `${subject}被判定为${formatSizeClass(item.sizeClass)}，不能作为随身装备。`;
+  }
+
+  const parts = [];
+  const qualityScore = Number.isFinite(item.photoQualityScore)
+    ? item.photoQualityScore
+    : calculatePhotoQualityScore(item.photoQuality, `${item.itemName} ${item.description || ""} ${item.reason || ""}`);
+  parts.push(`画面${qualityScore}/15`);
+  const qualityReason = formatQualityReason(item.photoQuality);
+  if (qualityReason) parts.push(qualityReason);
+  const affinity = formatStatAffinity(item.statAffinity);
+  if (affinity) parts.push(`倾向：${affinity}`);
+  return parts.join(" · ");
+}
+
+function formatQualityReason(photoQuality) {
+  const quality = normalizePhotoQuality(photoQuality);
+  const positive = [];
+  const negative = [];
+  if (quality.clarity >= 3) positive.push("主体清楚");
+  if (quality.subjectArea >= 3) positive.push("占比大");
+  if (quality.backgroundClean >= 2) positive.push("背景干净");
+  if (quality.realPhoto >= 3) positive.push("实拍感强");
+  if (quality.focusLight >= 2) positive.push("光线好");
+  if (quality.interesting >= 2) positive.push("有趣");
+  if (quality.clarity <= 1) negative.push("略模糊");
+  if (quality.subjectArea <= 1) negative.push("主体偏小");
+  if (quality.backgroundClean <= 0) negative.push("背景杂");
+  if (quality.realPhoto <= 1) negative.push("实拍感弱");
+  return (positive.length ? positive : negative).slice(0, 3).join("、");
+}
+
+function formatStatAffinity(statAffinity) {
+  return normalizeStatAffinity(statAffinity)
+    .map((entry) => statLabels[entry.stat] || entry.stat)
+    .slice(0, 3)
+    .join(">");
+}
+
+function formatSizeClass(sizeClass) {
+  const map = {
+    handheld: "手持小物",
+    pocket: "口袋小物",
+    tabletop: "桌面物品",
+    small_furniture: "小家具",
+    human_scale: "人尺寸物体",
+    vehicle: "交通工具",
+    building: "建筑",
+    landscape: "风景",
+    scene: "场景",
+    unknown: "未知尺寸",
+  };
+  return map[String(sizeClass || "").trim()] || "过大主体";
 }
 
 function renderSpecialEffectPills(item) {
@@ -3981,8 +5063,21 @@ function renderGameTextOnly() {
       slotIndex,
       name: formatItemDisplayName(item),
       score: scoreItem(item),
+      quality: item.quality?.label || getItemQuality(scoreItem(item)).label,
+      appraisal: item.semanticAppraisal ? {
+        subjectName: item.subjectName || "",
+        objectType: item.objectType || "",
+        identityDescription: item.identityDescription || "",
+        sizeClass: item.sizeClass || "",
+        photoQualityScore: Number.isFinite(item.photoQualityScore) ? item.photoQualityScore : null,
+        statAffinity: normalizeStatAffinity(item.statAffinity || []),
+        specialAffinity: normalizeSpecialEffects(item.specialAffinity || []),
+        reason: item.reason || "",
+      } : null,
       stats: item.stats || {},
       effects: getItemSpecialKeys(item),
+      photoKey: item.photoKey || "",
+      objectKey: item.objectKey || makeObjectDuplicateKey(item),
       specialState: item.specialState || {},
       equipped: !item.tooLarge,
     }) : null),
@@ -3990,6 +5085,8 @@ function renderGameTextOnly() {
     currentBattle: state.currentBattle
       ? {
           monsterName: state.currentBattle.monsterName,
+          initialEnemyCount: state.currentBattle.initialEnemyCount,
+          roundLimit: state.currentBattle.roundLimit,
           details: state.currentBattle.details,
         }
       : null,
@@ -4095,6 +5192,13 @@ function loadSave() {
     return;
   }
 
+  state.floor = clampInt(save.floor, 1, maxFloor);
+  state.gameClear = Boolean(save.gameClear);
+  state.bossReward = normalizeBossReward(save.bossReward);
+  state.photoValueMin = clampInt(save.photoValueMin, defaultPhotoValueMin, 999);
+  state.photoValueMax = Math.max(state.photoValueMin, clampInt(save.photoValueMax, defaultPhotoValueMax, 999));
+  state.globalFilmDropBonus = clampInt(save.globalFilmDropBonus, 0, 999);
+  state.battleSpeed = battleSpeedOptions.includes(save.battleSpeed) ? save.battleSpeed : 1;
   state.player = normalizePlayer(save.player || state.player);
   state.runSeed = typeof save.runSeed === "string" && save.runSeed ? save.runSeed : makeRunSeed();
   state.inventory = normalizeInventorySlots(save.inventory);
@@ -4104,13 +5208,6 @@ function loadSave() {
   state.latestItem = save.latestItem ? normalizeInventoryItem({ ...save.latestItem, skipSpecialRoll: true }) : state.inventory.find(Boolean) || null;
   state.log = Array.isArray(save.log) ? save.log : state.log;
 
-  state.floor = clampInt(save.floor, 1, maxFloor);
-  state.gameClear = Boolean(save.gameClear);
-  state.bossReward = normalizeBossReward(save.bossReward);
-  state.photoValueMin = clampInt(save.photoValueMin, defaultPhotoValueMin, 999);
-  state.photoValueMax = Math.max(state.photoValueMin, clampInt(save.photoValueMax, defaultPhotoValueMax, 999));
-  state.globalFilmDropBonus = clampInt(save.globalFilmDropBonus, 0, 999);
-  state.battleSpeed = battleSpeedOptions.includes(save.battleSpeed) ? save.battleSpeed : 1;
   state.enemies = Array.isArray(save.enemies) ? save.enemies.map(normalizeEnemy).filter(Boolean) : [];
   state.encounterId = typeof save.encounterId === "string" ? save.encounterId : "";
   if (!state.enemies.length && !state.gameClear) {
@@ -4214,6 +5311,8 @@ function normalizeCurrentBattle(battle) {
     startHp: Number.isFinite(battle.startHp) ? battle.startHp : state.player.hp,
     startShield: Number.isFinite(battle.startShield) ? battle.startShield : state.player.shield,
     damageEstimates: battle.damageEstimates && typeof battle.damageEstimates === "object" ? battle.damageEstimates : {},
+    initialEnemyCount: clampInt(battle.initialEnemyCount || activeIds.length || 1, 1, 3),
+    roundLimit: getBattleRoundLimit(battle.initialEnemyCount || activeIds.length || 1),
     details: Array.isArray(battle.details) ? battle.details.filter((item) => typeof item === "string").slice(-90) : [],
     lootNames: Array.isArray(battle.lootNames) ? battle.lootNames.filter((item) => typeof item === "string") : [],
     defeatedIds: Array.isArray(battle.defeatedIds) ? battle.defeatedIds.filter((item) => typeof item === "string") : [],
@@ -4340,18 +5439,23 @@ window.__photoHeroTestHooks = {
       specialEffects: [effectKey],
       skipSpecialRoll: true,
       description: input.description || "测试用拍照特殊装备。",
+      identityDescription: input.identityDescription || "",
+      photoKey: input.photoKey || pendingDuplicatePhotoKey,
       confidence: 1,
     }, input.image || makePlaceholderImage());
     addInventoryItem({ ...item, id: makeId("test-special") }, "测试特殊装备已加入。");
   },
   addRawItem(input) {
     const item = {
-      ...balanceItem({ ...(input || {}), skipSpecialRoll: input?.skipSpecialRoll ?? true }, input?.image || makePlaceholderImage()),
+      ...balanceItem({ ...(input || {}), photoKey: input?.photoKey || pendingDuplicatePhotoKey, skipSpecialRoll: input?.skipSpecialRoll ?? true }, input?.image || makePlaceholderImage()),
       stats: normalizeStats(input?.stats || {}, 999),
       id: makeId("test-item"),
     };
     addInventoryItem(item, "测试装备已加入。");
   },
+  makePhotoDuplicateKey,
+  makeObjectDuplicateKey,
+  findDuplicateIdentifiedItem,
   setPhoto(image) {
     state.lastPhoto = image || "";
     if (state.lastPhoto) state.infoMode = "item";
@@ -4374,6 +5478,10 @@ window.__photoHeroTestHooks = {
   startBossRewardChoice,
   chooseBossReward,
   balanceItem,
+  async identifyImageForTest(config, image) {
+    const item = await analyzeDirectly(config, image);
+    return balanceItem(item, makePlaceholderImage());
+  },
   getPhotoValueRange() {
     return { min: getPhotoValueMin(), max: getPhotoValueMax() };
   },
@@ -4398,6 +5506,7 @@ window.__photoHeroTestHooks = {
     clearEnemyCardMotion();
     state.enemyFlipEncounterId = state.encounterId;
     applyFloorShield();
+    addFloorNarrative(state.floor);
     saveGame();
     render();
   },
