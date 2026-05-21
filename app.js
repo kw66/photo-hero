@@ -4777,10 +4777,8 @@ function renderItemDescription(item) {
   if (!item) return "";
   const lines = [];
   const description = improveItemDescription(item);
-  const appraisalLine = formatAppraisalLine(item);
   if (description) lines.push(description);
   if (item.stats?.hp > 0) lines.push(`装备时每点生命上限额外回复 ${hpEquipHealPerPoint} 点生命。`);
-  if (appraisalLine) lines.push(appraisalLine);
   return lines.join("\n");
 }
 
@@ -4837,65 +4835,6 @@ function isItemDescriptionConsistent(item, description) {
     return effect?.stat === key || (key === "attack" && effect?.shieldDamageRatio);
   });
   return claims.every((claim) => !claim.hit || hasStat(claim.key));
-}
-
-function formatAppraisalLine(item) {
-  if (!item.semanticAppraisal) return "";
-  if (item.tooLarge) {
-    const subject = item.subjectName || item.objectType || item.itemName;
-    return `${subject}被判定为${formatSizeClass(item.sizeClass)}，不能作为随身装备。`;
-  }
-
-  const parts = [];
-  const qualityScore = Number.isFinite(item.photoQualityScore)
-    ? item.photoQualityScore
-    : calculatePhotoQualityScore(item.photoQuality, `${item.itemName} ${item.description || ""} ${item.reason || ""}`);
-  parts.push(`画面${qualityScore}/15`);
-  const qualityReason = formatQualityReason(item.photoQuality);
-  if (qualityReason) parts.push(qualityReason);
-  const affinity = formatStatAffinity(item.statAffinity);
-  if (affinity) parts.push(`倾向：${affinity}`);
-  return parts.join(" · ");
-}
-
-function formatQualityReason(photoQuality) {
-  const quality = normalizePhotoQuality(photoQuality);
-  const positive = [];
-  const negative = [];
-  if (quality.clarity >= 3) positive.push("主体清楚");
-  if (quality.subjectArea >= 3) positive.push("占比大");
-  if (quality.backgroundClean >= 2) positive.push("背景干净");
-  if (quality.realPhoto >= 3) positive.push("实拍感强");
-  if (quality.focusLight >= 2) positive.push("光线好");
-  if (quality.interesting >= 2) positive.push("有趣");
-  if (quality.clarity <= 1) negative.push("略模糊");
-  if (quality.subjectArea <= 1) negative.push("主体偏小");
-  if (quality.backgroundClean <= 0) negative.push("背景杂");
-  if (quality.realPhoto <= 1) negative.push("实拍感弱");
-  return (positive.length ? positive : negative).slice(0, 3).join("、");
-}
-
-function formatStatAffinity(statAffinity) {
-  return normalizeStatAffinity(statAffinity)
-    .map((entry) => statLabels[entry.stat] || entry.stat)
-    .slice(0, 3)
-    .join(">");
-}
-
-function formatSizeClass(sizeClass) {
-  const map = {
-    handheld: "手持小物",
-    pocket: "口袋小物",
-    tabletop: "桌面物品",
-    small_furniture: "小家具",
-    human_scale: "人尺寸物体",
-    vehicle: "交通工具",
-    building: "建筑",
-    landscape: "风景",
-    scene: "场景",
-    unknown: "未知尺寸",
-  };
-  return map[String(sizeClass || "").trim()] || "过大主体";
 }
 
 function renderSpecialEffectPills(item) {
