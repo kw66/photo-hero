@@ -670,6 +670,45 @@ dd {
   white-space: nowrap;
 }
 
+.info-head-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.info-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.info-tab-button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 56%, var(--line));
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgb(255 253 247 / 96%), rgb(236 230 220 / 92%)),
+    #fffdf8;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 72%), 0 1px 0 rgb(23 19 15 / 10%);
+}
+
+.info-tab-button[aria-selected="true"] {
+  border-color: color-mix(in srgb, var(--hero) 70%, var(--ink));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hero) 82%, white 18%), var(--hero)),
+    var(--hero);
+  color: #fffaf0;
+}
+
 .compact-title {
   margin-bottom: 6px;
 }
@@ -694,10 +733,34 @@ dd {
 }
 
 #analyzePhotoBtn.is-cancel {
-  border-color: color-mix(in srgb, var(--red) 54%, var(--ink));
+  border-color: color-mix(in srgb, var(--enemy) 54%, var(--ink));
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--red) 72%, white 28%), var(--red));
+    linear-gradient(180deg, color-mix(in srgb, var(--enemy) 78%, #fffaf0 22%) 0%, var(--enemy) 100%),
+    var(--enemy);
   color: #fffaf0;
+  text-shadow: 0 1px 0 rgb(23 19 15 / 22%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 245 240 / 34%),
+    0 7px 13px rgb(189 61 54 / 22%),
+    0 2px 0 color-mix(in srgb, var(--enemy) 62%, var(--ink));
+}
+
+#analyzePhotoBtn.is-cancel:hover:not(:disabled),
+#analyzePhotoBtn.is-cancel:focus-visible {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--enemy) 86%, #fffaf0 14%) 0%, color-mix(in srgb, var(--enemy) 92%, var(--ink) 8%) 100%),
+    var(--enemy);
+  color: #fffaf0;
+}
+
+#analyzePhotoBtn.is-cancel:active:not(:disabled) {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--enemy) 88%, var(--ink) 12%) 0%, var(--enemy) 100%),
+    var(--enemy);
+  color: #fffaf0;
+  box-shadow:
+    inset 0 1px 2px rgb(23 19 15 / 28%),
+    0 1px 0 color-mix(in srgb, var(--enemy) 58%, var(--ink));
 }
 
 #fileInput {
@@ -741,14 +804,17 @@ dd {
 }
 
 .equipment-slot.has-item {
+  aspect-ratio: 1 / 1.24;
   cursor: pointer;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .equipment-slot.is-selected {
   border-color: var(--slot-border, var(--hero));
   box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--slot-glow, var(--hero)) 38%, transparent),
-    0 0 13px color-mix(in srgb, var(--slot-glow, var(--hero)) 44%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--slot-glow, var(--hero)) 54%, transparent),
+    0 0 14px color-mix(in srgb, var(--slot-glow, var(--hero)) 50%, transparent),
     inset 0 0 0 1px white;
 }
 
@@ -759,7 +825,7 @@ dd {
 .slot-image {
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  min-height: 0;
   overflow: hidden;
   background: color-mix(in srgb, var(--paper-2) 72%, white 28%);
 }
@@ -774,6 +840,7 @@ dd {
 .slot-name {
   width: 100%;
   min-height: 18px;
+  max-height: 2.45em;
   padding: 3px 4px 2px;
   border-top: 1px solid color-mix(in srgb, var(--slot-border, var(--line)) 72%, transparent);
   background: linear-gradient(180deg, rgb(23 19 15 / 84%), rgb(23 19 15 / 92%));
@@ -783,8 +850,8 @@ dd {
   line-height: 1.1;
   text-align: center;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   text-shadow: 0 0 6px color-mix(in srgb, var(--slot-glow, #fff) 58%, transparent);
 }
 
@@ -798,11 +865,12 @@ dd {
   font-weight: 900;
 }
 
+.equipment-slot.quality-empty,
 .equipment-slot.quality-common {
-  --slot-border: #f7f2e8;
-  --slot-bg: linear-gradient(180deg, #fffefa, #eee6d8);
-  --slot-glow: #e9ddcb;
-  --quality-text: #fff7e6;
+  --slot-border: #b8b4aa;
+  --slot-bg: linear-gradient(180deg, #fffefa, #ebe7de);
+  --slot-glow: #b8b4aa;
+  --quality-text: #ddd8cc;
 }
 
 .equipment-slot.quality-rare {
@@ -1074,6 +1142,16 @@ dd {
   min-height: 24px;
   padding-inline: 8px;
   font-size: 0.68rem;
+  min-width: 46px;
+  white-space: nowrap;
+}
+
+#analyzePhotoBtn.detail-action {
+  min-width: 54px;
+}
+
+#analyzePhotoBtn.detail-action.is-cancel {
+  min-width: 74px;
 }
 
 .icon-action {
@@ -1161,14 +1239,37 @@ dd {
   max-width: min(100%, 720px);
   max-height: 88vh;
   object-fit: contain;
-  border: 2px solid rgb(255 250 240 / 86%);
+  border: 3px solid var(--viewer-quality, rgb(255 250 240 / 86%));
   border-radius: var(--radius);
   background: #fffdf8;
+  box-shadow:
+    0 0 0 1px rgb(255 250 240 / 24%),
+    0 0 28px color-mix(in srgb, var(--viewer-quality, #fffaf0) 32%, transparent);
 }
 
 .image-viewer span {
+  color: var(--viewer-quality, #fffaf0);
   font-size: 0.86rem;
   font-weight: 900;
+  text-shadow:
+    0 1px 0 rgb(0 0 0 / 48%),
+    0 0 12px color-mix(in srgb, var(--viewer-quality, #fffaf0) 42%, transparent);
+}
+
+.image-viewer[data-quality="common"] {
+  --viewer-quality: #f7f0df;
+}
+
+.image-viewer[data-quality="rare"] {
+  --viewer-quality: #75b8ff;
+}
+
+.image-viewer[data-quality="epic"] {
+  --viewer-quality: #caa7ff;
+}
+
+.image-viewer[data-quality="legendary"] {
+  --viewer-quality: #ffc35a;
 }
 
 .battle-chip b {
@@ -1180,6 +1281,14 @@ dd {
   grid-template-columns: minmax(0, 1fr) minmax(52px, auto) minmax(94px, 0.38fr) minmax(94px, 0.38fr);
   gap: 7px;
   align-items: center;
+}
+
+.floor-action-row.is-reward-choice {
+  grid-template-columns: minmax(0, 1fr) minmax(52px, auto) minmax(188px, 0.76fr);
+}
+
+.floor-action-row.is-reward-choice #attackBtn {
+  grid-column: 3;
 }
 
 .floor-action-row strong {
@@ -1305,6 +1414,19 @@ dd {
 .enemy-select-card.is-selected {
   outline: 3px solid color-mix(in srgb, var(--amber) 70%, white 30%);
   outline-offset: 1px;
+}
+
+.reward-card.is-selected {
+  border-color: color-mix(in srgb, var(--amber) 72%, var(--ink));
+  background:
+    linear-gradient(180deg, rgb(255 249 227 / 92%), rgb(246 220 160 / 74%)),
+    var(--paper);
+  outline: 3px solid color-mix(in srgb, var(--amber) 62%, white 38%);
+  outline-offset: 1px;
+  box-shadow:
+    0 0 0 2px rgb(255 250 240 / 72%),
+    0 8px 18px rgb(198 123 30 / 20%),
+    inset 0 1px 0 rgb(255 255 255 / 82%);
 }
 
 .enemy-card.is-active {
@@ -1673,7 +1795,13 @@ dd {
   background: color-mix(in srgb, var(--paper) 88%, white 12%);
 }
 
+.info-panel {
+  max-width: 860px;
+  font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+}
+
 .info-grid {
+  margin-top: 8px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
@@ -1681,12 +1809,22 @@ dd {
 
 .info-block {
   display: grid;
-  gap: 4px;
-  padding: 8px;
+  gap: 5px;
+  padding: 8px 9px;
   border: 1px solid color-mix(in srgb, var(--line-strong) 46%, var(--line));
   border-radius: 7px;
   background:
     linear-gradient(180deg, rgb(255 253 248 / 86%), rgb(245 235 215 / 70%));
+}
+
+.info-block.hero-info-block {
+  border-color: color-mix(in srgb, var(--hero) 42%, var(--line-strong));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hero-soft) 72%, #fffdf8 28%), rgb(255 249 232 / 86%));
+}
+
+.info-block.hero-info-block h3 {
+  color: color-mix(in srgb, var(--hero) 72%, var(--ink));
 }
 
 .info-block h3 {
@@ -1697,9 +1835,10 @@ dd {
 
 .info-block p {
   color: var(--ink);
-  font-size: 0.82rem;
-  font-weight: 750;
-  line-height: 1.45;
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.52;
+  text-wrap: pretty;
 }
 
 .info-block a {
@@ -2135,6 +2274,7 @@ textarea {
 
   .slot-name {
     min-height: 15px;
+    max-height: 2.35em;
     padding: 2px 3px;
     font-size: 0.54rem;
   }
@@ -2181,6 +2321,59 @@ textarea {
 
   .forms-panel .secondary-head p {
     display: none;
+  }
+
+  .info-panel {
+    padding: 7px;
+  }
+
+  .info-panel .secondary-head {
+    align-items: center;
+    gap: 5px;
+  }
+
+  .info-panel .secondary-head h2 {
+    font-size: 0.9rem;
+  }
+
+  .info-head-actions {
+    gap: 4px;
+  }
+
+  .info-tabs {
+    gap: 3px;
+  }
+
+  .info-tab-button {
+    min-height: 27px;
+    padding-inline: 6px;
+    font-size: 0.65rem;
+  }
+
+  .info-panel .secondary-head .ghost-button {
+    min-width: 44px;
+    padding-inline: 6px;
+    font-size: 0.66rem;
+  }
+
+  .info-grid {
+    margin-top: 7px;
+    gap: 6px;
+  }
+
+  .info-block {
+    padding: 7px 8px;
+    gap: 4px;
+  }
+
+  .info-block h3 {
+    font-size: 0.68rem;
+  }
+
+  .info-block p {
+    font-size: 0.68rem;
+    font-weight: 500;
+    line-height: 1.46;
   }
 
   .form-grid {

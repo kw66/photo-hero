@@ -523,6 +523,10 @@ function bindEvents() {
     button.addEventListener("click", () => applyPreset(button.dataset.preset || "custom", true));
   });
 
+  document.querySelectorAll("[data-info-tab]").forEach((button) => {
+    button.addEventListener("click", () => setInfoTab(button.dataset.infoTab || "photo"));
+  });
+
   [els.baseUrlInput, els.modelInput, els.customModelInput, els.apiKeyInput].forEach((input) => {
     input.addEventListener("input", () => {
       if (getActivePresetId() === "custom") {
@@ -564,7 +568,7 @@ function bindEvents() {
   els.saveConfigBtn.addEventListener("click", saveConfig);
   els.testChatBtn.addEventListener("click", testVisionApi);
   els.toggleKeyBtn.addEventListener("click", toggleApiKeyVisibility);
-  els.attackBtn.addEventListener("click", toggleAutoBattle);
+  els.attackBtn.addEventListener("click", handlePrimaryAction);
   els.battleSpeedBtn.addEventListener("click", cycleBattleSpeed);
   els.fleeBtn.addEventListener("click", fleeBattle);
   els.resetGameBtn.addEventListener("click", resetGame);
@@ -577,7 +581,7 @@ function bindEvents() {
     analyzePhoto();
   });
   els.pendingPhotoPreview.addEventListener("click", () => openImageViewer(state.lastPhoto, "待鉴定照片"));
-  els.discardItemBtn.addEventListener("click", dismantleSelectedItem);
+  els.discardItemBtn.addEventListener("click", handleDiscardAction);
   els.imageViewer.addEventListener("click", closeImageViewer);
   renderHeroForms();
 }
@@ -612,10 +616,18 @@ function handleDocumentClickForInfoMode(event) {
   }
 }
 
-function openImageViewer(src, caption = "") {
+function openImageViewer(src, caption = "", quality = null) {
   if (!src) return;
+  const safeQuality = quality && quality.key ? quality : null;
   els.imageViewerImage.src = src;
-  els.imageViewerCaption.textContent = caption;
+  els.imageViewerCaption.textContent = safeQuality?.label ? `${safeQuality.label} · ${caption}` : caption;
+  if (safeQuality) {
+    els.imageViewer.dataset.quality = safeQuality.key;
+    els.imageViewerCaption.dataset.quality = safeQuality.label || "";
+  } else {
+    delete els.imageViewer.dataset.quality;
+    delete els.imageViewerCaption.dataset.quality;
+  }
   els.imageViewer.hidden = false;
 }
 
@@ -623,6 +635,8 @@ function closeImageViewer() {
   els.imageViewer.hidden = true;
   els.imageViewerImage.removeAttribute("src");
   els.imageViewerCaption.textContent = "";
+  delete els.imageViewer.dataset.quality;
+  delete els.imageViewerCaption.dataset.quality;
 }
 
 function toggleApiKeyVisibility() {
@@ -637,6 +651,7 @@ function toggleApiKeyVisibility() {
 function setSecondaryPanel(panelId) {
   const target = ["config", "forms", "info"].includes(panelId) ? panelId : "";
   els.secondaryArea.classList.toggle("is-collapsed", !target);
+  if (target === "info") setInfoTab(getActiveInfoTab());
 
   document.querySelectorAll(".secondary-content").forEach((panel) => {
     panel.hidden = panel.dataset.secondaryPanel !== target;
@@ -644,6 +659,21 @@ function setSecondaryPanel(panelId) {
 
   document.querySelectorAll("[data-panel-target]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.panelTarget === target));
+  });
+}
+
+function getActiveInfoTab() {
+  return document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "photo";
+}
+
+function setInfoTab(tabId) {
+  const target = ["photo", "battle"].includes(tabId) ? tabId : "photo";
+  document.querySelectorAll("[data-info-tab]").forEach((button) => {
+    const active = button.dataset.infoTab === target;
+    button.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll("[data-info-page]").forEach((page) => {
+    page.hidden = page.dataset.infoPage !== target;
   });
 }
 
@@ -1049,6 +1079,17 @@ function showLootError(message) {
 function clearPendingPhoto() {
   state.lastPhoto = "";
   state.pendingPhotoSlotIndex = getSelectedSlotIndex();
+}
+
+function abandonPendingPhoto(message = "已放弃待鉴定照片。") {
+  if (!state.lastPhoto || isAnalyzingPhoto()) return false;
+  clearPendingPhoto();
+  state.lootError = "";
+  state.infoMode = "log";
+  addLog(message);
+  saveGame();
+  render();
+  return true;
 }
 
 function isAnalyzingPhoto() {
@@ -2337,6 +2378,14 @@ function toggleAutoBattle() {
   startAutoBattle();
 }
 
+function handlePrimaryAction() {
+  if (state.bossReward) {
+    confirmSelectedBossReward();
+    return;
+  }
+  toggleAutoBattle();
+}
+
 function cycleBattleSpeed() {
   const currentIndex = battleSpeedOptions.indexOf(getBattleSpeed());
   state.battleSpeed = battleSpeedOptions[(currentIndex + 1) % battleSpeedOptions.length];
@@ -2872,6 +2921,7 @@ function startBossRewardChoice(floor) {
   state.bossReward = {
     floor,
     options: buildBossRewardOptions(floor),
+    selectedIndex: -1,
   };
   state.pendingFloorAdvance = true;
   clearEnemyCardMotion();
@@ -2911,6 +2961,27 @@ function chooseBossReward(index) {
   }
   saveGame();
   render();
+}
+
+function selectBossReward(index) {
+  if (!state.bossReward) return;
+  const options = Array.isArray(state.bossReward.options) ? state.bossReward.options : [];
+  if (!options[index]) return;
+  state.bossReward.selectedIndex = index;
+  state.infoMode = "log";
+  saveGame();
+  render();
+}
+
+function confirmSelectedBossReward() {
+  if (!state.bossReward) return;
+  const index = clampInt(state.bossReward.selectedIndex, -1, 2);
+  if (index < 0) {
+    addBattleEvent("先点一张 Boss 奖励牌，再点击选择。", "item");
+    render();
+    return;
+  }
+  chooseBossReward(index);
 }
 
 function applyBossReward(option) {
@@ -3674,9 +3745,12 @@ function getHeroStrikeCount() {
 function createBattleSimulation(enemies) {
   const sim = {
     hp: state.player.hp,
+    actualHp: state.player.hp,
     shield: 0,
     battleSpecial: createDefaultBattleSpecial(),
+    theoreticalBuffer: 0,
     maxHpBonus: 0,
+    actualDead: false,
     activeIds: enemies.map((enemy) => enemy.id),
     heroTime: Infinity,
     enemyTimes: new Map(enemies.map((enemy) => [enemy.id, getActionInterval(enemy.speed)])),
@@ -3688,6 +3762,32 @@ function createBattleSimulation(enemies) {
   sim.shield = stats.shield;
   sim.heroTime = getActionInterval(stats.speed);
   return sim;
+}
+
+function getSimMaxHpBonus(sim) {
+  return (sim.theoreticalBuffer || 0) + (sim.maxHpBonus || 0);
+}
+
+function getSimActualMaxHp(stats, sim) {
+  return Math.max(1, (stats.maxHp || 0) - (sim.theoreticalBuffer || 0));
+}
+
+function healSimHero(sim, stats, amount) {
+  const heal = Math.max(0, Number(amount) || 0);
+  if (heal <= 0) return;
+  sim.hp = Math.min(stats.maxHp, sim.hp + heal);
+  if (!sim.actualDead) {
+    sim.actualHp = Math.min(getSimActualMaxHp(stats, sim), sim.actualHp + heal);
+  }
+}
+
+function damageSimHero(sim, amount) {
+  const damage = Math.max(0, Number(amount) || 0);
+  if (damage <= 0) return;
+  sim.hp = Math.max(0, sim.hp - damage);
+  if (!sim.actualDead) {
+    sim.actualHp = Math.max(0, sim.actualHp - damage);
+  }
 }
 
 function cloneEnemyForSimulation(enemy) {
@@ -3709,6 +3809,7 @@ function getSimActiveEnemies(sim, enemies) {
 
 function simulateHeroStrike(sim, enemies, stats) {
   void stats;
+  if (sim.actualDead) return [];
   const strikeCount = getHeroStrikeCount();
   const defeatedIds = [];
 
@@ -3717,7 +3818,7 @@ function simulateHeroStrike(sim, enemies, stats) {
     if (!enemy) break;
 
     const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
-    currentStats.maxHp += sim.maxHpBonus || 0;
+    currentStats.maxHp += getSimMaxHpBonus(sim);
     const hitResult = applySimHeroDamageToEnemy(sim, enemy, currentStats);
     const shieldLoss = hitResult.shieldLoss;
     const hpDamage = hitResult.hpDamage;
@@ -3729,7 +3830,7 @@ function simulateHeroStrike(sim, enemies, stats) {
     }
 
     if (!enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noLifesteal")) && currentStats.lifesteal > 0) {
-      sim.hp = Math.min(currentStats.maxHp, sim.hp + currentStats.lifesteal);
+      healSimHero(sim, currentStats, currentStats.lifesteal);
     }
 
     if (enemy.hp <= 0) {
@@ -3748,6 +3849,7 @@ function simulateHeroStrike(sim, enemies, stats) {
 function simulateMonsterStrike(sim, enemy, enemies, stats) {
   const hitCount = getTraitValue(enemy, "multiHit", 1);
   for (let i = 0; i < hitCount; i += 1) {
+    if (sim.actualDead) break;
     const damage = hasTrait(enemy, "magic") ? Math.max(0, enemy.atk) : Math.max(0, enemy.atk - stats.def);
     const immunity = getHeroFormLevelConfig().damageImmunity || 0;
     const isImmune = sim.battleSpecial.damageImmuneUsed < immunity && damage > 0;
@@ -3756,9 +3858,9 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
     const shieldLoss = hasTrait(enemy, "ignoreShield") ? 0 : Math.min(sim.shield, effectiveDamage);
     const hpLoss = effectiveDamage - shieldLoss;
     sim.shield -= shieldLoss;
-    sim.hp = Math.max(0, sim.hp - hpLoss);
+    damageSimHero(sim, hpLoss);
     if (shieldLoss > 0 && getHeroFormLevelConfig().shieldLossToHeal) {
-      sim.hp = Math.min(stats.maxHp, sim.hp + shieldLoss);
+      healSimHero(sim, stats, shieldLoss);
     }
     const takeDamageGain = getTempSpecialGain("takeDamageDefense");
     if (shieldLoss + hpLoss > 0 && takeDamageGain > 0) {
@@ -3766,13 +3868,16 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
       sim.battleSpecial.defense = Math.min(cap, (sim.battleSpecial.defense || 0) + takeDamageGain);
     }
 
-    if (sim.hp > 0 && !enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noRegen")) && stats.regen > 0) {
-      sim.hp = Math.min(stats.maxHp, sim.hp + stats.regen);
+    if (sim.actualHp > 0 && !enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noRegen")) && stats.regen > 0) {
+      healSimHero(sim, stats, stats.regen);
     }
 
     const monsterSteal = getTraitValue(enemy, "lifesteal", 0);
     if (monsterSteal > 0) enemy.hp = Math.min(enemy.maxHp, enemy.hp + monsterSteal);
-    if (sim.hp <= 0) break;
+    if (sim.actualHp <= 0) {
+      sim.actualDead = true;
+      break;
+    }
   }
 
   const monsterRegen = getTraitValue(enemy, "regen", 0);
@@ -3799,7 +3904,7 @@ function applySimPreBattleFormEffects(sim, enemies) {
   for (const enemy of enemies.filter((item) => sim.activeIds.includes(item.id))) {
     if (enemy.hp <= 0) continue;
     const stats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
-    stats.maxHp += sim.maxHpBonus || 0;
+    stats.maxHp += getSimMaxHpBonus(sim);
     applySimHeroDamageToEnemy(sim, enemy, stats);
     if (enemy.hp <= 0) {
       simulateFormKillEffects(sim, stats);
@@ -3813,7 +3918,7 @@ function applySimPreBattleFormEffects(sim, enemies) {
 
 function simulateFormKillEffects(sim, stats) {
   const heal = getHeroFormLevelConfig().killHeal || 0;
-  if (heal > 0) sim.hp = Math.min(stats.maxHp, sim.hp + heal);
+  healSimHero(sim, stats, heal);
 }
 
 function simulateKillSpecial(sim, stats) {
@@ -3827,8 +3932,8 @@ function simulateKillSpecial(sim, stats) {
   }
   if (maxHpGain > 0) stats.maxHp += maxHpGain;
   sim.maxHpBonus = (sim.maxHpBonus || 0) + maxHpGain;
-  if (maxHpGain > 0) sim.hp = Math.min(stats.maxHp, sim.hp + maxHpGain);
-  if (healGain > 0) sim.hp = Math.min(stats.maxHp, sim.hp + healGain);
+  healSimHero(sim, stats, maxHpGain);
+  healSimHero(sim, stats, healGain);
 }
 
 function hasAnyActiveTrait(type) {
@@ -4193,6 +4298,14 @@ function isEquipmentLocked() {
     || isPlayerDefeated()
     || Boolean(state.bossReward)
     || isAnalyzingPhoto();
+}
+
+function handleDiscardAction() {
+  if (hasPendingPhoto() && !isAnalyzingPhoto()) {
+    abandonPendingPhoto();
+    return true;
+  }
+  return dismantleSelectedItem();
 }
 
 function dismantleSelectedItem() {
@@ -4940,6 +5053,7 @@ function render() {
   const stats = getPlayerStats();
   const defeated = isPlayerDefeated();
   const bossRewardPending = Boolean(state.bossReward);
+  const selectedBossReward = getSelectedBossRewardOption();
 
   state.player.hp = Math.max(0, Math.min(state.player.hp, stats.maxHp));
   const form = getHeroForm();
@@ -4962,11 +5076,18 @@ function render() {
     ? "已通关"
     : `第 ${state.floor} / ${maxFloor} 层${isBossFloor(state.floor) ? " · Boss" : isRewardBossFloor(state.floor) ? " · 可选Boss" : ""}`;
   renderEnemyField();
-  els.attackBtn.disabled = defeated || bossRewardPending || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !canStartSelectedBattle();
+  els.attackBtn.closest(".floor-action-row")?.classList.toggle("is-reward-choice", bossRewardPending);
+  els.attackBtn.textContent = bossRewardPending ? "选择" : "战斗";
+  els.attackBtn.disabled = bossRewardPending
+    ? defeated || !selectedBossReward
+    : defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !canStartSelectedBattle();
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
-  els.battleSpeedBtn.textContent = `×${getBattleSpeed()}`;
-  els.battleSpeedBtn.setAttribute("aria-label", `切换战斗倍速，当前 ${getBattleSpeed()} 倍`);
-  els.battleSpeedBtn.disabled = defeated || state.gameClear;
+  els.attackBtn.setAttribute("aria-label", bossRewardPending ? "确认选择 Boss 奖励" : "开始战斗");
+  els.battleSpeedBtn.textContent = bossRewardPending ? "奖励" : `×${getBattleSpeed()}`;
+  els.battleSpeedBtn.setAttribute("aria-label", bossRewardPending ? "Boss 奖励选择阶段" : `切换战斗倍速，当前 ${getBattleSpeed()} 倍`);
+  els.battleSpeedBtn.disabled = defeated || state.gameClear || bossRewardPending;
+  els.fleeBtn.hidden = bossRewardPending;
+  els.fleeBtn.textContent = "逃跑";
   els.fleeBtn.disabled = defeated || bossRewardPending || isBattleActionLocked() || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || isBossFloor(state.floor);
 
   renderApiStatus();
@@ -5098,15 +5219,18 @@ function renderEnemyField() {
 
 function renderBossRewardCards() {
   const options = Array.isArray(state.bossReward?.options) ? state.bossReward.options : [];
+  const selectedIndex = getSelectedBossRewardIndex();
   const title = document.createElement("div");
   title.className = "boss-reward-prompt";
-  title.textContent = "Boss 奖励 · 三选一";
+  title.textContent = selectedIndex >= 0 ? "Boss 奖励 · 点击选择按钮确认" : "Boss 奖励 · 三选一";
   els.enemyField.append(title);
   options.forEach((option, index) => {
     const button = document.createElement("button");
-    button.className = "enemy-card reward-card";
+    const selected = index === selectedIndex;
+    button.className = `enemy-card reward-card${selected ? " is-selected" : ""}`;
     button.type = "button";
-    button.addEventListener("click", () => chooseBossReward(index));
+    button.setAttribute("aria-pressed", String(selected));
+    button.addEventListener("click", () => selectBossReward(index));
     const icon = option.icon || getBossRewardIcon(option.type);
     button.innerHTML = `
       <div class="enemy-card-head">
@@ -5119,12 +5243,23 @@ function renderBossRewardCards() {
         </div>
       </div>
       <div class="enemy-card-result">
-        <span>三选一</span>
-        <strong class="estimate-safe">选择 ${index + 1}</strong>
+        <span>${selected ? "已选中" : "可切换"}</span>
+        <strong class="estimate-safe">${selected ? "点选择确认" : `奖励 ${index + 1}`}</strong>
       </div>
     `;
     els.enemyField.append(button);
   });
+}
+
+function getSelectedBossRewardIndex() {
+  if (!state.bossReward) return -1;
+  const index = clampInt(state.bossReward.selectedIndex, -1, 2);
+  return state.bossReward.options?.[index] ? index : -1;
+}
+
+function getSelectedBossRewardOption() {
+  const index = getSelectedBossRewardIndex();
+  return index >= 0 ? state.bossReward?.options?.[index] || null : null;
 }
 
 function getBossRewardIcon(type) {
@@ -5184,9 +5319,10 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
   const startHp = actualStartHp + theoreticalBuffer;
   const sim = createBattleSimulation(enemies);
   sim.hp = startHp;
+  sim.actualHp = actualStartHp;
   sim.initialHp = startHp;
   sim.actualStartHp = actualStartHp;
-  sim.maxHpBonus = theoreticalBuffer;
+  sim.theoreticalBuffer = theoreticalBuffer;
   applySimPreBattleFormEffects(sim, enemies);
   const roundLimit = getBattleRoundLimit(enemies.length);
 
@@ -5196,7 +5332,7 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
     estimates.set(defeatedId, formatHpLossEstimate(sim.initialHp - sim.hp, sim.actualStartHp));
   }
 
-  while (sim.hp > 0 && sim.activeIds.length) {
+  while (!sim.actualDead && sim.hp > 0 && sim.activeIds.length) {
     if (sim.round >= roundLimit) {
       for (const id of sim.activeIds) {
         estimates.set(id, makeUnresolvedEstimate("round-limit", enemies.find((enemy) => enemy.id === id), enemies));
@@ -5206,7 +5342,7 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
     const nextEnemyId = getNextSimEnemyId(sim);
     const enemyTime = nextEnemyId ? sim.enemyTimes.get(nextEnemyId) : Infinity;
     const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
-    currentStats.maxHp += sim.maxHpBonus || 0;
+    currentStats.maxHp += getSimMaxHpBonus(sim);
     if (sim.heroTime === Infinity && (!nextEnemyId || enemyTime === Infinity)) {
       for (const id of sim.activeIds) {
         estimates.set(id, makeUnresolvedEstimate("speed", enemies.find((enemy) => enemy.id === id), enemies));
@@ -5224,6 +5360,12 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
     } else {
       const enemy = enemies.find((item) => item.id === nextEnemyId);
       if (enemy) simulateMonsterStrike(sim, enemy, enemies, currentStats);
+      if (sim.actualDead) {
+        for (const id of sim.activeIds) {
+          estimates.set(id, makeUnresolvedEstimate("death", enemies.find((item) => item.id === id), enemies));
+        }
+        break;
+      }
       sim.enemyTimes.set(nextEnemyId, enemyTime + getActionInterval(enemy?.speed || 0));
       sim.round += 1;
     }
@@ -5242,7 +5384,7 @@ function formatHpLossEstimate(loss, actualStartHp) {
   const text = value < 0 ? `损失 +${Math.abs(value)}` : `损失 -${value}`;
   return {
     text,
-    state: value > actualStartHp ? "danger" : "safe",
+    state: value >= actualStartHp ? "danger" : "safe",
   };
 }
 
@@ -5319,7 +5461,7 @@ function renderEquipmentGrid() {
         state.lastPhoto = "";
         state.pendingPhotoSlotIndex = i;
       } else if (isRepeatClick && item.image) {
-        openImageViewer(item.image, formatItemDisplayName(item));
+        openImageViewer(item.image, formatItemDisplayName(item), getItemQuality(scoreItem(item)));
       }
       saveGame();
       render();
@@ -5395,8 +5537,16 @@ function renderEquipmentDetail() {
     els.equipmentActions.hidden = false;
     els.analyzePhotoBtn.hidden = false;
     els.analyzePhotoBtn.textContent = analyzing ? "取消鉴定" : "鉴定";
+    els.analyzePhotoBtn.setAttribute("aria-label", analyzing ? "取消鉴定" : "鉴定照片");
     els.analyzePhotoBtn.classList.toggle("is-cancel", analyzing);
     els.analyzePhotoBtn.disabled = analyzing ? false : locked || Boolean(els.loadingState.textContent) || state.filmRolls < 1;
+    if (!analyzing) {
+      els.discardItemBtn.hidden = false;
+      els.discardItemBtn.disabled = false;
+      els.discardItemBtn.classList.remove("danger-button");
+      els.discardItemBtn.textContent = "放弃照片";
+      els.discardItemBtn.setAttribute("aria-label", "放弃待鉴定照片");
+    }
     els.pendingPhotoPreview.hidden = false;
     els.pendingPhotoImage.src = state.lastPhoto;
     return;
@@ -5444,8 +5594,10 @@ function renderEquipmentDetail() {
   els.equipmentActions.hidden = false;
   els.discardItemBtn.hidden = false;
   els.discardItemBtn.disabled = locked;
+  els.discardItemBtn.classList.add("danger-button");
   const refund = getDismantleFilmReturn(selected);
   els.discardItemBtn.textContent = `分解 +${formatFilmAmount(refund)}`;
+  els.discardItemBtn.setAttribute("aria-label", "分解装备");
 }
 
 function clearEquipmentDetailQuality() {
@@ -5562,11 +5714,7 @@ function renderItemDetailPills(item) {
 
 function renderItemDescription(item) {
   if (!item) return "";
-  const lines = [];
-  const description = improveItemDescription(item);
-  if (description) lines.push(description);
-  if (item.stats?.hp > 0) lines.push(`装备时每点生命上限额外回复 ${hpEquipHealPerPoint} 点生命。`);
-  return lines.join("\n");
+  return improveItemDescription(item);
 }
 
 function improveItemDescription(item) {
@@ -5819,6 +5967,7 @@ function renderGameTextOnly() {
     bossReward: state.bossReward ? {
       floor: state.bossReward.floor,
       options: state.bossReward.options,
+      selectedIndex: getSelectedBossRewardIndex(),
     } : null,
     hasPhoto: Boolean(state.lastPhoto),
     latestItem: state.latestItem,
@@ -6025,7 +6174,8 @@ function normalizeBossReward(reward) {
         .filter(Boolean)
         .slice(0, 3)
     : [];
-  return options.length ? { floor, options } : null;
+  const selectedIndex = clampInt(reward.selectedIndex, -1, 2);
+  return options.length ? { floor, options, selectedIndex: options[selectedIndex] ? selectedIndex : -1 } : null;
 }
 
 function normalizeBossRewardOption(option, floor, index) {
