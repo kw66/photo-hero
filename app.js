@@ -150,7 +150,7 @@ const photoSpecialEffects = [
   { key: "dealDamageAttack", label: "造成伤害临时攻击+1", value: 15, kind: "dealDamageTemp", stat: "attack", amount: 1, cap: 10 },
   { key: "takeDamageDefense", label: "受到伤害临时防御+1", value: 15, kind: "takeDamageTemp", stat: "defense", amount: 1, cap: 8 },
   { key: "killMaxHp", label: "每次击杀生命上限+2", value: 15, kind: "killPermanent", stat: "hp", amount: 2 },
-  { key: "killHpBoost", label: "每次击杀生命上限+8", value: 15, kind: "killPermanent", stat: "hp", amount: 8 },
+  { key: "killHpBoost", label: "每次击杀生命+8", value: 15, kind: "killHeal", amount: 8 },
   { key: "doubleStrikeSpeedDown", label: "速度-5，连击翻倍", value: 16, kind: "passive", stat: "speed", amount: -5, doubleStrikeMultiplier: 2 },
   { key: "shieldCrashAttackDown", label: "攻击-3，附带当前护盾*0.5伤害", value: 16, kind: "passive", stat: "attack", amount: -3, shieldDamageRatio: 0.5 },
 ];
@@ -3365,20 +3365,21 @@ function getHeroStrikeCount() {
 }
 
 function createBattleSimulation(enemies) {
-  const stats = getBattleStatsForEnemiesWithSpecial(enemies, createDefaultBattleSpecial());
   const sim = {
     hp: state.player.hp,
-    shield: stats.shield,
+    shield: 0,
     battleSpecial: createDefaultBattleSpecial(),
     maxHpBonus: 0,
     activeIds: enemies.map((enemy) => enemy.id),
-    heroTime: getActionInterval(stats.speed),
+    heroTime: Infinity,
     enemyTimes: new Map(enemies.map((enemy) => [enemy.id, getActionInterval(enemy.speed)])),
     round: 1,
     rounds: 0,
     defeatedCount: 0,
   };
-  applySimPreBattleFormEffects(sim, enemies);
+  const stats = getBattleStatsForEnemiesWithSpecial(enemies, sim.battleSpecial);
+  sim.shield = stats.shield;
+  sim.heroTime = getActionInterval(stats.speed);
   return sim;
 }
 
@@ -3510,14 +3511,17 @@ function simulateFormKillEffects(sim, stats) {
 
 function simulateKillSpecial(sim, stats) {
   let maxHpGain = 0;
+  let healGain = 0;
   for (const item of getEquippedItems()) {
     for (const { effect } of getItemSpecialInstances(item)) {
       if (effect.stat === "hp" && effect.kind === "killPermanent") maxHpGain += effect.amount;
+      if (effect.kind === "killHeal") healGain += effect.amount;
     }
   }
   if (maxHpGain > 0) stats.maxHp += maxHpGain;
   sim.maxHpBonus = (sim.maxHpBonus || 0) + maxHpGain;
   if (maxHpGain > 0) sim.hp = Math.min(stats.maxHp, sim.hp + maxHpGain);
+  if (healGain > 0) sim.hp = Math.min(stats.maxHp, sim.hp + healGain);
 }
 
 function hasAnyActiveTrait(type) {
@@ -3730,7 +3734,7 @@ function getHeroFormImageUrl(form = getHeroForm()) {
 
 function setHeroForm(formId) {
   if (!heroFormMap.has(formId) || state.player.formId === formId) return;
-  if (isPlayerDefeated() || state.bossReward) return;
+  if (isEquipmentLocked()) return;
   const oldStats = getPlayerStats();
   const oldShield = state.player.shield;
   const targetForm = heroFormMap.get(formId);
@@ -3842,6 +3846,14 @@ function triggerKillSpecial(enemy) {
           state.player.hp = Math.min(stats.maxHp, state.player.hp + effect.amount);
         }
         changes.push(`${formatItemDisplayName(item)} ${statLabels[effect.stat] || effect.stat}+${effect.amount}`);
+      } else if (effect.kind === "killHeal") {
+        data.kills += 1;
+        data.bonus += effect.amount;
+        const stats = getBattleStats(state.activeEnemyIds);
+        const beforeHp = state.player.hp;
+        state.player.hp = Math.min(stats.maxHp, state.player.hp + effect.amount);
+        const healed = state.player.hp - beforeHp;
+        if (healed > 0) changes.push(`${formatItemDisplayName(item)} 生命+${healed}`);
       }
       ensureItemSpecialState(item, key);
     }
@@ -3867,7 +3879,12 @@ function getEquippedItems() {
 }
 
 function isEquipmentLocked() {
-  return Boolean(state.autoBattleTimer) || Boolean(state.currentBattle) || isPlayerDefeated() || Boolean(state.bossReward);
+  return Boolean(state.autoBattleTimer)
+    || Boolean(state.currentBattle)
+    || Boolean(state.battleStartTimer)
+    || state.pendingFloorAdvance
+    || isPlayerDefeated()
+    || Boolean(state.bossReward);
 }
 
 function dismantleSelectedItem() {
@@ -4353,12 +4370,6 @@ function choosePhotoSpecialEffects(item, image, valueBudget) {
 function isPhotoSpecialEffectEligible(effectKey, valueBudget, item = {}) {
   const effect = photoSpecialEffectMap.get(effectKey);
   if (!effect || effect.value > valueBudget) return false;
-  if (valueBudget < 18) return false;
-  const statBudget = valueBudget - effect.value;
-  const semanticText = `${item.itemName || ""} ${item.subjectName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`;
-  if (statBudget < 10) return false;
-  if (!getAffordableSemanticStatKeys(semanticText, item.statAffinity || [], statBudget).length) return false;
-  if (valueBudget < 20 && statBudget < 10) return false;
   return true;
 }
 
@@ -4774,7 +4785,14 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
   sim.initialHp = startHp;
   sim.actualStartHp = actualStartHp;
   sim.maxHpBonus = theoreticalBuffer;
+  applySimPreBattleFormEffects(sim, enemies);
   const roundLimit = getBattleRoundLimit(enemies.length);
+
+  for (const defeatedId of enemies
+    .filter((enemy) => !sim.activeIds.includes(enemy.id) || enemy.hp <= 0)
+    .map((enemy) => enemy.id)) {
+    estimates.set(defeatedId, formatHpLossEstimate(sim.initialHp - sim.hp, sim.actualStartHp));
+  }
 
   while (sim.hp > 0 && sim.activeIds.length) {
     if (sim.round >= roundLimit) {
@@ -5056,7 +5074,7 @@ function renderHeroForms() {
     button.type = "button";
     button.dataset.formId = form.id;
     const hpLoss = (getHeroFormLevelConfig(currentForm).stats?.hp || 0) - (getHeroFormLevelConfig(form).stats?.hp || 0);
-    const locked = isPlayerDefeated() || Boolean(state.bossReward) || (hpLoss > 0 && state.player.hp <= hpLoss);
+    const locked = isEquipmentLocked() || (hpLoss > 0 && state.player.hp <= hpLoss);
     button.disabled = locked;
     button.setAttribute("aria-pressed", String(form.id === currentForm.id));
     if (form.id === currentForm.id) button.classList.add("is-active");
@@ -5148,7 +5166,7 @@ function makeSettledItemDescription(item) {
   if (effects.includes("dealDamageAttack")) return `${name}越打越顺手，命中后会临时磨出更高攻击。`;
   if (effects.includes("takeDamageDefense")) return `${name}挨打后更稳，战斗中会临时堆起防御。`;
   if (effects.includes("killMaxHp")) return `${name}会把击败的余温存进生命上限。`;
-  if (effects.includes("killHpBoost")) return `${name}适合边打边补，每次击败怪物都会抬高生命。`;
+  if (effects.includes("killHpBoost")) return `${name}适合边打边补，每次击败怪物都会回复生命。`;
   if (stats.attack > 0 && stats.lifesteal > 0) return `${name}又利又贪，既能破开敌人，也能从进攻里追回生命。`;
   if (stats.attack > 0 && stats.speed > 0) return `${name}拿在手里很顺，出手更快，也更容易打出伤害。`;
   if (stats.defense > 0 && stats.shield > 0) return `${name}像一块临时护板，先挡住冲击，再稳住防线。`;
@@ -5202,6 +5220,9 @@ function formatSpecialEffectText(effect, data = {}) {
   }
   if (effect.kind === "killPermanent") {
     return `${effect.label}（已+${clampInt(data.bonus, 0, 9999)}）`;
+  }
+  if (effect.kind === "killHeal") {
+    return effect.label;
   }
   if (effect.kind === "dealDamageTemp") return `${effect.label}，最多${effect.cap}，战后复原`;
   if (effect.kind === "takeDamageTemp") return `${effect.label}，最多${effect.cap}，战后复原`;
