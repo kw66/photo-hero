@@ -1997,9 +1997,7 @@ function startAutoBattle() {
   if (state.battleStartTimer || state.pendingFloorAdvance) return;
 
   ensureEncounter();
-  if (isBossFloor(state.floor)) {
-    state.selectedEnemyIds = state.enemies.map((enemy) => enemy.id);
-  }
+  if (!canStartSelectedBattle()) return;
   const selectedEnemies = getSelectedEnemies();
   if (!selectedEnemies.length) return;
 
@@ -2736,9 +2734,6 @@ function ensureEncounter() {
   state.selectedEnemyIds = Array.isArray(state.selectedEnemyIds)
     ? state.selectedEnemyIds.filter((id, index, ids) => validIds.has(id) && ids.indexOf(id) === index)
     : [];
-  if (isBossFloor(state.floor)) {
-    state.selectedEnemyIds = state.enemies.map((enemy) => enemy.id);
-  }
   applyFloorShield();
 }
 
@@ -3026,6 +3021,20 @@ function getSelectedEnemies() {
   return state.selectedEnemyIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
     .filter(Boolean);
+}
+
+function getAliveEnemies() {
+  return Array.isArray(state.enemies) ? state.enemies.filter((enemy) => enemy.hp > 0) : [];
+}
+
+function hasSelectedAllAliveEnemies() {
+  const alive = getAliveEnemies();
+  return alive.length > 0 && alive.every((enemy) => state.selectedEnemyIds.includes(enemy.id));
+}
+
+function canStartSelectedBattle() {
+  if (isBossFloor(state.floor)) return hasSelectedAllAliveEnemies();
+  return getSelectedEnemies().length > 0;
 }
 
 function getBattleStats(activeIds = state.activeEnemyIds) {
@@ -4219,7 +4228,7 @@ function render() {
     ? "已通关"
     : `第 ${state.floor} / ${maxFloor} 层${isBossFloor(state.floor) ? " · Boss" : isRewardBossFloor(state.floor) ? " · 可选Boss" : ""}`;
   renderEnemyField();
-  els.attackBtn.disabled = defeated || bossRewardPending || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !getSelectedEnemies().length;
+  els.attackBtn.disabled = defeated || bossRewardPending || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !canStartSelectedBattle();
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
   els.battleSpeedBtn.textContent = `×${getBattleSpeed()}`;
   els.battleSpeedBtn.setAttribute("aria-label", `切换战斗倍速，当前 ${getBattleSpeed()} 倍`);
@@ -4289,13 +4298,9 @@ function renderEnemyField() {
     return;
   }
 
-  if (isBossFloor(state.floor)) {
-    state.selectedEnemyIds = state.enemies.map((enemy) => enemy.id);
-  }
-
   state.enemies.forEach((enemy, index) => {
     const isDefeated = enemy.hp <= 0;
-    const isLocked = Boolean(state.autoBattleTimer) || Boolean(state.currentBattle) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || isBossFloor(state.floor) || isDefeated;
+    const isLocked = Boolean(state.autoBattleTimer) || Boolean(state.currentBattle) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || isDefeated;
     const selectionOrder = getEnemySelectionOrder(enemy.id);
     const isSelected = selectionOrder > 0;
     const isFaceDown = state.enemyFaceDownIds.has(enemy.id);
