@@ -64,8 +64,12 @@ function assertScenario(name, metrics) {
   if (metrics.horizontalOverflow > 0) failures.push(`${name}: horizontal overflow ${metrics.horizontalOverflow}`);
   if (name === "mobile-fresh") {
     if (!metrics.visibleButtons.includes("选择怪物")) failures.push(`${name}: missing disabled 选择怪物 state`);
-    if (metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: still shows 逃跑 button`);
+    if (!metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: missing non-boss flee button`);
     if (/价值范围/.test(metrics.detailText)) failures.push(`${name}: exposes raw value range in empty state`);
+  }
+  if (name === "mobile-flee") {
+    if (metrics.state.floor !== 2) failures.push(`${name}: flee should advance to floor 2`);
+    if (!metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: non-boss floor after fleeing should still show flee`);
   }
   if (name === "mobile-reward") {
     if (!metrics.visibleButtons.includes("选择")) failures.push(`${name}: missing reward confirm button`);
@@ -93,6 +97,11 @@ function assertScenario(name, metrics) {
 
   scenarios.mobileReward = await collectScenario(mobile, "mobile-reward", async (page) => {
     await page.evaluate(() => window.__photoHeroTestHooks.startBossRewardChoice(10));
+  });
+
+  scenarios.mobileFlee = await collectScenario(mobile, "mobile-flee", async (page) => {
+    await page.click("#fleeBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).floor === 2, null, { timeout: 3000 });
   });
 
   scenarios.mobileCareer = await collectScenario(mobile, "mobile-career", async (page) => {

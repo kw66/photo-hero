@@ -1,9 +1,22 @@
 const STORAGE_KEYS = {
   config: "photoHero.config",
   save: "photoHero.save",
+  statsVisitor: "photoHero.stats.visitor",
+  statsLastUvDate: "photoHero.stats.lastUvDate",
+  statsGameRuns: "photoHero.stats.gameRuns",
 };
 
 const pendingDuplicatePhotoKey = "pending";
+const STATS_COUNTER_RPC_URL = "https://ypefmpeekfucmarbbdov.supabase.co";
+const STATS_COUNTER_RPC_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwZWZtcGVla2Z1Y21hcmJiZG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NTA2NTYsImV4cCI6MjA4MTUyNjY1Nn0.XTOQNFuuwfu9nwDTnO9-NEqlzZnzdCVnEmYEJh0rXf8";
+const STATS_COUNTER_IDS = {
+  totalPv: "photo_hero_pv_total",
+  totalUv: "photo_hero_uv_total",
+  totalGames: "photo_hero_game_total",
+  dailyPvPrefix: "photo_hero_pv_day",
+  dailyUvPrefix: "photo_hero_uv_day",
+  dailyGamesPrefix: "photo_hero_game_day",
+};
 
 const SILICONFLOW_MODELS = [
   { value: "Qwen/Qwen3.6-35B-A3B" },
@@ -146,8 +159,8 @@ const photoSpecialEffects = [
   { key: "killDefense", label: "每击杀8怪防御+1", value: 15, kind: "killThreshold", threshold: 8, stat: "defense", amount: 1 },
   { key: "killShield", label: "每击杀4怪护盾+1", value: 10, kind: "killThreshold", threshold: 4, stat: "shield", amount: 1 },
   { key: "killSpeed", label: "每击杀12怪速度+1", value: 16, kind: "killThreshold", threshold: 12, stat: "speed", amount: 1 },
-  { key: "dealDamageAttack", label: "造成伤害临时攻击+1", value: 15, kind: "dealDamageTemp", stat: "attack", amount: 1, cap: 10 },
-  { key: "takeDamageDefense", label: "受到伤害临时防御+1", value: 15, kind: "takeDamageTemp", stat: "defense", amount: 1, cap: 8 },
+  { key: "dealDamageAttack", label: "造成伤害临时攻击+1", value: 15, kind: "dealDamageTemp", stat: "attack", amount: 1, cap: 4 },
+  { key: "takeDamageDefense", label: "受到伤害临时防御+1", value: 15, kind: "takeDamageTemp", stat: "defense", amount: 1, cap: 4 },
   { key: "killMaxHp", label: "每次击杀生命上限+2", value: 15, kind: "killPermanent", stat: "hp", amount: 2 },
   { key: "killHpBoost", label: "每次击杀生命+8", value: 15, kind: "killHeal", amount: 8 },
   { key: "doubleStrikeSpeedDown", label: "速度-3，连击翻倍", value: 16, kind: "passive", stat: "speed", amount: -3, doubleStrikeMultiplier: 2 },
@@ -418,6 +431,7 @@ const els = {
   floorText: byId("floorText"),
   enemyField: byId("enemyField"),
   battleSpeedBtn: byId("battleSpeedBtn"),
+  fleeBtn: byId("fleeBtn"),
   attackBtn: byId("attackBtn"),
   resetGameBtn: byId("resetGameBtn"),
   fileInput: byId("fileInput"),
@@ -436,6 +450,8 @@ const els = {
   saveConfigBtn: byId("saveConfigBtn"),
   testChatBtn: byId("testChatBtn"),
   chatResult: byId("chatResult"),
+  globalStatsPanel: byId("globalStatsPanel"),
+  globalStatsStatus: byId("globalStatsStatus"),
   equipmentGrid: byId("equipmentGrid"),
   equipmentDetail: byId("equipmentDetail"),
   equipmentDetailName: byId("equipmentDetailName"),
@@ -500,10 +516,13 @@ const state = {
   careerSummary: null,
   careerSummaryRequest: null,
   bossRewardDeck: null,
+  globalStats: createDefaultGlobalStats(),
+  globalStatsStatus: "统计加载中...",
 };
 
 loadConfig();
 loadSave();
+initGlobalStats();
 ensureEncounter();
 ensureInitialFloorNarrative();
 bindEvents();
@@ -564,6 +583,7 @@ function bindEvents() {
   els.testChatBtn.addEventListener("click", testVisionApi);
   els.toggleKeyBtn.addEventListener("click", toggleApiKeyVisibility);
   els.attackBtn.addEventListener("click", handlePrimaryAction);
+  els.fleeBtn.addEventListener("click", fleeCurrentFloor);
   els.battleSpeedBtn.addEventListener("click", cycleBattleSpeed);
   els.resetGameBtn.addEventListener("click", resetGame);
   els.photoActionBtn.addEventListener("click", openPhotoPickerForSelectedSlot);
@@ -2537,6 +2557,22 @@ function handlePrimaryAction() {
   toggleAutoBattle();
 }
 
+function fleeCurrentFloor() {
+  if (!canFleeCurrentFloor()) return;
+  state.infoMode = "log";
+  addBattleEvent(`第${state.floor}层没有恋战，照片勇者继续向上。`, "info");
+  advanceFloor();
+  saveGame();
+  render();
+}
+
+function canFleeCurrentFloor() {
+  if (state.gameClear || state.bossReward || isCareerSummaryOpen()) return false;
+  if (isPlayerDefeated() || state.currentBattle || state.autoBattleTimer || state.battleStartTimer || state.pendingFloorAdvance) return false;
+  if (isEquipmentLocked() || hasPendingPhoto()) return false;
+  return !isBossRewardFloor(state.floor);
+}
+
 function cycleBattleSpeed() {
   const currentIndex = battleSpeedOptions.indexOf(getBattleSpeed());
   state.battleSpeed = battleSpeedOptions[(currentIndex + 1) % battleSpeedOptions.length];
@@ -2573,6 +2609,7 @@ function startAutoBattle() {
   if (!canStartSelectedBattle()) return;
   const selectedEnemies = getSelectedEnemies();
   if (!selectedEnemies.length) return;
+  recordGlobalGameStart();
 
   const selectedIds = new Set(selectedEnemies.map((enemy) => enemy.id));
   const unselectedIds = state.enemies
@@ -2630,9 +2667,11 @@ function createDefaultBattleSpecial() {
 
 function normalizeBattleSpecial(value) {
   const source = value && typeof value === "object" ? value : {};
+  const attackCap = getTempSpecialCap("dealDamageAttack");
+  const defenseCap = getTempSpecialCap("takeDamageDefense");
   return {
-    attack: clampInt(source.attack, 0, 10),
-    defense: clampInt(source.defense, 0, 8),
+    attack: clampInt(source.attack, 0, attackCap || 0),
+    defense: clampInt(source.defense, 0, defenseCap || 0),
     damageImmuneUsed: clampInt(source.damageImmuneUsed, 0, 999),
     preBattleStruck: Boolean(source.preBattleStruck),
   };
@@ -4027,6 +4066,190 @@ function getFilmCount() {
   return normalizeFilmAmount(state.filmRolls + state.filmShards / 10);
 }
 
+function createDefaultGlobalStats() {
+  return {
+    totalPv: 0,
+    totalUv: 0,
+    totalGames: 0,
+    todayPv: 0,
+    todayUv: 0,
+    todayGames: 0,
+  };
+}
+
+function normalizeGlobalStats(input) {
+  const source = input && typeof input === "object" ? input : {};
+  return {
+    totalPv: clampInt(source.totalPv, 0, 99999999),
+    totalUv: clampInt(source.totalUv, 0, 99999999),
+    totalGames: clampInt(source.totalGames, 0, 99999999),
+    todayPv: clampInt(source.todayPv, 0, 99999999),
+    todayUv: clampInt(source.todayUv, 0, 99999999),
+    todayGames: clampInt(source.todayGames, 0, 99999999),
+  };
+}
+
+async function initGlobalStats() {
+  renderGlobalStatsPanel();
+  try {
+    if (shouldRecordGlobalStats()) {
+      await recordGlobalVisit();
+    } else {
+      state.globalStatsStatus = "本地预览不计入全站统计。";
+    }
+    await refreshGlobalStats();
+  } catch (error) {
+    console.warn("全站统计初始化失败:", error);
+    state.globalStatsStatus = "统计加载失败，稍后会自动重试。";
+    renderGlobalStatsPanel();
+  }
+}
+
+async function recordGlobalVisit() {
+  const today = getLocalDateKey();
+  await incrementStatsCounter(STATS_COUNTER_IDS.totalPv);
+  await incrementStatsCounter(makeDailyCounterId(STATS_COUNTER_IDS.dailyPvPrefix, today));
+
+  const isKnownVisitor = localStorage.getItem(STORAGE_KEYS.statsVisitor) === "true";
+  const lastUvDate = localStorage.getItem(STORAGE_KEYS.statsLastUvDate);
+  if (!isKnownVisitor || lastUvDate !== today) {
+    await incrementStatsCounter(STATS_COUNTER_IDS.totalUv);
+    await incrementStatsCounter(makeDailyCounterId(STATS_COUNTER_IDS.dailyUvPrefix, today));
+    localStorage.setItem(STORAGE_KEYS.statsVisitor, "true");
+    localStorage.setItem(STORAGE_KEYS.statsLastUvDate, today);
+  }
+}
+
+function recordGlobalGameStart() {
+  if (!shouldRecordGlobalStats()) return;
+  if (!state.runSeed) state.runSeed = makeRunSeed();
+  const recordedRuns = readJson(STORAGE_KEYS.statsGameRuns, []);
+  const safeRuns = Array.isArray(recordedRuns)
+    ? recordedRuns.filter((seed) => typeof seed === "string" && seed).slice(-80)
+    : [];
+  if (safeRuns.includes(state.runSeed)) return;
+  safeRuns.push(state.runSeed);
+  localStorage.setItem(STORAGE_KEYS.statsGameRuns, JSON.stringify(safeRuns.slice(-80)));
+  const today = getLocalDateKey();
+  void Promise.all([
+    incrementStatsCounter(STATS_COUNTER_IDS.totalGames),
+    incrementStatsCounter(makeDailyCounterId(STATS_COUNTER_IDS.dailyGamesPrefix, today)),
+  ]).then(refreshGlobalStats).catch((error) => {
+    console.warn("记录全站游玩次数失败:", error);
+    state.globalStatsStatus = "游玩统计同步失败。";
+    renderGlobalStatsPanel();
+  });
+}
+
+function shouldRecordGlobalStats() {
+  const hostname = window.location.hostname;
+  if (!hostname) return false;
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") return false;
+  return window.location.protocol === "https:" || window.location.protocol === "http:";
+}
+
+async function refreshGlobalStats() {
+  const today = getLocalDateKey();
+  const dailyPv = makeDailyCounterId(STATS_COUNTER_IDS.dailyPvPrefix, today);
+  const dailyUv = makeDailyCounterId(STATS_COUNTER_IDS.dailyUvPrefix, today);
+  const dailyGames = makeDailyCounterId(STATS_COUNTER_IDS.dailyGamesPrefix, today);
+  const counters = await fetchStatsCounters([
+    STATS_COUNTER_IDS.totalPv,
+    STATS_COUNTER_IDS.totalUv,
+    STATS_COUNTER_IDS.totalGames,
+    dailyPv,
+    dailyUv,
+    dailyGames,
+  ]);
+  state.globalStats = normalizeGlobalStats({
+    totalPv: counters[STATS_COUNTER_IDS.totalPv],
+    totalUv: counters[STATS_COUNTER_IDS.totalUv],
+    totalGames: counters[STATS_COUNTER_IDS.totalGames],
+    todayPv: counters[dailyPv],
+    todayUv: counters[dailyUv],
+    todayGames: counters[dailyGames],
+  });
+  state.globalStatsStatus = "统计已更新。";
+  renderGlobalStatsPanel();
+}
+
+async function incrementStatsCounter(counterId) {
+  return postStatsRpc("increment_counter", { counter_id: counterId });
+}
+
+async function fetchStatsCounters(counterIds) {
+  const rows = await postStatsRpc("get_counters", { counter_ids: counterIds });
+  const result = Object.create(null);
+  for (const id of counterIds) result[id] = 0;
+  if (Array.isArray(rows)) {
+    for (const row of rows) {
+      if (!row?.id) continue;
+      result[row.id] = clampInt(row.count, 0, 99999999);
+    }
+  }
+  return result;
+}
+
+async function postStatsRpc(endpoint, payload) {
+  const response = await fetch(`${STATS_COUNTER_RPC_URL}/rest/v1/rpc/${endpoint}`, {
+    method: "POST",
+    headers: {
+      apikey: STATS_COUNTER_RPC_ANON_KEY,
+      Authorization: `Bearer ${STATS_COUNTER_RPC_ANON_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`统计接口 ${endpoint} 返回 ${response.status}`);
+  }
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
+}
+
+function makeDailyCounterId(prefix, dateKey = getLocalDateKey()) {
+  return `${prefix}_${dateKey.replaceAll("-", "")}`;
+}
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function renderGlobalStatsPanel() {
+  if (!els.globalStatsPanel) return;
+  const stats = normalizeGlobalStats(state.globalStats);
+  const items = [
+    ["总访问", stats.totalPv],
+    ["总访客", stats.totalUv],
+    ["总游玩", stats.totalGames],
+    ["今日访问", stats.todayPv],
+    ["今日访客", stats.todayUv],
+    ["今日游玩", stats.todayGames],
+  ];
+  els.globalStatsPanel.innerHTML = `
+    <div class="global-stats-grid">
+      ${items.map(([label, value]) => `
+        <div class="global-stat">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(formatCompactCount(value))}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+  if (els.globalStatsStatus) {
+    els.globalStatsStatus.textContent = state.globalStatsStatus || "";
+  }
+}
+
+function formatCompactCount(value) {
+  const count = clampInt(value, 0, 99999999);
+  if (count >= 100000) return `${(count / 10000).toFixed(1)}万`;
+  return String(count);
+}
+
 function consumeFilm() {
   if (getFilmCount() < 1) return false;
   if (state.filmRolls < 1) {
@@ -5287,8 +5510,8 @@ function normalizeSpecialEffectKey(value) {
     if (/击杀.*8.*防/.test(text)) return "killDefense";
     if (/击杀.*4.*盾/.test(text)) return "killShield";
     if (/击杀.*12.*速/.test(text)) return "killSpeed";
-    if (/造成伤害.*攻|攻击.*最多10/.test(text)) return "dealDamageAttack";
-    if (/受到伤害.*防|受击.*防/.test(text)) return "takeDamageDefense";
+    if (/造成伤害.*攻|攻击.*最多(?:4|10)/.test(text)) return "dealDamageAttack";
+    if (/受到伤害.*防|受击.*防|防御.*最多(?:4|8)/.test(text)) return "takeDamageDefense";
     if (/击杀.*生命上限/.test(text)) return "killMaxHp";
     if (/击杀.*生命|击杀.*回复|击杀.*回血/.test(text)) return "killHpBoost";
     if (/二连击|连击2|连击翻倍/.test(text)) return "doubleStrikeSpeedDown";
@@ -5480,6 +5703,7 @@ function render() {
   const actionRow = els.attackBtn.closest(".floor-action-row");
   actionRow?.classList.toggle("is-reward-choice", bossRewardPending);
   actionRow?.classList.toggle("is-clear", state.gameClear);
+  actionRow?.classList.toggle("can-flee", canFleeCurrentFloor());
   els.equipmentGrid.classList.toggle("is-collapsed", state.gameClear);
   const canStartBattle = canStartSelectedBattle();
   els.attackBtn.hidden = false;
@@ -5501,9 +5725,13 @@ function render() {
   els.battleSpeedBtn.textContent = bossRewardPending ? "" : `×${getBattleSpeed()}`;
   els.battleSpeedBtn.setAttribute("aria-label", bossRewardPending ? "Boss 奖励选择阶段" : `切换战斗倍速，当前 ${getBattleSpeed()} 倍`);
   els.battleSpeedBtn.disabled = defeated || state.gameClear || bossRewardPending;
+  els.fleeBtn.hidden = !canFleeCurrentFloor();
+  els.fleeBtn.disabled = !canFleeCurrentFloor();
+  els.fleeBtn.setAttribute("aria-label", "跳过本层并进入下一层");
 
   renderApiStatus();
   renderCameraStatus();
+  renderGlobalStatsPanel();
   renderEquipmentGrid();
   renderEquipmentDetail();
   renderGameTextOnly();
