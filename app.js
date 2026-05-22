@@ -5617,7 +5617,7 @@ function renderHeroForms() {
   els.formGrid.innerHTML = "";
   const currentForm = getHeroForm();
   document.querySelectorAll("[data-form-label]").forEach((node) => {
-    node.textContent = `${currentForm.label}形态 · ${getHeroFormLevelLabel(currentForm)} · ${getHeroFormProgressText(currentForm)}`;
+    node.textContent = `${currentForm.label}形态`;
   });
 
   for (const form of heroForms) {
@@ -5642,8 +5642,8 @@ function renderHeroForms() {
     const meta = document.createElement("div");
     meta.className = "form-card-meta";
     meta.innerHTML = `
-      <strong>${escapeHtml(form.label)}</strong>
       <b>${escapeHtml(getHeroFormLevelLabel(form))}</b>
+      <strong>${escapeHtml(form.label)}形态</strong>
       <small>${escapeHtml(progressText)}</small>
     `;
 

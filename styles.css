@@ -806,8 +806,7 @@ dd {
 .equipment-slot.has-item {
   aspect-ratio: 1 / 1.24;
   cursor: pointer;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  display: block;
 }
 
 .equipment-slot.is-selected {
@@ -825,7 +824,7 @@ dd {
 .slot-image {
   display: block;
   width: 100%;
-  min-height: 0;
+  height: 100%;
   overflow: hidden;
   background: color-mix(in srgb, var(--paper-2) 72%, white 28%);
 }
@@ -838,9 +837,12 @@ dd {
 }
 
 .slot-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100%;
   min-height: 18px;
-  max-height: 2.45em;
   padding: 3px 4px 2px;
   border-top: 1px solid color-mix(in srgb, var(--slot-border, var(--line)) 72%, transparent);
   background: linear-gradient(180deg, rgb(23 19 15 / 84%), rgb(23 19 15 / 92%));
@@ -850,6 +852,9 @@ dd {
   line-height: 1.1;
   text-align: center;
   overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   white-space: normal;
   overflow-wrap: anywhere;
   text-shadow: 0 0 6px color-mix(in srgb, var(--slot-glow, #fff) 58%, transparent);
@@ -1895,16 +1900,17 @@ dd {
 
 .form-card {
   position: relative;
-  min-height: 126px;
+  min-height: 168px;
   display: grid;
-  grid-template-columns: 66px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "avatar meta"
-    "effects effects";
-  grid-template-rows: minmax(78px, auto) auto;
-  justify-items: stretch;
+    "avatar"
+    "meta"
+    "effects";
+  grid-template-rows: minmax(94px, auto) auto auto;
+  justify-items: center;
   align-items: start;
-  gap: 6px 8px;
+  gap: 6px;
   padding: 8px;
   border: 2px solid color-mix(in srgb, var(--ink) 48%, var(--line));
   border-radius: 8px;
@@ -1917,10 +1923,10 @@ dd {
 
 .form-card img {
   grid-area: avatar;
-  align-self: start;
-  justify-self: start;
-  width: 64px;
-  height: 78px;
+  align-self: center;
+  justify-self: center;
+  width: min(88px, 82%);
+  height: 94px;
   object-fit: contain;
 }
 
@@ -1937,44 +1943,53 @@ dd {
 .form-copy {
   grid-area: effects;
   min-width: 0;
+  width: 100%;
   display: grid;
-  align-content: start;
+  align-content: center;
   gap: 2px;
-  text-align: left;
+  text-align: center;
   line-height: 1.1;
 }
 
 .form-card-meta {
   grid-area: meta;
   min-width: 0;
-  display: grid;
-  align-content: start;
-  justify-items: start;
-  gap: 3px;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  align-content: center;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 3px 4px;
   pointer-events: none;
-  text-align: left;
+  text-align: center;
 }
 
 .form-card-meta strong {
+  flex: 0 1 auto;
+  min-width: 0;
   max-width: 100%;
   color: var(--ink);
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 950;
-  line-height: 1.05;
+  line-height: 1.08;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .form-card-meta small {
+  flex: 0 0 auto;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 850;
   line-height: 1.1;
   white-space: nowrap;
 }
 
 .form-card-meta b {
+  flex: 0 0 auto;
   padding: 1px 4px;
   border: 1px solid color-mix(in srgb, var(--hero) 38%, var(--line));
   border-radius: 999px;
@@ -2315,7 +2330,6 @@ textarea {
 
   .slot-name {
     min-height: 15px;
-    max-height: 2.35em;
     padding: 2px 3px;
     font-size: 0.54rem;
   }
@@ -2424,18 +2438,18 @@ textarea {
   }
 
   .form-card {
-    min-height: 112px;
-    grid-template-columns: 46px minmax(0, 1fr);
-    grid-template-rows: minmax(62px, auto) auto;
-    gap: 4px 5px;
+    min-height: 145px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(74px, auto) auto auto;
+    gap: 5px;
     padding: 6px;
     border-width: 1px;
     border-radius: 7px;
   }
 
   .form-card img {
-    width: 45px;
-    height: 62px;
+    width: min(72px, 86%);
+    height: 74px;
   }
 
   .form-copy {
@@ -2444,20 +2458,20 @@ textarea {
   }
 
   .form-card-meta {
-    gap: 2px;
+    gap: 2px 3px;
   }
 
   .form-card-meta strong {
-    font-size: 0.68rem;
+    font-size: 0.57rem;
   }
 
   .form-card-meta small {
-    font-size: 0.56rem;
+    font-size: 0.5rem;
   }
 
   .form-card-meta b {
     padding: 1px 3px;
-    font-size: 0.5rem;
+    font-size: 0.48rem;
   }
 
   .form-copy i {
