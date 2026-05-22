@@ -77,7 +77,7 @@ https://kw66.github.io/photo-hero/
 - 每击败 1 只怪物获得 0.1 胶卷。
 - 多打怪能更快攒胶卷，但多个敌人会一起攻击。
 - 第 10、20、30、40 层是封门 Boss。
-- 第 25、35、38 层是可选强敌。
+- 第 25、35、38 层是奖励强敌，打赢后同样会出现三选一奖励。
 
 ### 属性
 
@@ -103,6 +103,16 @@ npm start
 http://localhost:3000
 ```
 
+## ✅ 回归检查
+
+发布前建议先跑一遍界面回归：
+
+```powershell
+npm run qa:review
+```
+
+鉴定模块的手工回归表在 [`docs/appraisal-regression.md`](docs/appraisal-regression.md)，用于记录不同照片类型、分数、品质、属性、特殊词条和重复物品判断。
+
 ## 🗂️ 项目结构
 
 ```text
@@ -114,6 +124,8 @@ photo-hero/
 │  ├─ heroes/          # 勇者形态图片
 │  ├─ monsters/        # 怪物图片
 │  └─ rewards/         # Boss 奖励图标
+├─ docs/
+│  └─ appraisal-regression.md
 └─ server.js           # 本地静态预览服务
 ```
 

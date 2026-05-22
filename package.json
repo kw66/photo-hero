@@ -5,7 +5,11 @@
   "description": "A tiny H5 camera RPG prototype.",
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "qa:review": "node scripts/review-qa.cjs"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
 }

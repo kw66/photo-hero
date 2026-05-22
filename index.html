@@ -60,7 +60,7 @@
                   </div>
                   <div class="detail-stats" id="equipmentDetailStats"></div>
                   <div class="detail-body" id="equipmentDetailBody">
-                    <p id="equipmentDetailDesc">选择装备格后在这里拍照鉴定。</p>
+                    <div class="detail-desc" id="equipmentDetailDesc">选择装备格后在这里拍照鉴定。</div>
                     <button class="pending-photo-preview" id="pendingPhotoPreview" type="button" hidden aria-label="查看待鉴定照片">
                       <img id="pendingPhotoImage" alt="待鉴定照片">
                     </button>
@@ -124,7 +124,7 @@
                     <div class="info-grid">
                       <article class="info-block wide-info hero-info-block">
                         <h3>每层都是一次取舍</h3>
-                        <p>一层通常有 3 只怪。点选想挑战的怪物后开战，选得越多胶卷越多，也越容易被围攻；逃跑会直接进入下一层。</p>
+                        <p>一层通常有 3 只怪。点选想挑战的怪物后开战，选得越多胶卷越多，也越容易被围攻；不选怪就不能开战。</p>
                       </article>
                       <article class="info-block wide-info">
                         <h3>读懂怪物卡</h3>
@@ -140,7 +140,7 @@
                       </article>
                       <article class="info-block wide-info">
                         <h3>爬塔和 Boss</h3>
-                        <p>塔有 40 层。第 10、20、30、40 层是封门 Boss，必须全员应战；第 25、35、38 层是可选强敌。Boss 战撑满 200 回合也能继续前进，只是拿不到胜利奖励。</p>
+                        <p>塔有 40 层。第 10、20、30、40 层是封门 Boss，第 25、35、38 层是奖励强敌；这些楼层都要点选全部怪物才能开战。Boss 战撑满 200 回合也能继续前进，只是拿不到胜利奖励。</p>
                       </article>
                       <article class="info-block wide-info">
                         <h3>胶卷、形态和奖励</h3>
@@ -222,7 +222,6 @@
               <strong id="floorText">第 1 / 40 层</strong>
               <button class="secondary-button speed-button" id="battleSpeedBtn" type="button" aria-label="切换战斗倍速">×1</button>
               <button class="primary-button" id="attackBtn" type="button">战斗</button>
-              <button class="secondary-button" id="fleeBtn" type="button">逃跑</button>
             </div>
 
             <div class="enemy-field" id="enemyField" aria-label="敌人列表"></div>

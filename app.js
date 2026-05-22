@@ -110,6 +110,8 @@ const initialFilmRolls = 3;
 const heroFormUpgradeKills = 20;
 const bossFloors = new Set([10, 20, 30, 40]);
 const rewardBossFloors = new Set([25, 35, 38]);
+const bossRewardChoiceFloors = [10, 20, 25, 30, 35, 38];
+const bossRewardChoiceCount = bossRewardChoiceFloors.length;
 const bossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
 
 const statLabels = {
@@ -299,7 +301,7 @@ const heroForms = [
     image: "form-greedy.png",
     levels: {
       1: { stats: {}, effects: ["胶卷掉落 +0.1"], filmDropBonus: 1 },
-      2: { stats: {}, effects: ["胶卷掉落 +0.1", "逃跑胶卷 +0.1"], filmDropBonus: 1, fleeFilmBonus: 1 },
+      2: { stats: {}, effects: ["胶卷掉落 +0.2"], filmDropBonus: 2 },
     },
   },
   {
@@ -390,7 +392,7 @@ const floorNarratives = {
 };
 
 const bossFloorNarratives = {
-  10: "第十层的门自己合上了。骷髅队长守着第一道坎，逃跑已经来不及。",
+  10: "第十层的门自己合上了。骷髅队长守着第一道坎，只有打赢才能继续往上。",
   20: "烛火变成暗红色，吸血鬼正在等一个生命值不够谨慎的勇者。",
   30: "骑士队长带着两名战士列阵。它不算最强，但会用人数拖垮冒进的人。",
   40: "塔顶只剩魔王的影子。照片里的每一点数值都会在这里结算。",
@@ -417,7 +419,6 @@ const els = {
   enemyField: byId("enemyField"),
   battleSpeedBtn: byId("battleSpeedBtn"),
   attackBtn: byId("attackBtn"),
-  fleeBtn: byId("fleeBtn"),
   resetGameBtn: byId("resetGameBtn"),
   fileInput: byId("fileInput"),
   filmCountBadge: byId("filmCountBadge"),
@@ -496,6 +497,9 @@ const state = {
   floorAdvanceTimer: 0,
   pendingFloorAdvance: false,
   analysisRequest: null,
+  careerSummary: null,
+  careerSummaryRequest: null,
+  bossRewardDeck: null,
 };
 
 loadConfig();
@@ -561,10 +565,13 @@ function bindEvents() {
   els.toggleKeyBtn.addEventListener("click", toggleApiKeyVisibility);
   els.attackBtn.addEventListener("click", handlePrimaryAction);
   els.battleSpeedBtn.addEventListener("click", cycleBattleSpeed);
-  els.fleeBtn.addEventListener("click", fleeBattle);
   els.resetGameBtn.addEventListener("click", resetGame);
   els.photoActionBtn.addEventListener("click", openPhotoPickerForSelectedSlot);
   els.analyzePhotoBtn.addEventListener("click", () => {
+    if (state.gameClear && isCareerSummaryOpen()) {
+      downloadCareerSummaryImage();
+      return;
+    }
     if (isAnalyzingPhoto()) {
       cancelAnalyzePhoto();
       return;
@@ -583,6 +590,10 @@ function openPhotoPicker() {
 }
 
 function openPhotoPickerForSelectedSlot() {
+  if (state.gameClear && isCareerSummaryOpen()) {
+    requestCareerSummary(true);
+    return;
+  }
   if (isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || state.bossReward) return;
   const index = getSelectedSlotIndex();
   if (getInventoryItemAt(index)) return;
@@ -628,6 +639,151 @@ function closeImageViewer() {
   els.imageViewerCaption.textContent = "";
   delete els.imageViewer.dataset.quality;
   delete els.imageViewerCaption.dataset.quality;
+}
+
+async function downloadCareerSummaryImage() {
+  if (!state.gameClear) return;
+  const summary = state.careerSummary || buildLocalCareerSummary();
+  const snapshot = summary.snapshot || buildCareerSnapshot();
+  const image = await makeCareerSummaryImage(summary, snapshot);
+  const link = document.createElement("a");
+  link.href = image;
+  link.download = `photo-hero-career-${new Date().toISOString().slice(0, 10)}.png`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  addLog("通关分享图已生成。");
+}
+
+async function makeCareerSummaryImage(summary, snapshot) {
+  const width = 900;
+  const height = 1260;
+  const scale = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  drawCareerSummaryCanvas(ctx, width, height, summary, snapshot);
+  return canvas.toDataURL("image/png");
+}
+
+function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
+  ctx.fillStyle = "#fffaf0";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#edf4e8";
+  for (let x = 0; x < width; x += 54) ctx.fillRect(x, 0, 2, height);
+  for (let y = 0; y < height; y += 54) ctx.fillRect(0, y, width, 2);
+
+  const margin = 62;
+  roundRect(ctx, margin, margin, width - margin * 2, height - margin * 2, 28);
+  ctx.fillStyle = "#fffdf8";
+  ctx.fill();
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = "#17130f";
+  ctx.stroke();
+
+  ctx.fillStyle = "#245f9a";
+  ctx.font = "900 46px sans-serif";
+  ctx.fillText("照片勇者通关纪念", margin + 34, margin + 82);
+  ctx.fillStyle = "#6f665c";
+  ctx.font = "800 24px sans-serif";
+  ctx.fillText(getCareerSummaryStatusText(summary), margin + 36, margin + 122);
+
+  const statY = margin + 168;
+  const statWidth = (width - margin * 2 - 88) / 3;
+  [
+    ["怪物", snapshot.killCount],
+    ["Boss", snapshot.bossKillCount],
+    ["装备", snapshot.equipmentCount],
+  ].forEach(([label, value], index) => {
+    const x = margin + 34 + index * (statWidth + 10);
+    roundRect(ctx, x, statY, statWidth, 74, 12);
+    ctx.fillStyle = "#f6dfb4";
+    ctx.fill();
+    ctx.strokeStyle = "#cdbb9a";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#17130f";
+    ctx.font = "900 26px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`${label} ${value}`, x + statWidth / 2, statY + 47);
+    ctx.textAlign = "left";
+  });
+
+  const ability = `生命${snapshot.stats.maxHp}  攻击${snapshot.stats.atk}  防御${snapshot.stats.def}  速度${snapshot.stats.speed}  护盾${snapshot.stats.shield}  回复${snapshot.stats.regen}  吸血${snapshot.stats.lifesteal}`;
+  ctx.fillStyle = "#17130f";
+  ctx.font = "900 24px sans-serif";
+  wrapCanvasText(ctx, `${snapshot.formLabel} · ${ability}`, margin + 36, statY + 126, width - margin * 2 - 72, 34, 2);
+
+  ctx.fillStyle = "#245f9a";
+  ctx.font = "900 28px sans-serif";
+  ctx.fillText("生涯总结", margin + 36, statY + 228);
+  ctx.fillStyle = "#17130f";
+  ctx.font = "600 25px sans-serif";
+  const summaryText = sanitizeCareerSummaryText(summary.text || "").replace(/\n+/g, "\n");
+  let textY = statY + 270;
+  for (const paragraph of summaryText.split(/\n+/).filter(Boolean).slice(0, 4)) {
+    textY = wrapCanvasText(ctx, paragraph, margin + 36, textY, width - margin * 2 - 72, 38, 4) + 16;
+    if (textY > height - 300) break;
+  }
+
+  ctx.fillStyle = "#245f9a";
+  ctx.font = "900 28px sans-serif";
+  ctx.fillText("代表装备", margin + 36, height - 258);
+  ctx.fillStyle = "#17130f";
+  ctx.font = "800 24px sans-serif";
+  const items = snapshot.topItems.length ? snapshot.topItems.slice(0, 4) : [{ quality: "空", name: "没有照片装备记录", score: 0 }];
+  items.forEach((item, index) => {
+    const y = height - 218 + index * 38;
+    ctx.fillText(`${item.quality} · ${item.name}${item.score ? `  ${item.score}` : ""}`, margin + 42, y);
+  });
+
+  ctx.fillStyle = "#6f665c";
+  ctx.font = "700 22px sans-serif";
+  ctx.fillText("photo-hero · 现实物品生成的爬塔生涯", margin + 36, height - 84);
+}
+
+function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 99) {
+  const chars = Array.from(String(text || ""));
+  let line = "";
+  let lines = 0;
+  for (const char of chars) {
+    if (char === "\n") {
+      ctx.fillText(line, x, y);
+      line = "";
+      y += lineHeight;
+      lines += 1;
+      if (lines >= maxLines) return y;
+      continue;
+    }
+    const testLine = line + char;
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      ctx.fillText(line, x, y);
+      line = char;
+      y += lineHeight;
+      lines += 1;
+      if (lines >= maxLines) return y;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line && lines < maxLines) {
+    ctx.fillText(line, x, y);
+    y += lineHeight;
+  }
+  return y;
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
 }
 
 function toggleApiKeyVisibility() {
@@ -2370,6 +2526,10 @@ function toggleAutoBattle() {
 }
 
 function handlePrimaryAction() {
+  if (state.gameClear) {
+    showCareerSummary();
+    return;
+  }
   if (state.bossReward) {
     confirmSelectedBossReward();
     return;
@@ -2559,7 +2719,11 @@ function resolveBattleAction() {
     const completedFloor = state.floor;
     finishCurrentBattle("victory");
     stopAutoBattle();
-    if (isBossRewardFloor(completedFloor)) {
+    if (completedFloor >= maxFloor) {
+      advanceFloor();
+      saveGame();
+      render();
+    } else if (isBossRewardFloor(completedFloor)) {
       startBossRewardChoice(completedFloor);
     } else {
       handleBattleEndAdvance("delay");
@@ -2733,10 +2897,12 @@ function resolveMonsterStrike(enemy, stats, round) {
 }
 
 function defeatEnemy(enemy) {
-  const drops = getEnemyDrops(enemy, getEnemyBattleBonusShards(enemy));
+  const drops = getEnemyDrops(enemy);
   const defeatedIds = state.currentBattle?.defeatedIds;
+  const defeatedTypes = state.currentBattle?.defeatedTypes;
   addLootNamesToCurrentBattle(drops);
   if (Array.isArray(defeatedIds)) defeatedIds.push(enemy.id);
+  if (Array.isArray(defeatedTypes)) defeatedTypes.push(enemy.typeKey || "");
   addBattleDetail(`${enemy.name} 被击败。`);
   applyFormKillEffects();
   triggerKillSpecial(enemy);
@@ -2824,6 +2990,7 @@ function ensureCurrentBattle(activeIds, stats = getBattleStats(activeIds)) {
     details: [],
     lootNames: [],
     defeatedIds: [],
+    defeatedTypes: [],
     createdAt: Date.now(),
   };
   return state.currentBattle;
@@ -2909,6 +3076,7 @@ function settleFormProgressAfterBattle(result, battle) {
 }
 
 function startBossRewardChoice(floor) {
+  if (!isBossRewardChoiceFloor(floor)) return;
   state.bossReward = {
     floor,
     options: buildBossRewardOptions(floor),
@@ -2924,16 +3092,17 @@ function startBossRewardChoice(floor) {
 }
 
 function buildBossRewardOptions(floor) {
+  const floorIndex = getBossRewardChoiceFloorIndex(floor);
+  if (floorIndex < 0) return [];
   const fixed = getBossRewardCatalog().find((reward) => reward.type === "filmFlat");
-  const pool = getBossRewardCatalog().filter((reward) => reward.type !== "filmFlat");
-  const start = hashIndex(`${state.runSeed}:${floor}:boss-reward:start`, pool.length);
-  const rotating = [0, 1].map((slot) => {
-    const reward = pool[(start + slot) % pool.length];
-    return { ...reward, id: `${floor}-${slot}-${reward.type}` };
-  });
+  const deck = ensureBossRewardDeck();
+  const start = floorIndex * 2;
+  const drawn = deck.slice(start, start + 2)
+    .map((type) => getBossRewardCatalog().find((reward) => reward.type === type))
+    .filter(Boolean);
   return [
     { ...fixed, id: `${floor}-0-${fixed.type}` },
-    ...rotating.map((reward, index) => ({ ...reward, id: `${floor}-${index + 1}-${reward.type}` })),
+    ...drawn.map((reward, index) => ({ ...reward, id: `${floor}-${index + 1}-${reward.type}` })),
   ];
 }
 
@@ -2942,9 +3111,80 @@ function getBossRewardCatalog() {
     { type: "filmFlat", title: "胶卷 +1.0", desc: "立刻获得 1.0 胶卷。", icon: "boss-value-min.png" },
     { type: "filmDrop", title: "胶卷掉落 +0.1", desc: "之后击败怪物永久 +0.1。", icon: "boss-film-drop.png" },
     { type: "filmPercent", title: "当前胶卷 +50%", desc: "按当前数量 +50%，向上取整。", icon: "boss-film-percent.png" },
-    { type: "valueMin", title: "最低价值 +2", desc: "之后照片最低价值永久 +2。", icon: "boss-value-min.png" },
+    { type: "valueMin", title: "最低价值 +2", desc: "之后照片最低价值永久 +2。", icon: "boss-value-min-boost.png" },
     { type: "valueMax", title: "最高价值 +3", desc: "之后照片最高价值永久 +3。", icon: "boss-value-max.png" },
   ];
+}
+
+function ensureBossRewardDeck() {
+  const normalized = normalizeBossRewardDeck(state.bossRewardDeck);
+  if (normalized) {
+    state.bossRewardDeck = normalized;
+    return normalized;
+  }
+  state.bossRewardDeck = buildBossRewardDeck(state.runSeed || "default");
+  return state.bossRewardDeck;
+}
+
+function buildBossRewardDeck(seed) {
+  const source = makeBossRewardDeckTypes();
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const deck = seededShuffle(source, `${seed}:boss-reward-deck:${attempt}`);
+    if (hasNoDuplicateRewardPair(deck)) return deck;
+  }
+  return seededShuffle(source, `${seed}:boss-reward-deck`);
+}
+
+function makeBossRewardDeckTypes() {
+  return [
+    ...Array.from({ length: 5 }, () => "filmPercent"),
+    ...Array.from({ length: 3 }, () => "valueMax"),
+    ...Array.from({ length: 3 }, () => "valueMin"),
+    "filmDrop",
+  ];
+}
+
+function normalizeBossRewardDeck(deck) {
+  if (!Array.isArray(deck)) return null;
+  const expectedCounts = countRewardTypes(makeBossRewardDeckTypes());
+  const next = deck.filter((type) => Object.prototype.hasOwnProperty.call(expectedCounts, type));
+  if (next.length !== bossRewardChoiceCount * 2) return null;
+  const counts = countRewardTypes(next);
+  for (const [type, count] of Object.entries(expectedCounts)) {
+    if (counts[type] !== count) return null;
+  }
+  return next;
+}
+
+function countRewardTypes(types) {
+  return types.reduce((counts, type) => {
+    counts[type] = (counts[type] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+function seededShuffle(items, seed) {
+  const next = items.slice();
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const pick = hashIndex(`${seed}:${index}`, index + 1);
+    [next[index], next[pick]] = [next[pick], next[index]];
+  }
+  return next;
+}
+
+function hasNoDuplicateRewardPair(deck) {
+  for (let index = 0; index < deck.length; index += 2) {
+    if (deck[index] === deck[index + 1]) return false;
+  }
+  return true;
+}
+
+function getBossRewardChoiceFloorIndex(floor) {
+  return bossRewardChoiceFloors.indexOf(floor);
+}
+
+function isBossRewardChoiceFloor(floor) {
+  return getBossRewardChoiceFloorIndex(floor) >= 0;
 }
 
 function chooseBossReward(index) {
@@ -3027,6 +3267,195 @@ function addBattleEvent(text, type = "item") {
   state.battleReports = state.battleReports.slice(0, battleReportLimit);
 }
 
+function showCareerSummary() {
+  if (!state.careerSummary) {
+    state.careerSummary = buildLocalCareerSummary();
+  }
+  state.infoMode = "career";
+  saveGame();
+  render();
+}
+
+function isCareerSummaryOpen() {
+  return state.infoMode === "career";
+}
+
+function buildLocalCareerSummary() {
+  const snapshot = buildCareerSnapshot();
+  const itemText = formatCareerTopItemNames(snapshot);
+  return {
+    status: "local",
+    title: "照片勇者生涯总结",
+    text: [
+      `照片勇者以${snapshot.formLabel}登上塔顶，最终能力为生命${snapshot.stats.maxHp}、攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}、护盾${snapshot.stats.shield}、回复${snapshot.stats.regen}、吸血${snapshot.stats.lifesteal}。`,
+      `这趟旅程击败${snapshot.killCount}只怪物，其中Boss ${snapshot.bossKillCount}只。装备栏留下${snapshot.equipmentCount}件照片装备，${itemText}成了最有记忆点的战利品。`,
+      "这是一段由现实物品拼出的爬塔生涯：每张照片都曾给勇者一点方向，每次战斗都把这些奇怪装备变成了塔顶的证据。现在，这张结算卡就是勇者从塔里带回来的纪念照。",
+    ].join("\n\n"),
+    snapshot,
+    createdAt: Date.now(),
+  };
+}
+
+function formatCareerTopItemNames(snapshot) {
+  const names = snapshot.topItems.map((item) => item.name).filter(Boolean).slice(0, 3);
+  if (!names.length) return "还没有被命名的照片装备";
+  if (names.length === 1) return `${names[0]}`;
+  return `${names.slice(0, -1).join("、")}和${names[names.length - 1]}`;
+}
+
+function buildCareerSnapshot() {
+  const stats = getPlayerStats();
+  const reports = state.battleReports.filter((entry) => entry && entry.type !== "event");
+  const bossKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
+  let killCount = 0;
+  let bossKillCount = 0;
+  for (const report of reports) {
+    const defeatedIds = Array.isArray(report.defeatedIds) ? report.defeatedIds : [];
+    const defeatedTypes = Array.isArray(report.defeatedTypes) ? report.defeatedTypes : [];
+    killCount += defeatedIds.length;
+    for (let index = 0; index < defeatedIds.length; index += 1) {
+      const id = String(defeatedIds[index] || "");
+      const type = String(defeatedTypes[index] || "");
+      if (bossKeys.has(type) || [...bossKeys].some((bossKey) => id.includes(bossKey))) {
+        bossKillCount += 1;
+      }
+    }
+  }
+  const items = state.inventory
+    .filter(Boolean)
+    .map((item) => ({
+      name: formatItemDisplayName(item),
+      score: scoreItem(item),
+      quality: getItemQuality(scoreItem(item)).label,
+      stats: normalizeStats(item.stats || {}, 999),
+      effects: getItemSpecialKeys(item).map((key) => photoSpecialEffectMap.get(key)?.label || key),
+    }))
+    .sort((a, b) => b.score - a.score);
+  return {
+    floor: state.floor,
+    formLabel: `${getHeroForm().label}形态 ${getHeroFormLevelLabel()}`,
+    stats,
+    hp: state.player.hp,
+    film: formatFilmCount(),
+    killCount,
+    bossKillCount,
+    equipmentCount: items.length,
+    topItems: items.slice(0, 5),
+    allItems: items,
+    battleHighlights: reports.slice(0, 5).map((report) => report.summary).filter(Boolean),
+  };
+}
+
+async function requestCareerSummary(force = false) {
+  if (!state.gameClear || state.careerSummaryRequest) return;
+  if (!force && state.careerSummary?.status === "ai") return;
+  const config = getConfigFromInputs();
+  if (!config.baseUrl || !config.apiKey || !config.model) {
+    if (!state.careerSummary) state.careerSummary = buildLocalCareerSummary();
+    state.careerSummary.status = "local";
+    state.careerSummary.note = "配置图文模型后，可以重新生成更有个性的通关总结。";
+    saveGame();
+    render();
+    return;
+  }
+
+  const snapshot = buildCareerSnapshot();
+  state.careerSummary = {
+    ...(state.careerSummary || buildLocalCareerSummary()),
+    status: "loading",
+    snapshot,
+    note: "正在请大模型撰写通关总结。",
+  };
+  render();
+
+  const request = { startedAt: Date.now() };
+  state.careerSummaryRequest = request;
+  try {
+    const response = await fetchJsonWithTimeout(buildChatEndpoint(config.baseUrl), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify(withProviderRequestOptions(config, {
+        model: config.model,
+        temperature: 0.8,
+        max_tokens: 520,
+        messages: [
+          { role: "system", content: "你是照片勇者的通关吟游诗人。写适合玩家截图发社交媒体的中文通关总结，语气有画面感，简洁但有荣誉感。" },
+          { role: "user", content: buildCareerSummaryPrompt(snapshot) },
+        ],
+      })),
+    }, 45000, "生涯总结");
+    if (state.careerSummaryRequest !== request) return;
+    const text = sanitizeCareerSummaryText(readModelText(response.payload));
+    if (!response.response.ok || !text) throw new Error("模型没有返回可用的通关总结。");
+    state.careerSummary = {
+      status: "ai",
+      title: "照片勇者生涯总结",
+      text,
+      snapshot,
+      createdAt: Date.now(),
+    };
+  } catch (error) {
+    if (state.careerSummaryRequest !== request) return;
+    const fallback = buildLocalCareerSummary();
+    state.careerSummary = {
+      ...fallback,
+      status: "error",
+      note: `${error?.message || "生涯总结生成失败"} 当前显示本地总结。`,
+    };
+  } finally {
+    if (state.careerSummaryRequest === request) state.careerSummaryRequest = null;
+    saveGame();
+    render();
+  }
+}
+
+function buildCareerSummaryPrompt(snapshot) {
+  const itemLines = snapshot.topItems.length
+    ? snapshot.topItems.map((item, index) => `${index + 1}. ${item.quality} ${item.name}，分数${item.score}，属性${formatSnapshotStats(item.stats)}${item.effects.length ? `，词条${item.effects.join("、")}` : ""}`).join("\n")
+    : "无照片装备";
+  return [
+    "请基于以下通关数据写一段中文生涯总结。",
+    "要求：",
+    "1. 适合截图分享，输出一个短标题和2-4段短文，不要列表编号。",
+    "2. 突出照片装备，至少点名2件代表装备；装备少则如实写。",
+    "3. 提及Boss击杀数、怪物击杀数和最终能力。",
+    "4. 可以有一点史诗感和幽默感，但不要夸张到像广告。",
+    "5. 不要解释规则，不要提API、模型、JSON、推理过程或开发者。",
+    "6. 只输出最终总结文本，不要输出分析过程。",
+    "",
+    `勇者形态：${snapshot.formLabel}`,
+    `最终能力：生命${snapshot.stats.maxHp}，当前生命${snapshot.hp}，攻击${snapshot.stats.atk}，防御${snapshot.stats.def}，速度${snapshot.stats.speed}，护盾${snapshot.stats.shield}，回复${snapshot.stats.regen}，吸血${snapshot.stats.lifesteal}`,
+    `击败怪物：${snapshot.killCount}只`,
+    `击败Boss：${snapshot.bossKillCount}只`,
+    `剩余胶卷：${snapshot.film}`,
+    `装备数量：${snapshot.equipmentCount}`,
+    "代表装备：",
+    itemLines,
+    "最近战斗：",
+    snapshot.battleHighlights.join("\n") || "无",
+  ].join("\n");
+}
+
+function formatSnapshotStats(stats) {
+  const parts = [];
+  for (const key of statOrder) {
+    const value = stats[key] || 0;
+    if (value) parts.push(`${statLabels[key]}${formatSignedNumber(value)}`);
+  }
+  return parts.join("、") || "无";
+}
+
+function sanitizeCareerSummaryText(text) {
+  return String(text || "")
+    .replace(/```[\s\S]*?```/g, (block) => block.replace(/```(?:markdown|text|json)?/gi, "").replace(/```/g, ""))
+    .replace(/^(?:分析|思考|推理|reasoning|thinking)[:：][\s\S]*?(?:最终回答|最终总结|final answer)[:：]/i, "")
+    .trim()
+    .slice(0, 900);
+}
+
 function addFloorNarrative(floor = state.floor) {
   const text = getFloorNarrative(floor);
   if (!text) return;
@@ -3092,9 +3521,6 @@ function makeBattleSummary(result, battle, hpDelta) {
     const roundLimit = Number.isFinite(battle?.roundLimit) ? battle.roundLimit : getBattleRoundLimit(battle?.initialEnemyCount || 1, floor);
     return `拖过 · 第${floor}层撑过${roundLimit}回合，继续前进，${lifeText}，获得：无。`;
   }
-  if (result === "hero-fled") {
-    return `跳过 · 照片勇者进入下一层，${lifeText}，获得：${lootText}。`;
-  }
   return `战斗结束，${lifeText}，获得：${lootText}。`;
 }
 
@@ -3140,55 +3566,11 @@ function hasPendingPhoto() {
 }
 
 function isEquipmentSelectionLocked() {
-  return isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || Boolean(state.bossReward);
+  return isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || Boolean(state.bossReward) || isCareerSummaryOpen();
 }
 
 function isBattleActionLocked() {
   return hasPendingPhoto() || Boolean(state.bossReward);
-}
-
-function fleeBattle() {
-  if (isPlayerDefeated()) return;
-  if (isBattleActionLocked()) return;
-  if (state.pendingFloorAdvance || state.battleStartTimer) return;
-  state.infoMode = "log";
-  if (state.autoBattleTimer) stopAutoBattle();
-  if (isBossFloor(state.floor)) {
-    addBattleEvent(`第${state.floor}层无法逃跑。`, "info");
-    render();
-    return;
-  }
-  if (!state.currentBattle) {
-    state.currentBattle = {
-      id: makeId("battle"),
-      type: "battle",
-      battleId: `${state.floor}:skip`,
-      floor: state.floor,
-      monsterName: "敌人",
-      startHp: state.player.hp,
-      startShield: state.player.shield,
-      details: [`勇者跳过第${state.floor}层，进入下一层。`],
-      lootNames: [],
-      defeatedIds: [],
-      createdAt: Date.now(),
-    };
-  } else {
-    addBattleDetail(`勇者跳过第${state.floor}层，进入下一层。`);
-  }
-  applyFormFleeEffects();
-  finishCurrentBattle("hero-fled");
-  clearEnemyCardMotion();
-  advanceFloor();
-  saveGame();
-  render();
-}
-
-function applyFormFleeEffects() {
-  const bonus = getHeroFormLevelConfig().fleeFilmBonus || 0;
-  if (bonus <= 0) return;
-  addFilmShards(bonus);
-  addLootNamesToCurrentBattle([{ kind: "shard", itemName: `胶卷碎片 +${bonus}`, amount: bonus }]);
-  addBattleDetail(`${getHeroForm().label}形态逃跑获得胶卷 +${(bonus / 10).toFixed(1)}。`);
 }
 
 function makeBattleClock(stats, enemies) {
@@ -3247,11 +3629,7 @@ function advanceFloor() {
   if (isPlayerDefeated()) return;
   clearEnemyCardMotion();
   if (state.floor >= maxFloor) {
-    state.gameClear = true;
-    state.enemies = [];
-    state.encounterId = "clear";
-    resetBattleSpecial();
-    addBattleEvent("塔顶的门被推开，照片勇者带着一包奇怪装备通关了40层。", "hero");
+    completeGame();
     return;
   }
   state.floor += 1;
@@ -3265,6 +3643,25 @@ function advanceFloor() {
   state.enemyFlipEncounterId = state.encounterId;
   applyFloorShield();
   addFloorNarrative(state.floor);
+}
+
+function completeGame() {
+  state.gameClear = true;
+  state.bossReward = null;
+  state.pendingFloorAdvance = false;
+  state.enemies = [];
+  state.selectedEnemyIds = [];
+  state.activeEnemyIds = [];
+  state.currentBattle = null;
+  state.battleClock = null;
+  state.encounterId = "clear";
+  resetBattleSpecial();
+  if (!state.careerSummary) {
+    state.careerSummary = buildLocalCareerSummary();
+  }
+  state.infoMode = "career";
+  addBattleEvent("塔顶的门被推开，照片勇者带着一包奇怪装备通关了40层。", "hero");
+  requestCareerSummary();
 }
 
 function clearEnemyCardMotion() {
@@ -3331,24 +3728,51 @@ function getFloorMonsterTypes(floor) {
   if (floor === 35) return ["dragon"];
   if (floor === 38) return ["archmage"];
   if (floor === 40) return ["demon"];
-  const pool = buildWeightedMonsterPool(floor);
-  const normalPool = pool.filter((key) => !isBossMonsterType(key));
-  const safePool = normalPool.length ? normalPool : ["slime"];
+  const slots = buildMonsterSlotPools(floor);
   const seed = state.runSeed || "default";
-  const types = [0, 1, 2].map((slot) => safePool[hashIndex(`${seed}:${floor}:monster:${slot}`, safePool.length)]);
+  const types = slots.map((pool, slot) => {
+    const safePool = pool.length ? pool : ["slime"];
+    return safePool[hashIndex(`${seed}:${floor}:monster:${slot}`, safePool.length)];
+  });
   if (floor <= 5) types[0] = "slime";
   return types;
 }
 
-function buildWeightedMonsterPool(floor) {
-  const entries = normalMonsterUnlocks.filter((entry) => floor >= entry.floor && !isBossMonsterType(entry.key));
+function buildMonsterSlotPools(floor) {
+  const entries = getUnlockedNormalMonsterEntries(floor);
+  if (!entries.length) return [["slime"], ["slime"], ["slime"]];
+  const maxTier = Math.max(...entries.map((entry) => entry.tier || 1));
+  const nonSlimeEntries = entries.filter((entry) => entry.key !== "slime");
+  const earlyEntries = entries.filter((entry) => entry.floor <= 3);
+  const weakEntries = entries.filter((entry) => (entry.tier || 1) <= Math.max(1, maxTier - 2));
+  const midEntries = entries.filter((entry) => (entry.tier || 1) >= Math.max(1, maxTier - 1));
+  const strongEntries = entries.filter((entry) => (entry.tier || 1) >= maxTier);
+  const midSource = maxTier <= 1 && nonSlimeEntries.length ? nonSlimeEntries : midEntries.length ? midEntries : entries;
+  const strongSource = maxTier <= 1 && nonSlimeEntries.length ? nonSlimeEntries : strongEntries.length ? strongEntries : entries;
+  const weakPool = buildWeightedMonsterPool(floor, weakEntries.length ? weakEntries : entries, { weakRetention: true, pressure: 0.55 });
+  const midPool = buildWeightedMonsterPool(floor, midSource, { pressure: 1 });
+  const strongPool = buildWeightedMonsterPool(floor, strongSource, { pressure: 1.45, minimumPerEntry: 3 });
+  if (earlyEntries.length) {
+    weakPool.push(...buildWeightedMonsterPool(floor, earlyEntries, { weakRetention: true, pressure: 0.8 }));
+  }
+  return [weakPool, midPool, strongPool];
+}
+
+function getUnlockedNormalMonsterEntries(floor) {
+  return normalMonsterUnlocks.filter((entry) => floor >= entry.floor && !isBossMonsterType(entry.key));
+}
+
+function buildWeightedMonsterPool(floor, entries = getUnlockedNormalMonsterEntries(floor), options = {}) {
   const weighted = [];
   for (const entry of entries) {
     const age = Math.max(0, floor - entry.floor);
-    const growth = Math.floor(Math.max(0, floor - 1) / 8);
-    const tierBoost = Math.max(0, (entry.tier || 1) - 1) * (growth + 1);
-    const weakRetention = entry.floor <= 3 ? Math.max(5, entry.weight - Math.floor(age / 5)) : 0;
-    const baseWeight = Math.max(1, entry.weight + tierBoost - Math.floor(age / 12));
+    const growth = Math.floor(Math.max(0, floor - 1) / 7);
+    const pressure = Number.isFinite(options.pressure) ? options.pressure : 1;
+    const tierBoost = Math.round(Math.max(0, (entry.tier || 1) - 1) * (growth + 1) * pressure);
+    const weakRetention = options.weakRetention && entry.floor <= 3
+      ? Math.max(4, entry.weight - Math.floor(age / 4))
+      : 0;
+    const baseWeight = Math.max(options.minimumPerEntry || 1, entry.weight + tierBoost - Math.floor(age / 10));
     const finalWeight = Math.max(baseWeight, weakRetention);
     for (let i = 0; i < finalWeight; i += 1) weighted.push(entry.key);
   }
@@ -3446,8 +3870,8 @@ function getRawSemanticFlag(input) {
   });
 }
 
-function getEnemyDrops(enemy, bonusShards = 0) {
-  const shardAmount = getEnemyFilmShardDrop(enemy) + Math.max(0, clampInt(bonusShards, 0, 2));
+function getEnemyDrops(enemy) {
+  const shardAmount = getEnemyFilmShardDrop(enemy);
   if (shardAmount <= 0) return [];
   if (shardAmount % 10 === 0) {
     return [{
@@ -3483,24 +3907,14 @@ function getHeroFormFilmShardBonus() {
 }
 
 function getEnemyFilmShardDrop(enemy) {
+  void enemy;
   if (getHeroFormLevelConfig().noFilmDrop) return 0;
   const baseShards = 1;
   return Math.max(0, baseShards + getGlobalFilmDropBonus() + getHeroFormFilmShardBonus());
 }
 
-function getEnemyBattleBonusShards(enemy) {
-  void enemy;
-  return 0;
-}
-
-function getEnemySelectionBonusShards(enemy) {
-  void enemy;
-  return 0;
-}
-
 function getEnemyPreviewFilmShardDrop(enemy) {
-  if (state.currentBattle) return getEnemyFilmShardDrop(enemy) + getEnemyBattleBonusShards(enemy);
-  return getEnemyFilmShardDrop(enemy) + getEnemySelectionBonusShards(enemy);
+  return getEnemyFilmShardDrop(enemy);
 }
 
 function getGlobalFilmDropBonus() {
@@ -3633,10 +4047,6 @@ function formatFilmAmount(value) {
 
 function normalizeFilmAmount(value) {
   return Math.round(Math.max(0, Number(value) || 0) * 10) / 10;
-}
-
-function formatPhotoValueRange() {
-  return `${getPhotoValueMin()}-${getPhotoValueMax()}`;
 }
 
 function toggleEnemySelection(enemyId) {
@@ -4040,6 +4450,7 @@ function resetGame() {
   state.photoValueMin = defaultPhotoValueMin;
   state.photoValueMax = defaultPhotoValueMax;
   state.globalFilmDropBonus = 0;
+  state.bossRewardDeck = null;
   state.battleSpeed = 1;
   state.hitEffectToken = 0;
   state.heroHitEffectUntil = 0;
@@ -4054,6 +4465,8 @@ function resetGame() {
   state.filmRolls = initialFilmRolls;
   state.lootError = "";
   state.log = ["已重开。"];
+  state.careerSummary = null;
+  state.careerSummaryRequest = null;
   resetBattleSpecial();
   clearEnemyCardMotion();
   applyFloorShield();
@@ -5062,31 +5475,45 @@ function render() {
   els.playerLifesteal.textContent = stats.lifesteal;
   els.playerShield.textContent = `${state.player.shield}/${stats.shield}`;
 
-  els.floorText.textContent = state.gameClear
-    ? "已通关"
-    : `第 ${state.floor} / ${maxFloor} 层${isBossFloor(state.floor) ? " · Boss" : isRewardBossFloor(state.floor) ? " · 可选Boss" : ""}`;
+  els.floorText.textContent = getFloorActionLabel(bossRewardPending);
   renderEnemyField();
   const actionRow = els.attackBtn.closest(".floor-action-row");
   actionRow?.classList.toggle("is-reward-choice", bossRewardPending);
-  els.attackBtn.textContent = bossRewardPending ? "选择" : "战斗";
+  actionRow?.classList.toggle("is-clear", state.gameClear);
+  els.equipmentGrid.classList.toggle("is-collapsed", state.gameClear);
+  const canStartBattle = canStartSelectedBattle();
+  els.attackBtn.hidden = false;
+  els.attackBtn.textContent = state.gameClear
+    ? "生涯总结"
+    : bossRewardPending
+      ? "选择"
+      : canStartBattle
+        ? "战斗"
+        : "选择怪物";
   els.attackBtn.disabled = bossRewardPending
     ? defeated || !selectedBossReward
-    : defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || !canStartSelectedBattle();
+    : state.gameClear
+      ? false
+      : defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || !canStartBattle;
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
-  els.attackBtn.setAttribute("aria-label", bossRewardPending ? "确认选择 Boss 奖励" : "开始战斗");
-  els.battleSpeedBtn.hidden = bossRewardPending;
+  els.attackBtn.setAttribute("aria-label", state.gameClear ? "查看生涯总结" : bossRewardPending ? "确认选择 Boss 奖励" : "开始战斗");
+  els.battleSpeedBtn.hidden = bossRewardPending || state.gameClear;
   els.battleSpeedBtn.textContent = bossRewardPending ? "" : `×${getBattleSpeed()}`;
   els.battleSpeedBtn.setAttribute("aria-label", bossRewardPending ? "Boss 奖励选择阶段" : `切换战斗倍速，当前 ${getBattleSpeed()} 倍`);
   els.battleSpeedBtn.disabled = defeated || state.gameClear || bossRewardPending;
-  els.fleeBtn.hidden = bossRewardPending;
-  els.fleeBtn.textContent = "逃跑";
-  els.fleeBtn.disabled = defeated || bossRewardPending || isBattleActionLocked() || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || state.gameClear || isBossFloor(state.floor);
 
   renderApiStatus();
   renderCameraStatus();
   renderEquipmentGrid();
   renderEquipmentDetail();
   renderGameTextOnly();
+}
+
+function getFloorActionLabel(bossRewardPending = Boolean(state.bossReward)) {
+  if (state.gameClear) return "已通关";
+  const floor = bossRewardPending && state.bossReward?.floor ? state.bossReward.floor : state.floor;
+  if (bossRewardPending) return `第 ${floor} / ${maxFloor} 层 · 奖励`;
+  return `第 ${floor} / ${maxFloor} 层${isBossFloor(floor) ? " · Boss" : isRewardBossFloor(floor) ? " · 奖励Boss" : ""}`;
 }
 
 function renderApiStatus() {
@@ -5130,18 +5557,6 @@ function renderEnemyField() {
   }
 
   if (state.gameClear) {
-    const clear = document.createElement("article");
-    clear.className = "enemy-card is-active";
-    clear.innerHTML = `
-      <div class="enemy-card-head">
-        <span class="monster-token">终</span>
-        <div>
-          <strong>40层已通关</strong>
-          <span>等待下一版内容</span>
-        </div>
-      </div>
-    `;
-    els.enemyField.append(clear);
     return;
   }
 
@@ -5225,6 +5640,12 @@ function renderBossRewardCards() {
     button.setAttribute("aria-pressed", String(selected));
     button.addEventListener("click", () => selectBossReward(index));
     const icon = option.icon || getBossRewardIcon(option.type);
+    const footHtml = selected
+      ? `<div class="reward-card-foot">
+        <span>已选</span>
+        <strong>待确认</strong>
+      </div>`
+      : "";
     button.innerHTML = `
       <div class="reward-card-main">
         <div class="monster-portrait reward-portrait">
@@ -5235,10 +5656,7 @@ function renderBossRewardCards() {
           <span>${escapeHtml(option.desc || "选择后进入下一层。")}</span>
         </div>
       </div>
-      <div class="reward-card-foot">
-        <span>${selected ? "已选中" : "可切换"}</span>
-        <strong>${selected ? "点选择确认" : "点选"}</strong>
-      </div>
+      ${footHtml}
     `;
     els.enemyField.append(button);
   });
@@ -5260,7 +5678,7 @@ function getBossRewardIcon(type) {
     filmDrop: "boss-film-drop.png",
     filmFlat: "boss-value-min.png",
     filmPercent: "boss-film-percent.png",
-    valueMin: "boss-value-min.png",
+    valueMin: "boss-value-min-boost.png",
     valueMax: "boss-value-max.png",
   };
   return icons[type] || icons.filmDrop;
@@ -5489,6 +5907,7 @@ function renderEquipmentDetail() {
   els.analyzePhotoBtn.disabled = true;
   els.analyzePhotoBtn.textContent = "鉴定";
   els.analyzePhotoBtn.classList.remove("is-cancel");
+  els.analyzePhotoBtn.onclick = null;
   els.discardItemBtn.disabled = true;
   els.discardItemBtn.hidden = true;
   els.battleLog.hidden = true;
@@ -5500,6 +5919,11 @@ function renderEquipmentDetail() {
   els.equipmentDetail.classList.remove("is-error", "is-actionable", "is-log");
   clearEquipmentDetailQuality();
   els.equipmentDetailStats.hidden = false;
+
+  if (isCareerSummaryOpen()) {
+    renderCareerSummaryPanel();
+    return;
+  }
 
   if (state.lootError && !state.lastPhoto) {
     const canRetake = showingItem && !selected && !locked && state.filmRolls >= 1;
@@ -5526,7 +5950,7 @@ function renderEquipmentDetail() {
       : state.lootError
       ? `${state.lootError} 可以重新鉴定。`
       : state.filmRolls >= 1
-        ? `确认后鉴定并装入当前装备格。当前价值范围 ${formatPhotoValueRange()}。`
+        ? "确认后鉴定并装入当前装备格。"
         : "胶卷不足，先击败怪物获得资源。";
     els.equipmentActions.hidden = false;
     els.analyzePhotoBtn.hidden = false;
@@ -5569,7 +5993,7 @@ function renderEquipmentDetail() {
           ? "先选择 Boss 奖励。"
           : "战斗中不能拍照鉴定。"
       : state.filmRolls >= 1
-        ? `点击拍照按钮获取装备照片。当前价值范围 ${formatPhotoValueRange()}。`
+        ? "拍一件现实小物，让它变成照片装备。"
         : "胶卷不足，先击败怪物获得资源。";
     els.filmCountBadge.hidden = false;
     els.equipmentActions.hidden = false;
@@ -5602,6 +6026,81 @@ function clearEquipmentDetailQuality() {
 function setEquipmentDetailQuality(quality) {
   const safe = quality && quality.key ? quality : getItemQuality(0);
   els.equipmentDetail.dataset.quality = safe.key;
+}
+
+function renderCareerSummaryPanel() {
+  const summary = state.careerSummary || buildLocalCareerSummary();
+  const snapshot = summary.snapshot || buildCareerSnapshot();
+  els.equipmentDetail.classList.add("is-actionable", "career-summary-panel");
+  els.equipmentDetailName.textContent = summary.status === "loading" ? "正在生成生涯总结" : "照片勇者生涯总结";
+  els.equipmentDetailStats.innerHTML = [
+    `<span>怪物 ${snapshot.killCount}</span>`,
+    `<span>Boss ${snapshot.bossKillCount}</span>`,
+    `<span>装备 ${snapshot.equipmentCount}</span>`,
+    `<span>${escapeHtml(snapshot.formLabel)}</span>`,
+  ].join("");
+  els.equipmentDetailStats.hidden = false;
+  els.equipmentDetailDesc.innerHTML = renderCareerSummaryCard(summary, snapshot);
+  els.equipmentActions.hidden = false;
+  els.photoActionBtn.hidden = false;
+  els.photoActionBtn.disabled = Boolean(state.careerSummaryRequest);
+  els.photoActionBtn.textContent = state.careerSummaryRequest ? "生成中" : "重新生成";
+  els.photoActionBtn.setAttribute("aria-label", "重新生成生涯总结");
+  els.analyzePhotoBtn.hidden = false;
+  els.analyzePhotoBtn.disabled = Boolean(state.careerSummaryRequest);
+  els.analyzePhotoBtn.textContent = "保存图片";
+  els.analyzePhotoBtn.setAttribute("aria-label", "保存通关分享图片");
+  els.discardItemBtn.hidden = true;
+  els.battleLog.hidden = true;
+  els.filmCountBadge.hidden = true;
+}
+
+function renderCareerSummaryCard(summary, snapshot) {
+  const statusText = getCareerSummaryStatusText(summary);
+  const topItems = snapshot.topItems.length
+    ? snapshot.topItems.slice(0, 4).map((item) => `<li><span>${escapeHtml(item.quality)} · ${escapeHtml(item.name)}</span><b>${item.score}</b></li>`).join("")
+    : "<li>没有照片装备记录</li>";
+  const paragraphs = String(summary.text || "")
+    .split(/\n{1,}/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 5)
+    .map((line) => `<p>${escapeHtml(line)}</p>`)
+    .join("");
+  const note = summary.note ? `<small>${escapeHtml(summary.note)}</small>` : "";
+  return `
+    <section class="career-card" aria-label="通关分享卡">
+      <div class="career-card-head">
+        <span>${escapeHtml(statusText)}</span>
+        <strong>照片勇者通关纪念</strong>
+        <em>${escapeHtml(snapshot.formLabel)} · 剩余胶卷 ${escapeHtml(snapshot.film)}</em>
+      </div>
+      <div class="career-card-stats">
+        <span>怪物 ${snapshot.killCount}</span>
+        <span>Boss ${snapshot.bossKillCount}</span>
+        <span>装备 ${snapshot.equipmentCount}</span>
+      </div>
+      <div class="career-card-ability">${escapeHtml(formatCareerAbilityLine(snapshot))}</div>
+      <div class="career-card-body">${paragraphs || "<p>照片勇者登上塔顶，留下了一段由现实物品拼出的冒险。</p>"}</div>
+      <h4>代表装备</h4>
+      <ul class="career-card-items">${topItems}</ul>
+      ${note}
+    </section>
+  `;
+}
+
+function getCareerSummaryStatusText(summary) {
+  return summary?.status === "ai"
+    ? "AI 生涯总结"
+    : summary?.status === "loading"
+      ? "正在请大模型润色"
+      : summary?.status === "error"
+        ? "本地总结 · 模型生成失败"
+        : "本地生涯总结";
+}
+
+function formatCareerAbilityLine(snapshot) {
+  return `生命${snapshot.stats.maxHp} / 攻击${snapshot.stats.atk} / 防御${snapshot.stats.def} / 速度${snapshot.stats.speed} / 护盾${snapshot.stats.shield} / 回复${snapshot.stats.regen} / 吸血${snapshot.stats.lifesteal}`;
 }
 
 function getCameraIconMarkup() {
@@ -5642,8 +6141,10 @@ function renderHeroForms() {
     const meta = document.createElement("div");
     meta.className = "form-card-meta";
     meta.innerHTML = `
-      <b>${escapeHtml(getHeroFormLevelLabel(form))}</b>
-      <strong>${escapeHtml(form.label)}形态</strong>
+      <span class="form-title-line">
+        <b>${escapeHtml(getHeroFormLevelLabel(form))}</b>
+        <strong>${escapeHtml(form.label)}形态</strong>
+      </span>
       <small>${escapeHtml(progressText)}</small>
     `;
 
@@ -5961,6 +6462,12 @@ function renderGameTextOnly() {
       options: state.bossReward.options,
       selectedIndex: getSelectedBossRewardIndex(),
     } : null,
+    careerSummary: state.careerSummary ? {
+      status: state.careerSummary.status,
+      title: state.careerSummary.title,
+      text: state.careerSummary.text,
+      note: state.careerSummary.note || "",
+    } : null,
     hasPhoto: Boolean(state.lastPhoto),
     latestItem: state.latestItem,
     inventory: state.inventory.map((item, slotIndex) => item ? ({
@@ -6068,6 +6575,7 @@ function saveGame() {
     photoValueMin: state.photoValueMin,
     photoValueMax: state.photoValueMax,
     globalFilmDropBonus: state.globalFilmDropBonus,
+    bossRewardDeck: ensureBossRewardDeck(),
     formProgress: state.formProgress,
     battleSpeed: getBattleSpeed(),
     filmShards: state.filmShards,
@@ -6078,6 +6586,7 @@ function saveGame() {
     currentBattle: state.currentBattle,
     infoMode: state.infoMode,
     battleSpecial: state.battleSpecial,
+    careerSummary: state.careerSummary,
     inventory: state.inventory,
     selectedSlotIndex: state.selectedSlotIndex,
     pendingPhotoSlotIndex: state.pendingPhotoSlotIndex,
@@ -6108,6 +6617,7 @@ function loadSave() {
   state.inventory = normalizeInventorySlots(save.inventory);
   state.player = normalizePlayer(save.player || state.player);
   state.runSeed = typeof save.runSeed === "string" && save.runSeed ? save.runSeed : makeRunSeed();
+  state.bossRewardDeck = normalizeBossRewardDeck(save.bossRewardDeck) || buildBossRewardDeck(state.runSeed || "default");
   state.selectedSlotIndex = clampSlotIndex(save.selectedSlotIndex);
   state.pendingPhotoSlotIndex = clampSlotIndex(save.pendingPhotoSlotIndex ?? state.selectedSlotIndex);
   state.selectedItemId = state.inventory[state.selectedSlotIndex]?.id || "";
@@ -6131,7 +6641,8 @@ function loadSave() {
   state.battleReports = Array.isArray(save.battleReports) ? save.battleReports.map(normalizeBattleReport).filter(Boolean) : [];
   state.battleReportSeq = Number.isFinite(save.battleReportSeq) ? save.battleReportSeq : state.battleReports.length;
   state.currentBattle = normalizeCurrentBattle(save.currentBattle);
-  state.infoMode = save.infoMode === "log" ? "log" : "item";
+  state.careerSummary = normalizeCareerSummary(save.careerSummary);
+  state.infoMode = save.infoMode === "career" && state.careerSummary ? "career" : save.infoMode === "log" ? "log" : "item";
   state.battleClock = normalizeBattleClock(save.battleClock);
   state.battleSpecial = state.currentBattle ? normalizeBattleSpecial(save.battleSpecial) : createDefaultBattleSpecial();
   clearEnemyCardMotion();
@@ -6185,6 +6696,19 @@ function normalizeBossRewardOption(option, floor, index) {
   };
 }
 
+function normalizeCareerSummary(summary) {
+  if (!summary || typeof summary !== "object") return null;
+  const status = ["local", "loading", "ai", "error"].includes(summary.status) ? summary.status : "local";
+  return {
+    status: status === "loading" ? "local" : status,
+    title: cleanText(summary.title, "照片勇者生涯总结", 32),
+    text: cleanText(summary.text, "", 1200),
+    note: cleanText(summary.note, "", 160),
+    snapshot: summary.snapshot && typeof summary.snapshot === "object" ? summary.snapshot : null,
+    createdAt: Number.isFinite(summary.createdAt) ? summary.createdAt : Date.now(),
+  };
+}
+
 function normalizeBattleClock(clock) {
   if (!clock || typeof clock !== "object" || clock.encounterId !== state.encounterId || !state.currentBattle) return null;
   const activeIds = new Set(state.activeEnemyIds);
@@ -6226,6 +6750,7 @@ function normalizeCurrentBattle(battle) {
     details: Array.isArray(battle.details) ? battle.details.filter((item) => typeof item === "string").slice(-90) : [],
     lootNames: Array.isArray(battle.lootNames) ? battle.lootNames.filter((item) => typeof item === "string") : [],
     defeatedIds: Array.isArray(battle.defeatedIds) ? battle.defeatedIds.filter((item) => typeof item === "string") : [],
+    defeatedTypes: Array.isArray(battle.defeatedTypes) ? battle.defeatedTypes.filter((item) => typeof item === "string") : [],
     createdAt: Number.isFinite(battle.createdAt) ? battle.createdAt : Date.now(),
   };
 }
@@ -6256,6 +6781,7 @@ function normalizeBattleReport(entry) {
     startShield: Number.isFinite(entry.startShield) ? entry.startShield : 0,
     lootNames: Array.isArray(entry.lootNames) ? entry.lootNames.filter((item) => typeof item === "string") : [],
     defeatedIds: Array.isArray(entry.defeatedIds) ? entry.defeatedIds.filter((item) => typeof item === "string") : [],
+    defeatedTypes: Array.isArray(entry.defeatedTypes) ? entry.defeatedTypes.filter((item) => typeof item === "string") : [],
     result: typeof entry.result === "string" ? entry.result : "battle",
     hpDelta: Number.isFinite(entry.hpDelta) ? entry.hpDelta : 0,
     endHp: Number.isFinite(entry.endHp) ? entry.endHp : state.player.hp,
