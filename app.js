@@ -125,9 +125,9 @@ const analysisImageQuality = 0.78;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
-const gameSaveVersion = 17;
+const gameSaveVersion = 18;
 const initialFilmRolls = 3;
-const heroFormUpgradeKills = 20;
+const heroFormUpgradeKills = 12;
 const bossFloors = new Set([10, 20, 30, 40]);
 const rewardBossFloors = new Set([25, 35, 38]);
 const bossRewardChoiceFloors = [10, 20, 25, 30, 35, 38];
@@ -368,25 +368,25 @@ const monsterImages = {
 };
 
 const monsterTypes = {
-  slime: { name: "史莱姆", atk: 6, def: 0, hp: 16, speed: 2, traits: [{ type: "regen", value: 2, text: "回复2" }] },
+  slime: { name: "史莱姆", atk: 6, def: 0, hp: 18, speed: 2, traits: [{ type: "regen", value: 1, text: "回复1" }] },
   skeleton: { name: "骷髅", atk: 8, def: 5, hp: 32, speed: 3, traits: [{ type: "noLifesteal", text: "制裁：无法吸血" }] },
-  bat: { name: "蝙蝠", atk: 8, def: 0, hp: 20, speed: 5, traits: [{ type: "lifesteal", value: 2, text: "吸血2" }] },
+  bat: { name: "蝙蝠", atk: 8, def: 0, hp: 16, speed: 6, traits: [{ type: "lifesteal", value: 1, text: "吸血1" }] },
   mage: { name: "法师", atk: 6, def: 2, hp: 30, speed: 3, traits: [{ type: "magic", text: "魔攻：无视防御" }] },
   wizard: { name: "巫师", atk: 10, def: 5, hp: 42, speed: 4, traits: [{ type: "magic", text: "魔攻：无视防御" }] },
   guard: { name: "卫兵", atk: 8, def: 8, hp: 50, speed: 2, traits: [{ type: "shield", value: 30, text: "护盾30" }] },
   knight: { name: "骑士", atk: 15, def: 6, hp: 45, speed: 4, traits: [{ type: "noRegen", text: "红莲：无法回复" }] },
   golem: { name: "石头人", atk: 12, def: 15, hp: 8, speed: 1, traits: [{ type: "sturdy", text: "坚固：每回合最多受到1伤害" }] },
   patrol: { name: "警卫", atk: 16, def: 6, hp: 50, speed: 4, traits: [{ type: "ignoreShield", text: "无视护盾" }] },
-  octopus: { name: "章鱼", atk: 18, def: 0, hp: 120, speed: 1, traits: [{ type: "regen", value: 15, text: "回复15" }] },
-  dragon: { name: "魔龙", atk: 24, def: 10, hp: 80, speed: 4, traits: [{ type: "heroSpeedDown", value: 3, text: "龙威：勇士速度-3" }] },
+  octopus: { name: "章鱼", atk: 1, def: 0, hp: 120, speed: 4, traits: [{ type: "giant", value: 120, text: "巨物：攻击增加生命差" }] },
+  dragon: { name: "魔龙", atk: 24, def: 10, hp: 80, speed: 3, traits: [{ type: "speedDownOnAttack", value: 1, text: "龙威：每次攻击速度-1" }] },
   vampire: { name: "吸血鬼", atk: 15, def: 0, hp: 66, speed: 6, traits: [{ type: "lifesteal", value: 6, text: "吸血6" }] },
-  demon: { name: "魔王", atk: 25, def: 15, hp: 75, speed: 5, traits: [{ type: "heroAttackDown", value: 5, text: "压制：勇士攻击-5" }] },
-  orc: { name: "兽人", atk: 12, def: 6, hp: 60, speed: 2, traits: [{ type: "regen", value: 5, text: "回复5" }] },
+  demon: { name: "魔王", atk: 25, def: 15, hp: 75, speed: 5, traits: [{ type: "attackDownOnAttack", value: 1, text: "压制：每次攻击攻击-1" }] },
+  orc: { name: "兽人", atk: 12, def: 7, hp: 60, speed: 2, traits: [{ type: "regen", value: 5, text: "回复5" }] },
   swordsman: { name: "剑士", atk: 30, def: 0, hp: 20, speed: 5, traits: [{ type: "multiHit", value: 2, text: "连击2" }] },
   warrior: { name: "战士", atk: 15, def: 8, hp: 30, speed: 3, traits: [{ type: "noRegen", text: "红莲：无法回复" }] },
-  archmage: { name: "大法师", atk: 20, def: 8, hp: 72, speed: 5, traits: [{ type: "magic", text: "魔攻：无视防御" }] },
+  archmage: { name: "大法师", atk: 16, def: 5, hp: 72, speed: 4, traits: [{ type: "promotion", text: "晋升：攻击涨防，被攻击涨攻" }] },
   skeletonCaptain: { name: "骷髅队长", atk: 12, def: 5, hp: 44, speed: 3, traits: [{ type: "noLifesteal", text: "制裁：无法吸血" }] },
-  knightCaptain: { name: "骑士队长", atk: 14, def: 5, hp: 40, speed: 4, traits: [{ type: "shield", value: 40, text: "护盾40" }] },
+  knightCaptain: { name: "骑士队长", atk: 15, def: 3, hp: 40, speed: 4, traits: [{ type: "guardedByGuards", value: 50, text: "护驾：每个卫兵减伤50%" }] },
 };
 
 const normalMonsterUnlocks = [
@@ -2930,6 +2930,8 @@ function createDefaultBattleSpecial() {
   return {
     attack: 0,
     defense: 0,
+    attackDown: 0,
+    speedDown: 0,
     damageImmuneUsed: 0,
     preBattleStruck: false,
   };
@@ -2942,6 +2944,8 @@ function normalizeBattleSpecial(value) {
   return {
     attack: clampInt(source.attack, 0, attackCap || 0),
     defense: clampInt(source.defense, 0, defenseCap || 0),
+    attackDown: clampInt(source.attackDown, 0, 999),
+    speedDown: clampInt(source.speedDown, 0, 999),
     damageImmuneUsed: clampInt(source.damageImmuneUsed, 0, 999),
     preBattleStruck: Boolean(source.preBattleStruck),
   };
@@ -3067,8 +3071,12 @@ function resolveBattleAction() {
     state.battleClock.round += 1;
   } else {
     const enemy = state.enemies.find((item) => item.id === enemyClock.id);
+    const enemyActionTime = enemyClock.time;
     if (enemy) resolveMonsterStrike(enemy, stats, round);
     enemyClock.time += getActionInterval(enemy?.speed || 0);
+    if (enemy && hasTrait(enemy, "speedDownOnAttack")) {
+      state.battleClock.hero = enemyActionTime + getActionInterval(getBattleStats(state.activeEnemyIds).speed);
+    }
     state.battleClock.round += 1;
   }
 
@@ -3115,6 +3123,7 @@ function resolveHeroStrike(stats, round) {
     const shieldLoss = hitResult.shieldLoss;
     const hpDamage = hitResult.hpDamage;
     const totalDamage = hitResult.totalDamage;
+    const traitChanges = hitResult.traitChanges || [];
 
     let healed = 0;
     if (!hasAnyActiveTrait("noLifesteal") && currentStats.lifesteal > 0) {
@@ -3137,6 +3146,7 @@ function resolveHeroStrike(stats, round) {
     if (shieldCrashDamage > 0) parts.push(`护盾追加 ${shieldCrashDamage}`);
     if (healed > 0 || currentStats.lifesteal > 0) parts.push(`吸取${healed}血量`);
     if (strikeCount > 1) parts.push(`连击${strikeIndex + 1}/${strikeCount}`);
+    parts.push(...traitChanges);
     addBattleDetail(`第${round}回合勇者进攻${enemy.name}，${parts.join("，")}。`);
 
     if (enemy.hp <= 0) {
@@ -3153,6 +3163,7 @@ function applyHeroDamageToEnemy(enemy, stats, source = "attack") {
   const shieldCrashDamage = getShieldCrashDamage();
   let damage = rawDamage + shieldCrashDamage;
   if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
+  damage = applyEnemyIncomingDamageModifiers(enemy, damage, getActiveBattleEnemies());
 
   const shieldLoss = Math.min(enemy.shield || 0, damage);
   enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
@@ -3160,6 +3171,7 @@ function applyHeroDamageToEnemy(enemy, stats, source = "attack") {
   enemy.hp = Math.max(0, enemy.hp - hpDamage);
   const totalDamage = shieldLoss + hpDamage;
   if (totalDamage > 0) markEnemyHit(enemy.id);
+  const traitChanges = triggerEnemyDamagedTraits(enemy);
 
   return {
     rawDamage,
@@ -3167,6 +3179,7 @@ function applyHeroDamageToEnemy(enemy, stats, source = "attack") {
     shieldLoss,
     hpDamage,
     totalDamage,
+    traitChanges,
     source,
   };
 }
@@ -3198,7 +3211,8 @@ function resolveMonsterStrike(enemy, stats, round) {
 
   for (let i = 0; i < hitCount; i += 1) {
     const currentStatsBeforeHit = getBattleStats(state.activeEnemyIds);
-    const damage = hasTrait(enemy, "magic") ? Math.max(0, enemy.atk) : Math.max(0, enemy.atk - currentStatsBeforeHit.def);
+    const monsterAtk = getMonsterAttackForStrike(enemy, currentStatsBeforeHit);
+    const damage = hasTrait(enemy, "magic") ? Math.max(0, monsterAtk) : Math.max(0, monsterAtk - currentStatsBeforeHit.def);
     const immunity = getHeroFormLevelConfig().damageImmunity || 0;
     const isImmune = state.battleSpecial.damageImmuneUsed < immunity && damage > 0;
     if (isImmune) {
@@ -3240,6 +3254,8 @@ function resolveMonsterStrike(enemy, stats, round) {
     if (state.player.hp <= 0) break;
   }
 
+  const traitChanges = triggerEnemyAttackTraits(enemy);
+
   const monsterRegen = getTraitValue(enemy, "regen", 0);
   let monsterHealed = 0;
   if (monsterRegen > 0 && enemy.hp > 0) {
@@ -3256,6 +3272,7 @@ function resolveMonsterStrike(enemy, stats, round) {
   if (totalRegen > 0) parts.push(`回复 ${totalRegen}`);
   if (monsterHealed > 0) parts.push(`${enemy.name}回复 ${monsterHealed}`);
   if (monsterStealTotal > 0) parts.push(`${enemy.name}吸取 ${monsterStealTotal}`);
+  parts.push(...traitChanges);
   if (hasTrait(enemy, "magic")) parts.push("无视防御");
   if (hasTrait(enemy, "ignoreShield")) parts.push("无视护盾");
   addBattleDetail(`第${round}回合${enemy.name}进攻，${parts.join("，")}。`);
@@ -3708,7 +3725,7 @@ function buildCareerSnapshot() {
     .sort((a, b) => b.score - a.score);
   return {
     floor: state.floor,
-    formLabel: `${getHeroForm().label}形态 ${getHeroFormLevelLabel()}`,
+    formLabel: getHeroFormDisplayName(),
     stats,
     hp: state.player.hp,
     film: formatFilmCount(),
@@ -4357,12 +4374,12 @@ function getHeroFormEffectLines(form = getHeroForm(), level = getHeroFormLevel(f
 
 function getHeroFormProgressText(form = getHeroForm()) {
   const progress = getHeroFormProgress(form.id);
-  if (progress.level >= 2) return `${heroFormUpgradeKills}/???`;
-  return `${Math.min(progress.kills, heroFormUpgradeKills)}/${heroFormUpgradeKills}`;
+  return `经验${Math.min(progress.kills, heroFormUpgradeKills)}/${heroFormUpgradeKills}`;
 }
 
-function getHeroFormLevelLabel(form = getHeroForm()) {
-  return `Lv.${getHeroFormLevel(form)}`;
+function getHeroFormDisplayName(form = getHeroForm()) {
+  const prefix = getHeroFormLevel(form) >= 2 ? "mega" : "";
+  return `${prefix}${form.label}形态`;
 }
 
 function adjustHeroResourcesAfterStatChange(oldStats, newStats, oldShield = state.player.shield) {
@@ -4397,7 +4414,7 @@ function addCurrentFormKill(count = 1) {
     progress.level = 2;
     const newStats = getPlayerStats();
     adjustHeroResourcesAfterStatChange(oldStats, newStats, oldShield);
-    addBattleDetail(`${form.label}形态提升到 Lv.2。`);
+    addBattleDetail(`${form.label}形态进化为${getHeroFormDisplayName(form)}。`);
     return true;
   }
   return false;
@@ -4739,14 +4756,6 @@ function getBattleStats(activeIds = state.activeEnemyIds) {
   const activeEnemies = activeIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
     .filter(Boolean);
-  if (activeEnemies.some((enemy) => hasTrait(enemy, "heroSpeedDown"))) {
-    const value = Math.max(...activeEnemies.map((enemy) => getTraitValue(enemy, "heroSpeedDown", 0)));
-    stats.speed -= value;
-  }
-  if (activeEnemies.some((enemy) => hasTrait(enemy, "heroAttackDown"))) {
-    const value = Math.max(...activeEnemies.map((enemy) => getTraitValue(enemy, "heroAttackDown", 0)));
-    stats.atk -= value;
-  }
   applyBattleSpecialPassives(stats);
   return stats;
 }
@@ -4762,14 +4771,6 @@ function getBattleStatsForEnemiesWithSpecial(enemies, battleSpecial) {
 }
 
 function applyEnemyBattleModifiers(stats, enemies) {
-  if (enemies.some((enemy) => hasTrait(enemy, "heroSpeedDown"))) {
-    const value = Math.max(...enemies.map((enemy) => getTraitValue(enemy, "heroSpeedDown", 0)));
-    stats.speed -= value;
-  }
-  if (enemies.some((enemy) => hasTrait(enemy, "heroAttackDown"))) {
-    const value = Math.max(...enemies.map((enemy) => getTraitValue(enemy, "heroAttackDown", 0)));
-    stats.atk -= value;
-  }
   applyBattleSpecialPassives(stats);
   return stats;
 }
@@ -4886,8 +4887,9 @@ function simulateHeroStrike(sim, enemies, stats) {
     if (!enemy) break;
 
     const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
+    currentStats.realMaxHp = getSimActualMaxHp(currentStats, sim);
     currentStats.maxHp += getSimMaxHpBonus(sim);
-    const hitResult = applySimHeroDamageToEnemy(sim, enemy, currentStats);
+    const hitResult = applySimHeroDamageToEnemy(sim, enemy, currentStats, enemies);
     const shieldLoss = hitResult.shieldLoss;
     const hpDamage = hitResult.hpDamage;
 
@@ -4918,7 +4920,8 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
   const hitCount = getTraitValue(enemy, "multiHit", 1);
   for (let i = 0; i < hitCount; i += 1) {
     if (sim.actualDead) break;
-    const damage = hasTrait(enemy, "magic") ? Math.max(0, enemy.atk) : Math.max(0, enemy.atk - stats.def);
+    const monsterAtk = getMonsterAttackForStrike(enemy, stats);
+    const damage = hasTrait(enemy, "magic") ? Math.max(0, monsterAtk) : Math.max(0, monsterAtk - stats.def);
     const immunity = getHeroFormLevelConfig().damageImmunity || 0;
     const isImmune = sim.battleSpecial.damageImmuneUsed < immunity && damage > 0;
     if (isImmune) sim.battleSpecial.damageImmuneUsed += 1;
@@ -4948,21 +4951,25 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
     }
   }
 
+  triggerSimEnemyAttackTraits(sim, enemy);
+
   const monsterRegen = getTraitValue(enemy, "regen", 0);
   if (monsterRegen > 0 && enemy.hp > 0) {
     enemy.hp = Math.min(enemy.maxHp, enemy.hp + monsterRegen);
   }
 }
 
-function applySimHeroDamageToEnemy(sim, enemy, stats) {
+function applySimHeroDamageToEnemy(sim, enemy, stats, enemies = []) {
   const rawDamage = Math.max(0, stats.atk - getEffectiveEnemyDefense(enemy, stats));
   const shieldCrashDamage = getShieldCrashDamage(sim.shield);
   let damage = rawDamage + shieldCrashDamage;
   if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
+  damage = applyEnemyIncomingDamageModifiers(enemy, damage, getSimActiveEnemies(sim, enemies));
   const shieldLoss = Math.min(enemy.shield || 0, damage);
   enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
   const hpDamage = Math.max(0, damage - shieldLoss);
   enemy.hp = Math.max(0, enemy.hp - hpDamage);
+  triggerSimEnemyDamagedTraits(enemy);
   return { rawDamage, shieldCrashDamage, shieldLoss, hpDamage };
 }
 
@@ -4972,8 +4979,9 @@ function applySimPreBattleFormEffects(sim, enemies) {
   for (const enemy of enemies.filter((item) => sim.activeIds.includes(item.id))) {
     if (enemy.hp <= 0) continue;
     const stats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
+    stats.realMaxHp = getSimActualMaxHp(stats, sim);
     stats.maxHp += getSimMaxHpBonus(sim);
-    applySimHeroDamageToEnemy(sim, enemy, stats);
+    applySimHeroDamageToEnemy(sim, enemy, stats, enemies);
     if (enemy.hp <= 0) {
       simulateFormKillEffects(sim, stats);
       simulateKillSpecial(sim, stats);
@@ -5021,6 +5029,75 @@ function cloneTraits(traits = []) {
   return traits.map((trait) => ({ ...trait }));
 }
 
+function getAliveGuardCount(enemies = getActiveBattleEnemies()) {
+  return enemies.filter((enemy) => enemy.typeKey === "guard" && enemy.hp > 0).length;
+}
+
+function applyEnemyIncomingDamageModifiers(enemy, damage, enemies = getActiveBattleEnemies()) {
+  let result = Math.max(0, Math.floor(Number(damage) || 0));
+  if (hasTrait(enemy, "guardedByGuards")) {
+    const guardCount = getAliveGuardCount(enemies);
+    const reduction = Math.min(1, guardCount * (getTraitValue(enemy, "guardedByGuards", 50) / 100));
+    result = Math.floor(result * Math.max(0, 1 - reduction));
+  }
+  return result;
+}
+
+function getMonsterAttackForStrike(enemy, heroStats) {
+  let atk = Math.max(0, enemy?.atk || 0);
+  if (hasTrait(enemy, "giant")) {
+    const baseHp = getTraitValue(enemy, "giant", enemy.maxHp || 0);
+    const heroMaxHp = Number.isFinite(heroStats?.realMaxHp) ? heroStats.realMaxHp : heroStats?.maxHp;
+    atk += Math.max(0, baseHp - Math.max(0, heroMaxHp || 0));
+  }
+  return atk;
+}
+
+function triggerEnemyDamagedTraits(enemy) {
+  if (hasTrait(enemy, "promotion")) {
+    enemy.atk = Math.max(0, (enemy.atk || 0) + 1);
+    return ["晋升攻击+1"];
+  }
+  return [];
+}
+
+function triggerEnemyAttackTraits(enemy) {
+  const changes = [];
+  if (hasTrait(enemy, "promotion")) {
+    enemy.def = Math.max(0, (enemy.def || 0) + 1);
+    changes.push("晋升防御+1");
+  }
+  if (hasTrait(enemy, "attackDownOnAttack")) {
+    const value = Math.max(1, getTraitValue(enemy, "attackDownOnAttack", 1));
+    state.battleSpecial.attackDown = (state.battleSpecial.attackDown || 0) + value;
+    changes.push(`压制攻击-${value}`);
+  }
+  if (hasTrait(enemy, "speedDownOnAttack")) {
+    const value = Math.max(1, getTraitValue(enemy, "speedDownOnAttack", 1));
+    state.battleSpecial.speedDown = (state.battleSpecial.speedDown || 0) + value;
+    changes.push(`龙威速度-${value}`);
+  }
+  return changes;
+}
+
+function triggerSimEnemyDamagedTraits(enemy) {
+  if (hasTrait(enemy, "promotion")) {
+    enemy.atk = Math.max(0, (enemy.atk || 0) + 1);
+  }
+}
+
+function triggerSimEnemyAttackTraits(sim, enemy) {
+  if (hasTrait(enemy, "promotion")) {
+    enemy.def = Math.max(0, (enemy.def || 0) + 1);
+  }
+  if (hasTrait(enemy, "attackDownOnAttack")) {
+    sim.battleSpecial.attackDown = (sim.battleSpecial.attackDown || 0) + Math.max(1, getTraitValue(enemy, "attackDownOnAttack", 1));
+  }
+  if (hasTrait(enemy, "speedDownOnAttack")) {
+    sim.battleSpecial.speedDown = (sim.battleSpecial.speedDown || 0) + Math.max(1, getTraitValue(enemy, "speedDownOnAttack", 1));
+  }
+}
+
 function isBossFloor(floor) {
   return bossFloors.has(floor);
 }
@@ -5060,7 +5137,7 @@ function createDefaultPlayer() {
     formId: defaultHeroFormId,
     baseHp: 50,
     hp: 50,
-    baseAtk: 3,
+    baseAtk: 4,
     baseDef: 1,
     baseSpeed: 2,
     baseRegen: 0,
@@ -5175,9 +5252,9 @@ function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpec
 
   return {
     maxHp: state.player.baseHp + (bonus.hp || 0),
-    atk: state.player.baseAtk + (bonus.attack || 0) + (battleSpecial?.attack || 0) - passiveAttackPenalty,
+    atk: state.player.baseAtk + (bonus.attack || 0) + (battleSpecial?.attack || 0) - passiveAttackPenalty - (battleSpecial?.attackDown || 0),
     def: state.player.baseDef + (bonus.defense || 0) + (battleSpecial?.defense || 0),
-    speed: state.player.baseSpeed + (bonus.speed || 0) - passiveSpeedPenalty,
+    speed: state.player.baseSpeed + (bonus.speed || 0) - passiveSpeedPenalty - (battleSpecial?.speedDown || 0),
     regen: regen * regenMultiplier,
     shield: state.player.baseShield + (bonus.shield || 0),
     lifesteal: lifesteal * lifestealMultiplier,
@@ -6507,6 +6584,7 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
     const nextEnemyId = getNextSimEnemyId(sim);
     const enemyTime = nextEnemyId ? sim.enemyTimes.get(nextEnemyId) : Infinity;
     const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
+    currentStats.realMaxHp = getSimActualMaxHp(currentStats, sim);
     currentStats.maxHp += getSimMaxHpBonus(sim);
     if (sim.heroTime === Infinity && (!nextEnemyId || enemyTime === Infinity)) {
       for (const id of sim.activeIds) {
@@ -6524,6 +6602,7 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
       sim.round += 1;
     } else {
       const enemy = enemies.find((item) => item.id === nextEnemyId);
+      const enemyActionTime = enemyTime;
       if (enemy) simulateMonsterStrike(sim, enemy, enemies, currentStats);
       if (sim.actualDead) {
         for (const id of sim.activeIds) {
@@ -6532,6 +6611,9 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
         break;
       }
       sim.enemyTimes.set(nextEnemyId, enemyTime + getActionInterval(enemy?.speed || 0));
+      if (enemy && hasTrait(enemy, "speedDownOnAttack")) {
+        sim.heroTime = enemyActionTime + getActionInterval(getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial).speed);
+      }
       sim.round += 1;
     }
   }
@@ -6586,6 +6668,7 @@ function getEstimatedHeroDamageToEnemy(enemy, stats) {
   const shieldCrashDamage = getShieldCrashDamage();
   let damage = rawDamage + shieldCrashDamage;
   if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
+  damage = applyEnemyIncomingDamageModifiers(enemy, damage, state.enemies);
   return Math.max(0, damage);
 }
 
@@ -6875,7 +6958,7 @@ function renderHeroForms() {
   els.formGrid.innerHTML = "";
   const currentForm = getHeroForm();
   document.querySelectorAll("[data-form-label]").forEach((node) => {
-    node.textContent = `${currentForm.label}形态`;
+    node.textContent = getHeroFormDisplayName(currentForm);
   });
 
   for (const form of heroForms) {
@@ -6901,8 +6984,7 @@ function renderHeroForms() {
     meta.className = "form-card-meta";
     meta.innerHTML = `
       <span class="form-title-line">
-        <b>${escapeHtml(getHeroFormLevelLabel(form))}</b>
-        <strong>${escapeHtml(form.label)}形态</strong>
+        <strong>${escapeHtml(getHeroFormDisplayName(form))}</strong>
       </span>
       <small>${escapeHtml(progressText)}</small>
     `;
@@ -7786,6 +7868,12 @@ window.__photoHeroTestHooks = {
     return { min: getPhotoValueMin(), max: getPhotoValueMax() };
   },
   setHeroForm,
+  getMonsterAttackForStrike,
+  applyHeroDamageToEnemy,
+  resolveMonsterStrike,
+  beginBattle,
+  monsterTypes,
+  state,
   selectEnemies(ids) {
     state.selectedEnemyIds = Array.isArray(ids) ? ids : [];
     saveGame();

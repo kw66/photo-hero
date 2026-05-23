@@ -2111,7 +2111,7 @@ dd {
   }
 
   .secondary-area:has([data-secondary-panel="forms"]:not([hidden])) {
-    width: min(560px, calc(100% - 16px));
+    width: min(720px, calc(100% - 16px));
   }
 
   .secondary-area:has([data-secondary-panel="config"]:not([hidden])) {
@@ -2130,6 +2130,25 @@ dd {
   .secondary-area:has([data-secondary-panel="info"]:not([hidden])) .info-panel {
     width: 100%;
     max-width: none;
+  }
+}
+
+@media (min-width: 1180px) {
+  .secondary-area:has([data-secondary-panel="forms"]:not([hidden])) {
+    width: min(1240px, calc(100% - 16px));
+    max-width: min(1240px, calc(100% - 16px));
+  }
+
+  .secondary-area:has([data-secondary-panel="forms"]:not([hidden])) .form-grid {
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 7px;
+  }
+
+  .secondary-area:has([data-secondary-panel="forms"]:not([hidden])) .form-card {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 128px;
   }
 }
 
@@ -2327,14 +2346,16 @@ dd {
 
 .form-grid {
   margin-top: var(--space-3);
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(112px, 128px));
-  justify-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
 }
 
 .form-card {
   position: relative;
+  flex: 0 0 128px;
+  width: 128px;
   min-height: 168px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -2417,18 +2438,6 @@ dd {
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 850;
-  line-height: 1.1;
-  white-space: nowrap;
-}
-
-.form-card-meta b {
-  padding: 1px 4px;
-  border: 1px solid color-mix(in srgb, var(--hero) 38%, var(--line));
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--hero-soft) 68%, white 32%);
-  color: #1f4f7f;
-  font-size: 0.62rem;
-  font-weight: 950;
   line-height: 1.1;
   white-space: nowrap;
 }
@@ -2730,6 +2739,7 @@ textarea {
   }
 
   .form-grid {
+    display: grid;
     grid-template-columns: repeat(auto-fill, minmax(112px, 128px));
   }
 
@@ -2983,6 +2993,7 @@ textarea {
   }
 
   .form-grid {
+    display: grid;
     margin-top: 7px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     justify-content: stretch;
@@ -2990,18 +3001,22 @@ textarea {
   }
 
   .form-card {
-    min-height: 145px;
+    width: auto;
+    min-height: 132px;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(68px, auto) auto auto;
-    gap: 5px;
+    grid-template-rows: 58px auto auto;
+    gap: 4px;
     padding: 6px;
     border-width: 1px;
     border-radius: 7px;
+    overflow: hidden;
   }
 
   .form-card img {
-    width: min(72px, 86%);
-    height: 68px;
+    width: min(64px, 82%);
+    height: 58px;
+    object-position: center top;
+    transform: translateY(-4px);
   }
 
   .form-copy {
@@ -3019,11 +3034,6 @@ textarea {
 
   .form-card-meta small {
     font-size: 0.56rem;
-  }
-
-  .form-card-meta b {
-    padding: 1px 3px;
-    font-size: 0.52rem;
   }
 
   .form-title-line {
