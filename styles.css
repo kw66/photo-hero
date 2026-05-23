@@ -2098,6 +2098,24 @@ dd {
 }
 
 @media (min-width: 981px) {
+  .secondary-area:has([data-secondary-panel="forms"]:not([hidden])),
+  .secondary-area:has([data-secondary-panel="config"]:not([hidden])) {
+    right: auto;
+    max-width: min(720px, calc(100% - 16px));
+  }
+
+  .secondary-area:has([data-secondary-panel="forms"]:not([hidden])) {
+    width: min(560px, calc(100% - 16px));
+  }
+
+  .secondary-area:has([data-secondary-panel="config"]:not([hidden])) {
+    width: max-content;
+  }
+
+  .secondary-area:has([data-secondary-panel="forms"]:not([hidden])) .forms-panel {
+    width: 100%;
+  }
+
   .secondary-area:has([data-secondary-panel="info"]:not([hidden])) {
     right: auto;
     width: min(880px, calc(100% - 16px));
@@ -2175,17 +2193,39 @@ dd {
   grid-column: 1 / -1;
 }
 
-.group-qr-card {
-  width: max-content;
-  max-width: 100%;
-  justify-self: start;
-  justify-items: start;
+.author-qr-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
   background:
     linear-gradient(180deg, rgb(255 252 244 / 94%), rgb(255 236 239 / 78%));
 }
 
+.author-links {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.author-links > div {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 40%, var(--line));
+  border-radius: 6px;
+  background: rgb(255 255 255 / 52%);
+}
+
 .group-qr {
-  display: block;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  min-width: 98px;
 }
 
 .group-qr img {
@@ -2199,6 +2239,14 @@ dd {
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 72%),
     0 2px 0 rgb(23 19 15 / 14%);
+}
+
+.group-qr span {
+  color: color-mix(in srgb, var(--ink) 78%, var(--muted));
+  font-size: 0.64rem;
+  font-weight: 950;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .global-stats-block {
@@ -2226,16 +2274,16 @@ dd {
 
 .global-stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+  gap: 5px;
 }
 
 .global-stat {
-  min-height: 56px;
+  min-height: 48px;
   display: grid;
   align-content: center;
-  gap: 3px;
-  padding: 7px 8px;
+  gap: 2px;
+  padding: 6px 7px;
   border: 1px solid color-mix(in srgb, var(--line-strong) 38%, var(--line));
   border-radius: 6px;
   background:
@@ -2245,21 +2293,21 @@ dd {
 
 .global-stat span {
   color: var(--muted);
-  font-size: 0.64rem;
+  font-size: 0.6rem;
   font-weight: 850;
   line-height: 1;
 }
 
 .global-stat strong {
   color: var(--ink);
-  font-size: 1.08rem;
+  font-size: 0.98rem;
   line-height: 1;
   font-family: "Trebuchet MS", "Microsoft YaHei UI", sans-serif;
 }
 
 .global-stat em {
   color: color-mix(in srgb, var(--green) 72%, var(--ink));
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   font-style: normal;
   font-weight: 900;
   line-height: 1;
@@ -2867,26 +2915,56 @@ textarea {
     line-height: 1.46;
   }
 
+  .author-qr-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .author-links {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .author-links > div {
+    padding: 6px 7px;
+  }
+
+  .group-qr {
+    min-width: 80px;
+  }
+
+  .group-qr img {
+    width: 72px;
+    border-width: 1px;
+    border-radius: 7px;
+  }
+
+  .group-qr span {
+    font-size: 0.52rem;
+    white-space: normal;
+    text-align: center;
+  }
+
   .global-stats-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 5px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
   }
 
   .global-stat {
-    min-height: 48px;
-    padding: 5px 6px;
+    min-height: 42px;
+    padding: 4px 5px;
   }
 
   .global-stat span {
-    font-size: 0.57rem;
+    font-size: 0.52rem;
   }
 
   .global-stat strong {
-    font-size: 0.88rem;
+    font-size: 0.78rem;
   }
 
   .global-stat em {
-    font-size: 0.54rem;
+    font-size: 0.48rem;
   }
 
   .global-stat-group h4 {

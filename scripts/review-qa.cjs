@@ -55,15 +55,28 @@ async function collectScenario(page, name, action = async () => {}) {
       activeInfoTab: document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "",
       statCardCount: document.querySelectorAll(".global-stat").length,
       todayStatCount: Array.from(document.querySelectorAll(".global-stat em")).filter((node) => /^今日 /.test(node.textContent.trim())).length,
+      statLabels: Array.from(document.querySelectorAll(".global-stat span")).map((node) => node.textContent.trim()),
       groupQr: (() => {
-        const card = document.querySelector(".group-qr-card");
-        const img = document.querySelector(".group-qr-card img");
+        const card = document.querySelector(".author-qr-card");
+        const group = document.querySelector(".group-qr");
+        const links = document.querySelector(".author-links");
+        const img = document.querySelector(".group-qr img");
         const rect = img?.getBoundingClientRect();
+        const cardRect = card?.getBoundingClientRect();
+        const groupRect = group?.getBoundingClientRect();
+        const linksRect = links?.getBoundingClientRect();
         return {
-          text: card?.innerText.trim() || "",
+          text: group?.innerText.trim() || "",
           loaded: Boolean(img?.complete && img.naturalWidth > 0),
           src: img?.getAttribute("src") || "",
           square: rect ? Math.abs(rect.width - rect.height) < 1 : false,
+          rightSide: Boolean(
+            cardRect
+            && groupRect
+            && linksRect
+            && groupRect.left >= linksRect.right - 1
+            && groupRect.right <= cardRect.right + 1
+          ),
         };
       })(),
     };
@@ -115,11 +128,15 @@ function assertScenario(name, metrics) {
     if (!metrics.visibleButtons.includes("战斗")) failures.push(`${name}: missing battle tab`);
     if (!/全站统计/.test(metrics.infoText)) failures.push(`${name}: missing global stats title`);
     if (!/作者其他游戏/.test(metrics.infoText)) failures.push(`${name}: missing other games block`);
+    for (const label of ["访问", "访客", "游玩", "通关", "击杀", "鉴定", "爬塔层数"]) {
+      if (!metrics.statLabels.includes(label)) failures.push(`${name}: missing stat label ${label}`);
+    }
     if (!metrics.groupQr.loaded || !metrics.groupQr.src.includes("xiaohongshu-group-qr.jpg")) failures.push(`${name}: Xiaohongshu QR image did not load`);
     if (!metrics.groupQr.square) failures.push(`${name}: Xiaohongshu QR image should be square`);
-    if (metrics.groupQr.text) failures.push(`${name}: Xiaohongshu QR card should not show extra text`);
-    if (metrics.statCardCount !== 6) failures.push(`${name}: expected 6 global stat cards, got ${metrics.statCardCount}`);
-    if (metrics.todayStatCount !== 6) failures.push(`${name}: expected 6 today stat labels, got ${metrics.todayStatCount}`);
+    if (metrics.groupQr.text !== "加入小红书游戏群") failures.push(`${name}: Xiaohongshu QR copy should be 加入小红书游戏群`);
+    if (!metrics.groupQr.rightSide) failures.push(`${name}: Xiaohongshu QR should sit on the right side of author block`);
+    if (metrics.statCardCount !== 7) failures.push(`${name}: expected 7 global stat cards, got ${metrics.statCardCount}`);
+    if (metrics.todayStatCount !== 7) failures.push(`${name}: expected 7 today stat labels, got ${metrics.todayStatCount}`);
   }
   return failures;
 }

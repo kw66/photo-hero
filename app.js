@@ -16,12 +16,14 @@ const STATS_COUNTER_IDS = {
   totalKills: "photo_hero_kills_total",
   totalAppraisals: "photo_hero_appraisals_total",
   totalFloors: "photo_hero_floors_total",
+  totalClears: "photo_hero_clears_total",
   dailyPvPrefix: "photo_hero_pv_day",
   dailyUvPrefix: "photo_hero_uv_day",
   dailyGamesPrefix: "photo_hero_game_day",
   dailyKillsPrefix: "photo_hero_kills_day",
   dailyAppraisalsPrefix: "photo_hero_appraisals_day",
   dailyFloorsPrefix: "photo_hero_floors_day",
+  dailyClearsPrefix: "photo_hero_clears_day",
 };
 
 const SILICONFLOW_MODELS = [
@@ -3859,6 +3861,7 @@ function advanceFloor() {
 }
 
 function completeGame() {
+  const wasClear = state.gameClear;
   state.gameClear = true;
   state.bossReward = null;
   state.pendingFloorAdvance = false;
@@ -3875,6 +3878,7 @@ function completeGame() {
   }
   state.infoMode = "career";
   addBattleEvent("塔顶的门被推开，照片勇者带着一包奇怪装备通关了40层。", "hero");
+  if (!wasClear) recordGlobalGameMetric("Clears", 1);
   requestCareerSummary();
 }
 
@@ -4249,12 +4253,14 @@ function createDefaultGlobalStats() {
     totalKills: 0,
     totalAppraisals: 0,
     totalFloors: 0,
+    totalClears: 0,
     todayPv: 0,
     todayUv: 0,
     todayGames: 0,
     todayKills: 0,
     todayAppraisals: 0,
     todayFloors: 0,
+    todayClears: 0,
   };
 }
 
@@ -4267,12 +4273,14 @@ function normalizeGlobalStats(input) {
     totalKills: clampInt(source.totalKills, 0, 99999999),
     totalAppraisals: clampInt(source.totalAppraisals, 0, 99999999),
     totalFloors: clampInt(source.totalFloors, 0, 99999999),
+    totalClears: clampInt(source.totalClears, 0, 99999999),
     todayPv: clampInt(source.todayPv, 0, 99999999),
     todayUv: clampInt(source.todayUv, 0, 99999999),
     todayGames: clampInt(source.todayGames, 0, 99999999),
     todayKills: clampInt(source.todayKills, 0, 99999999),
     todayAppraisals: clampInt(source.todayAppraisals, 0, 99999999),
     todayFloors: clampInt(source.todayFloors, 0, 99999999),
+    todayClears: clampInt(source.todayClears, 0, 99999999),
   };
 }
 
@@ -4365,6 +4373,7 @@ async function refreshGlobalStats() {
   const dailyKills = makeDailyCounterId(STATS_COUNTER_IDS.dailyKillsPrefix, today);
   const dailyAppraisals = makeDailyCounterId(STATS_COUNTER_IDS.dailyAppraisalsPrefix, today);
   const dailyFloors = makeDailyCounterId(STATS_COUNTER_IDS.dailyFloorsPrefix, today);
+  const dailyClears = makeDailyCounterId(STATS_COUNTER_IDS.dailyClearsPrefix, today);
   const counters = await fetchStatsCounters([
     STATS_COUNTER_IDS.totalPv,
     STATS_COUNTER_IDS.totalUv,
@@ -4372,12 +4381,14 @@ async function refreshGlobalStats() {
     STATS_COUNTER_IDS.totalKills,
     STATS_COUNTER_IDS.totalAppraisals,
     STATS_COUNTER_IDS.totalFloors,
+    STATS_COUNTER_IDS.totalClears,
     dailyPv,
     dailyUv,
     dailyGames,
     dailyKills,
     dailyAppraisals,
     dailyFloors,
+    dailyClears,
   ]);
   state.globalStats = normalizeGlobalStats({
     totalPv: counters[STATS_COUNTER_IDS.totalPv],
@@ -4386,12 +4397,14 @@ async function refreshGlobalStats() {
     totalKills: counters[STATS_COUNTER_IDS.totalKills],
     totalAppraisals: counters[STATS_COUNTER_IDS.totalAppraisals],
     totalFloors: counters[STATS_COUNTER_IDS.totalFloors],
+    totalClears: counters[STATS_COUNTER_IDS.totalClears],
     todayPv: counters[dailyPv],
     todayUv: counters[dailyUv],
     todayGames: counters[dailyGames],
     todayKills: counters[dailyKills],
     todayAppraisals: counters[dailyAppraisals],
     todayFloors: counters[dailyFloors],
+    todayClears: counters[dailyClears],
   });
   state.globalStatsStatus = "统计已更新。";
   renderGlobalStatsPanel();
@@ -4452,14 +4465,15 @@ function renderGlobalStatsPanel() {
         ["访问", stats.totalPv, stats.todayPv],
         ["访客", stats.totalUv, stats.todayUv],
         ["游玩", stats.totalGames, stats.todayGames],
+        ["通关", stats.totalClears, stats.todayClears],
       ],
     },
     {
       title: "冒险",
       items: [
-        ["击败", stats.totalKills, stats.todayKills],
-        ["装备", stats.totalAppraisals, stats.todayAppraisals],
-        ["破层", stats.totalFloors, stats.todayFloors],
+        ["击杀", stats.totalKills, stats.todayKills],
+        ["鉴定", stats.totalAppraisals, stats.todayAppraisals],
+        ["爬塔层数", stats.totalFloors, stats.todayFloors],
       ],
     },
   ];
