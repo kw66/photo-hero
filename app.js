@@ -409,27 +409,27 @@ const normalMonsterUnlocks = [
 ];
 
 const floorNarratives = {
-  1: "塔门打开，潮湿的石阶上只剩一点胶卷味。先用最弱的怪物试试手。",
-  2: "墙缝里有翅影掠过，速度开始变得重要。",
-  3: "旧骨头敲着地面，防御高的敌人会考验你的破防能力。",
-  5: "空气里亮起细小火星，法师会绕过防御直接烧到生命。",
-  8: "石块在楼道尽头滚动，低攻击会被坚固外壳拖住。",
-  11: "楼层开始变冷，前面的弱怪仍会出现，但塔里混进了更硬的东西。",
-  21: "墙上的划痕变深，之后每多贪一只怪，都要认真算血。",
-  37: "塔顶的风从门缝灌下来，最后几层不会给勇者太多喘息。",
+  1: "塔门在身后合上，石阶潮得发亮。先从这些黏糊糊的守门怪身上找找手感。",
+  2: "墙缝里掠过翅影，脚步声被拉得很长。接下来，谁更快出手会更要命。",
+  3: "旧骨头敲着地面靠近，硬壳和骨盾开始挡在路中央。",
+  5: "细小火星在空气里游走。法师的火不会问你防御有多高。",
+  8: "楼道尽头传来石块滚动声。打不穿外壳，就会被它们拖进漫长缠斗。",
+  11: "寒气从更高处落下来。熟悉的弱怪还在游荡，真正麻烦的东西也混了进来。",
+  21: "墙上的爪痕一层比一层深。想多收胶卷，就要把每一次战损都算清楚。",
+  37: "塔顶的风从门缝灌下来，火把被吹得几乎贴住墙面。最后几层不会给勇者太多喘息。",
 };
 
 const bossFloorNarratives = {
-  10: "第十层的门自己合上了。骷髅队长守着第一道坎，只有打赢才能继续往上。",
-  20: "烛火变成暗红色，吸血鬼正在等一个生命值不够谨慎的勇者。",
-  30: "骑士队长带着两名卫兵列阵。盾墙不急着杀人，只等勇者自己撞上去。",
-  40: "塔顶只剩魔王的影子。照片里的每一点数值都会在这里结算。",
+  10: "第十层的门自行合拢。骷髅队长抬起锈剑，第一道封门战开始了。",
+  20: "烛火染成暗红色，吸血鬼从阴影里欠身致意。它等的不是勇者，是一口松懈的生命。",
+  30: "骑士队长带着两名卫兵列阵，盾面拼成一堵冷墙。要上楼，就得亲手拆开它。",
+  40: "塔顶只剩魔王的影子。一路拍下的装备、攒下的胶卷和每一次选择，都会在这里结算。",
 };
 
 const rewardBossFloorNarratives = {
-  25: "水声从楼梯下方漫上来。章鱼挡着一张可跳过的奖励牌。",
-  35: "龙翼扫过墙面，击败魔龙会让之后的拍照更有价值。",
-  38: "大法师把通往塔顶的路照得发白。这一战之后，还有一层缓冲。",
+  25: "水声从楼梯缝里漫上来，章鱼把奖励牌按在湿滑的台阶上。想拿，就得靠近它。",
+  35: "龙翼扫过墙面，灰尘像雨一样落下。魔龙守着一份会改变后续鉴定的奖赏。",
+  38: "大法师把通往塔顶的路照得发白。越过这道光，魔王的门就只隔一层。",
 };
 
 const els = {
@@ -519,7 +519,7 @@ const state = {
   filmShards: 0,
   filmRolls: initialFilmRolls,
   lootError: "",
-  log: ["选择空装备格，在详情栏拍照鉴定。"],
+  log: ["选择空装备格，拍下身边物品开始鉴定。"],
   autoBattleTimer: 0,
   battleSpecial: createDefaultBattleSpecial(),
   testEnemyOverride: null,
@@ -668,14 +668,14 @@ async function preparePhotoFromDetailFile(file, errorPrefix, successMessage = ""
 }
 
 function getPhotoInputBlockedMessage() {
-  if (state.gameClear) return "通关总结中不能继续拍照。";
+  if (state.gameClear) return "通关后先查看生涯总结。";
   if (isPlayerDefeated()) return "照片勇者已经倒下，只能重开。";
-  if (state.bossReward) return "先选择 Boss 奖励。";
+  if (state.bossReward) return "先确认一张 Boss 奖励牌。";
   if (isAnalyzingPhoto()) return "正在鉴定照片，先等待或取消鉴定。";
   if (hasPendingPhoto()) return "已有待鉴定照片，先鉴定或放弃。";
   if (isEquipmentLocked()) return "战斗中不能拍照鉴定。";
   if (getInventoryItemAt(getSelectedSlotIndex())) return "当前装备格已有装备，请选择空格。";
-  return "现在不能放入照片。";
+  return "当前还不能放入照片。";
 }
 
 async function handleEquipmentDetailPaste(event) {
@@ -1300,8 +1300,8 @@ function getMissingConfigFields(config) {
 function getPhotoApiConfigHint() {
   const missing = getMissingConfigFields(getConfigFromInputs());
   if (!missing.length) return "";
-  if (missing.includes("API Key")) return "先点右上角 API配置，填入图文模型的 API Key 后再鉴定照片。";
-  return `先点右上角 API配置，补全 ${missing.join("、")} 后再鉴定照片。`;
+  if (missing.includes("API Key")) return "先点右上角 API配置，填入图文模型的 API Key。";
+  return `先点右上角 API配置，补全 ${missing.join("、")}。`;
 }
 
 async function analyzePhoto() {
@@ -1322,7 +1322,7 @@ async function analyzePhoto() {
   }
 
   if (state.filmRolls < 1) {
-    const message = "需要先获得胶卷：每击败 1 个怪物获得胶卷 +0.1。";
+    const message = "胶卷不足。每击败 1 只怪物可获得胶卷 0.1。";
     showLootError(message);
     addLog(message);
     render();
@@ -1338,7 +1338,7 @@ async function analyzePhoto() {
 
   if (!isLikelyVisionModel(config)) {
     const message =
-      "当前模型看起来不支持图片输入；照片鉴定请换成支持 vision/image_url 的模型。";
+      "当前模型看起来不支持图片输入；照片鉴定需要图文模型。";
     showLootError(message);
     addLog("图片鉴定需要视觉模型。");
     render();
@@ -1410,13 +1410,13 @@ function normalizeAnalyzeError(error) {
     message.includes("expected `text`") ||
     message.toLowerCase().includes("image_url")
   ) {
-    return "当前接口不接受图片输入，请换成支持 vision/image_url 的模型。";
+    return "当前接口没有接收图片，请换成支持图文输入的模型。";
   }
   if (message.includes("没有按 JSON 格式") || message.includes("没有按游戏要求返回 JSON")) {
-    return "模型没有按游戏要求返回 JSON。";
+    return "模型没有按鉴定台要求返回结果。";
   }
   if (message.includes("模型返回了文本")) {
-    return "模型返回内容不符合游戏约束。";
+    return "模型返回内容没有通过鉴定台校验。";
   }
   return shortenText(message, 96);
 }
@@ -2936,7 +2936,7 @@ function fleeCurrentFloor() {
   if (canRetreatCurrentBattle()) return retreatCurrentBattle();
   if (!canBypassCurrentFloor()) return false;
   state.infoMode = "log";
-  addBattleEvent(`第${state.floor}层没有恋战，照片勇者继续向上。`, "info");
+  addBattleEvent(`第${state.floor}层的脚步没有停留，照片勇者绕开阴影继续向上。`, "info");
   advanceFloor();
   saveGame();
   render();
@@ -3628,7 +3628,7 @@ function startBossRewardChoice(floor) {
   clearEnemyCardMotion();
   state.pendingFloorAdvance = true;
   state.infoMode = "log";
-  addBattleEvent(`第${floor}层胜利，选择一张奖励牌。`, "item");
+  addBattleEvent(`第${floor}层的封印松开，三张奖励牌从门缝里翻了出来。`, "item");
   saveGame();
   render();
 }
@@ -3760,7 +3760,7 @@ function confirmSelectedBossReward() {
   if (!state.bossReward) return;
   const index = clampInt(state.bossReward.selectedIndex, -1, 2);
   if (index < 0) {
-    addBattleEvent("先点一张 Boss 奖励牌，再点击选择。", "item");
+    addBattleEvent("先翻看一张奖励牌，再点击选择确认。", "item");
     render();
     return;
   }
@@ -4024,7 +4024,7 @@ function getFloorNarrative(floor) {
   if (rewardBossFloorNarratives[safeFloor]) return rewardBossFloorNarratives[safeFloor];
   if (floorNarratives[safeFloor]) return floorNarratives[safeFloor];
   if (safeFloor > 1 && safeFloor % 10 === 1) {
-    return `第${safeFloor}层的空气换了一种味道，旧怪仍在游荡，新怪也混了进来。`;
+    return `第${safeFloor}层的石门带着新气味打开，旧影子还没散去，陌生脚步已经混进走廊。`;
   }
   return "";
 }
@@ -4036,7 +4036,7 @@ function makeBattleSummary(result, battle, hpDelta) {
     : typeof battle === "string" && battle
       ? battle
       : "敌人";
-  const lifeText = `生命变化 ${formatHpDelta(hpDelta)}`;
+  const lifeText = `生命 ${formatHpDelta(hpDelta)}`;
   const lootText = formatLootNames(battle?.lootNames || []);
   if (result === "victory") {
     const endHp = Number.isFinite(battle?.endHp) ? battle.endHp : state.player.hp;
@@ -4050,18 +4050,18 @@ function makeBattleSummary(result, battle, hpDelta) {
           ? "小胜"
           : "胜";
     const remainText = label === "险胜" ? `，剩余生命 ${endHp}/${endMaxHp}` : "";
-    return `${label} · 第${floor}层${monsterName}，${lifeText}${remainText}，获得：${lootText}。`;
+    return `${label} · 第${floor}层击败${monsterName}，${lifeText}${remainText}，获得：${lootText}。`;
   }
   if (result === "defeat") {
-    return `败 · 第${floor}层${monsterName}击倒照片勇者，${lifeText}，获得：${lootText}。`;
+    return `倒下 · 第${floor}层${monsterName}截住了照片勇者，${lifeText}，获得：${lootText}。`;
   }
   if (result === "enemy-fled") {
     const roundLimit = Number.isFinite(battle?.roundLimit) ? battle.roundLimit : getBattleRoundLimit(battle?.initialEnemyCount || 1);
-    return `敌逃 · 第${floor}层缠斗${roundLimit}回合，敌方逃跑，${lifeText}，获得：${lootText}。`;
+    return `脱战 · 第${floor}层缠斗${roundLimit}回合后，敌人退回阴影，${lifeText}，获得：${lootText}。`;
   }
   if (result === "boss-timeout") {
     const roundLimit = Number.isFinite(battle?.roundLimit) ? battle.roundLimit : getBattleRoundLimit(battle?.initialEnemyCount || 1, floor);
-    return `拖过 · 第${floor}层撑过${roundLimit}回合，继续前进，${lifeText}，获得：无。`;
+    return `破局 · 第${floor}层撑过${roundLimit}回合，封门自行松开，${lifeText}，获得：无。`;
   }
   return `战斗结束，${lifeText}，获得：${lootText}。`;
 }
@@ -6527,7 +6527,7 @@ function render() {
       ? false
       : defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || !canStartBattle;
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
-  els.attackBtn.setAttribute("aria-label", state.gameClear ? "查看生涯总结" : bossRewardPending ? "确认选择 Boss 奖励" : "开始战斗");
+  els.attackBtn.setAttribute("aria-label", state.gameClear ? "查看生涯总结" : bossRewardPending ? "确认奖励牌" : "开始战斗");
   els.battleSpeedBtn.hidden = bossRewardPending || state.gameClear;
   els.battleSpeedBtn.textContent = bossRewardPending ? "" : `×${getBattleSpeed()}`;
   els.battleSpeedBtn.setAttribute("aria-label", bossRewardPending ? "Boss 奖励选择阶段" : `切换战斗倍速，当前 ${getBattleSpeed()} 倍`);
@@ -6666,7 +6666,7 @@ function renderBossRewardCards() {
   const selectedIndex = getSelectedBossRewardIndex();
   const title = document.createElement("div");
   title.className = "boss-reward-prompt";
-  title.textContent = selectedIndex >= 0 ? "Boss 奖励 · 点击选择按钮确认" : "Boss 奖励 · 三选一";
+  title.textContent = selectedIndex >= 0 ? "已选中奖励牌，点击选择确认" : "三张奖励牌，只能带走一张";
   els.enemyField.append(title);
   options.forEach((option, index) => {
     const button = document.createElement("button");
@@ -6974,7 +6974,7 @@ function renderEquipmentDetail() {
     els.equipmentDetailName.textContent = "鉴定失败";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = `${formatLootErrorMessage(state.lootError)}\n已放弃本次照片，胶卷未消耗。可以重新拍照或继续战斗。\n${getLootErrorHint(state.lootError)}`;
+    els.equipmentDetailDesc.textContent = `${formatLootErrorMessage(state.lootError)}\n这张照片已放弃，胶卷没有消耗。可以重新拍照，也可以先继续爬塔。\n${getLootErrorHint(state.lootError)}`;
     if (canRetake) {
       els.equipmentActions.hidden = false;
       els.photoActionBtn.hidden = false;
@@ -6990,14 +6990,14 @@ function renderEquipmentDetail() {
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
     els.equipmentDetailDesc.textContent = analyzing
-      ? "正在鉴定照片。若接口长时间无响应，可以取消后重新拍摄更清晰、主体更明确的照片。"
+      ? "正在鉴定照片。若接口长时间无响应，可以取消后重拍一张主体更清楚的照片。"
       : state.lootError
       ? `${state.lootError} 可以重新鉴定。`
       : apiHint
       ? apiHint
       : state.filmRolls >= 1
-        ? "确认后鉴定并装入当前装备格。"
-        : "胶卷不足，先击败怪物获得资源。";
+        ? "点击鉴定，把这张照片装入当前装备格。"
+        : "胶卷不足，先击败怪物攒到新的拍照机会。";
     els.equipmentActions.hidden = false;
     els.analyzePhotoBtn.hidden = false;
     els.analyzePhotoBtn.textContent = analyzing ? "取消鉴定" : "鉴定";
@@ -7037,13 +7037,13 @@ function renderEquipmentDetail() {
       ? isPlayerDefeated()
         ? "照片勇者已经倒下，只能重开。"
         : state.bossReward
-          ? "先选择 Boss 奖励。"
+          ? "先确认一张 Boss 奖励牌。"
           : "战斗中不能拍照鉴定。"
       : apiHint
         ? apiHint
       : state.filmRolls >= 1
-        ? "拍一件现实小物，让它变成照片装备。"
-        : "胶卷不足，先击败怪物获得资源。";
+        ? "拍下身边物品，鉴定成照片装备。"
+        : "胶卷不足，先击败怪物攒到新的拍照机会。";
     els.filmCountBadge.hidden = false;
     els.equipmentActions.hidden = false;
     els.photoActionBtn.hidden = false;
@@ -7214,13 +7214,13 @@ function getLootErrorHint(message) {
     return "当前模型可能不支持图片输入，或中转站没有把图片转发给模型。";
   }
   if (text.includes("浏览器直连") || text.toLowerCase().includes("cors")) {
-    return "浏览器直连失败时，需要换支持 CORS 的接口，或后续加本地/云端代理。";
+    return "浏览器直连被拦截时，需要换一个支持 CORS 的图文接口。";
   }
   if (text.includes("响应结构")) {
-    return "接口返回结构不标准，请把错误里的响应结构发给开发者适配。";
+    return "接口返回格式和游戏预期不一致，可以换模型或换接口再试。";
   }
   if (text.includes("JSON") || text.includes("游戏约束") || text.includes("格式")) {
-    return "可以重试；如果经常出现，换一个更听指令的图文模型。";
+    return "可以重试；如果经常出现，换一个更稳定的图文模型。";
   }
   if (text.includes("已取消鉴定")) {
     return "本次照片已经放弃，可以重新拍照。";
@@ -7228,7 +7228,7 @@ function getLootErrorHint(message) {
   if (text.includes("超时") || text.includes("没有响应")) {
     return "可能是接口拥堵、图片过大、模型卡住或中转站无响应；建议重试，或换一张主体更清楚、背景更简单的照片。";
   }
-  return "模型已返回内容，但格式不符合游戏约束；可以换模型或重试一张更清晰的现实物品照片。";
+  return "模型已返回内容，但鉴定台没有读懂；可以换模型，或重拍一张主体更清楚的照片。";
 }
 
 function formatLootErrorMessage(message) {
@@ -7239,10 +7239,10 @@ function formatLootErrorMessage(message) {
     .replace(/（?胶卷未消耗）?/g, "")
     .trim();
   if (cleaned.includes("没有按 JSON 格式") || cleaned.includes("没有按游戏要求返回 JSON")) {
-    return "模型没有按游戏要求返回 JSON。";
+    return "模型没有按鉴定台要求返回结果。";
   }
   if (cleaned.includes("模型返回了文本")) {
-    return "模型返回内容不符合游戏约束。";
+    return "模型返回内容没有通过鉴定台校验。";
   }
   return shortenText(cleaned, 56);
 }
@@ -7289,10 +7289,10 @@ function makeSettledItemDescription(item) {
   const effects = getItemSpecialKeys(item || {});
   const identityText = `${item?.itemName || ""} ${item?.subjectName || ""} ${item?.objectType || ""} ${item?.identityDescription || ""} ${normalizeStringList(item?.tags).join(" ")}`;
   if (isLowRealityToyOrMascotImageText(identityText, item?.photoQuality || {}) || isToyMascotSemanticText(identityText)) {
-    if (stats.defense > 0 || stats.shield > 0) return `${name}更像一件照片里的小摆件，能提供一点遮挡和守势联想。`;
+    if (stats.defense > 0 || stats.shield > 0) return `${name}在照片里显得结实可靠，适合撑住一点攻势。`;
     if (stats.hp > 0 || stats.regen > 0) return `${name}带着轻松的玩具感，适合给勇者添一点耐久和缓冲。`;
-    if (stats.attack > 0) return `${name}有夸张的造型感，但力量只来自这个小物件本身。`;
-    return `${name}更像照片里的小玩具，被收进装备格后只留下轻微助力。`;
+    if (stats.attack > 0) return `${name}有醒目的轮廓和施力感，能把照片里的棱角带进战斗。`;
+    return `${name}被收进装备格，只留下轻微助力。`;
   }
   if (effects.includes("doubleStrikeSpeedDown")) return `${name}让动作变重，却能把每次进攻拆成更密的连击。`;
   if (effects.includes("shieldCrashAttackDown")) return `${name}把护盾压到锋线上，出手时顺带撞出一段额外伤害。`;
