@@ -1282,6 +1282,10 @@ async function analyzePhoto() {
     if (request.id !== state.analysisRequest?.id) return;
     const balancedItem = balanceItem({ ...item, photoKey }, inventoryImage);
     balancedItem.image = inventoryImage;
+    const failureReason = getAppraisalFailureReason(balancedItem);
+    if (failureReason) {
+      throw new Error(failureReason);
+    }
     const duplicate = await findDuplicateIdentifiedItem(balancedItem, config, request.controller.signal);
     if (request.id !== state.analysisRequest?.id) return;
     if (duplicate) {
@@ -1330,6 +1334,30 @@ function normalizeAnalyzeError(error) {
     return "模型返回内容不符合游戏约束。";
   }
   return shortenText(message, 96);
+}
+
+function getAppraisalFailureReason(item) {
+  if (!item) return "模型没有返回可用装备。";
+  const name = formatItemDisplayName(item) || "这张照片";
+  if (item.virtualImage) {
+    return `${name}看起来像网图、截图或虚拟装备，没有转化成现实装备。`;
+  }
+  if (item.tooLarge || item.isEquipable === false) {
+    return `${name}无法作为装备使用。`;
+  }
+  if (getItemEffectValue(item) <= 0) {
+    return `${name}没有形成可用属性，请换一张主体更明确的现实物品照片。`;
+  }
+  return "";
+}
+
+function isInvalidAppraisalItem(item) {
+  return Boolean(item && (
+    item.virtualImage ||
+    item.tooLarge ||
+    item.isEquipable === false ||
+    getItemEffectValue(item) <= 0
+  ));
 }
 
 function showLootError(message) {
@@ -5635,7 +5663,9 @@ function getItemQualityKey(item) {
 }
 
 function getDismantleFilmReturn(item) {
-  if (!item || item.tooLarge || scoreItem(item) <= 0) return 0;
+  if (!item) return 0;
+  if (isInvalidAppraisalItem(item)) return 1;
+  if (scoreItem(item) <= 0) return 0;
   const quality = getItemQuality(scoreItem(item));
   return itemQualityRefunds[quality.key] || 0;
 }
@@ -7857,6 +7887,15 @@ window.__photoHeroTestHooks = {
   },
   renderItemDescriptionForTest(item) {
     return renderItemDescription(item);
+  },
+  getAppraisalFailureReasonForTest(item) {
+    return getAppraisalFailureReason(item);
+  },
+  getDismantleFilmReturnForTest(item) {
+    return getDismantleFilmReturn(item);
+  },
+  dismantleSelectedItemForTest() {
+    return dismantleSelectedItem();
   },
   showLootErrorForTest(message) {
     showLootError(message);
