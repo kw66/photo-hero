@@ -56,6 +56,10 @@ async function collectScenario(page, name, action = async () => {}) {
       statCardCount: document.querySelectorAll(".global-stat").length,
       todayStatCount: Array.from(document.querySelectorAll(".global-stat em")).filter((node) => /^今日 /.test(node.textContent.trim())).length,
       statLabels: Array.from(document.querySelectorAll(".global-stat span")).map((node) => node.textContent.trim()),
+      formEconomy: window.__reviewFormEconomy || null,
+      mobileSaveFallback: window.__reviewMobileSaveFallback || null,
+      monsterDistribution: window.__reviewMonsterDistribution || null,
+      bossFilmDrops: window.__reviewBossFilmDrops || null,
       groupQr: (() => {
         const card = document.querySelector(".author-qr-card");
         const group = document.querySelector(".group-qr");
@@ -116,7 +120,39 @@ function assertScenario(name, metrics) {
   }
   if (name === "mobile-career") {
     if (!metrics.visibleButtons.includes("生涯总结")) failures.push(`${name}: missing career summary button`);
-    if (metrics.equipmentGrid && metrics.equipmentGrid.height > 0) failures.push(`${name}: equipment grid should collapse after clear`);
+    if (!metrics.equipmentGrid || metrics.equipmentGrid.height <= 0) failures.push(`${name}: equipment grid should stay usable after clear`);
+    if (!metrics.visibleButtons.includes("保存")) failures.push(`${name}: cleared run should allow saving selected equipment image`);
+    if (!/通关纪念杯/.test(metrics.detailText)) failures.push(`${name}: selected equipment detail should be visible after clear`);
+    if (!metrics.state.player.selectedHasOriginalImage) failures.push(`${name}: selected cleared equipment should retain fullImage for saving`);
+  }
+  if (name === "mobile-save-fallback") {
+    const result = metrics.mobileSaveFallback || {};
+    if (result.saveResult !== "viewer") failures.push(`${name}: mobile save should fall back to image viewer, got ${result.saveResult}`);
+    if (!result.viewerOpen) failures.push(`${name}: save fallback should open image viewer`);
+    if (!result.captionHasHint) failures.push(`${name}: save fallback should show long-press hint`);
+    if (!result.viewerKeepsImageOnTap) failures.push(`${name}: tapping the image should not close the save fallback viewer`);
+  }
+  if (name === "monster-distribution") {
+    const distribution = metrics.monsterDistribution || {};
+    if (distribution.floor1AllSlime !== true) failures.push(`${name}: floor 1 should stay all slime`);
+    if (distribution.earlyTier3Count !== 0) failures.push(`${name}: tier 3 monsters appeared before floor 11`);
+    if ((distribution.floor11Tier3Rate || 0) > 0.42) failures.push(`${name}: floor 11 tier 3 rate too high: ${distribution.floor11Tier3Rate}`);
+    if ((distribution.floor13Tier3Rate || 0) > 0.58) failures.push(`${name}: floor 13 tier 3 rate too high: ${distribution.floor13Tier3Rate}`);
+    if ((distribution.floor17Tier4Rate || 0) > 0.28) failures.push(`${name}: floor 17 tier 4 rate too high: ${distribution.floor17Tier4Rate}`);
+    if ((distribution.floor23Tier4Rate || 0) < 0.18) failures.push(`${name}: floor 23 should still allow some tier 4 pressure: ${distribution.floor23Tier4Rate}`);
+  }
+  if (name === "boss-film-drops") {
+    const drops = metrics.bossFilmDrops || {};
+    for (const floor of ["10", "20", "25", "35", "38", "40"]) {
+      if (drops[floor]?.length !== 1 || drops[floor][0].drop !== "胶卷 0.3") {
+        failures.push(`${name}: floor ${floor} boss should show 胶卷 0.3, got ${JSON.stringify(drops[floor])}`);
+      }
+    }
+    const floor30 = drops["30"] || [];
+    const floor30Drops = floor30.map((enemy) => `${enemy.typeKey}:${enemy.drop}`).join(",");
+    if (floor30.length !== 3 || floor30.some((enemy) => enemy.drop !== "胶卷 0.1")) {
+      failures.push(`${name}: floor 30 guards and knight captain should each show 胶卷 0.1, got ${floor30Drops}`);
+    }
   }
   if (name === "mobile-boss-selection") {
     if (metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: boss floor still shows 逃跑`);
@@ -138,6 +174,24 @@ function assertScenario(name, metrics) {
     if (!metrics.groupQr.rightSide) failures.push(`${name}: Xiaohongshu QR should sit on the right side of author block`);
     if (metrics.statCardCount !== 7) failures.push(`${name}: expected 7 global stat cards, got ${metrics.statCardCount}`);
     if (metrics.todayStatCount !== 7) failures.push(`${name}: expected 7 today stat labels, got ${metrics.todayStatCount}`);
+  }
+  if (name === "mobile-form-economy") {
+    const formChecks = metrics.formEconomy || {};
+    if (formChecks.shield !== 15) failures.push(`${name}: mega shield should add 15 shield`);
+    if (formChecks.greedyDropBonus !== 0.1) failures.push(`${name}: mega greedy should keep film drop +0.1`);
+    const expected = {
+      "0.9": { atk: 4, def: 1, speed: 2 },
+      "1.0": { atk: 5, def: 1, speed: 2 },
+      "2.0": { atk: 5, def: 2, speed: 2 },
+      "3.0": { atk: 5, def: 2, speed: 3 },
+      "4.0": { atk: 6, def: 2, speed: 3 },
+    };
+    for (const [film, stats] of Object.entries(expected)) {
+      const actual = formChecks.greedyStatsByFilm?.[film];
+      if (!actual || actual.atk !== stats.atk || actual.def !== stats.def || actual.speed !== stats.speed) {
+        failures.push(`${name}: greedy stats at ${film} film expected ${JSON.stringify(stats)}, got ${JSON.stringify(actual)}`);
+      }
+    }
   }
   return failures;
 }
@@ -204,6 +258,15 @@ function assertScenario(name, metrics) {
   scenarios.mobileCareer = await collectScenario(mobile, "mobile-career", async (page) => {
     await page.evaluate(() => {
       const hooks = window.__photoHeroTestHooks;
+      hooks.addTestItem({
+        itemName: "通关纪念杯",
+        image: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23f5ebd7'/%3E%3Ccircle cx='60' cy='60' r='34' fill='%23245f9a'/%3E%3C/svg%3E",
+        fullImage: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640'%3E%3Crect width='640' height='640' fill='%23f5ebd7'/%3E%3Ccircle cx='320' cy='320' r='210' fill='%23245f9a'/%3E%3C/svg%3E",
+        stats: { hp: 2 },
+        value: 8,
+        description: "塔顶带回来的蓝色纪念杯。",
+        skipSpecialRoll: true,
+      });
       hooks.setFloor(40);
       hooks.setEnemies([{
         id: "review-demon",
@@ -222,10 +285,145 @@ function assertScenario(name, metrics) {
     });
     await page.click("#attackBtn");
     await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).gameClear, null, { timeout: 5000 });
+    await page.click(".equipment-slot.has-item");
+    await page.waitForFunction(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      return state.player.selectedEquipment === "通关纪念杯" && state.player.selectedHasOriginalImage;
+    }, null, { timeout: 3000 });
   });
 
   scenarios.mobileBossSelection = await collectScenario(mobile, "mobile-boss-selection", async (page) => {
     await page.evaluate(() => window.__photoHeroTestHooks.setFloor(30));
+  });
+
+  scenarios.mobileFormEconomy = await collectScenario(mobile, "mobile-form-economy", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      const setMegaForm = (formId) => {
+        hooks.setHeroForm(formId);
+        hooks.setFormProgress({
+          [formId]: { kills: 10, level: 2 },
+        });
+      };
+      setMegaForm("shield");
+      const shield = hooks.getPlayerStats().shield - 3;
+      setMegaForm("greedy");
+      const greedyDropBonus = JSON.parse(window.render_game_to_text()).player.form.filmDropBonus;
+      const greedyStatsByFilm = {};
+      for (const film of [0.9, 1.0, 2.0, 3.0, 4.0]) {
+        const rolls = Math.floor(film);
+        const shards = Math.round((film - rolls) * 10);
+        hooks.setRunRewards({ filmRolls: rolls, filmShards: shards });
+        const stats = hooks.getPlayerStats();
+        greedyStatsByFilm[film.toFixed(1)] = { atk: stats.atk, def: stats.def, speed: stats.speed };
+      }
+      window.__reviewFormEconomy = { shield, greedyDropBonus, greedyStatsByFilm };
+    });
+  });
+
+  scenarios.mobileSaveFallback = await collectScenario(mobile, "mobile-save-fallback", async (page) => {
+    await page.evaluate(async () => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.addTestItem({
+        itemName: "移动保存杯",
+        image: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23f5ebd7'/%3E%3Ccircle cx='60' cy='60' r='34' fill='%23245f9a'/%3E%3C/svg%3E",
+        fullImage: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640'%3E%3Crect width='640' height='640' fill='%23f5ebd7'/%3E%3Ccircle cx='320' cy='320' r='210' fill='%23245f9a'/%3E%3C/svg%3E",
+        stats: { shield: 2 },
+        value: 8,
+        description: "用于验证移动端保存兜底。",
+        skipSpecialRoll: true,
+      });
+    });
+    await page.click("#savePhotoBtn");
+    await page.waitForFunction(() => !document.querySelector("#imageViewer").hidden, null, { timeout: 3000 });
+    await page.click("#imageViewerImage");
+    await page.waitForTimeout(150);
+    await page.evaluate(() => {
+      const viewer = document.querySelector("#imageViewer");
+      const caption = document.querySelector("#imageViewerCaption")?.textContent || "";
+      window.__reviewMobileSaveFallback = {
+        saveResult: "viewer",
+        viewerOpen: Boolean(viewer && !viewer.hidden),
+        captionHasHint: /长按图片保存/.test(caption),
+        viewerKeepsImageOnTap: Boolean(viewer && !viewer.hidden),
+      };
+    });
+  });
+
+  scenarios.monsterDistribution = await collectScenario(desktop, "monster-distribution", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      const tierByType = {
+        slime: 1,
+        bat: 1,
+        skeleton: 1,
+        mage: 2,
+        orc: 2,
+        golem: 2,
+        wizard: 3,
+        guard: 3,
+        knight: 3,
+        patrol: 4,
+        warrior: 4,
+        swordsman: 4,
+      };
+      const originalSeed = hooks.state.runSeed;
+      const sampleFloor = (floor, count = 96) => {
+        const typeCounts = {};
+        let tier3 = 0;
+        let tier4 = 0;
+        let total = 0;
+        for (let index = 0; index < count; index += 1) {
+          hooks.state.runSeed = `review-distribution-${floor}-${index}`;
+          const types = hooks.buildFloorEncounter(floor).map((enemy) => enemy.typeKey);
+          for (const type of types) {
+            typeCounts[type] = (typeCounts[type] || 0) + 1;
+            const tier = tierByType[type] || 1;
+            if (tier >= 3) tier3 += 1;
+            if (tier >= 4) tier4 += 1;
+            total += 1;
+          }
+        }
+        return {
+          typeCounts,
+          tier3Rate: total ? Number((tier3 / total).toFixed(3)) : 0,
+          tier4Rate: total ? Number((tier4 / total).toFixed(3)) : 0,
+        };
+      };
+      const floor1 = sampleFloor(1, 12);
+      const early = [2, 3, 5, 8].map((floor) => sampleFloor(floor, 24));
+      const floor11 = sampleFloor(11);
+      const floor13 = sampleFloor(13);
+      const floor17 = sampleFloor(17);
+      const floor23 = sampleFloor(23);
+      hooks.state.runSeed = originalSeed;
+      window.__reviewMonsterDistribution = {
+        floor1AllSlime: Object.keys(floor1.typeCounts).length === 1 && floor1.typeCounts.slime === 36,
+        earlyTier3Count: early.reduce((sum, item) => sum + Math.round(item.tier3Rate * 72), 0),
+        floor11Tier3Rate: floor11.tier3Rate,
+        floor13Tier3Rate: floor13.tier3Rate,
+        floor17Tier4Rate: floor17.tier4Rate,
+        floor23Tier4Rate: floor23.tier4Rate,
+        floor11Counts: floor11.typeCounts,
+        floor17Counts: floor17.typeCounts,
+        floor23Counts: floor23.typeCounts,
+      };
+    });
+  });
+
+  scenarios.bossFilmDrops = await collectScenario(desktop, "boss-film-drops", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      const readFloor = (floor) => {
+        hooks.setFloor(floor);
+        return JSON.parse(window.render_game_to_text()).enemies.map((enemy) => ({
+          typeKey: enemy.typeKey,
+          name: enemy.name,
+          drop: enemy.drop,
+        }));
+      };
+      window.__reviewBossFilmDrops = Object.fromEntries([10, 20, 25, 30, 35, 38, 40].map((floor) => [String(floor), readFloor(floor)]));
+    });
   });
 
   await browser.close();

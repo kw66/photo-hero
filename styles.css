@@ -890,6 +890,10 @@ dd {
   font-weight: 900;
 }
 
+.empty-slot-clear {
+  font-size: 0.78rem;
+}
+
 .equipment-slot.quality-empty,
 .equipment-slot.quality-common {
   --slot-border: #b8b4aa;
@@ -1526,6 +1530,11 @@ dd {
   box-shadow:
     0 0 0 1px rgb(255 250 240 / 24%),
     0 0 28px color-mix(in srgb, var(--viewer-quality, #fffaf0) 32%, transparent);
+}
+
+.image-viewer.is-save-fallback img {
+  -webkit-touch-callout: default;
+  user-select: auto;
 }
 
 .image-viewer span {
@@ -2428,6 +2437,12 @@ dd {
   object-fit: contain;
 }
 
+.form-card[data-form-key="shield"] img {
+  width: min(108px, 94%);
+  object-position: center center;
+  transform: translateY(4px);
+}
+
 .form-card.is-active {
   border-color: var(--hero);
   background:
@@ -3059,6 +3074,12 @@ textarea {
     height: 58px;
     object-position: center top;
     transform: translateY(-4px);
+  }
+
+  .form-card[data-form-key="shield"] img {
+    width: min(78px, 94%);
+    object-position: center center;
+    transform: translateY(0);
   }
 
   .form-copy {

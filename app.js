@@ -127,12 +127,13 @@ const inventoryImageQuality = 0.72;
 const maxFloor = 40;
 const gameSaveVersion = 18;
 const initialFilmRolls = 3;
-const heroFormUpgradeKills = 12;
+const heroFormUpgradeKills = 10;
 const bossFloors = new Set([10, 20, 30, 40]);
 const rewardBossFloors = new Set([25, 35, 38]);
 const bossRewardChoiceFloors = [10, 20, 25, 30, 35, 38];
 const bossRewardChoiceCount = bossRewardChoiceFloors.length;
 const bossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
+const highFilmBossMonsterKeys = new Set(["skeletonCaptain", "vampire", "demon", "octopus", "dragon", "archmage"]);
 
 const statLabels = {
   hp: "生命上限",
@@ -178,7 +179,7 @@ const photoSpecialEffects = [
 
 const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
 
-const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|鞋|拖鞋|滑板|风扇|橡皮|橡皮擦|胶带|刷|梳|钥匙|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物|毛巾|纸巾|湿巾|电池|灯|勺|叉|筷|盘|碗|玩偶|娃娃|徽章|挂件/i;
+const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|袋|钱包|卡包|鞋|拖鞋|滑板|风扇|音箱|音响|喇叭|橡皮|橡皮擦|胶带|刷|梳|钥匙|钥匙扣|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物|毛巾|纸巾|湿巾|电池|灯|勺|叉|筷|盘|碗|玩偶|娃娃|徽章|挂件/i;
 const oversizedScenePattern = /汽车|车辆|公交|火车|飞机|船|房|楼|建筑|天空|风景|街道|道路|公路|山|海|河|湖|森林|荒原|全景|远景|大型家具|床|沙发|衣柜|冰箱|洗衣机|大面积背景/i;
 const explicitOversizePattern = /比人.{0,8}(大|高)|比一个人.{0,8}(大|高)|尺寸.{0,8}(超过|大于|高于).{0,4}人|人.{0,4}(还要)?大|巨大|无法搬动|不能搬动|主要是.{0,6}(场景|背景)|大面积背景/i;
 
@@ -188,7 +189,8 @@ const photoIdentificationSystemPrompt = [
   "第一字符必须是 {，最后一个字符必须是 }。",
   "你不负责计算最终价值、最终属性点或最终特殊效果；这些数值由本地游戏规则统一结算。",
   "你的目标不是保守拒绝，而是把玩家亲自拍到的现实主体转成有趣、可解释的装备素材；高分奖励现实实拍、主体清楚、近距离、背景干净、有互动感的小物件。",
-  "不要奖励网图、搜索图、截图、游戏装备图、AI 渲染图、插画、卡牌素材或纯虚拟道具；这些不是现实物体，不能因为画得酷就当成强装备。",
+  "不要一概拒绝网图或截图：如果主体仍然是正常拍摄的现实实物照片，可以鉴定；需要压制的是游戏装备图、AI 渲染图、动画/插画、透明素材、白底电商图、精修宣传图和纯虚拟道具。",
+  "大范围实拍、室内全景、桌面远景或背景较多的照片，只要能找到明确的现实小主体，就应该鉴定这个小主体；范围大只降低质量分，不等于网图或虚拟图。",
   "现实玩具、模型、玩偶可以鉴定，但必须看得出它是被玩家实际拍到的实体；黑底/白底孤立图、抠图、商品图、素材图、卡通设定图不能按高真实感处理。",
 ].join("\n");
 
@@ -200,10 +202,11 @@ const photoIdentificationUserPrompt = [
   "2. 主体尺寸小于或接近手持/桌面/可搬动小物时，isEquipable=true，即使它普通、破旧、包装、贴纸、玩具、模型、小型植物、石头、叶片或装饰物也可以。",
   "3. 真实汽车、公交、火车、飞机、船、整栋建筑、整间房、床、沙发、冰箱、道路、天空、山海河湖等人尺寸以上主体必须 isEquipable=false。",
   "4. 如果图片里有巨大背景但前景有明确小物品，优先鉴定前景小物品，不要因为背景过大而拒绝。",
-  "5. 如果画面只是网页、相册、截图、游戏界面、游戏装备卡图、AI 渲染、插画、原画、透明背景素材或白底电商图，说明它不是玩家拍到的现实物体：isEquipable=false，realPhoto=0 或 1，specialAffinity=[]。",
-  "6. 如果玩家拍到的是现实中的纸质卡片、贴纸、包装、海报或屏幕载体，主体应写成卡片/贴纸/包装/屏幕本身，不要把里面的幻想武器、角色或游戏道具当成实物；这类载体通常只给低 photoQuality、低 statAffinity，specialAffinity=[]。",
-  "7. 现实玩具、模型、手办、摆件、道具、纸板/塑料/金属小物可以正常鉴定；关键是它必须像真实存在、可触碰、被玩家实际拍摄的物体。",
-  "8. 玩具、模型、玩偶、卡通角色如果只有纯黑/纯白/透明背景、孤立展示、没有桌面/手持/阴影/材质细节，或更像商品图、素材图、渲染图、贴图，就只能低 realPhoto、低分、无特殊效果；不要把图里的幻想动作当成真实能力。",
+  "5. 大范围拍摄、室内背景、桌面杂物、墙面、地面、远一些的构图，只影响 subjectArea、backgroundClean 和最终分数；只要主体是现实小物，就不要写成网图、虚拟图或不可鉴定。",
+  "6. 网图或截图不自动无效：如果画面主体是正常拍摄的现实实物，例如鼠标、键盘、杯子、工具、玩具、包装、音响等，仍按这个现实物体鉴定；如果只是游戏界面、游戏装备卡图、AI 渲染、动画、插画、原画、透明背景素材、白底电商图或精修宣传图，才视为非现实装备来源。",
+  "7. 如果玩家拍到的是现实中的纸质卡片、贴纸、包装、海报或屏幕载体，主体应写成卡片/贴纸/包装/屏幕本身，不要把里面的幻想武器、角色或游戏道具当成实物；这类载体通常只给低 photoQuality、低 statAffinity，specialAffinity=[]。",
+  "8. 现实玩具、模型、手办、摆件、道具、纸板/塑料/金属小物可以正常鉴定；关键是它必须像真实存在、可触碰、被玩家实际拍摄的物体。",
+  "9. 玩具、模型、玩偶、卡通角色如果只有纯黑/纯白/透明背景、孤立展示、没有桌面/手持/阴影/材质细节，或更像商品图、素材图、渲染图、贴图，就只能低 realPhoto、低分、无特殊效果；不要把图里的幻想动作当成真实能力。",
   "",
   "必须输出这个 JSON 结构，字段名使用英文：",
   "{\"itemName\":\"短装备名\",\"subjectName\":\"照片主体\",\"objectType\":\"主体物品类型\",\"identityDescription\":\"用于判断是否同一个现实物体的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
@@ -218,20 +221,21 @@ const photoIdentificationUserPrompt = [
   "",
   "照片质量 photoQuality：",
   "clarity 主体清楚程度 0-3；subjectArea 主体占图面积 0-3；backgroundClean 背景干净 0-2；realPhoto 现实实拍感 0-3；focusLight 光线/对焦 0-2；interesting 有趣、让人想装备 0-2。",
-  "评分校准：只有主体边缘清晰且不需猜测时 clarity=3；主体占画面接近一半或更大时 subjectArea=3；如果画面里有多个显眼物品、主体只是其中一个、或主体占比不到三分之一，subjectArea 通常只能给 1；背景和其他物品明显抢注意力时 backgroundClean=0 或 1，不能给 2；确实像玩家亲自拍摄的现实物体时 realPhoto=3；普通但不惊喜的物品 interesting 通常只能给 0 或 1。",
-  "高分应该奖励玩家主动拍好的照片：主体明确、近距离、主体占比大、背景干净、光线清楚、物品或主体有互动感、故事感或装备联想；不要只按物品贵不贵、是不是生活用品来评分。",
-  "请主动拉开分值：随手拍、主体偏小、物品很多或普通背景通常总分 6-9；主体清楚但构图一般通常 9-12；主体很清楚且有装备联想通常 12-14；只有主体近景占比大、背景干净、实拍感强且有趣的照片才给 14-15。",
+  "评分校准：只有主体边缘清晰且不需猜测时 clarity=3；主体是画面明确主角、约占四分之一到三分之一也可给 subjectArea=2，接近半屏或更大才给 3；如果只是角落小物或需要寻找才给 0-1；背景和其他物品明显抢注意力时 backgroundClean=0 或 1，背景普通但不干扰主体可给 1；确实像玩家亲自拍摄的现实物体时 realPhoto=3；普通但有一点装备联想或互动感时 interesting=1。",
+  "高分应该奖励玩家主动拍好的照片：主体明确、近距离、光线清楚、有真实拍摄痕迹，就可以进入较高分；背景不必像棚拍一样纯净，生活桌面、手持、房间环境只要不抢主体，就不应过度扣分。",
+  "请主动拉开分值：随手拍、主体偏小、物品很多或普通背景通常总分 7-10；主体清楚但构图一般通常 10-13；清楚实拍且主体明确、有装备联想通常 13-16；主体近景、清晰、实拍感强、有趣或很适合装备时可给 16-18；只有非常出色的现实实拍才接近 19-20。",
   "如果主体模糊、占比小、背景杂、只是风景/大场景的一小部分，或只是抽象光斑/远景纹理，应降低 clarity、subjectArea、backgroundClean、realPhoto 或 interesting。",
-  "网图、搜索图、截图、游戏装备图、AI 渲染图、插画、卡牌素材、透明背景图、白底商品图的 realPhoto 必须很低；即使画面精美、武器很酷，也不能给高分或特殊效果。",
+  "如果是玩家实际拍摄的房间、桌面或户外大范围照片，且其中有清楚的现实小主体，realPhoto 仍可给 2-3；不要因为画面范围大就把 realPhoto 降到 0-1。",
+  "普通拍摄的现实实物照片即使来自网页或截图，也可以给正常 realPhoto；白底商品图、精修宣传图、PS 摆拍图、透明素材、游戏装备图、AI 渲染图、动画/插画和卡牌素材的 realPhoto 必须很低，不能给高分或特殊效果。",
   "黑底孤立、白底孤立、透明背景、抠图感强、没有真实拍摄环境的玩偶/模型/卡通小物，realPhoto 最多 1，通常只能作为普通低分小物；必须在 reason 中写明低真实感原因。",
-  "普通生活用品、自然小物、现实玩具模型、现实贴纸/包装/桌面摆件只要清晰拍好都可以高分；昂贵物、宏大景观、真实载具、人物整体、抽象光影、虚拟装备图即使好看，也不能因为好看就高分。",
+  "普通生活用品、自然小物、现实玩具模型、现实贴纸/包装、桌面摆件、电脑外设只要主体清晰都可以得分；游戏鼠标、游戏键盘是现实外设，不是游戏装备图。昂贵物、宏大景观、真实载具、人物整体、抽象光影、虚拟装备图即使好看，也不能因为好看就高分。",
   "",
   "属性语义：",
   "statAffinity 只输出属性倾向，score 用 1-3，最多 3 项。可选 stat：hp、attack、defense、speed、shield、lifesteal、regen。",
   "hp=生命上限：食物、饮料、药品、植物、柔软温暖物、能量补给、可爱治愈物；本地结算为生命上限+1。",
   "生命恢复、回血、被打后恢复都属于 regen，不属于 hp；只有明确增加生命上限/耐久上限时才倾向 hp。",
-  "attack=攻击：工具、硬物、敲击物、键盘鼠标、笔、砖石、运动器材、尖锐或能主动施力的物品。",
-  "defense=防御：厚重、坚硬、支撑、抗压、保护、外壳、锁具、金属/硬塑料物品。",
+  "attack=攻击：工具、硬物、敲击物、键盘鼠标、笔、砖石、运动器材、音响/喇叭等有冲击感的发声物、尖锐或能主动施力的物品。",
+  "defense=防御：厚重、坚硬、支撑、抗压、保护、外壳、锁具、电子设备外壳、金属/硬塑料物品。",
   "speed=速度：鞋、轮子、滑板、风扇、空气流动、轻便快速、旋转、遥控器；没有运动/气流/轮/鞋含义时不要给高 speed。",
   "shield=护盾：容器、盒、包、锅盖、伞、镜子、壳、套、罩、防护用品、能挡在身前的物品。",
   "lifesteal=吸血：刀、剪刀、针、钩、指甲刀、尖锐小工具、吸附/抽取/红色血感物品；没有尖锐/吸附/夺取含义时不要给。",
@@ -243,7 +247,7 @@ const photoIdentificationUserPrompt = [
   "特殊效果只给语义很强的候选，普通物品可以 specialAffinity=[]；不要为了显得厉害乱给特殊效果。",
   "只有史诗或传说装备才可能出现特殊效果；史诗只在约三分之一情况下出特殊效果，传说必出一个特殊效果。",
   "工具、现实玩具/模型武器、越打越顺手的现实物品可选 dealDamageAttack；盾牌、外壳、硬保护物可选 takeDamageDefense 或 shieldCrashAttackDown；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、成对/双件/高速物品可选 doubleStrikeSpeedDown；喝的、补给、净化、回复感物品可选 regenMultiplier；带尖锐、抽取、血感、锋利联想的物品可选 lifestealMultiplier。",
-  "不要给网图、截图、游戏装备图、AI 渲染图、插画、卡牌素材 specialAffinity；现实卡片/贴纸/包装上的幻想武器也不要因为图案像武器就给强攻击或特殊效果。",
+  "不要给游戏装备图、AI 渲染图、动画、插画、精修素材、卡牌素材 specialAffinity；普通拍摄的现实实物网图/截图可以有正常属性，但不应因为来源是网图而额外变强。现实卡片/贴纸/包装上的幻想武器也不要因为图案像武器就给强攻击或特殊效果。",
   "",
   "命名和描述：",
   "itemName、subjectName、objectType、description、reason、tags 都用中文；只有图片主体本身是英文品牌/文字时，才可保留必要英文。",
@@ -275,7 +279,7 @@ const heroForms = [
     image: "form-attack.png",
     levels: {
       1: { stats: { attack: 3, defense: -1 }, effects: ["攻击 +3", "防御 -1"] },
-      2: { stats: { attack: 3, defense: -1 }, effects: ["攻击 +3", "防御 -1", "无视25%防御（下取整）"], ignoreDefenseRatio: 0.25 },
+      2: { stats: { attack: 4 }, effects: ["攻击 +4", "无视25%防御（下取整）"], ignoreDefenseRatio: 0.25 },
     },
   },
   {
@@ -311,7 +315,7 @@ const heroForms = [
     image: "form-defense.png",
     levels: {
       1: { stats: { defense: 3, attack: -1 }, effects: ["防御 +3", "攻击 -1"] },
-      2: { stats: { defense: 3, attack: -1 }, effects: ["防御 +3", "攻击 -1", "免疫前2次伤害"], damageImmunity: 2 },
+      2: { stats: { defense: 4 }, effects: ["防御 +4", "免疫前2次伤害"], damageImmunity: 2 },
     },
   },
   {
@@ -320,7 +324,7 @@ const heroForms = [
     image: "form-shield.png",
     levels: {
       1: { stats: { shield: 10 }, effects: ["护盾 +10"] },
-      2: { stats: { shield: 10 }, effects: ["护盾 +10", "护盾减少转为治疗"], shieldLossToHeal: true },
+      2: { stats: { shield: 15 }, effects: ["护盾 +15", "护盾减少转为治疗"], shieldLossToHeal: true },
     },
   },
   {
@@ -329,7 +333,7 @@ const heroForms = [
     image: "form-greedy.png",
     levels: {
       1: { stats: {}, effects: ["胶卷掉落 +0.1"], filmDropBonus: 1 },
-      2: { stats: {}, effects: ["胶卷掉落 +0.2"], filmDropBonus: 2 },
+      2: { stats: {}, effects: ["胶卷掉落 +0.1", "携带胶卷依次增加攻防速"], filmDropBonus: 1, filmStatCycle: true },
     },
   },
   {
@@ -623,7 +627,10 @@ function bindEvents() {
   });
   els.pendingPhotoPreview.addEventListener("click", () => openImageViewer(state.lastPhoto, "待鉴定照片"));
   els.discardItemBtn.addEventListener("click", handleDiscardAction);
-  els.imageViewer.addEventListener("click", closeImageViewer);
+  els.imageViewer.addEventListener("click", (event) => {
+    if (event.target === els.imageViewerImage) return;
+    closeImageViewer();
+  });
   renderHeroForms();
 }
 
@@ -668,7 +675,7 @@ async function preparePhotoFromDetailFile(file, errorPrefix, successMessage = ""
 }
 
 function getPhotoInputBlockedMessage() {
-  if (state.gameClear) return "通关后先查看生涯总结。";
+  if (state.gameClear) return "通关后可以查看和保存本局装备，重开后照片会清空。";
   if (isPlayerDefeated()) return "照片勇者已经倒下，只能重开。";
   if (state.bossReward) return "先确认一张 Boss 奖励牌。";
   if (isAnalyzingPhoto()) return "正在鉴定照片，先等待或取消鉴定。";
@@ -724,11 +731,13 @@ function handleDocumentClickForInfoMode(event) {
   }
 }
 
-function openImageViewer(src, caption = "", quality = null) {
+function openImageViewer(src, caption = "", quality = null, options = {}) {
   if (!src) return;
   const safeQuality = quality && quality.key ? quality : null;
   els.imageViewerImage.src = src;
-  els.imageViewerCaption.textContent = safeQuality?.label ? `${safeQuality.label} · ${caption}` : caption;
+  const captionText = safeQuality?.label ? `${safeQuality.label} · ${caption}` : caption;
+  els.imageViewerCaption.textContent = options.saveHint ? `${captionText} · 长按图片保存` : captionText;
+  els.imageViewer.classList.toggle("is-save-fallback", Boolean(options.saveHint));
   if (safeQuality) {
     els.imageViewer.dataset.quality = safeQuality.key;
     els.imageViewerCaption.dataset.quality = safeQuality.label || "";
@@ -743,6 +752,7 @@ function closeImageViewer() {
   els.imageViewer.hidden = true;
   els.imageViewerImage.removeAttribute("src");
   els.imageViewerCaption.textContent = "";
+  els.imageViewer.classList.remove("is-save-fallback");
   delete els.imageViewer.dataset.quality;
   delete els.imageViewerCaption.dataset.quality;
 }
@@ -752,7 +762,9 @@ async function downloadCareerSummaryImage() {
   const summary = state.careerSummary || buildLocalCareerSummary();
   const snapshot = summary.snapshot || buildCareerSnapshot();
   const image = await makeCareerSummaryImage(summary, snapshot);
-  await saveImageDataUrl(image, `photo-hero-career-${new Date().toISOString().slice(0, 10)}.png`, "通关分享图已生成。");
+  await saveImageDataUrl(image, `photo-hero-career-${new Date().toISOString().slice(0, 10)}.png`, "通关分享图已生成。", {
+    fallbackCaption: "通关分享图",
+  });
 }
 
 async function saveSelectedPhotoImage() {
@@ -760,20 +772,34 @@ async function saveSelectedPhotoImage() {
   const source = item?.fullImage || item?.image || "";
   if (!source) return;
   const fileName = makePhotoSaveFileName(item);
-  await saveImageDataUrl(source, fileName, "照片已保存。");
+  await saveImageDataUrl(source, fileName, "照片已保存。", {
+    fallbackCaption: formatItemDisplayName(item),
+    fallbackQuality: getItemQuality(scoreItem(item)),
+  });
 }
 
-async function saveImageDataUrl(image, fileName, successMessage = "图片已保存。") {
+async function saveImageDataUrl(image, fileName, successMessage = "图片已保存。", options = {}) {
+  const mobileLike = isMobileLikeBrowser();
   try {
     const blob = await dataUrlToBlob(image);
-    const shouldUseMobileShare = isMobileBrowser() && navigator.canShare && navigator.share && typeof File === "function";
+    const shouldUseMobileShare = mobileLike && navigator.canShare && navigator.share && typeof File === "function";
     if (shouldUseMobileShare) {
       const file = new File([blob], fileName, { type: blob.type || "image/jpeg" });
       if (navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: "照片勇者" });
-        addLog(successMessage);
-        return;
+        try {
+          await navigator.share({ files: [file], title: "照片勇者" });
+          addLog(successMessage);
+          return "share";
+        } catch (error) {
+          showMobileSaveFallback(image, fileName, options);
+          return "viewer";
+        }
       }
+    }
+
+    if (mobileLike) {
+      showMobileSaveFallback(image, fileName, options);
+      return "viewer";
     }
 
     if (window.showSaveFilePicker) {
@@ -788,15 +814,21 @@ async function saveImageDataUrl(image, fileName, successMessage = "图片已保�
       await writable.write(blob);
       await writable.close();
       addLog(successMessage);
-      return;
+      return "file-picker";
     }
 
     downloadImageDataUrl(image, fileName);
     addLog(successMessage);
+    return "download";
   } catch (error) {
-    if (error?.name === "AbortError") return;
+    if (mobileLike) {
+      showMobileSaveFallback(image, fileName, options);
+      return "viewer";
+    }
+    if (error?.name === "AbortError") return "abort";
     downloadImageDataUrl(image, fileName);
     addLog("已改用浏览器下载保存。");
+    return "download";
   } finally {
     render();
   }
@@ -804,6 +836,19 @@ async function saveImageDataUrl(image, fileName, successMessage = "图片已保�
 
 function isMobileBrowser() {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+}
+
+function isMobileLikeBrowser() {
+  return isMobileBrowser()
+    || navigator.maxTouchPoints > 1
+    || window.matchMedia?.("(pointer: coarse)")?.matches
+    || window.innerWidth <= 620;
+}
+
+function showMobileSaveFallback(image, fileName, options = {}) {
+  const caption = options.fallbackCaption || fileName.replace(/\.[^.]+$/, "");
+  openImageViewer(image, caption, options.fallbackQuality || null, { saveHint: true });
+  addLog("已打开原图，长按图片保存。");
 }
 
 function downloadImageDataUrl(image, fileName) {
@@ -1322,7 +1367,7 @@ async function analyzePhoto() {
   }
 
   if (state.filmRolls < 1) {
-    const message = "胶卷不足。每击败 1 只怪物可获得胶卷 0.1。";
+    const message = "胶卷不足。普通怪会留下 0.1 胶卷，单体 Boss 会留下 0.3。";
     showLootError(message);
     addLog(message);
     render();
@@ -1422,16 +1467,16 @@ function normalizeAnalyzeError(error) {
 }
 
 function getAppraisalFailureReason(item) {
-  if (!item) return "模型没有返回可用装备。";
+  if (!item) return "影像没有在鉴定台上成形。";
   const name = formatItemDisplayName(item) || "这张照片";
   if (item.virtualImage) {
-    return `${name}看起来像网图、截图或虚拟装备，没有转化成现实装备。`;
+    return `${name}的影像气息太虚，没能凝成装备。`;
   }
   if (item.tooLarge || item.isEquipable === false) {
-    return `${name}无法作为装备使用。`;
+    return `${name}太难装进行囊。`;
   }
   if (getItemEffectValue(item) <= 0) {
-    return `${name}没有形成可用属性，请换一张主体更明确的现实物品照片。`;
+    return `${name}没有醒出力量。`;
   }
   return "";
 }
@@ -2276,6 +2321,7 @@ function shouldTreatAsTooLarge(itemName, description = "", modelRejected = false
   if (isDefinitelyPortableEquipmentText(text)) return false;
   if (isSmallEquipableNaturalText(text)) return false;
   if (isClearlySmallModelOrPatternText(text)) return false;
+  if (hasClearRealSmallSubjectText(text)) return false;
   if (oversizedScenePattern.test(text) || explicitOversizePattern.test(text)) return true;
   if (modelRejected) return true;
   return false;
@@ -2315,6 +2361,19 @@ function isClearlySmallModelOrPatternText(text) {
   return /(?:手持|桌面|小型|小物|可搬动|pocket|handheld|tabletop|small|miniature|toy)/i.test(source);
 }
 
+function hasClearRealSmallSubjectText(text, photoQuality = {}) {
+  const source = String(text || "");
+  const quality = normalizePhotoQuality(photoQuality);
+  if (hasNegatedRealPhotoText(source)) return false;
+  if (isClearlyOversizedSubjectText(source) || isSceneDisguisedAsPortableText(source) || isLivingCreatureMainSubjectText(source)) return false;
+  if (!isPortableEquipmentText(source) && !isSmallEquipableNaturalText(source) && !isClearlySmallModelOrPatternText(source)) return false;
+  if (isGameOrCardArtText(source) || isFantasyEquipmentImageText(source)) return false;
+  if (isPolishedCommercialImageText(source) && !isRealObjectPhotoEvidenceText(source)) return false;
+  return quality.realPhoto >= 2
+    || isRealObjectPhotoEvidenceText(source)
+    || /(?:普通拍摄|正常拍摄|实物照片|生活照片|桌面照片|房间照片|室内照片|现场照片|照片中是|画面里有|画面中有|photo of|real object photo|photographed real object)/i.test(source);
+}
+
 function getVirtualImagePenalty(text, photoQuality = {}) {
   const source = String(text || "");
   if (!source.trim()) {
@@ -2324,6 +2383,8 @@ function getVirtualImagePenalty(text, photoQuality = {}) {
   const physicalCarrier = isPhysicalImageCarrierText(source);
   const realObjectEvidence = isRealObjectPhotoEvidenceText(source);
   const realToyOrProp = isRealToyModelOrPropText(source);
+  const normalObjectPhoto = isNormalRealObjectPhotoText(source, quality);
+  const clearSmallSubject = hasClearRealSmallSubjectText(source, quality);
   const screenshot = isScreenshotOnlyText(source);
   const digitalImage = isWebOrDigitalImageText(source);
   const gameArt = isGameOrCardArtText(source);
@@ -2332,20 +2393,24 @@ function getVirtualImagePenalty(text, photoQuality = {}) {
   const lowRealismFantasy = quality.realPhoto <= 1 && (gameArt || fantasyEquipment || isImageLikeSubjectText(source));
   const explicitDigital = digitalImage || gameArt || isScreenshotOnlyText(source);
 
-  if (screenshot) {
+  if ((normalObjectPhoto || clearSmallSubject) && !gameArt && !fantasyEquipment && !isPolishedCommercialImageText(source)) {
+    return { level: "none", noEffect: false, cap: null, suppressSpecial: false, description: "" };
+  }
+
+  if (screenshot && !normalObjectPhoto && !clearSmallSubject) {
     return makeVirtualImagePenalty("noEffect");
   }
 
-  if (explicitDigital && !physicalCarrier && !realToyOrProp) {
+  if (explicitDigital && !physicalCarrier && !realToyOrProp && !normalObjectPhoto && !clearSmallSubject) {
     return makeVirtualImagePenalty("noEffect");
   }
 
-  if ((digitalImage || gameArt || lowRealismFantasy) && !physicalCarrier && !realToyOrProp && !realObjectEvidence) {
+  if ((digitalImage || gameArt || lowRealismFantasy) && !physicalCarrier && !realToyOrProp && !realObjectEvidence && !normalObjectPhoto && !clearSmallSubject) {
     if (isolatedToyArt) return makeVirtualImagePenalty("ordinaryCap");
     return makeVirtualImagePenalty("noEffect");
   }
 
-  if (fantasyEquipment && !physicalCarrier && !realToyOrProp && !realObjectEvidence) {
+  if (fantasyEquipment && !physicalCarrier && !realToyOrProp && !realObjectEvidence && !normalObjectPhoto && !clearSmallSubject) {
     return makeVirtualImagePenalty("noEffect");
   }
 
@@ -2367,7 +2432,7 @@ function makeVirtualImagePenalty(level) {
       noEffect: true,
       cap: 0,
       suppressSpecial: true,
-      description: "这更像网图或虚拟装备，没有转化成现实装备。",
+      description: "影像里的气息太虚，没能凝成装备。",
     };
   }
   return {
@@ -2384,19 +2449,49 @@ function isScreenshotOnlyText(text) {
 }
 
 function isWebOrDigitalImageText(text) {
-  return /(?:网图|网络图片|网上图片|搜索图|搜图|下载图片|线上图片|网页图片|素材图|素材|透明背景|免抠|图标|图鉴|壁纸|白底商品图|电商图|商品展示图|AI图|AI生成|AI绘图|AI作图|生成图|渲染图|3D渲染|CG|概念图|设定图|原画|立绘|插画|二次元|虚拟道具|虚拟装备|digital image|web image|stock image|asset|icon|render|rendered|illustration|concept art|game asset)/i.test(String(text || ""));
+  if (hasNegatedVirtualSourceText(text)) return false;
+  return /(?:网图|网络图片|网上图片|搜索图|搜图|下载图片|线上图片|网页图片|素材图|素材|透明背景|免抠|图标|图鉴|壁纸|白底商品图|电商图|商品展示图|精修图|宣传图|PS图|AI图|AI生成|AI绘图|AI作图|生成图|渲染图|3D渲染|CG|概念图|设定图|原画|立绘|插画|二次元|虚拟道具|虚拟装备|digital image|web image|stock image|asset|icon|render|rendered|illustration|concept art|game asset)/i.test(String(text || ""));
 }
 
 function isGameOrCardArtText(text) {
+  if (hasNegatedVirtualSourceText(text)) return false;
   return /(?:游戏.{0,8}(装备|道具|卡牌|物品|界面|图标|图鉴)|(?:装备|道具|卡牌|物品).{0,8}(游戏|图鉴|界面)|卡牌素材|卡面|装备图|道具图|游戏图|卡牌图|武器图|盾牌图|角色卡|技能卡|game item|game card|card art|item card|weapon card)/i.test(String(text || ""));
 }
 
 function isFantasyEquipmentImageText(text) {
+  if (hasNegatedVirtualSourceText(text)) return false;
   return /(?:龙胆亮银枪|狮纹金盾|金盾配剑|恶魔之眼|恶魔.*巨刃|巨刃|亮银枪|神器|神兵|魔剑|圣剑|神剑|宝剑|战斧|法杖|魔杖|权杖|符文|龙鳞|魔法武器|奇幻武器|幻想武器|史诗武器|传说武器|暗黑武器|legendary weapon|fantasy weapon|magic weapon|artifact weapon)/i.test(String(text || ""));
 }
 
 function isImageLikeSubjectText(text) {
   return /(?:图片|图像|图案|画面|卡图|卡面|海报|插画|图标|image|picture|artwork|poster)/i.test(String(text || ""));
+}
+
+function isNormalRealObjectPhotoText(text, quality = normalizePhotoQuality({})) {
+  const source = String(text || "");
+  if (!isPortableEquipmentText(source) && !isSmallEquipableNaturalText(source)) return false;
+  if (isGameOrCardArtText(source) || isFantasyEquipmentImageText(source)) return false;
+  if (isPolishedCommercialImageText(source)) return false;
+  if (quality.realPhoto >= 2) return true;
+  if (isRealObjectPhotoEvidenceText(source)) return true;
+  return /(?:正常拍摄|普通拍摄|实物照片|生活照片|桌面照片|近景照片|照片中是|photo of|real object photo|product photo of a real)/i.test(source);
+}
+
+function isDirectRealPhotoText(text, quality = normalizePhotoQuality({})) {
+  const source = String(text || "");
+  if (!isNormalRealObjectPhotoText(source, quality)) return false;
+  if (isScreenshotOnlyText(source) || isWebOrDigitalImageText(source)) return false;
+  return quality.realPhoto >= 2 || isRealObjectPhotoEvidenceText(source);
+}
+
+function isPolishedCommercialImageText(text) {
+  if (hasNegatedVirtualSourceText(text)) return false;
+  return /(?:精修|修饰过|PS|后期合成|摆拍棚拍|棚拍|宣传图|广告图|白底商品图|电商图|商品展示图|透明背景|免抠|抠图|素材图|图标|渲染图|生成图|AI生成|studio shot|commercial render|cutout|transparent background|white background product|product render)/i.test(String(text || ""));
+}
+
+function hasNegatedVirtualSourceText(text) {
+  const source = String(text || "");
+  return /(?:不是|并非|非|不像|没有|无).{0,8}(?:网图|网络图片|网上图片|搜索图|截图|屏幕截图|游戏截图|游戏装备|装备图|道具图|虚拟装备|虚拟道具|AI图|AI生成|渲染图|插画|原画|素材图|白底商品图|电商图|精修图|宣传图|透明背景|抠图)|(?:网图|网络图片|网上图片|搜索图|截图|屏幕截图|游戏截图|游戏装备|装备图|道具图|虚拟装备|虚拟道具|AI图|AI生成|渲染图|插画|原画|素材图|白底商品图|电商图|精修图|宣传图|透明背景|抠图).{0,8}(?:不是|并非|没有|无)|not.{0,12}(?:web image|screenshot|game item|game asset|virtual|ai generated|render|illustration|stock image|product render)/i.test(source);
 }
 
 function isLowRealityToyOrMascotImageText(text, quality = normalizePhotoQuality({})) {
@@ -2498,11 +2593,11 @@ function hasShieldSemanticText(text) {
 
 function hasDefenseSemanticText(text) {
   const source = String(text || "");
-  return hasAirPurifierSemanticText(source) || /(?:厚|重|硬|坚|金属|石|木|壳|骨|甲|板|锁|支撑|抗压|防御|防护|保护|过滤|防尘|框|架|陶瓷|玻璃|橡胶|岩|盾|hard|solid|metal|stone|wood|shell|armor|lock|support|ceramic|glass|rubber|filter)/i.test(source);
+  return hasAirPurifierSemanticText(source) || /(?:厚|重|硬|坚|金属|石|木|壳|骨|甲|板|锁|支撑|抗压|防御|防护|保护|过滤|防尘|框|架|陶瓷|玻璃|橡胶|岩|盾|音箱|音响|喇叭|电子设备|hard|solid|metal|stone|wood|shell|armor|lock|support|ceramic|glass|rubber|filter|speaker)/i.test(source);
 }
 
 function hasAttackSemanticText(text) {
-  return /(?:工具|武器|敲|打|锤|棒|棍|枪|长枪|短枪|矛|戟|砖|石|球|键盘|鼠标|笔|刀|剪|针|钩|刺|尖|刃|爪|牙|攻击|冲击|运动|飞行|展翅|风车|旋转|数字|显示屏|tool|weapon|hit|hammer|club|spear|lance|pike|brick|stone|ball|keyboard|mouse|pen|knife|scissor|needle|hook|sharp|claw|tooth|attack|sport|fly|wing|windmill|rotate|screen)/i.test(String(text || ""));
+  return /(?:工具|武器|敲|打|锤|棒|棍|枪|长枪|短枪|矛|戟|砖|石|球|键盘|鼠标|笔|刀|剪|针|钩|刺|尖|刃|爪|牙|攻击|冲击|震动|声波|音箱|音响|喇叭|运动|飞行|展翅|风车|旋转|数字|显示屏|tool|weapon|hit|hammer|club|spear|lance|pike|brick|stone|ball|keyboard|mouse|pen|knife|scissor|needle|hook|sharp|claw|tooth|attack|impact|speaker|sport|fly|wing|windmill|rotate|screen)/i.test(String(text || ""));
 }
 
 function isSharpToolSemanticText(text) {
@@ -2514,7 +2609,7 @@ function hasOffensiveToolSemanticText(text) {
 }
 
 function hasSpeedSemanticText(text) {
-  return /(?:鞋|轮|滑板|风|扇|羽|飞|跑|跳|旋转|气流|车模|遥控|线缆|电|速度|敏捷|运动|球|shoe|wheel|skateboard|wind|fan|feather|fly|run|jump|rotate|airflow|remote|cable|electric|speed|sport|ball)/i.test(String(text || ""));
+  return /(?:鞋|轮|滑板|风|扇|羽|飞|跑|跳|旋转|气流|车模|遥控|线缆|速度|敏捷|运动|球|shoe|wheel|skateboard|wind|fan|feather|fly|run|jump|rotate|airflow|remote|cable|speed|sport|ball)/i.test(String(text || ""));
 }
 
 function hasLifestealSemanticText(text) {
@@ -3320,7 +3415,7 @@ function applyHeroDamageToEnemy(enemy, stats, source = "attack") {
   const hpDamage = Math.max(0, damage - shieldLoss);
   enemy.hp = Math.max(0, enemy.hp - hpDamage);
   const totalDamage = shieldLoss + hpDamage;
-  if (totalDamage > 0) markEnemyHit(enemy.id);
+  if (source === "attack" || source === "prebattle" || totalDamage > 0) markEnemyHit(enemy.id);
   const traitChanges = triggerEnemyDamagedTraits(enemy);
 
   return {
@@ -3377,7 +3472,7 @@ function resolveMonsterStrike(enemy, stats, round) {
     state.player.hp = Math.max(0, state.player.hp - hpLoss);
     totalHpLoss += hpLoss;
     totalShieldLoss += shieldLoss;
-    if (shieldLoss + hpLoss > 0 || isImmune) markHeroHit();
+    markHeroHit();
     if (shieldLoss > 0 && getHeroFormLevelConfig().shieldLossToHeal) {
       const beforeHp = state.player.hp;
       state.player.hp = Math.min(currentStatsBeforeHit.maxHp, state.player.hp + shieldLoss);
@@ -4108,6 +4203,7 @@ function hasPendingPhoto() {
 }
 
 function isEquipmentSelectionLocked() {
+  if (state.gameClear) return false;
   return isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || Boolean(state.bossReward) || isCareerSummaryOpen();
 }
 
@@ -4231,13 +4327,15 @@ function ensureEncounter() {
   if (!Array.isArray(state.enemies) || !state.enemies.length) {
     state.enemies = buildFloorEncounter(state.floor);
   }
-  state.enemies = state.enemies.map(normalizeEnemy).filter(Boolean);
+  state.enemies = state.currentBattle
+    ? state.enemies.map(normalizeCombatEnemy).filter(Boolean)
+    : state.enemies.map(normalizeEnemy).filter(Boolean);
   state.encounterId = state.encounterId || makeEncounterId();
   const validIds = new Set(state.enemies.map((enemy) => enemy.id));
   state.selectedEnemyIds = Array.isArray(state.selectedEnemyIds)
     ? state.selectedEnemyIds.filter((id, index, ids) => validIds.has(id) && ids.indexOf(id) === index)
     : [];
-  applyFloorShield();
+  if (!state.currentBattle) applyFloorShield();
 }
 
 function buildFloorEncounter(floor) {
@@ -4306,11 +4404,18 @@ function buildMonsterSlotPools(floor) {
   const weakEntries = entries.filter((entry) => (entry.tier || 1) <= Math.max(1, maxTier - 2));
   const midEntries = entries.filter((entry) => (entry.tier || 1) >= Math.max(1, maxTier - 1));
   const strongEntries = entries.filter((entry) => (entry.tier || 1) >= maxTier);
+  const pressureEntries = entries.filter((entry) => (entry.tier || 1) >= Math.max(1, maxTier - 1));
   const midSource = maxTier <= 1 && nonSlimeEntries.length ? nonSlimeEntries : midEntries.length ? midEntries : entries;
-  const strongSource = maxTier <= 1 && nonSlimeEntries.length ? nonSlimeEntries : strongEntries.length ? strongEntries : entries;
+  const strongSource = maxTier <= 1 && nonSlimeEntries.length
+    ? nonSlimeEntries
+    : pressureEntries.length
+      ? pressureEntries
+      : strongEntries.length
+        ? strongEntries
+        : entries;
   const weakPool = buildWeightedMonsterPool(floor, weakEntries.length ? weakEntries : entries, { weakRetention: true, pressure: 0.55 });
-  const midPool = buildWeightedMonsterPool(floor, midSource, { pressure: 1 });
-  const strongPool = buildWeightedMonsterPool(floor, strongSource, { pressure: 1.45, minimumPerEntry: 3 });
+  const midPool = buildWeightedMonsterPool(floor, midSource, { pressure: 0.85, unlockRamp: true });
+  const strongPool = buildWeightedMonsterPool(floor, strongSource, { pressure: 1.05, unlockRamp: true });
   if (earlyEntries.length) {
     weakPool.push(...buildWeightedMonsterPool(floor, earlyEntries, { weakRetention: true, pressure: 0.8 }));
   }
@@ -4332,10 +4437,21 @@ function buildWeightedMonsterPool(floor, entries = getUnlockedNormalMonsterEntri
       ? Math.max(4, entry.weight - Math.floor(age / 4))
       : 0;
     const baseWeight = Math.max(options.minimumPerEntry || 1, entry.weight + tierBoost - Math.floor(age / 10));
-    const finalWeight = Math.max(baseWeight, weakRetention);
+    const ramp = options.unlockRamp ? getMonsterUnlockRamp(entry, floor) : 1;
+    const finalWeight = Math.max(options.minimumPerEntry || 1, Math.round(Math.max(baseWeight, weakRetention) * ramp));
     for (let i = 0; i < finalWeight; i += 1) weighted.push(entry.key);
   }
   return weighted.length ? weighted : ["slime"];
+}
+
+function getMonsterUnlockRamp(entry, floor) {
+  const tier = entry.tier || 1;
+  if (tier <= 2) return 1;
+  const age = Math.max(0, floor - entry.floor);
+  const rampByTier = tier >= 4
+    ? [0.16, 0.24, 0.34, 0.48, 0.62, 0.74, 0.84, 0.92, 1]
+    : [0.35, 0.5, 0.68, 0.84, 1];
+  return rampByTier[Math.min(age, rampByTier.length - 1)] || 1;
 }
 
 function makeEnemy(typeKey, floor, slot) {
@@ -4388,6 +4504,37 @@ function normalizeEnemy(enemy) {
     };
   }
   return normalizeEnemyFromBase(enemy);
+}
+
+function normalizeCombatEnemy(enemy) {
+  if (!enemy || typeof enemy !== "object") return null;
+  if (enemy.testEnemy) return normalizeEnemy(enemy);
+
+  const floor = Number.isFinite(enemy.floor) ? enemy.floor : state.floor;
+  const slot = Number.isFinite(enemy.slot) ? enemy.slot : 0;
+  const base = makeEnemy(enemy.typeKey || "slime", floor, slot);
+  const maxHp = base.maxHp;
+  const maxShield = Math.max(
+    base.maxShield,
+    Number.isFinite(enemy.maxShield) ? enemy.maxShield : 0,
+    Number.isFinite(enemy.shield) ? enemy.shield : 0,
+  );
+
+  return {
+    ...base,
+    ...enemy,
+    id: typeof enemy.id === "string" ? enemy.id : makeId("enemy"),
+    name: base.name,
+    typeName: base.typeName,
+    maxHp,
+    hp: Number.isFinite(enemy.hp) ? Math.max(0, Math.min(enemy.hp, maxHp)) : maxHp,
+    atk: Number.isFinite(enemy.atk) ? Math.max(0, enemy.atk) : base.atk,
+    def: Number.isFinite(enemy.def) ? Math.max(0, enemy.def) : base.def,
+    speed: Number.isFinite(enemy.speed) ? Math.max(1, enemy.speed) : base.speed,
+    maxShield,
+    shield: Number.isFinite(enemy.shield) ? Math.max(0, Math.min(enemy.shield, maxShield)) : maxShield,
+    traits: base.traits,
+  };
 }
 
 function normalizeEnemyFromBase(enemy) {
@@ -4466,14 +4613,18 @@ function getHeroFormFilmShardBonus() {
 }
 
 function getEnemyFilmShardDrop(enemy) {
-  void enemy;
   if (getHeroFormLevelConfig().noFilmDrop) return 0;
-  const baseShards = 1;
+  const baseShards = getEnemyBaseFilmShards(enemy);
   return Math.max(0, baseShards + getGlobalFilmDropBonus() + getHeroFormFilmShardBonus());
 }
 
 function getEnemyPreviewFilmShardDrop(enemy) {
   return getEnemyFilmShardDrop(enemy);
+}
+
+function getEnemyBaseFilmShards(enemy) {
+  const typeKey = enemy?.typeKey || "";
+  return highFilmBossMonsterKeys.has(typeKey) ? 3 : 1;
 }
 
 function getGlobalFilmDropBonus() {
@@ -5433,6 +5584,10 @@ function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpec
   for (const key of statOrder) {
     bonus[key] = (bonus[key] || 0) + (inventoryBonus[key] || 0);
   }
+  const formFilmStats = getHeroFormFilmStatBonus();
+  for (const key of statOrder) {
+    bonus[key] = (bonus[key] || 0) + (formFilmStats[key] || 0);
+  }
 
   const passiveAttackPenalty = getEquippedPhotoEffectInstances("shieldCrashAttackDown")
     .reduce((sum, { effect }) => sum + Math.abs(effect.amount || 0), 0)
@@ -5477,6 +5632,21 @@ function getHeroFormStats() {
 
 function getHeroFormStatsFor(form = getHeroForm()) {
   return normalizeSignedStats(getHeroFormLevelConfig(form).stats || {}, 999);
+}
+
+function getHeroFormFilmStatBonus() {
+  const config = getHeroFormLevelConfig();
+  if (!config.filmStatCycle) return normalizeStats({}, 999);
+  const points = clampInt(Math.floor(getFilmCount()), 0, 999);
+  return {
+    hp: 0,
+    attack: Math.ceil(points / 3),
+    defense: Math.floor((points + 1) / 3),
+    speed: Math.floor(points / 3),
+    shield: 0,
+    lifesteal: 0,
+    regen: 0,
+  };
 }
 
 function getInventoryStatBonus() {
@@ -5991,17 +6161,19 @@ function getPhotoValueCapFromQuality(photoQuality, semanticText = "") {
   if (virtualPenalty.noEffect) return 0;
   if (Number.isFinite(virtualPenalty.cap)) return Math.min(getPhotoValueMax(), virtualPenalty.cap);
   if (isLowRealityToyOrMascotImageText(text, quality)) return Math.min(getPhotoValueMax(), 10);
-  if (quality.clarity <= 1 || quality.subjectArea <= 1 || quality.realPhoto <= 1) return Math.min(getPhotoValueMax(), 12);
-  if (quality.backgroundClean <= 0 || quality.focusLight <= 0) return Math.min(getPhotoValueMax(), 14);
+  const realObjectPhoto = isDirectRealPhotoText(text, quality) && !isPolishedCommercialImageText(text);
+  if (quality.realPhoto <= 1) return Math.min(getPhotoValueMax(), 12);
+  if (quality.clarity <= 1 || quality.subjectArea <= 1) return Math.min(getPhotoValueMax(), realObjectPhoto ? 14 : 12);
+  if (quality.backgroundClean <= 0 || quality.focusLight <= 0) return Math.min(getPhotoValueMax(), realObjectPhoto ? 16 : 14);
   if (hasCrowdedOrSmallSubjectText(text)) return Math.min(getPhotoValueMax(), 14);
   if (/抽象|光斑|远景|纹理|风景|海岸|山|天空|道路|街道|森林|荒原|人物|人像|动物|猫|狗|abstract|bokeh|landscape|sky|road|street|forest|portrait|animal|cat|dog/i.test(text) && !isSmallEquipableNaturalText(text) && !isPortableEquipmentText(text)) {
     return Math.min(getPhotoValueMax(), 14);
   }
-  if (quality.interesting <= 0) return Math.min(getPhotoValueMax(), 15);
+  if (quality.interesting <= 0) return Math.min(getPhotoValueMax(), realObjectPhoto && isPortableEquipmentText(text) ? 16 : 15);
   if (quality.clarity < 3 || quality.subjectArea < 2 || quality.backgroundClean < 1) return Math.min(getPhotoValueMax(), 16);
-  if (quality.subjectArea < 3 || quality.backgroundClean < 2) return Math.min(getPhotoValueMax(), 16);
-  if (quality.clarity < 3) return Math.min(getPhotoValueMax(), 16);
-  if (quality.interesting < 2) return Math.min(getPhotoValueMax(), hasStrongEquipmentFantasyText(text) ? 17 : 16);
+  if (quality.subjectArea < 3 || quality.backgroundClean < 2) return Math.min(getPhotoValueMax(), realObjectPhoto ? 18 : 16);
+  if (quality.clarity < 3) return Math.min(getPhotoValueMax(), realObjectPhoto ? 17 : 16);
+  if (quality.interesting < 2) return Math.min(getPhotoValueMax(), realObjectPhoto && isPortableEquipmentText(text) ? 18 : hasStrongEquipmentFantasyText(text) ? 17 : 16);
   return getPhotoValueMax();
 }
 
@@ -6037,16 +6209,20 @@ function calculateAdjustedPhotoQualityScore(photoQuality, semanticText = "") {
   if (quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 3 && quality.focusLight >= 2 && quality.interesting >= 1) score += 1;
   if (quality.clarity >= 3 && quality.subjectArea >= 3 && quality.backgroundClean >= 2) score += 1;
   if (quality.interesting >= 2 && isPortableEquipmentText(text) && virtualPenalty.level === "none") score += 1;
+  const realObjectPhoto = isDirectRealPhotoText(text, quality) && !isPolishedCommercialImageText(text);
+  if (realObjectPhoto && quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 3) score += 2;
+  if (realObjectPhoto && isPortableEquipmentText(text) && quality.focusLight >= 2) score += 1;
+  if (realObjectPhoto && quality.backgroundClean >= 1 && !hasCrowdedOrSmallSubjectText(text)) score += 1;
 
   if (quality.clarity <= 1) score -= 2;
-  if (quality.subjectArea <= 1) score -= 2;
-  if (quality.subjectArea < 3) score -= 1;
-  if (quality.backgroundClean <= 0) score -= 1;
-  if (quality.backgroundClean < 2) score -= 1;
+  if (quality.subjectArea <= 1) score -= realObjectPhoto ? 1 : 2;
+  if (quality.subjectArea < 3 && !realObjectPhoto) score -= 1;
+  if (quality.backgroundClean <= 0) score -= realObjectPhoto ? 0 : 1;
+  if (quality.backgroundClean < 2 && !realObjectPhoto) score -= 1;
   if (quality.realPhoto <= 1) score -= 3;
   if (isLowRealityToyOrMascotImageText(text, quality)) score -= 4;
-  if (quality.interesting <= 0) score -= 2;
-  if (quality.interesting <= 1 && !hasStrongEquipmentFantasyText(text)) score -= 1;
+  if (quality.interesting <= 0) score -= realObjectPhoto ? 1 : 2;
+  if (quality.interesting <= 1 && !hasStrongEquipmentFantasyText(text) && !realObjectPhoto) score -= 1;
   if (hasCrowdedOrSmallSubjectText(text)) score -= 2;
   if (virtualPenalty.level === "ordinaryCap") score -= 3;
   if (/抽象|光斑|远景|纹理|风景|海岸|山|天空|道路|街道|森林|荒原|人物|人像|动物|猫|狗|abstract|bokeh|landscape|sky|road|street|forest|portrait|animal|cat|dog/i.test(text) && !isSmallEquipableNaturalText(text) && !isPortableEquipmentText(text)) score -= 3;
@@ -6363,7 +6539,8 @@ function inferPreferredStats(name) {
   if (/刀|剪|针|钉|锥|刃|指甲刀|钩|夹|钳|锯|尖锐|knife|scissor|needle|nail|blade|clipper|hook|pliers|saw|sharp/i.test(text)) return ["lifesteal", "attack", "speed"];
   if (/键盘|鼠标|锤|棍|棒|笔|扳手|螺丝刀|砖|石|球拍|拍子|遥控器|手机|相机|keyboard|mouse|hammer|club|pen|tool|wrench|screwdriver|brick|stone|racket|remote|phone|camera/i.test(text)) return ["attack", "defense", "shield"];
   if (/锅盖|镜|盾|伞|盔|盒|箱|包|壳|套|口罩|眼镜|锁|钥匙|防护|保护|容器|lid|mirror|shield|umbrella|helmet|box|case|bag|shell|mask|glasses|lock|key|protect|container/i.test(text)) return ["shield", "defense", "hp"];
-  if (/鞋|拖鞋|滑板|风扇|轮|轻|羽|飞|跑|车模|陀螺|旋转|气流|线缆|充电器|电池|shoe|slipper|skateboard|fan|wheel|lightweight|feather|fly|run|toy car|spinning|airflow|cable|charger|battery/i.test(text)) return ["speed", "attack", "regen"];
+  if (/音箱|音响|喇叭|speaker/i.test(text)) return ["attack", "defense", "regen"];
+  if (/鞋|拖鞋|滑板|风扇|轮|轻|羽|飞|跑|车模|陀螺|旋转|气流|线缆|shoe|slipper|skateboard|fan|wheel|lightweight|feather|fly|run|toy car|spinning|airflow|cable/i.test(text)) return ["speed", "attack", "regen"];
   if (/书|本|笔记|book|notebook/i.test(text)) return ["regen", "defense", "hp"];
   if (/卡片|贴纸|图案|card|sticker|pattern/i.test(text)) return ["regen", "hp", "defense"];
   if (/玩具|模型|摆件|公仔|手办|青蛙|卡通|toy|model|figure|cartoon/i.test(text)) return ["hp", "defense", "attack"];
@@ -6511,7 +6688,7 @@ function render() {
   actionRow?.classList.toggle("is-reward-choice", bossRewardPending);
   actionRow?.classList.toggle("is-clear", state.gameClear);
   actionRow?.classList.toggle("can-flee", canFleeCurrentFloor());
-  els.equipmentGrid.classList.toggle("is-collapsed", state.gameClear);
+  els.equipmentGrid.classList.remove("is-collapsed");
   const canStartBattle = canStartSelectedBattle();
   els.attackBtn.hidden = false;
   els.attackBtn.textContent = state.gameClear
@@ -6649,8 +6826,8 @@ function renderEnemyField() {
         <strong class="estimate-${estimate.state}">${escapeHtml(estimate.text)}</strong>
       </div>
       <div class="enemy-hp-line">
-        <span>${enemy.hp}/${enemy.maxHp}</span>
-        <div class="hp-track danger"><span style="width:${percent(enemy.hp, enemy.maxHp)}%"></span></div>
+        <span>${formatEnemyHpDisplay(enemy)}</span>
+        <div class="hp-track danger"><span style="width:${getEnemyHpDisplayPercent(enemy)}%"></span></div>
       </div>
       <div class="enemy-card-back" aria-hidden="true">
         <span>${isDefeated ? "已击破" : "未参战"}</span>
@@ -6885,6 +7062,18 @@ function getEnemyMaxShield(enemy) {
   return Math.max(enemy?.shield || 0, getTraitValue(enemy, "shield", 0));
 }
 
+function getEnemyDisplayHp(enemy) {
+  return Math.max(0, Math.ceil((enemy?.hp || 0) + (enemy?.shield || 0)));
+}
+
+function formatEnemyHpDisplay(enemy) {
+  return `${getEnemyDisplayHp(enemy)}/${Math.max(0, enemy?.maxHp || 0)}`;
+}
+
+function getEnemyHpDisplayPercent(enemy) {
+  return percent(getEnemyDisplayHp(enemy), Math.max(1, enemy?.maxHp || 1));
+}
+
 function renderEquipmentGrid() {
   ensureInventorySlots();
   const locked = isEquipmentLocked();
@@ -6927,7 +7116,9 @@ function renderEquipmentGrid() {
         <span class="slot-name" data-quality="${quality.key}">${escapeHtml(formatItemDisplayName(item))}</span>
       `;
     } else {
-      button.innerHTML = `<span class="empty-slot">${getCameraIconMarkup()}</span>`;
+      button.innerHTML = state.gameClear
+        ? `<span class="empty-slot empty-slot-clear">空</span>`
+        : `<span class="empty-slot">${getCameraIconMarkup()}</span>`;
     }
 
     els.equipmentGrid.append(button);
@@ -6959,7 +7150,7 @@ function renderEquipmentDetail() {
   els.pendingPhotoPreview.hidden = true;
   els.pendingPhotoImage.removeAttribute("src");
   els.loadingState.hidden = false;
-  els.equipmentDetail.classList.remove("is-error", "is-actionable", "is-log");
+  els.equipmentDetail.classList.remove("is-error", "is-actionable", "is-log", "career-summary-panel");
   clearEquipmentDetailQuality();
   els.equipmentDetailStats.hidden = false;
 
@@ -6974,7 +7165,7 @@ function renderEquipmentDetail() {
     els.equipmentDetailName.textContent = "鉴定失败";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = `${formatLootErrorMessage(state.lootError)}\n这张照片已放弃，胶卷没有消耗。可以重新拍照，也可以先继续爬塔。\n${getLootErrorHint(state.lootError)}`;
+    els.equipmentDetailDesc.textContent = `${formatLootErrorMessage(state.lootError)}\n胶卷还在。可以重拍，也可以先继续爬塔。`;
     if (canRetake) {
       els.equipmentActions.hidden = false;
       els.photoActionBtn.hidden = false;
@@ -7033,7 +7224,9 @@ function renderEquipmentDetail() {
     els.equipmentDetailName.textContent = "空装备格";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = locked
+    els.equipmentDetailDesc.textContent = state.gameClear
+      ? "通关装备会留在本局。选择已有装备可以查看和保存原图；重开后这些照片会清空。"
+      : locked
       ? isPlayerDefeated()
         ? "照片勇者已经倒下，只能重开。"
         : state.bossReward
@@ -7044,10 +7237,10 @@ function renderEquipmentDetail() {
       : state.filmRolls >= 1
         ? "拍下身边物品，鉴定成照片装备。"
         : "胶卷不足，先击败怪物攒到新的拍照机会。";
-    els.filmCountBadge.hidden = false;
-    els.equipmentActions.hidden = false;
-    els.photoActionBtn.hidden = false;
-    els.photoActionBtn.disabled = locked || state.filmRolls < 1;
+    els.filmCountBadge.hidden = state.gameClear;
+    els.equipmentActions.hidden = state.gameClear;
+    els.photoActionBtn.hidden = state.gameClear;
+    els.photoActionBtn.disabled = state.gameClear || locked || state.filmRolls < 1;
     return;
   }
 
@@ -7178,6 +7371,7 @@ function renderHeroForms() {
     button.className = "form-card";
     button.type = "button";
     button.dataset.formId = form.id;
+    button.dataset.formKey = form.id;
     const hpLoss = (getHeroFormLevelConfig(currentForm).stats?.hp || 0) - (getHeroFormLevelConfig(form).stats?.hp || 0);
     const locked = isEquipmentLocked() || (hpLoss > 0 && state.player.hp <= hpLoss);
     button.disabled = locked;
@@ -7211,40 +7405,61 @@ function renderHeroForms() {
 function getLootErrorHint(message) {
   const text = String(message || "");
   if (text.includes("image_url") || text.includes("图片输入") || text.includes("没有识别图片内容")) {
-    return "当前模型可能不支持图片输入，或中转站没有把图片转发给模型。";
+    return "鉴定台没有看清这张影像。";
   }
   if (text.includes("浏览器直连") || text.toLowerCase().includes("cors")) {
-    return "浏览器直连被拦截时，需要换一个支持 CORS 的图文接口。";
+    return "鉴定台暂时连不上工坊。";
   }
   if (text.includes("响应结构")) {
-    return "接口返回格式和游戏预期不一致，可以换模型或换接口再试。";
+    return "工坊回声有点乱。";
   }
   if (text.includes("JSON") || text.includes("游戏约束") || text.includes("格式")) {
-    return "可以重试；如果经常出现，换一个更稳定的图文模型。";
+    return "鉴定卷轴没有写完整。";
   }
   if (text.includes("已取消鉴定")) {
-    return "本次照片已经放弃，可以重新拍照。";
+    return "这次影像已经收回。";
   }
   if (text.includes("超时") || text.includes("没有响应")) {
-    return "可能是接口拥堵、图片过大、模型卡住或中转站无响应；建议重试，或换一张主体更清楚、背景更简单的照片。";
+    return "鉴定火光灭得太久。";
   }
-  return "模型已返回内容，但鉴定台没有读懂；可以换模型，或重拍一张主体更清楚的照片。";
+  return "这次影像没有稳定成形。";
 }
 
 function formatLootErrorMessage(message) {
   const text = String(message || "").trim();
-  if (!text) return "模型这次没有给出可用结果。";
+  if (!text) return "影像没有在鉴定台上成形。";
   const cleaned = text
     .replace(/^鉴定失败[:：]\s*/, "")
     .replace(/（?胶卷未消耗）?/g, "")
     .trim();
+  if (/网图|截图|虚拟装备|没有转化|气息太虚/.test(cleaned)) {
+    return "这道影像太虚，没能凝成装备。";
+  }
+  if (/无法作为装备|太难装进行囊|主体过大|主要是场景/.test(cleaned)) {
+    return "这件东西太难装进行囊。";
+  }
+  if (/没有形成可用属性|没有醒出力量|可用属性/.test(cleaned)) {
+    return "这张照片没有醒出力量。";
+  }
+  if (/已取消鉴定/.test(cleaned)) {
+    return "鉴定已经收回。";
+  }
+  if (/超时|没有响应/.test(cleaned)) {
+    return "鉴定火光灭得太久。";
+  }
+  if (/image_url|图片输入|没有接收图片|没有识别图片内容/.test(cleaned)) {
+    return "鉴定台没有看清这张影像。";
+  }
+  if (/浏览器直连|CORS|请求被浏览器拦截/.test(cleaned)) {
+    return "鉴定台暂时连不上工坊。";
+  }
   if (cleaned.includes("没有按 JSON 格式") || cleaned.includes("没有按游戏要求返回 JSON")) {
-    return "模型没有按鉴定台要求返回结果。";
+    return "鉴定卷轴没有写完整。";
   }
   if (cleaned.includes("模型返回了文本")) {
-    return "模型返回内容没有通过鉴定台校验。";
+    return "工坊回声有点乱。";
   }
-  return shortenText(cleaned, 56);
+  return shortenText(cleaned, 34);
 }
 
 function renderStatPills(stats) {
@@ -7494,6 +7709,7 @@ function toggleBattleReport(id) {
 function renderGameTextOnly() {
   const equippedItems = getEquippedItems();
   const selectedEquipment = getSelectedInventoryItem();
+  const selectedEquipmentImage = selectedEquipment?.fullImage || selectedEquipment?.image || "";
   const enemyDamageEstimates = getEnemyDamageEstimates();
   const inventoryItems = state.inventory.filter(Boolean);
   window.__photoHeroState = {
@@ -7527,6 +7743,8 @@ function renderGameTextOnly() {
     battleStats: state.activeEnemyIds.length ? getBattleStats(state.activeEnemyIds) : null,
       selectedEquipment: selectedEquipment ? formatItemDisplayName(selectedEquipment) : null,
       selectedSlotIndex: getSelectedSlotIndex(),
+      selectedHasOriginalImage: Boolean(selectedEquipment?.fullImage),
+      selectedHasSaveImage: Boolean(selectedEquipmentImage),
       equippedItems: equippedItems.map((item) => formatItemDisplayName(item)),
       equippedEffects: equippedItems.flatMap((item) => getItemSpecialKeys(item)),
     },
@@ -7726,7 +7944,12 @@ function loadSave() {
   state.latestItem = save.latestItem ? normalizeInventoryItem({ ...save.latestItem, skipSpecialRoll: true }) : state.inventory.find(Boolean) || null;
   state.log = Array.isArray(save.log) ? save.log : state.log;
 
-  state.enemies = Array.isArray(save.enemies) ? save.enemies.map(normalizeEnemy).filter(Boolean) : [];
+  const hasSavedActiveBattle = Boolean(save.currentBattle)
+    && Array.isArray(save.activeEnemyIds)
+    && save.activeEnemyIds.length > 0;
+  state.enemies = Array.isArray(save.enemies)
+    ? save.enemies.map(hasSavedActiveBattle ? normalizeCombatEnemy : normalizeEnemy).filter(Boolean)
+    : [];
   state.encounterId = typeof save.encounterId === "string" ? save.encounterId : "";
   if (!state.enemies.length && !state.gameClear) {
     state.enemies = buildFloorEncounter(state.floor);
@@ -7991,7 +8214,7 @@ window.__photoHeroTestHooks = {
   loadImage,
   addTestItem(input) {
     const item = balanceItem(input || {}, input?.image || makePlaceholderImage());
-    addInventoryItem({ ...item, id: makeId("test-item") }, "测试装备已加入。");
+    addInventoryItem({ ...item, id: makeId("test-item"), fullImage: input?.fullImage || item.fullImage || "" }, "测试装备已加入。");
   },
   addSpecialItem(effectKey, input = {}) {
     const effect = photoSpecialEffectMap.get(effectKey);
@@ -8008,13 +8231,14 @@ window.__photoHeroTestHooks = {
       photoKey: input.photoKey || pendingDuplicatePhotoKey,
       confidence: 1,
     }, input.image || makePlaceholderImage());
-    addInventoryItem({ ...item, id: makeId("test-special") }, "测试特殊装备已加入。");
+    addInventoryItem({ ...item, id: makeId("test-special"), fullImage: input.fullImage || item.fullImage || "" }, "测试特殊装备已加入。");
   },
   addRawItem(input) {
     const item = {
       ...balanceItem({ ...(input || {}), photoKey: input?.photoKey || pendingDuplicatePhotoKey, skipSpecialRoll: input?.skipSpecialRoll ?? true }, input?.image || makePlaceholderImage()),
       stats: normalizeStats(input?.stats || {}, 999),
       id: makeId("test-item"),
+      fullImage: input?.fullImage || "",
     };
     addInventoryItem(item, "测试装备已加入。");
   },
@@ -8093,6 +8317,7 @@ window.__photoHeroTestHooks = {
   getDismantleFilmReturnForTest(item) {
     return getDismantleFilmReturn(item);
   },
+  saveSelectedPhotoImageForTest: saveSelectedPhotoImage,
   dismantleSelectedItemForTest() {
     return dismantleSelectedItem();
   },

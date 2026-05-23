@@ -131,7 +131,89 @@ const cases = [
       photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 1, realPhoto: 3, focusLight: 2, interesting: 1 },
       statAffinity: [{ stat: "speed", score: 3 }],
     },
-    expect: ({ item }) => item.stats.speed > 0 && item.stats.regen === 0,
+    expect: ({ item }) => item.value >= 17 && item.value <= 18 && item.stats.regen === 0 && (item.stats.speed > 0 || item.specialEffects.length > 0),
+  },
+  {
+    label: "real gaming mouse remains valid equipment",
+    input: {
+      itemName: "雷蛇游戏鼠标",
+      subjectName: "游戏鼠标",
+      objectType: "电脑外设",
+      identityDescription: "正常拍摄的黑色雷蛇鼠标实物，放在桌面上，有真实反光和阴影，不是游戏装备图。",
+      description: "雷蛇游戏鼠标像一枚贴手的黑色战符。",
+      reason: "主体=游戏鼠标；现实外设；桌面实拍；倾向=速度攻击。",
+      tags: ["鼠标", "外设", "桌面"],
+      value: 14,
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 1, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "speed", score: 3 }, { stat: "attack", score: 2 }],
+    },
+    expect: ({ item }) => (
+      item.value > 0
+      && !item.tooLarge
+      && !item.virtualImage
+      && item.value >= 17
+      && (item.stats.speed > 0 || item.stats.attack > 0 || item.specialEffects.length > 0)
+    ),
+  },
+  {
+    label: "wide real room photo with small speaker stays valid",
+    input: {
+      itemName: "黑色小音响",
+      subjectName: "音响",
+      objectType: "桌面电子设备",
+      identityDescription: "室内大范围实拍照片，桌面上有一个黑色小音响，周围能看到墙面、桌面和其他杂物，但音响实体清楚可见，有真实阴影和反光。",
+      description: "黑色小音响像一枚沉稳的桌面号角。",
+      reason: "主体=音响；尺寸=桌面小物；背景较多但为现实实拍。",
+      tags: ["音响", "桌面", "实拍", "背景多"],
+      photoQuality: { clarity: 2, subjectArea: 1, backgroundClean: 0, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "defense", score: 2 }, { stat: "regen", score: 1 }],
+    },
+    expect: ({ item }) => (
+      item.value > 0
+      && !item.tooLarge
+      && !item.virtualImage
+      && item.value <= 14
+      && item.stats.speed === 0
+      && (item.stats.attack > 0 || item.stats.defense > 0 || item.stats.regen > 0)
+    ),
+  },
+  {
+    label: "normal real object screenshot is capped but not rejected",
+    input: {
+      itemName: "白色小风扇",
+      subjectName: "风扇",
+      objectType: "桌面电器",
+      identityDescription: "网页截图里是一张正常拍摄的白色小风扇实物照片，风扇放在桌面上，有扇叶、底座、阴影和真实塑料反光，不是游戏装备图。",
+      description: "白色小风扇把微弱的气流收进装备格。",
+      reason: "主体=风扇；现实外设/电器；截图来源但主体是普通实拍实物。",
+      tags: ["截图", "风扇", "桌面", "实物"],
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 1, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "speed", score: 3 }],
+    },
+    expect: ({ item }) => (
+      item.value > 0
+      && item.value <= 16
+      && !item.tooLarge
+      && !item.virtualImage
+      && (item.stats.speed > 0 || item.specialEffects.length > 0)
+    ),
+  },
+  {
+    label: "game weapon screenshot is still suppressed",
+    input: {
+      itemName: "雷霆巨刃",
+      subjectName: "游戏装备卡图",
+      objectType: "游戏截图",
+      identityDescription: "游戏背包截图里的幻想武器装备卡，带发光边框和数值，不是现实物体。",
+      description: "发光的雷霆巨刃看起来很强。",
+      reason: "主体=游戏装备截图；不是现实物体。",
+      tags: ["截图", "游戏装备", "武器"],
+      value: 21,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 0, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "attack", score: 3 }],
+      specialAffinity: ["dealDamageAttack"],
+    },
+    expect: ({ item }) => item.value === 0 && item.virtualImage && item.specialEffects.length === 0,
   },
 ];
 
