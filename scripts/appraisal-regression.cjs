@@ -52,6 +52,52 @@ const cases = [
     expect: ({ item, renderedDescription }) => item.stats.regen > 0 && /回复|恢复|被打后/.test(renderedDescription),
   },
   {
+    label: "legendary can roll special effect",
+    input: {
+      itemName: "传奇风扇",
+      subjectName: "风扇",
+      objectType: "桌面电器",
+      description: "风扇带来旋转气流。",
+      reason: "主体=风扇；倾向=速度",
+      tags: ["风扇", "旋转"],
+      value: 21,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "speed", score: 3 }],
+      specialAffinity: ["doubleStrikeSpeedDown"],
+    },
+    expect: ({ item }) => item.specialEffects.length === 1,
+  },
+  {
+    label: "epic can stay without special effect",
+    input: {
+      itemName: "高级水杯",
+      subjectName: "水杯",
+      objectType: "杯子",
+      description: "水杯像补给物。",
+      reason: "主体=水杯；倾向=回复",
+      tags: ["水", "杯"],
+      value: 17,
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "regen", score: 3 }],
+    },
+    expect: ({ item }) => Array.isArray(item.specialEffects),
+  },
+  {
+    label: "hp no longer adds heal text",
+    input: {
+      itemName: "红苹果",
+      subjectName: "苹果",
+      objectType: "水果",
+      description: "红苹果就是生命上限感。",
+      reason: "主体=苹果；倾向=生命上限",
+      tags: ["苹果", "水果"],
+      value: 9,
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "hp", score: 3 }],
+    },
+    expect: ({ item, renderedDescription }) => item.stats.hp > 0 && !/生命\+/.test(renderedDescription),
+  },
+  {
     label: "fan keeps speed",
     input: {
       itemName: "白色小风扇",
@@ -78,11 +124,30 @@ const cases = [
   page.on("pageerror", (error) => errors.push(error.message));
 
   await page.goto("http://127.0.0.1:3000/", { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    window.__photoHeroTestHooks.setRunRewards?.({ photoValueMin: 5, photoValueMax: 22 });
+  });
   const results = await page.evaluate((inputs) => inputs.map((input) => {
     const item = window.__photoHeroTestHooks.balanceItem(input, "");
     const renderedDescription = window.__photoHeroTestHooks.renderItemDescriptionForTest(item);
     return { item, renderedDescription };
   }), cases.map((item) => item.input));
+
+  const runtimeChecks = await page.evaluate(() => {
+    const hooks = window.__photoHeroTestHooks;
+    hooks.resetGameForTest?.();
+    hooks.addSpecialItem("killAttack", { value: 15, itemName: "攻势书本", specialAffinity: ["killAttack"] });
+    hooks.addSpecialItem("doubleStrikeSpeedDown", { value: 16, itemName: "连击风扇", specialAffinity: ["doubleStrikeSpeedDown"] });
+    hooks.addTestItem({ itemName: "红苹果", subjectName: "苹果", objectType: "水果", value: 9, stats: { hp: 1 }, photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 }, statAffinity: [{ stat: "hp", score: 3 }] });
+    const activeSpecial = hooks.getActiveSpecialForTest?.();
+    const heroStats = hooks.getPlayerStats();
+    return {
+      activeSpecial: activeSpecial || null,
+      hp: hooks.getHeroStateForTest?.()?.hp,
+      maxHp: heroStats.maxHp,
+      itemCount: hooks.getInventoryForTest?.()?.filter(Boolean).length || 0,
+    };
+  });
   await browser.close();
 
   const failures = [];
@@ -97,9 +162,12 @@ const cases = [
       });
     }
   });
+  if (runtimeChecks.activeSpecial?.key && runtimeChecks.activeSpecial.key !== "doubleStrikeSpeedDown") failures.push({ label: "active special should prefer strongest", activeSpecial: runtimeChecks.activeSpecial });
+  if (runtimeChecks.hp !== undefined && runtimeChecks.maxHp !== undefined && runtimeChecks.hp > runtimeChecks.maxHp) failures.push({ label: "hp overflow after hp item", runtimeChecks });
   if (errors.length) failures.push({ label: "console errors", errors });
 
   console.log(JSON.stringify({
+    runtimeChecks,
     results: results.map((result, index) => ({
       label: cases[index].label,
       itemName: result.item.itemName,

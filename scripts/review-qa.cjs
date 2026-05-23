@@ -102,7 +102,8 @@ function assertScenario(name, metrics) {
   }
   if (name === "mobile-battle-retreat") {
     if (metrics.state.floor !== 1) failures.push(`${name}: retreat should stay on floor 1`);
-    if (metrics.state.player.hp !== 80) failures.push(`${name}: retreat should restore HP to 80`);
+    if (metrics.state.player.hp !== metrics.state.player.stats.maxHp) failures.push(`${name}: retreat should restore HP to the pre-battle maximum`);
+    if (metrics.state.player.shield !== metrics.state.player.stats.shield) failures.push(`${name}: retreat should restore shield to the pre-battle maximum`);
     if (metrics.state.player.filmCount !== 3) failures.push(`${name}: retreat should not keep film rewards`);
     if (metrics.state.currentBattle) failures.push(`${name}: retreat should clear current battle`);
     if (!metrics.visibleButtons.includes("绕过")) failures.push(`${name}: retreat should return to pre-battle bypass state`);
@@ -176,16 +177,23 @@ function assertScenario(name, metrics) {
         traits: [],
       }]);
       hooks.selectEnemies(["review-retreat"]);
+      window.__reviewBattleRetreatBefore = JSON.parse(window.render_game_to_text());
     });
     await page.click("#attackBtn");
     await page.waitForFunction(() => {
       const state = JSON.parse(window.render_game_to_text());
-      return Boolean(state.currentBattle);
+      const enemy = state.enemies.find((item) => item.id === "review-retreat");
+      return Boolean(state.currentBattle) || Boolean(enemy && enemy.hp < enemy.maxHp);
     }, null, { timeout: 3000 });
     await page.click("#fleeBtn");
     await page.waitForFunction(() => {
       const state = JSON.parse(window.render_game_to_text());
-      return !state.currentBattle && state.floor === 1 && state.player.hp === 80;
+      const before = window.__reviewBattleRetreatBefore;
+      return before
+        && !state.currentBattle
+        && state.floor === before.floor
+        && state.player.hp === before.player.hp
+        && state.player.shield === before.player.shield;
     }, null, { timeout: 3000 });
   });
 
