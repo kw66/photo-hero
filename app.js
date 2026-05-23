@@ -120,8 +120,8 @@ const photoAnalyzeTimeoutMs = 45000;
 const duplicateCompareTimeoutMs = 20000;
 const imageDecodeTimeoutMs = 15000;
 const uploadImageMaxBytes = 24 * 1024 * 1024;
-const analysisImageMaxEdge = 1024;
-const analysisImageQuality = 0.78;
+const analysisImageMaxEdge = 896;
+const analysisImageQuality = 0.72;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
@@ -188,25 +188,23 @@ const photoIdentificationSystemPrompt = [
   "你必须只输出一个 JSON 对象，不要 Markdown，不要代码块，不要额外解释。",
   "第一字符必须是 {，最后一个字符必须是 }。",
   "你不负责计算最终价值、最终属性点或最终特殊效果；这些数值由本地游戏规则统一结算。",
-  "你的目标不是保守拒绝，而是把玩家亲自拍到的现实主体转成有趣、可解释的装备素材；高分奖励现实实拍、主体清楚、近距离、背景干净、有互动感的小物件。",
-  "不要一概拒绝网图或截图：如果主体仍然是正常拍摄的现实实物照片，可以鉴定；需要压制的是游戏装备图、AI 渲染图、动画/插画、透明素材、白底电商图、精修宣传图和纯虚拟道具。",
-  "大范围实拍、室内全景、桌面远景或背景较多的照片，只要能找到明确的现实小主体，就应该鉴定这个小主体；范围大只降低质量分，不等于网图或虚拟图。",
-  "现实玩具、模型、玩偶可以鉴定，但必须看得出它是被玩家实际拍到的实体；黑底/白底孤立图、抠图、商品图、素材图、卡通设定图不能按高真实感处理。",
+  "优先把玩家拍到的现实小主体转成有趣装备素材；高分奖励真实拍摄、主体清楚、近距离、背景不抢主体、有互动感的小物件。",
+  "不要一概拒绝网图或截图；正常拍摄的现实实物可以鉴定。压制游戏装备图、AI 渲染图、动画/插画、透明素材、白底电商图、精修宣传图和纯虚拟道具。",
+  "大范围实拍只降低质量分，不等于网图或虚拟图；只要能找到明确现实小主体，就鉴定该主体。",
+  "现实玩具、模型、玩偶可以鉴定，但孤立黑白底、抠图、商品图、素材图、卡通设定图不能按高真实感处理。",
 ].join("\n");
 
 const photoIdentificationUserPrompt = [
-  "请按步骤鉴定图片里的一个主要主体，生成《照片勇者》装备素材 JSON。",
+  "鉴定图片里的一个主要主体，生成《照片勇者》装备素材 JSON。",
   "",
   "识别规则：",
-  "1. 先找画面中最大、最清楚、最像单个实体的主体；忽略背景、桌面、墙面和边缘杂物。",
-  "2. 主体尺寸小于或接近手持/桌面/可搬动小物时，isEquipable=true，即使它普通、破旧、包装、贴纸、玩具、模型、小型植物、石头、叶片或装饰物也可以。",
-  "3. 真实汽车、公交、火车、飞机、船、整栋建筑、整间房、床、沙发、冰箱、道路、天空、山海河湖等人尺寸以上主体必须 isEquipable=false。",
-  "4. 如果图片里有巨大背景但前景有明确小物品，优先鉴定前景小物品，不要因为背景过大而拒绝。",
-  "5. 大范围拍摄、室内背景、桌面杂物、墙面、地面、远一些的构图，只影响 subjectArea、backgroundClean 和最终分数；只要主体是现实小物，就不要写成网图、虚拟图或不可鉴定。",
-  "6. 网图或截图不自动无效：如果画面主体是正常拍摄的现实实物，例如鼠标、键盘、杯子、工具、玩具、包装、音响等，仍按这个现实物体鉴定；如果只是游戏界面、游戏装备卡图、AI 渲染、动画、插画、原画、透明背景素材、白底电商图或精修宣传图，才视为非现实装备来源。",
-  "7. 如果玩家拍到的是现实中的纸质卡片、贴纸、包装、海报或屏幕载体，主体应写成卡片/贴纸/包装/屏幕本身，不要把里面的幻想武器、角色或游戏道具当成实物；这类载体通常只给低 photoQuality、低 statAffinity，specialAffinity=[]。",
-  "8. 现实玩具、模型、手办、摆件、道具、纸板/塑料/金属小物可以正常鉴定；关键是它必须像真实存在、可触碰、被玩家实际拍摄的物体。",
-  "9. 玩具、模型、玩偶、卡通角色如果只有纯黑/纯白/透明背景、孤立展示、没有桌面/手持/阴影/材质细节，或更像商品图、素材图、渲染图、贴图，就只能低 realPhoto、低分、无特殊效果；不要把图里的幻想动作当成真实能力。",
+  "1. 找最大、最清楚、最像单个实体的主体；忽略背景、桌面、墙面和边缘杂物。",
+  "2. 手持、口袋、桌面、可搬动小物都 isEquipable=true；普通、破旧、包装、贴纸、玩具、模型、小型植物、石头、叶片、装饰物都可以。",
+  "3. 真实汽车、公交、火车、飞机、船、整栋建筑、整间房、床、沙发、冰箱、道路、天空、山海河湖等人尺寸以上主体 isEquipable=false。",
+  "4. 大背景中有明确前景小物时，鉴定前景小物；大范围、室内、桌面杂物、远构图只降低 subjectArea/backgroundClean，不要直接判成网图或虚拟图。",
+  "5. 网图/截图不自动无效；正常拍摄的现实实物仍按实物鉴定。游戏界面、游戏装备卡图、AI 渲染、动画、插画、原画、透明素材、白底电商图、精修宣传图才低 realPhoto。",
+  "6. 纸质卡片、贴纸、包装、海报、屏幕载体按载体本身鉴定，不把里面的幻想武器、角色或游戏道具当实物；通常低 photoQuality、低 statAffinity、specialAffinity=[]。",
+  "7. 玩具、模型、手办、摆件、道具、纸板/塑料/金属小物可鉴定；但孤立黑白底、抠图、商品图、素材图、渲染图只能低 realPhoto、低分、无特殊效果。",
   "",
   "必须输出这个 JSON 结构，字段名使用英文：",
   "{\"itemName\":\"短装备名\",\"subjectName\":\"照片主体\",\"objectType\":\"主体物品类型\",\"identityDescription\":\"用于判断是否同一个现实物体的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
@@ -221,14 +219,10 @@ const photoIdentificationUserPrompt = [
   "",
   "照片质量 photoQuality：",
   "clarity 主体清楚程度 0-3；subjectArea 主体占图面积 0-3；backgroundClean 背景干净 0-2；realPhoto 现实实拍感 0-3；focusLight 光线/对焦 0-2；interesting 有趣、让人想装备 0-2。",
-  "评分校准：只有主体边缘清晰且不需猜测时 clarity=3；主体是画面明确主角、约占四分之一到三分之一也可给 subjectArea=2，接近半屏或更大才给 3；如果只是角落小物或需要寻找才给 0-1；背景和其他物品明显抢注意力时 backgroundClean=0 或 1，背景普通但不干扰主体可给 1；确实像玩家亲自拍摄的现实物体时 realPhoto=3；普通但有一点装备联想或互动感时 interesting=1。",
-  "高分应该奖励玩家主动拍好的照片：主体明确、近距离、光线清楚、有真实拍摄痕迹，就可以进入较高分；背景不必像棚拍一样纯净，生活桌面、手持、房间环境只要不抢主体，就不应过度扣分。",
-  "请主动拉开分值：随手拍、主体偏小、物品很多或普通背景通常总分 7-10；主体清楚但构图一般通常 10-13；清楚实拍且主体明确、有装备联想通常 13-16；主体近景、清晰、实拍感强、有趣或很适合装备时可给 16-18；只有非常出色的现实实拍才接近 19-20。",
-  "如果主体模糊、占比小、背景杂、只是风景/大场景的一小部分，或只是抽象光斑/远景纹理，应降低 clarity、subjectArea、backgroundClean、realPhoto 或 interesting。",
-  "如果是玩家实际拍摄的房间、桌面或户外大范围照片，且其中有清楚的现实小主体，realPhoto 仍可给 2-3；不要因为画面范围大就把 realPhoto 降到 0-1。",
-  "普通拍摄的现实实物照片即使来自网页或截图，也可以给正常 realPhoto；白底商品图、精修宣传图、PS 摆拍图、透明素材、游戏装备图、AI 渲染图、动画/插画和卡牌素材的 realPhoto 必须很低，不能给高分或特殊效果。",
-  "黑底孤立、白底孤立、透明背景、抠图感强、没有真实拍摄环境的玩偶/模型/卡通小物，realPhoto 最多 1，通常只能作为普通低分小物；必须在 reason 中写明低真实感原因。",
-  "普通生活用品、自然小物、现实玩具模型、现实贴纸/包装、桌面摆件、电脑外设只要主体清晰都可以得分；游戏鼠标、游戏键盘是现实外设，不是游戏装备图。昂贵物、宏大景观、真实载具、人物整体、抽象光影、虚拟装备图即使好看，也不能因为好看就高分。",
+  "评分校准：clarity=3 需要主体边缘清晰、不用猜；主体约占四分之一到三分之一可给 subjectArea=2，接近半屏才给 3，角落小物给 0-1；背景不抢主体即可 backgroundClean=1；确实像玩家实拍现实物体可 realPhoto=3；普通但有装备联想可 interesting=1。",
+  "主动拉开分值：随手拍/主体偏小/物品多通常总分 7-10；主体清楚但构图一般 10-13；清楚实拍且主体明确、有装备联想 13-16；近景清晰、实拍感强、有趣或很适合装备 16-18；非常出色的现实实拍才接近 19-20。",
+  "大范围真实照片只要有清楚现实小主体，realPhoto 仍可给 2-3；不要因范围大降到 0-1。白底商品图、精修图、PS 摆拍、透明素材、游戏装备图、AI 图、动画/插画、卡牌素材 realPhoto 必须低，不能高分或给特殊效果。",
+  "生活用品、自然小物、现实玩具模型、现实贴纸/包装、桌面摆件、电脑外设只要主体清晰都可得分；游戏鼠标/键盘是现实外设。昂贵物、宏大景观、真实载具、人物整体、抽象光影、虚拟装备图不能因为好看而高分。",
   "",
   "属性语义：",
   "statAffinity 只输出属性倾向，score 用 1-3，最多 3 项。可选 stat：hp、attack、defense、speed、shield、lifesteal、regen。",
@@ -270,7 +264,7 @@ const heroForms = [
     image: "form-hp.png",
     levels: {
       1: { stats: { hp: 30 }, effects: ["生命上限 +30"] },
-      2: { stats: { hp: 40 }, effects: ["生命上限 +40", "战后生命上限 +3"], afterVictoryMaxHp: 3 },
+      2: { stats: { hp: 40 }, effects: ["生命上限 +40", "击杀生命上限 +3", "击杀回复 6"], killMaxHp: 3, killHeal: 6 },
     },
   },
   {
@@ -288,7 +282,7 @@ const heroForms = [
     image: "form-lifesteal.png",
     levels: {
       1: { stats: { lifesteal: 1 }, effects: ["吸血 +1"] },
-      2: { stats: { lifesteal: 2 }, effects: ["吸血 +2", "击杀回血 4"], killHeal: 4 },
+      2: { stats: { lifesteal: 4, defense: -2 }, effects: ["吸血 +4", "防御 -2"] },
     },
   },
   {
@@ -297,7 +291,7 @@ const heroForms = [
     image: "form-regen.png",
     levels: {
       1: { stats: { regen: 1 }, effects: ["回复 +1"] },
-      2: { stats: { regen: 2 }, effects: ["回复 +2", "战后回血 6"], afterVictoryHeal: 6 },
+      2: { stats: { regen: 2 }, effects: ["回复 +2", "回复也补护盾"], regenAffectsShield: true },
     },
   },
   {
@@ -534,6 +528,7 @@ const state = {
   floorAdvanceTimer: 0,
   pendingFloorAdvance: false,
   analysisRequest: null,
+  lastAppraisalTiming: null,
   careerSummary: null,
   careerSummaryRequest: null,
   bossRewardDeck: null,
@@ -1402,21 +1397,23 @@ async function analyzePhoto() {
 
   saveConfig(false);
   const request = startAnalysisRequest();
+  const timing = createAppraisalTiming(state.lastPhoto);
+  state.lastAppraisalTiming = timing;
   setBusy("鉴定中...");
   render();
   try {
-    const item = await analyzeDirectly(config, state.lastPhoto, { signal: request.controller.signal });
+    const item = await measureAppraisalStage(timing, "apiMs", () => analyzeDirectly(config, state.lastPhoto, { signal: request.controller.signal, timing }));
     if (request.id !== state.analysisRequest?.id) return;
-    const inventoryImage = await makeInventoryImage(state.lastPhoto);
+    const inventoryImage = await measureAppraisalStage(timing, "inventoryResizeMs", () => makeInventoryImage(state.lastPhoto));
     if (request.id !== state.analysisRequest?.id) return;
-    const balancedItem = balanceItem({ ...item, photoKey }, inventoryImage);
+    const balancedItem = measureAppraisalStageSync(timing, "balanceMs", () => balanceItem({ ...item, photoKey }, inventoryImage));
     balancedItem.image = inventoryImage;
     balancedItem.fullImage = state.lastPhoto;
     const failureReason = getAppraisalFailureReason(balancedItem);
     if (failureReason) {
       throw new Error(failureReason);
     }
-    const duplicate = await findDuplicateIdentifiedItem(balancedItem, config, request.controller.signal);
+    const duplicate = await measureAppraisalStage(timing, "duplicateMs", () => findDuplicateIdentifiedItem(balancedItem, config, request.controller.signal));
     if (request.id !== state.analysisRequest?.id) return;
     if (duplicate) {
       throw new Error(`这个物品已经鉴定过：${formatItemDisplayName(duplicate)}。请拍摄新的物品。`);
@@ -1433,6 +1430,7 @@ async function analyzePhoto() {
     clearPendingPhoto();
   } finally {
     if (request.id === state.analysisRequest?.id) {
+      finishAppraisalTiming(timing);
       finishAnalysisRequest(request.id);
       setBusy("");
       render();
@@ -1545,6 +1543,46 @@ function cancelAnalyzePhoto() {
   render();
 }
 
+function createAppraisalTiming(image = "") {
+  const startedAt = performance.now();
+  return {
+    startedAt,
+    imageKb: Math.round(String(image || "").length * 0.75 / 1024),
+    imageLength: String(image || "").length,
+    apiMs: 0,
+    parseMs: 0,
+    inventoryResizeMs: 0,
+    balanceMs: 0,
+    duplicateMs: 0,
+    totalMs: 0,
+  };
+}
+
+async function measureAppraisalStage(timing, key, task) {
+  const start = performance.now();
+  try {
+    return await task();
+  } finally {
+    if (timing && key) timing[key] = Math.round(performance.now() - start);
+  }
+}
+
+function measureAppraisalStageSync(timing, key, task) {
+  const start = performance.now();
+  try {
+    return task();
+  } finally {
+    if (timing && key) timing[key] = Math.round(performance.now() - start);
+  }
+}
+
+function finishAppraisalTiming(timing) {
+  if (!timing) return;
+  timing.totalMs = Math.round(performance.now() - timing.startedAt);
+  state.lastAppraisalTiming = { ...timing };
+  console.info("[photo-hero] appraisal timing", state.lastAppraisalTiming);
+}
+
 async function analyzeDirectly(config, image, options = {}) {
   let response;
   const body = withProviderRequestOptions(config, {
@@ -1592,18 +1630,19 @@ async function analyzeDirectly(config, image, options = {}) {
   }
 
   const payload = response.payload;
+  const timing = options.timing || null;
   const finalText = readModelText(payload);
-  if (finalText) return extractJson(finalText, payload);
+  if (finalText) return measureAppraisalStageSync(timing, "parseMs", () => extractJson(finalText, payload));
 
   const reasoningText = readModelText(payload, { reasoningOnly: true });
   if (reasoningText) {
-    return extractJson(reasoningText, payload);
+    return measureAppraisalStageSync(timing, "parseMs", () => extractJson(reasoningText, payload));
   }
 
   const anyText = readModelText(payload, { includeReasoning: true });
-  if (anyText) return extractJson(anyText, payload);
+  if (anyText) return measureAppraisalStageSync(timing, "parseMs", () => extractJson(anyText, payload));
 
-  return extractJson("", payload);
+  return measureAppraisalStageSync(timing, "parseMs", () => extractJson("", payload));
 }
 
 async function compareIdentifiedObjects(config, currentItem, knownItem, signal = null) {
@@ -2772,9 +2811,39 @@ async function findDuplicateIdentifiedItem(item, config = null, signal = null) {
   const duplicate = findDuplicateByStoredIdentity(item);
   if (!duplicate) return null;
   if (duplicate.confidence !== "possible") return duplicate.item || null;
+  if (!shouldVerifyPossibleDuplicateWithVision(item, duplicate.item)) return null;
   if (!duplicate.item?.image || !item?.image || !config) return null;
   const same = await compareIdentifiedObjects(config, item, duplicate.item, signal);
   return same ? duplicate.item : null;
+}
+
+function shouldVerifyPossibleDuplicateWithVision(currentItem, knownItem) {
+  if (!currentItem || !knownItem) return false;
+  const currentIdentity = getDuplicateTokenSet(currentItem.identityDescription);
+  const knownIdentity = getDuplicateTokenSet(knownItem.identityDescription);
+  if (currentIdentity.length < 2 || knownIdentity.length < 2) return false;
+  const overlap = countTokenOverlap(currentIdentity, knownIdentity);
+  const ratio = overlap / Math.min(currentIdentity.length, knownIdentity.length);
+  if (overlap >= 3 && ratio >= 0.6) return true;
+  const currentSubject = normalizeDuplicateText(currentItem.subjectName || currentItem.itemName);
+  const knownSubject = normalizeDuplicateText(knownItem.subjectName || knownItem.itemName);
+  return Boolean(currentSubject && knownSubject && currentSubject === knownSubject && overlap >= 2 && ratio >= 0.5);
+}
+
+function getDuplicateTokenSet(text) {
+  const normalized = String(text || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\u4e00-\u9fff]+/gu, " ");
+  const tokens = normalized
+    .split(/\s+/)
+    .map(normalizeDuplicateText)
+    .filter((token) => token && token.length >= 2 && !isGenericObjectToken(token));
+  return [...new Set(tokens)].slice(0, 12);
+}
+
+function countTokenOverlap(a, b) {
+  const bSet = new Set(b);
+  return a.reduce((count, token) => count + (bSet.has(token) ? 1 : 0), 0);
 }
 
 function findCurrentPhotoDuplicate(photoKey) {
@@ -3355,32 +3424,15 @@ function resolveBattleAction() {
 
 function resolveHeroStrike(stats, round) {
   void stats;
-  const strikeCount = getHeroStrikeCount();
-  let defeatedAny = false;
+  const results = resolveHeroStrikeAgainstEnemy(getHeroTargetEnemy(), "attack");
+  let defeatedAny = results.some((result) => result.defeated);
 
-  for (let strikeIndex = 0; strikeIndex < strikeCount; strikeIndex += 1) {
-    const enemy = getHeroTargetEnemy();
-    if (!enemy) break;
-
-    const currentStats = getBattleStats(state.activeEnemyIds);
-    const hitResult = applyHeroDamageToEnemy(enemy, currentStats);
+  for (const hitResult of results) {
     const rawDamage = hitResult.rawDamage;
     const shieldCrashDamage = hitResult.shieldCrashDamage;
     const shieldLoss = hitResult.shieldLoss;
     const hpDamage = hitResult.hpDamage;
-    const totalDamage = hitResult.totalDamage;
     const traitChanges = hitResult.traitChanges || [];
-
-    let healed = 0;
-    if (!hasAnyActiveTrait("noLifesteal") && currentStats.lifesteal > 0) {
-      const beforeHp = state.player.hp;
-      state.player.hp = Math.min(currentStats.maxHp, state.player.hp + currentStats.lifesteal);
-      healed = state.player.hp - beforeHp;
-    }
-
-    if (totalDamage > 0) {
-      triggerDealDamageSpecial();
-    }
 
     const parts = [];
     if (rawDamage + shieldCrashDamage <= 0) {
@@ -3390,18 +3442,55 @@ function resolveHeroStrike(stats, round) {
     }
     if (shieldLoss > 0) parts.push(`破盾 ${shieldLoss}`);
     if (shieldCrashDamage > 0) parts.push(`护盾追加 ${shieldCrashDamage}`);
-    if (healed > 0 || currentStats.lifesteal > 0) parts.push(`吸取${healed}血量`);
-    if (strikeCount > 1) parts.push(`连击${strikeIndex + 1}/${strikeCount}`);
+    if (hitResult.healed > 0 || hitResult.lifesteal > 0) parts.push(`吸取${hitResult.healed}血量`);
+    if (hitResult.strikeCount > 1) parts.push(`连击${hitResult.strikeIndex + 1}/${hitResult.strikeCount}`);
     parts.push(...traitChanges);
-    addBattleDetail(`第${round}回合勇者进攻${enemy.name}，${parts.join("，")}。`);
-
-    if (enemy.hp <= 0) {
-      defeatEnemy(enemy);
-      defeatedAny = true;
-    }
+    addBattleDetail(`第${round}回合勇者进攻${hitResult.enemyName}，${parts.join("，")}。`);
   }
 
   return defeatedAny;
+}
+
+function resolveHeroStrikeAgainstEnemy(initialEnemy = getHeroTargetEnemy(), source = "attack") {
+  const strikeCount = getHeroStrikeCount();
+  const results = [];
+  let enemy = initialEnemy;
+
+  for (let strikeIndex = 0; strikeIndex < strikeCount; strikeIndex += 1) {
+    if (!enemy || enemy.hp <= 0 || !state.activeEnemyIds.includes(enemy.id)) break;
+
+    const currentStats = getBattleStats(state.activeEnemyIds);
+    const hitResult = applyHeroDamageToEnemy(enemy, currentStats, source);
+    const totalDamage = hitResult.totalDamage;
+    let healed = 0;
+    const lifesteal = currentStats.lifesteal || 0;
+    if (!hasAnyActiveTrait("noLifesteal") && lifesteal > 0) {
+      const beforeHp = state.player.hp;
+      state.player.hp = Math.min(currentStats.maxHp, state.player.hp + lifesteal);
+      healed = state.player.hp - beforeHp;
+    }
+
+    if (totalDamage > 0) triggerDealDamageSpecial();
+
+    const defeated = enemy.hp <= 0;
+    results.push({
+      ...hitResult,
+      enemyId: enemy.id,
+      enemyName: enemy.name,
+      healed,
+      lifesteal,
+      strikeIndex,
+      strikeCount,
+      defeated,
+    });
+
+    if (defeated) {
+      defeatEnemy(enemy);
+      enemy = source === "attack" ? getHeroTargetEnemy() : null;
+    }
+  }
+
+  return results;
 }
 
 function applyHeroDamageToEnemy(enemy, stats, source = "attack") {
@@ -3438,10 +3527,11 @@ function applyPreBattleFormEffects() {
   const hitNames = [];
   for (const enemy of targets) {
     if (enemy.hp <= 0) continue;
-    const stats = getBattleStats(state.activeEnemyIds);
-    const result = applyHeroDamageToEnemy(enemy, stats, "prebattle");
-    hitNames.push(`${enemy.name}${result.hpDamage}`);
-    if (enemy.hp <= 0) defeatEnemy(enemy);
+    const results = resolveHeroStrikeAgainstEnemy(enemy, "prebattle");
+    if (!results.length) continue;
+    const totalDamage = results.reduce((sum, result) => sum + result.hpDamage, 0);
+    const label = results.length > 1 ? `${enemy.name}${totalDamage}（连击${results.length}）` : `${enemy.name}${totalDamage}`;
+    hitNames.push(label);
   }
   if (hitNames.length) addBattleDetail(`速度形态先攻：${hitNames.join("，")}。`);
 }
@@ -3484,9 +3574,9 @@ function resolveMonsterStrike(enemy, stats, round) {
 
     const currentStats = getBattleStats(state.activeEnemyIds);
     if (state.player.hp > 0 && !hasAnyActiveTrait("noRegen") && currentStats.regen > 0) {
-      const beforeHp = state.player.hp;
-      state.player.hp = Math.min(currentStats.maxHp, state.player.hp + currentStats.regen);
-      totalRegen += state.player.hp - beforeHp;
+      const regenResult = applyHeroRegenAfterHit(currentStats);
+      totalRegen += regenResult.hp;
+      totalShieldLoss -= regenResult.shield;
     }
 
     const monsterSteal = getTraitValue(enemy, "lifesteal", 0);
@@ -3523,6 +3613,24 @@ function resolveMonsterStrike(enemy, stats, round) {
   addBattleDetail(`第${round}回合${enemy.name}进攻，${parts.join("，")}。`);
 }
 
+function applyHeroRegenAfterHit(stats) {
+  const amount = Math.max(0, stats?.regen || 0);
+  const result = { hp: 0, shield: 0 };
+  if (amount <= 0) return result;
+
+  const beforeHp = state.player.hp;
+  state.player.hp = Math.min(stats.maxHp, state.player.hp + amount);
+  result.hp = state.player.hp - beforeHp;
+
+  if (getHeroFormLevelConfig().regenAffectsShield && stats.shield > 0) {
+    const beforeShield = state.player.shield;
+    state.player.shield = Math.min(stats.shield, state.player.shield + amount);
+    result.shield = state.player.shield - beforeShield;
+  }
+
+  return result;
+}
+
 function defeatEnemy(enemy) {
   const drops = getEnemyDrops(enemy);
   const defeatedIds = state.currentBattle?.defeatedIds;
@@ -3547,13 +3655,22 @@ function defeatEnemy(enemy) {
 }
 
 function applyFormKillEffects() {
-  const heal = getHeroFormLevelConfig().killHeal || 0;
-  if (heal <= 0) return;
+  const config = getHeroFormLevelConfig();
+  const maxHpGain = Math.max(0, config.killMaxHp || 0);
+  const heal = Math.max(0, config.killHeal || 0);
+  if (maxHpGain <= 0 && heal <= 0) return;
   const stats = getBattleStats(state.activeEnemyIds);
+  if (maxHpGain > 0) {
+    state.player.baseHp += maxHpGain;
+  }
   const beforeHp = state.player.hp;
-  state.player.hp = Math.min(stats.maxHp, state.player.hp + heal);
+  const nextMaxHp = stats.maxHp + maxHpGain;
+  state.player.hp = Math.min(nextMaxHp, state.player.hp + heal);
   const healed = state.player.hp - beforeHp;
-  if (healed > 0) addBattleDetail(`${getHeroForm().label}形态击杀回血 ${healed}。`);
+  const parts = [];
+  if (maxHpGain > 0) parts.push(`生命上限+${maxHpGain}`);
+  if (healed > 0) parts.push(`回复${healed}`);
+  if (parts.length) addBattleDetail(`${getHeroFormDisplayName()}击杀触发：${parts.join("，")}。`);
 }
 
 function markEnemyHit(enemyId) {
@@ -3688,21 +3805,7 @@ function recordBattleKillStats(result, battle) {
 
 function applyFormBattleEndEffects(result, battle) {
   if (result !== "victory") return;
-  const config = getHeroFormLevelConfig();
-  const defeatedCount = Array.isArray(battle.defeatedIds) ? battle.defeatedIds.length : 0;
-  if (config.afterVictoryMaxHp && defeatedCount > 0) {
-    const gain = config.afterVictoryMaxHp;
-    state.player.baseHp += gain;
-    state.player.hp += gain;
-    addBattleDetail(`${getHeroForm().label}形态战后生命上限 +${gain}。`);
-  }
-  if (config.afterVictoryHeal) {
-    const stats = getPlayerStats();
-    const beforeHp = state.player.hp;
-    state.player.hp = Math.min(stats.maxHp, state.player.hp + config.afterVictoryHeal);
-    const healed = state.player.hp - beforeHp;
-    if (healed > 0) addBattleDetail(`${getHeroForm().label}形态战后回血 ${healed}。`);
-  }
+  void battle;
 }
 
 function settleFormProgressAfterBattle(result, battle) {
@@ -5133,6 +5236,7 @@ function createBattleSimulation(enemies) {
     round: 1,
     rounds: 0,
     defeatedCount: 0,
+    formMaxHpGain: 0,
   };
   applySimBattleStartEnemyAuras(sim, enemies);
   const stats = getBattleStatsForEnemiesWithSpecial(enemies, sim.battleSpecial);
@@ -5177,6 +5281,15 @@ function healSimHero(sim, stats, amount) {
   }
 }
 
+function regenSimHeroAfterHit(sim, stats) {
+  const regen = Math.max(0, stats?.regen || 0);
+  if (regen <= 0) return;
+  healSimHero(sim, stats, regen);
+  if (getHeroFormLevelConfig().regenAffectsShield) {
+    sim.shield = Math.min(stats.shield || 0, sim.shield + regen);
+  }
+}
+
 function damageSimHero(sim, amount) {
   const damage = Math.max(0, Number(amount) || 0);
   if (damage <= 0) return;
@@ -5206,12 +5319,18 @@ function getSimActiveEnemies(sim, enemies) {
 function simulateHeroStrike(sim, enemies, stats) {
   void stats;
   if (sim.actualDead) return [];
+  return simulateHeroStrikeTarget(sim, enemies);
+}
+
+function simulateHeroStrikeTarget(sim, enemies, initialEnemy = null) {
+  if (sim.actualDead) return [];
   const strikeCount = getHeroStrikeCount();
   const defeatedIds = [];
+  let enemy = initialEnemy;
 
   for (let strikeIndex = 0; strikeIndex < strikeCount; strikeIndex += 1) {
-    const enemy = sim.activeIds.map((id) => enemies.find((item) => item.id === id)).find(Boolean);
-    if (!enemy) break;
+    if (!enemy) enemy = sim.activeIds.map((id) => enemies.find((item) => item.id === id)).find(Boolean);
+    if (!enemy || enemy.hp <= 0 || !sim.activeIds.includes(enemy.id)) break;
 
     const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
     currentStats.realMaxHp = getSimActualMaxHp(currentStats, sim);
@@ -5237,6 +5356,8 @@ function simulateHeroStrike(sim, enemies, stats) {
       sim.enemyTimes.delete(enemy.id);
       sim.defeatedCount += 1;
       defeatedIds.push(enemy.id);
+      if (initialEnemy) break;
+      enemy = null;
     }
   }
 
@@ -5268,7 +5389,7 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
     }
 
     if (sim.actualHp > 0 && !enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noRegen")) && stats.regen > 0) {
-      healSimHero(sim, stats, stats.regen);
+      regenSimHeroAfterHit(sim, stats);
     }
 
     const monsterSteal = getTraitValue(enemy, "lifesteal", 0);
@@ -5305,23 +5426,17 @@ function applySimPreBattleFormEffects(sim, enemies) {
   sim.battleSpecial.preBattleStruck = true;
   for (const enemy of enemies.filter((item) => sim.activeIds.includes(item.id))) {
     if (enemy.hp <= 0) continue;
-    const stats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
-    stats.realMaxHp = getSimActualMaxHp(stats, sim);
-    stats.maxHp += getSimMaxHpBonus(sim);
-    applySimHeroDamageToEnemy(sim, enemy, stats, enemies);
-    if (enemy.hp <= 0) {
-      simulateFormKillEffects(sim, stats);
-      simulateKillSpecial(sim, stats);
-      sim.activeIds = sim.activeIds.filter((id) => id !== enemy.id);
-      sim.enemyTimes.delete(enemy.id);
-      sim.defeatedCount += 1;
-    }
+    simulateHeroStrikeTarget(sim, enemies, enemy, "prebattle");
   }
 }
 
 function simulateFormKillEffects(sim, stats) {
-  const heal = getHeroFormLevelConfig().killHeal || 0;
-  healSimHero(sim, stats, heal);
+  const config = getHeroFormLevelConfig();
+  const maxHpGain = Math.max(0, config.killMaxHp || 0);
+  const heal = Math.max(0, config.killHeal || 0);
+  if (maxHpGain > 0) sim.formMaxHpGain = (sim.formMaxHpGain || 0) + maxHpGain;
+  const nextStats = { ...stats, maxHp: (stats.maxHp || 0) + maxHpGain };
+  healSimHero(sim, nextStats, heal);
 }
 
 function simulateKillSpecial(sim, stats) {

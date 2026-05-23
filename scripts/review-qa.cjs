@@ -178,6 +178,18 @@ function assertScenario(name, metrics) {
   if (name === "mobile-form-economy") {
     const formChecks = metrics.formEconomy || {};
     if (formChecks.shield !== 15) failures.push(`${name}: mega shield should add 15 shield`);
+    if (formChecks.lifesteal?.lifesteal !== 4 || formChecks.lifesteal?.def !== -1) {
+      failures.push(`${name}: mega lifesteal should be lifesteal +4 and defense -2 from base, got ${JSON.stringify(formChecks.lifesteal)}`);
+    }
+    if (formChecks.regenShield?.shieldAfterHit !== formChecks.regenShield?.maxShield) {
+      failures.push(`${name}: mega regen should restore shield after a hit, got ${JSON.stringify(formChecks.regenShield)}`);
+    }
+    if (formChecks.hpKill?.maxHp !== 93 || formChecks.hpKill?.hp !== 56) {
+      failures.push(`${name}: mega HP kill should add max HP +3 and heal 6 in battle, got ${JSON.stringify(formChecks.hpKill)}`);
+    }
+    if (formChecks.speedPreStrike?.hp !== 6) {
+      failures.push(`${name}: mega speed pre-strike should trigger double strike on each enemy, got ${JSON.stringify(formChecks.speedPreStrike)}`);
+    }
     if (formChecks.greedyDropBonus !== 0.1) failures.push(`${name}: mega greedy should keep film drop +0.1`);
     const expected = {
       "0.9": { atk: 4, def: 1, speed: 2 },
@@ -225,7 +237,7 @@ function assertScenario(name, metrics) {
         name: "史莱姆",
         maxHp: 20,
         hp: 20,
-        atk: 6,
+        atk: 2,
         def: 0,
         speed: 2,
         traits: [],
@@ -307,6 +319,68 @@ function assertScenario(name, metrics) {
       };
       setMegaForm("shield");
       const shield = hooks.getPlayerStats().shield - 3;
+      setMegaForm("lifesteal");
+      const lifestealStats = hooks.getPlayerStats();
+      const lifesteal = { lifesteal: lifestealStats.lifesteal, def: lifestealStats.def };
+      setMegaForm("regen");
+      hooks.setHeroStats({ hp: 40, shield: 0 });
+      hooks.setEnemies([{
+        id: "review-regen-hit",
+        testEnemy: true,
+        typeKey: "slime",
+        typeName: "史莱姆",
+        name: "史莱姆",
+        maxHp: 30,
+        hp: 30,
+        atk: 2,
+        def: 0,
+        speed: 1,
+        traits: [],
+      }]);
+      hooks.selectEnemies(["review-regen-hit"]);
+      hooks.beginBattle(hooks.state.enemies);
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(["review-regen-hit"]), 1);
+      const regenShield = { shieldAfterHit: hooks.state.player.shield, maxShield: hooks.getPlayerStats().shield };
+      hooks.resetGameForTest();
+      setMegaForm("hp");
+      hooks.setHeroStats({ hp: 50 });
+      hooks.setEnemies([{
+        id: "review-hp-kill",
+        testEnemy: true,
+        typeKey: "slime",
+        typeName: "史莱姆",
+        name: "史莱姆",
+        maxHp: 1,
+        hp: 1,
+        atk: 0,
+        def: 0,
+        speed: 1,
+        traits: [],
+      }]);
+      hooks.selectEnemies(["review-hp-kill"]);
+      hooks.beginBattle(hooks.state.enemies);
+      hooks.resolveBattleAction();
+      const hpKill = { hp: hooks.state.player.hp, maxHp: hooks.getPlayerStats().maxHp };
+      hooks.resetGameForTest();
+      setMegaForm("speed");
+      hooks.addSpecialItem("doubleStrikeSpeedDown", { itemName: "连击测试靴", value: 16, stats: {} });
+      hooks.setEnemies([{
+        id: "review-speed-pre",
+        testEnemy: true,
+        typeKey: "slime",
+        typeName: "史莱姆",
+        name: "史莱姆",
+        maxHp: 10,
+        hp: 10,
+        atk: 0,
+        def: 0,
+        speed: 1,
+        traits: [],
+      }]);
+      hooks.selectEnemies(["review-speed-pre"]);
+      hooks.beginBattle(hooks.state.enemies);
+      const speedPreStrike = { hp: hooks.state.enemies[0]?.hp };
+      hooks.resetGameForTest();
       setMegaForm("greedy");
       const greedyDropBonus = JSON.parse(window.render_game_to_text()).player.form.filmDropBonus;
       const greedyStatsByFilm = {};
@@ -317,7 +391,7 @@ function assertScenario(name, metrics) {
         const stats = hooks.getPlayerStats();
         greedyStatsByFilm[film.toFixed(1)] = { atk: stats.atk, def: stats.def, speed: stats.speed };
       }
-      window.__reviewFormEconomy = { shield, greedyDropBonus, greedyStatsByFilm };
+      window.__reviewFormEconomy = { shield, lifesteal, regenShield, hpKill, speedPreStrike, greedyDropBonus, greedyStatsByFilm };
     });
   });
 
