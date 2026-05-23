@@ -970,14 +970,14 @@ dd {
   }
 
   .game-panel {
-    height: min(711px, calc(100vh - 14px));
+    height: min(748px, calc(100vh - 14px));
     min-height: 0;
     overflow: hidden;
   }
 
   .hero-zone {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto minmax(150px, auto);
+    grid-template-rows: auto auto auto auto minmax(176px, auto);
     align-items: stretch;
     height: 100%;
     overflow: hidden;
@@ -1046,7 +1046,7 @@ dd {
   }
 
   .enemy-card {
-    min-height: 150px;
+    min-height: 166px;
   }
 
   .equipment-detail .detail-head {
