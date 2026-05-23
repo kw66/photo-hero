@@ -242,7 +242,8 @@ const photoIdentificationUserPrompt = [
   "",
   "命名和描述：",
   "itemName、subjectName、objectType、description、reason、tags 都用中文；只有图片主体本身是英文品牌/文字时，才可保留必要英文。",
-  "description 用一句中文写成装备味道，像玩家捡到一件奇怪但能上阵的小道具；要说明它如何转成属性倾向，不要列 rarity/价值/是否装备。",
+  "description 用一句中文写成装备味道，像玩家捡到一件奇怪但能上阵的小道具；不要直接承诺最终属性数值或战斗效果，例如不要写 攻击+、回复+、被打回血、吸血、加护盾。",
+  "description 必须和 statAffinity 一致：剪刀、刀、针、钩、指甲刀等尖锐工具不要写修复/补能/回血味道；水杯、药、净化器、毛巾等补给清洁物不要写锋利或吸血。",
   "description 要有一点冒险感，但保持克制，不要使用夸张神器、无敌、传说降临这类空泛词。",
   "reason 只写一句内部依据，格式尽量像：主体=剪刀；尺寸=手持；质量=清晰；倾向=锋利。",
   "",
@@ -2374,6 +2375,14 @@ function hasAttackSemanticText(text) {
   return /(?:工具|武器|敲|打|锤|棒|棍|枪|长枪|短枪|矛|戟|砖|石|球|键盘|鼠标|笔|刀|剪|针|钩|刺|尖|刃|爪|牙|攻击|冲击|运动|飞行|展翅|风车|旋转|数字|显示屏|tool|weapon|hit|hammer|club|spear|lance|pike|brick|stone|ball|keyboard|mouse|pen|knife|scissor|needle|hook|sharp|claw|tooth|attack|sport|fly|wing|windmill|rotate|screen)/i.test(String(text || ""));
 }
 
+function isSharpToolSemanticText(text) {
+  return /(?:刀|剪|剪刀|针|钩|指甲刀|锥|刃|锯|尖|尖锐|夹|钳|不锈钢剪刀|knife|scissor|scissors|needle|hook|clipper|blade|sharp|pliers|saw)/i.test(String(text || ""));
+}
+
+function hasOffensiveToolSemanticText(text) {
+  return isSharpToolSemanticText(text) || hasAttackSemanticText(text) || hasLifestealSemanticText(text);
+}
+
 function hasSpeedSemanticText(text) {
   return /(?:鞋|轮|滑板|风|扇|羽|飞|跑|跳|旋转|气流|车模|遥控|线缆|电|速度|敏捷|运动|球|shoe|wheel|skateboard|wind|fan|feather|fly|run|jump|rotate|airflow|remote|cable|electric|speed|sport|ball)/i.test(String(text || ""));
 }
@@ -2385,6 +2394,11 @@ function hasLifestealSemanticText(text) {
 function hasRegenSemanticText(text) {
   const source = String(text || "");
   return hasAirPurifierSemanticText(source) || /(?:回复|恢复|治愈|修复|补能|清洁|净化|清新|水|咖啡|饮|药|茶|奶|充电|电池|灯|纸巾|毛巾|植物|花|叶|种子|可爱|柔软|贴纸|卡通|图案|青蛙|heal|regen|repair|clean|purify|water|coffee|drink|medicine|charger|battery|light|tissue|towel|plant|flower|leaf|seed|cute|soft|sticker|cartoon|pattern)/i.test(source);
+}
+
+function hasStrongRegenSemanticText(text) {
+  const source = String(text || "");
+  return hasAirPurifierSemanticText(source) || /(?:回复|恢复|治愈|回血|药|水|咖啡|饮|茶|奶|充电|电池|清洁|净化|过滤|滤芯|纸巾|毛巾|heal|regen|medicine|water|coffee|drink|charger|battery|clean|purify|filter|tissue|towel)/i.test(source);
 }
 
 function normalizeModelStats(stats) {
@@ -5366,6 +5380,12 @@ function dismantleSelectedItem() {
   return true;
 }
 
+function makePhotoStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) {
+  return [itemName, subjectName, objectType, sizeClass, identityDescription]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function balanceItem(item, image = "") {
   const safe = item && typeof item === "object" ? item : {};
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
@@ -5397,10 +5417,11 @@ function balanceItem(item, image = "") {
     : preserveSettledOutput && Number.isFinite(safe.value)
       ? Math.max(0, safe.value)
       : calculatePhotoItemValue(safe, semanticText);
+  const objectStatEvidenceText = makePhotoStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) || itemName;
   if (!noEffect) {
     requestedValue = preserveSettledOutput
       ? requestedValue
-      : adjustPhotoItemValueForSemanticMinimum(requestedValue, semanticText, statAffinity);
+      : adjustPhotoItemValueForSemanticMinimum(requestedValue, objectStatEvidenceText, statAffinity);
     if (!preserveSettledOutput && Number.isFinite(virtualPenalty.cap)) {
       requestedValue = Math.min(requestedValue, virtualPenalty.cap);
     }
@@ -5414,8 +5435,10 @@ function balanceItem(item, image = "") {
   const targetValue = noEffect ? 0 : requestedValue;
   const statSemanticText = virtualPenalty.level === "ordinaryCap"
     ? makePhysicalCarrierStatText(semanticText)
-    : semanticText || itemName;
-  const statAffinityForAllocation = virtualPenalty.level === "ordinaryCap" ? [] : safe.statAffinity;
+    : objectStatEvidenceText;
+  const statAffinityForAllocation = virtualPenalty.level === "ordinaryCap"
+    ? []
+    : sanitizeStatAffinityForSemantics(safe.statAffinity, statSemanticText);
   const stats = noEffect
       ? normalizeStats({}, 20)
       : clampStatsToValue(allocateStatsForItem(semanticSchema || virtualPenalty.level === "ordinaryCap" ? {} : safe.stats || {}, statSemanticText, statBudget, statAffinityForAllocation), statBudget);
@@ -5572,11 +5595,26 @@ function calculatePhotoItemValue(item, semanticText = "") {
 function adjustPhotoItemValueForSemanticMinimum(value, semanticText = "", statAffinity = []) {
   const current = clampInt(value, getPhotoValueMin(), getPhotoValueMax());
   if (current <= 0) return current;
+  const preferredMinimum = getMinimumPreferredStatCost(semanticText, statAffinity);
+  if (preferredMinimum > current && preferredMinimum <= getPhotoValueMax()) {
+    const cap = getPhotoValueCapFromQuality(normalizePhotoQuality({}), semanticText);
+    return Math.max(current, Math.min(preferredMinimum, cap, getPhotoValueMax()));
+  }
   if (calculateStatsValue(allocateStatsForItem({}, semanticText, current, statAffinity)) > 0) return current;
   const minAffordable = getMinimumSemanticStatCost(semanticText, statAffinity);
   if (!minAffordable || minAffordable > getPhotoValueMax()) return current;
   const cap = getPhotoValueCapFromQuality(normalizePhotoQuality({}), semanticText);
   return Math.max(current, Math.min(minAffordable, cap, getPhotoValueMax()));
+}
+
+function getMinimumPreferredStatCost(text, statAffinity = []) {
+  const keys = sanitizeStatAffinityForSemantics(statAffinity, text)
+    .map((item) => item.stat)
+    .filter((key) => hasSemanticForPhotoStat(key, text));
+  const costs = [...new Set(keys)]
+    .map((key) => statValueWeights[key])
+    .filter((cost) => Number.isFinite(cost) && cost > 0);
+  return costs.length ? Math.min(...costs) : 0;
 }
 
 function getMinimumSemanticStatCost(text, statAffinity = []) {
@@ -5589,6 +5627,43 @@ function getMinimumSemanticStatCost(text, statAffinity = []) {
     .map((key) => statValueWeights[key])
     .filter((cost) => Number.isFinite(cost) && cost > 0);
   return costs.length ? Math.min(...costs) : 0;
+}
+
+function sanitizeStatAffinityForSemantics(statAffinity = [], text = "") {
+  const source = String(text || "");
+  return normalizeStatAffinity(statAffinity)
+    .filter((item) => isModelStatAffinityAllowed(item.stat, source));
+}
+
+function isModelStatAffinityAllowed(key, text) {
+  if (!statOrder.includes(key)) return false;
+  const source = String(text || "");
+  if (isSharpToolSemanticText(source) && (key === "regen" || key === "hp" || key === "shield")) {
+    return hasStrongStatEvidence(key, source);
+  }
+  if (hasAirPurifierSemanticText(source) && (key === "hp" || key === "lifesteal" || key === "attack")) {
+    return hasStrongStatEvidence(key, source);
+  }
+  if (key === "regen" && !hasStrongRegenSemanticText(source) && hasOffensiveToolSemanticText(source)) {
+    return false;
+  }
+  if (key === "hp" && !hasStrongHpSemanticText(source) && hasOffensiveToolSemanticText(source)) {
+    return false;
+  }
+  return hasSemanticForPhotoStat(key, source);
+}
+
+function hasStrongStatEvidence(key, text) {
+  switch (key) {
+    case "hp": return hasStrongHpSemanticText(text);
+    case "regen": return hasStrongRegenSemanticText(text);
+    case "shield": return hasShieldSemanticText(text) && !isSharpToolSemanticText(text);
+    case "attack": return hasAttackSemanticText(text);
+    case "lifesteal": return hasLifestealSemanticText(text);
+    case "defense": return hasDefenseSemanticText(text);
+    case "speed": return hasSpeedSemanticText(text);
+    default: return false;
+  }
 }
 
 function getPhotoValueCapFromQuality(photoQuality, semanticText = "") {
@@ -6910,6 +6985,11 @@ function isItemDescriptionConsistent(item, description) {
   const text = String(description || "");
   const stats = item.stats || {};
   const effects = getItemSpecialKeys(item);
+  if (isSharpToolSemanticText(`${item.itemName || ""} ${item.subjectName || ""} ${item.objectType || ""}`)) {
+    const onlyRecoveryClaim = /回复|恢复|回血|修复|补能|再生|regen/i.test(text)
+      && !/攻击|伤害|打击|破防|锋利|进攻|输出|攻势|吸血|吸取|夺取|追回生命|attack|lifesteal/i.test(text);
+    if (onlyRecoveryClaim) return false;
+  }
   const claims = [
     { key: "attack", hit: /攻击|伤害|打击|破防|锋利|进攻|输出|攻势|attack/i.test(text) },
     { key: "defense", hit: /防御|防线|抗打|硬接|坚固|稳住|减伤|defen[cs]e/i.test(text) },
@@ -7626,6 +7706,9 @@ window.__photoHeroTestHooks = {
   },
   parseModelTextForTest(text) {
     return balanceItem(extractJson(text, null), makePlaceholderImage());
+  },
+  renderItemDescriptionForTest(item) {
+    return renderItemDescription(item);
   },
   showLootErrorForTest(message) {
     showLootError(message);
