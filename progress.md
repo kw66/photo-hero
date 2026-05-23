@@ -28,6 +28,7 @@ Original prompt: 继续和我讨论游戏事宜，我们到时候上传github和
 - GitHub CLI is installed but not authenticated on this machine; deployment is blocked until `gh auth login` is completed.
 - Added API provider preset buttons for Ali Qwen-VL, SiliconFlow, DeepSeek text test, and Custom mode.
 - URL/model fields now start empty, lock when a preset is selected, and unlock when Custom is selected.
+- 2026-05-23: Updated monster synergy traits: guard team shields, warrior warcry, wizard defense break, patrol shield break, and golem sturdy defense floor. Verified with targeted Playwright checks and `npm run qa:review`.
 - Custom mode preserves the user's manually typed URL/model while switching between presets.
 - Added player-facing guidance that photo identification requires vision/multimodal support, OpenAI-compatible chat/completions, and browser CORS.
 - Verified with `node --check app.js`, local page load through the web-game Playwright client, and a mobile Playwright flow covering preset locking, custom restore, refresh persistence, and API key eye-toggle behavior.

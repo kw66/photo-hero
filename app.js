@@ -372,18 +372,18 @@ const monsterTypes = {
   skeleton: { name: "骷髅", atk: 8, def: 5, hp: 32, speed: 3, traits: [{ type: "noLifesteal", text: "制裁：无法吸血" }] },
   bat: { name: "蝙蝠", atk: 8, def: 0, hp: 16, speed: 6, traits: [{ type: "lifesteal", value: 1, text: "吸血1" }] },
   mage: { name: "法师", atk: 6, def: 2, hp: 30, speed: 3, traits: [{ type: "magic", text: "魔攻：无视防御" }] },
-  wizard: { name: "巫师", atk: 10, def: 5, hp: 42, speed: 4, traits: [{ type: "magic", text: "魔攻：无视防御" }] },
-  guard: { name: "卫兵", atk: 8, def: 8, hp: 50, speed: 2, traits: [{ type: "shield", value: 30, text: "护盾30" }] },
+  wizard: { name: "巫师", atk: 10, def: 5, hp: 42, speed: 4, traits: [{ type: "defenseBreakAura", value: 50, text: "阻击：敌方防御-50%" }] },
+  guard: { name: "卫兵", atk: 8, def: 8, hp: 50, speed: 2, traits: [{ type: "teamShield", value: 20, text: "护阵：全体护盾+20" }] },
   knight: { name: "骑士", atk: 15, def: 6, hp: 45, speed: 4, traits: [{ type: "noRegen", text: "红莲：无法回复" }] },
-  golem: { name: "石头人", atk: 12, def: 15, hp: 8, speed: 1, traits: [{ type: "sturdy", text: "坚固：每回合最多受到1伤害" }] },
-  patrol: { name: "警卫", atk: 16, def: 6, hp: 50, speed: 4, traits: [{ type: "ignoreShield", text: "无视护盾" }] },
+  golem: { name: "石头人", atk: 15, def: 18, hp: 8, speed: 1, traits: [{ type: "sturdy", text: "坚固：防御至少为敌方攻击-1" }] },
+  patrol: { name: "警卫", atk: 16, def: 6, hp: 50, speed: 4, traits: [{ type: "breakShield", text: "破盾：护盾清0" }] },
   octopus: { name: "章鱼", atk: 1, def: 0, hp: 120, speed: 4, traits: [{ type: "giant", value: 120, text: "巨物：攻击增加生命差" }] },
   dragon: { name: "魔龙", atk: 24, def: 10, hp: 80, speed: 3, traits: [{ type: "speedDownOnAttack", value: 1, text: "龙威：每次攻击速度-1" }] },
   vampire: { name: "吸血鬼", atk: 15, def: 0, hp: 66, speed: 6, traits: [{ type: "lifesteal", value: 6, text: "吸血6" }] },
-  demon: { name: "魔王", atk: 25, def: 15, hp: 75, speed: 5, traits: [{ type: "attackDownOnAttack", value: 1, text: "压制：每次攻击攻击-1" }] },
+  demon: { name: "魔王", atk: 25, def: 15, hp: 75, speed: 5, traits: [{ type: "attackDownOnAttack", value: 1, text: "压制：每次攻击敌方攻击-1" }] },
   orc: { name: "兽人", atk: 12, def: 7, hp: 60, speed: 2, traits: [{ type: "regen", value: 5, text: "回复5" }] },
   swordsman: { name: "剑士", atk: 30, def: 0, hp: 20, speed: 5, traits: [{ type: "multiHit", value: 2, text: "连击2" }] },
-  warrior: { name: "战士", atk: 15, def: 8, hp: 30, speed: 3, traits: [{ type: "noRegen", text: "红莲：无法回复" }] },
+  warrior: { name: "战士", atk: 12, def: 5, hp: 30, speed: 2, traits: [{ type: "teamWarcry", atk: 3, def: 3, speed: 1, text: "战意：全体攻防+3，速+1" }] },
   archmage: { name: "大法师", atk: 16, def: 5, hp: 72, speed: 4, traits: [{ type: "promotion", text: "晋升：攻击涨防，被攻击涨攻" }] },
   skeletonCaptain: { name: "骷髅队长", atk: 12, def: 5, hp: 44, speed: 3, traits: [{ type: "noLifesteal", text: "制裁：无法吸血" }] },
   knightCaptain: { name: "骑士队长", atk: 15, def: 3, hp: 40, speed: 4, traits: [{ type: "guardedByGuards", value: 50, text: "护驾：每个卫兵减伤50%" }] },
@@ -2960,6 +2960,7 @@ function createDefaultBattleSpecial() {
     defense: 0,
     attackDown: 0,
     speedDown: 0,
+    defenseBreakRatio: 0,
     damageImmuneUsed: 0,
     preBattleStruck: false,
   };
@@ -2974,6 +2975,7 @@ function normalizeBattleSpecial(value) {
     defense: clampInt(source.defense, 0, defenseCap || 0),
     attackDown: clampInt(source.attackDown, 0, 999),
     speedDown: clampInt(source.speedDown, 0, 999),
+    defenseBreakRatio: clampNumber(source.defenseBreakRatio, 0, 1),
     damageImmuneUsed: clampInt(source.damageImmuneUsed, 0, 999),
     preBattleStruck: Boolean(source.preBattleStruck),
   };
@@ -2988,12 +2990,33 @@ function beginBattle(enemies) {
   state.battleSnapshot = makeBattleSnapshot(activeIds);
   state.activeEnemyIds = activeIds;
   resetBattleSpecial();
+  ensureCurrentBattle(activeIds);
+  applyBattleStartEnemyAuras(enemies);
   const stats = getBattleStats(activeIds);
   state.player.shield = stats.shield;
   state.player.shieldMonsterId = state.encounterId;
   state.battleClock = makeBattleClock(stats, enemies);
-  ensureCurrentBattle(activeIds, stats);
   applyPreBattleFormEffects();
+}
+
+function applyBattleStartEnemyAuras(enemies = getActiveBattleEnemies()) {
+  const activeEnemies = Array.isArray(enemies) ? enemies.filter(Boolean) : [];
+  const shieldBonus = sumEnemyTraitValues(activeEnemies, "teamShield");
+  if (shieldBonus > 0) {
+    for (const enemy of activeEnemies) {
+      enemy.maxShield = Math.max(0, enemy.maxShield || 0) + shieldBonus;
+      enemy.shield = Math.max(0, enemy.shield || 0) + shieldBonus;
+    }
+  }
+  const warcry = getEnemyWarcryBonus(activeEnemies);
+  if (warcry.atk || warcry.def || warcry.speed) {
+    for (const enemy of activeEnemies) {
+      enemy.atk = Math.max(0, (enemy.atk || 0) + warcry.atk);
+      enemy.def = Math.max(0, (enemy.def || 0) + warcry.def);
+      enemy.speed = Math.max(1, (enemy.speed || 1) + warcry.speed);
+    }
+  }
+  state.battleSpecial.defenseBreakRatio = getEnemyDefenseBreakRatio(activeEnemies);
 }
 
 function makeBattleSnapshot(activeIds) {
@@ -3190,7 +3213,6 @@ function applyHeroDamageToEnemy(enemy, stats, source = "attack") {
   const rawDamage = Math.max(0, stats.atk - getEffectiveEnemyDefense(enemy, stats));
   const shieldCrashDamage = getShieldCrashDamage();
   let damage = rawDamage + shieldCrashDamage;
-  if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
   damage = applyEnemyIncomingDamageModifiers(enemy, damage, getActiveBattleEnemies());
 
   const shieldLoss = Math.min(enemy.shield || 0, damage);
@@ -3248,9 +3270,9 @@ function resolveMonsterStrike(enemy, stats, round) {
       immuneCount += 1;
     }
     const effectiveDamage = isImmune ? 0 : damage;
-    const ignoresShield = hasTrait(enemy, "ignoreShield");
-    const shieldLoss = ignoresShield ? 0 : Math.min(state.player.shield, effectiveDamage);
-    const hpLoss = effectiveDamage - shieldLoss;
+    const breakShield = hasTrait(enemy, "breakShield") && state.player.shield > 0;
+    const shieldLoss = breakShield ? state.player.shield : Math.min(state.player.shield, effectiveDamage);
+    const hpLoss = breakShield ? effectiveDamage : effectiveDamage - shieldLoss;
     state.player.shield -= shieldLoss;
     state.player.hp = Math.max(0, state.player.hp - hpLoss);
     totalHpLoss += hpLoss;
@@ -3302,7 +3324,7 @@ function resolveMonsterStrike(enemy, stats, round) {
   if (monsterStealTotal > 0) parts.push(`${enemy.name}吸取 ${monsterStealTotal}`);
   parts.push(...traitChanges);
   if (hasTrait(enemy, "magic")) parts.push("无视防御");
-  if (hasTrait(enemy, "ignoreShield")) parts.push("无视护盾");
+  if (hasTrait(enemy, "breakShield")) parts.push("破盾");
   addBattleDetail(`第${round}回合${enemy.name}进攻，${parts.join("，")}。`);
 }
 
@@ -4784,22 +4806,28 @@ function getBattleStats(activeIds = state.activeEnemyIds) {
   const activeEnemies = activeIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
     .filter(Boolean);
-  applyBattleSpecialPassives(stats);
-  return stats;
+  return applyEnemyBattleModifiers(stats, activeEnemies, state.battleSpecial);
 }
 
 function getBattleStatsForEnemies(enemies) {
   const stats = getPlayerStats();
-  return applyEnemyBattleModifiers(stats, enemies);
+  return applyEnemyBattleModifiers(stats, enemies, createDefaultBattleSpecial());
 }
 
 function getBattleStatsForEnemiesWithSpecial(enemies, battleSpecial) {
   const stats = getPlayerStatsWithBattleSpecial(battleSpecial);
-  return applyEnemyBattleModifiers(stats, enemies);
+  return applyEnemyBattleModifiers(stats, enemies, battleSpecial);
 }
 
-function applyEnemyBattleModifiers(stats, enemies) {
+function applyEnemyBattleModifiers(stats, enemies, battleSpecial = createDefaultBattleSpecial()) {
   applyBattleSpecialPassives(stats);
+  const defenseBreakRatio = Math.max(
+    getEnemyDefenseBreakRatio(enemies),
+    clampNumber(battleSpecial?.defenseBreakRatio, 0, 1),
+  );
+  if (defenseBreakRatio > 0) {
+    stats.def = Math.floor(Math.max(0, stats.def) * Math.max(0, 1 - defenseBreakRatio));
+  }
   return stats;
 }
 
@@ -4855,10 +4883,30 @@ function createBattleSimulation(enemies) {
     rounds: 0,
     defeatedCount: 0,
   };
+  applySimBattleStartEnemyAuras(sim, enemies);
   const stats = getBattleStatsForEnemiesWithSpecial(enemies, sim.battleSpecial);
   sim.shield = stats.shield;
   sim.heroTime = getActionInterval(stats.speed);
   return sim;
+}
+
+function applySimBattleStartEnemyAuras(sim, enemies = []) {
+  const shieldBonus = sumEnemyTraitValues(enemies, "teamShield");
+  if (shieldBonus > 0) {
+    for (const enemy of enemies) {
+      enemy.maxShield = Math.max(0, enemy.maxShield || 0) + shieldBonus;
+      enemy.shield = Math.max(0, enemy.shield || 0) + shieldBonus;
+    }
+  }
+  const warcry = getEnemyWarcryBonus(enemies);
+  if (warcry.atk || warcry.def || warcry.speed) {
+    for (const enemy of enemies) {
+      enemy.atk = Math.max(0, (enemy.atk || 0) + warcry.atk);
+      enemy.def = Math.max(0, (enemy.def || 0) + warcry.def);
+      enemy.speed = Math.max(1, (enemy.speed || 1) + warcry.speed);
+    }
+  }
+  sim.battleSpecial.defenseBreakRatio = getEnemyDefenseBreakRatio(enemies);
 }
 
 function getSimMaxHpBonus(sim) {
@@ -4954,8 +5002,9 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
     const isImmune = sim.battleSpecial.damageImmuneUsed < immunity && damage > 0;
     if (isImmune) sim.battleSpecial.damageImmuneUsed += 1;
     const effectiveDamage = isImmune ? 0 : damage;
-    const shieldLoss = hasTrait(enemy, "ignoreShield") ? 0 : Math.min(sim.shield, effectiveDamage);
-    const hpLoss = effectiveDamage - shieldLoss;
+    const breakShield = hasTrait(enemy, "breakShield") && sim.shield > 0;
+    const shieldLoss = breakShield ? sim.shield : Math.min(sim.shield, effectiveDamage);
+    const hpLoss = breakShield ? effectiveDamage : effectiveDamage - shieldLoss;
     sim.shield -= shieldLoss;
     damageSimHero(sim, hpLoss);
     if (shieldLoss > 0 && getHeroFormLevelConfig().shieldLossToHeal) {
@@ -4991,7 +5040,6 @@ function applySimHeroDamageToEnemy(sim, enemy, stats, enemies = []) {
   const rawDamage = Math.max(0, stats.atk - getEffectiveEnemyDefense(enemy, stats));
   const shieldCrashDamage = getShieldCrashDamage(sim.shield);
   let damage = rawDamage + shieldCrashDamage;
-  if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
   damage = applyEnemyIncomingDamageModifiers(enemy, damage, getSimActiveEnemies(sim, enemies));
   const shieldLoss = Math.min(enemy.shield || 0, damage);
   enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
@@ -5051,6 +5099,27 @@ function getTraitValue(enemy, type, fallback = 0) {
 function getTraitValueFromList(traits = [], type, fallback = 0) {
   const trait = traits.find((item) => item.type === type);
   return Number.isFinite(trait?.value) ? trait.value : fallback;
+}
+
+function sumEnemyTraitValues(enemies = [], type, fallback = 0) {
+  return enemies.reduce((total, enemy) => total + getTraitValue(enemy, type, fallback), 0);
+}
+
+function getEnemyWarcryBonus(enemies = []) {
+  return enemies.reduce((bonus, enemy) => {
+    const trait = Array.isArray(enemy?.traits) ? enemy.traits.find((item) => item.type === "teamWarcry") : null;
+    if (!trait) return bonus;
+    bonus.atk += Number.isFinite(trait.atk) ? trait.atk : 0;
+    bonus.def += Number.isFinite(trait.def) ? trait.def : 0;
+    bonus.speed += Number.isFinite(trait.speed) ? trait.speed : 0;
+    return bonus;
+  }, { atk: 0, def: 0, speed: 0 });
+}
+
+function getEnemyDefenseBreakRatio(enemies = []) {
+  const breakCount = enemies.filter((enemy) => hasTrait(enemy, "defenseBreakAura")).length;
+  if (breakCount <= 0) return 0;
+  return Math.min(1, breakCount * 0.5);
 }
 
 function cloneTraits(traits = []) {
@@ -5290,6 +5359,9 @@ function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpec
 }
 
 function getEffectiveEnemyDefense(enemy, stats = getBattleStats(state.activeEnemyIds)) {
+  if (hasTrait(enemy, "sturdy")) {
+    return Math.max(enemy?.def || 0, (stats?.atk || 0) - 1);
+  }
   const ratio = getHeroFormLevelConfig().ignoreDefenseRatio || 0;
   const ignored = Math.floor(Math.max(0, enemy?.def || 0) * ratio);
   return (enemy?.def || 0) - ignored;
@@ -6694,10 +6766,9 @@ function inferRoundLimitReason(enemy, enemies = []) {
 
 function getEstimatedHeroDamageToEnemy(enemy, stats) {
   if (!enemy || !stats) return 0;
-  const rawDamage = Math.max(0, stats.atk - enemy.def);
+  const rawDamage = Math.max(0, stats.atk - getEffectiveEnemyDefense(enemy, stats));
   const shieldCrashDamage = getShieldCrashDamage();
   let damage = rawDamage + shieldCrashDamage;
-  if (hasTrait(enemy, "sturdy")) damage = Math.min(damage, 1);
   damage = applyEnemyIncomingDamageModifiers(enemy, damage, state.enemies);
   return Math.max(0, damage);
 }
@@ -7330,6 +7401,7 @@ function renderGameTextOnly() {
     heroHit: Boolean(state.heroHitEffectUntil),
     enemyHitIds: Object.keys(state.enemyHitEffectUntilById || {}),
     battleSpecial: { ...(state.battleSpecial || {}) },
+    battleStats: state.activeEnemyIds.length ? getBattleStats(state.activeEnemyIds) : null,
       selectedEquipment: selectedEquipment ? formatItemDisplayName(selectedEquipment) : null,
       selectedSlotIndex: getSelectedSlotIndex(),
       equippedItems: equippedItems.map((item) => formatItemDisplayName(item)),
@@ -7865,6 +7937,9 @@ window.__photoHeroTestHooks = {
   getActiveSpecialForTest() {
     const active = getActiveEquippedPhotoSpecialInstance();
     return active ? { key: active.key, itemName: active.item?.itemName || "", value: active.effect?.value || 0 } : null;
+  },
+  getBattleStatsForTest(ids = state.activeEnemyIds) {
+    return getBattleStats(ids);
   },
   getHeroStateForTest() {
     return { hp: state.player.hp, maxHp: getPlayerStats().maxHp, shield: state.player.shield };
