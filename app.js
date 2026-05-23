@@ -1291,7 +1291,7 @@ async function analyzePhoto() {
   } catch (error) {
     if (request.id !== state.analysisRequest?.id && isAbortError(error)) return;
     const message = normalizeAnalyzeError(error);
-    showLootError(`鉴定失败：${message}（胶卷未消耗）`);
+    showLootError(message);
     addLog(`鉴定失败：${message}（胶卷未消耗）`);
     clearPendingPhoto();
   } finally {
@@ -1320,7 +1320,13 @@ function normalizeAnalyzeError(error) {
   ) {
     return "当前接口不接受图片输入，请换成支持 vision/image_url 的模型。";
   }
-  return message;
+  if (message.includes("没有按 JSON 格式") || message.includes("没有按游戏要求返回 JSON")) {
+    return "模型没有按游戏要求返回 JSON。";
+  }
+  if (message.includes("模型返回了文本")) {
+    return "模型返回内容不符合游戏约束。";
+  }
+  return shortenText(message, 96);
 }
 
 function showLootError(message) {
@@ -1432,6 +1438,9 @@ async function analyzeDirectly(config, image, options = {}) {
   if (reasoningText) {
     return extractJson(reasoningText, payload);
   }
+
+  const anyText = readModelText(payload, { includeReasoning: true });
+  if (anyText) return extractJson(anyText, payload);
 
   return extractJson("", payload);
 }
@@ -1640,10 +1649,13 @@ function extractJson(content, payload = null) {
     if (parsed) return normalizeModelItem(parsed);
   }
 
+  const looseParsed = parseLooseModelJsonFields(text);
+  if (looseParsed) return normalizeModelItem(looseParsed);
+
   const fallback = makeFallbackItemFromModelText(text);
   if (fallback) return fallback;
 
-  throw new Error(`模型返回了文本，但没有按 JSON 格式输出：${shortenText(text, 72)}`);
+  throw new Error("模型没有按游戏要求返回 JSON。");
 }
 
 function normalizeModelContent(content) {
@@ -1757,6 +1769,145 @@ function parseJsonCandidate(candidate) {
     }
   }
   return null;
+}
+
+function parseLooseModelJsonFields(text) {
+  const source = String(text || "").trim();
+  if (!source || !/"?(?:itemName|subjectName|objectType|sizeClass|photoQuality|statAffinity)"?\s*[:：]/i.test(source)) {
+    return null;
+  }
+
+  const object = {};
+  const stringKeys = [
+    ["itemName", "itemName"],
+    ["subjectName", "subjectName"],
+    ["objectType", "objectType"],
+    ["identityDescription", "identityDescription"],
+    ["sizeClass", "sizeClass"],
+    ["description", "description"],
+    ["reason", "reason"],
+  ];
+  for (const [key, outputKey] of stringKeys) {
+    const value = extractLooseStringField(source, key);
+    if (value) object[outputKey] = value;
+  }
+
+  const equipable = extractLooseBooleanField(source, "isEquipable");
+  const scene = extractLooseBooleanField(source, "isScene");
+  if (equipable !== null) object.isEquipable = equipable;
+  if (scene !== null) object.isScene = scene;
+
+  const confidence = extractLooseNumberField(source, "confidence");
+  if (Number.isFinite(confidence)) object.confidence = confidence;
+
+  const quality = extractLoosePhotoQuality(source);
+  if (quality) object.photoQuality = quality;
+
+  const statAffinity = extractLooseStatAffinity(source);
+  if (statAffinity.length) object.statAffinity = statAffinity;
+
+  const specialAffinity = extractLooseArrayStrings(source, "specialAffinity");
+  if (specialAffinity.length) object.specialAffinity = specialAffinity;
+
+  const tags = extractLooseArrayStrings(source, "tags");
+  if (tags.length) object.tags = tags;
+
+  return object.itemName || object.subjectName || object.objectType ? object : null;
+}
+
+function extractLooseStringField(source, key) {
+  const pattern = new RegExp(`["“]?${key}["”]?\\s*[:：]\\s*["“]([^"”\\n]{1,120})["”]?`, "i");
+  const match = source.match(pattern);
+  return cleanupLooseFieldValue(match?.[1] || "");
+}
+
+function extractLooseBooleanField(source, key) {
+  const pattern = new RegExp(`["“]?${key}["”]?\\s*[:：]\\s*(true|false|是|否)`, "i");
+  const value = source.match(pattern)?.[1];
+  if (!value) return null;
+  return /true|是/i.test(value);
+}
+
+function extractLooseNumberField(source, key) {
+  const pattern = new RegExp(`["“]?${key}["”]?\\s*[:：]\\s*([0-9]+(?:\\.[0-9]+)?)`, "i");
+  const value = Number(source.match(pattern)?.[1]);
+  return Number.isFinite(value) ? value : NaN;
+}
+
+function extractLoosePhotoQuality(source) {
+  const keys = ["clarity", "subjectArea", "backgroundClean", "realPhoto", "focusLight", "interesting"];
+  const result = {};
+  for (const key of keys) {
+    const value = extractLooseNumberField(source, key);
+    if (Number.isFinite(value)) result[key] = value;
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+function extractLooseStatAffinity(source) {
+  const block = extractLooseBlock(source, "statAffinity");
+  if (!block) return [];
+  const result = [];
+  for (const match of block.matchAll(/\{([\s\S]*?)\}/g)) {
+    const chunk = match[1] || "";
+    const stat = cleanupLooseFieldValue(chunk.match(/["“]?stat["”]?\s*[:：]\s*["“]?([A-Za-z]+|生命|攻击|防御|速度|护盾|吸血|回复)["”]?/i)?.[1] || "");
+    const score = Number(chunk.match(/["“]?score["”]?\s*[:：]\s*([0-9]+)/i)?.[1] || 1);
+    if (stat) result.push({ stat, score: Number.isFinite(score) ? score : 1 });
+  }
+  return result.slice(0, 3);
+}
+
+function extractLooseArrayStrings(source, key) {
+  const block = extractLooseBlock(source, key);
+  if (!block) return [];
+  return Array.from(block.matchAll(/["“]([^"”\n]{1,32})["”]/g))
+    .map((match) => cleanupLooseFieldValue(match[1]))
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function extractLooseBlock(source, key) {
+  const pattern = new RegExp(`["“]?${key}["”]?\\s*[:：]\\s*\\[`, "i");
+  const match = pattern.exec(source);
+  if (!match) return "";
+  const start = source.indexOf("[", match.index);
+  if (start < 0) return "";
+  let depth = 0;
+  let inString = false;
+  let quote = "";
+  let escaped = false;
+  for (let i = start; i < source.length; i += 1) {
+    const char = source[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quote) {
+        inString = false;
+        quote = "";
+      }
+      continue;
+    }
+    if (char === '"' || char === "“") {
+      inString = true;
+      quote = char === "“" ? "”" : char;
+      continue;
+    }
+    if (char === "[") depth += 1;
+    if (char === "]") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+  }
+  return source.slice(start);
+}
+
+function cleanupLooseFieldValue(value) {
+  return String(value || "")
+    .replace(/[{}[\]"“”'‘’]/g, "")
+    .replace(/[,，]\s*$/, "")
+    .trim();
 }
 
 function makeJsonVariants(candidate) {
@@ -6415,7 +6566,7 @@ function renderEquipmentDetail() {
     els.equipmentDetailName.textContent = "鉴定失败";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = `${state.lootError} 已自动放弃本次照片，可以重新拍照或继续战斗。${getLootErrorHint(state.lootError)}`;
+    els.equipmentDetailDesc.textContent = `${formatLootErrorMessage(state.lootError)}\n已放弃本次照片，胶卷未消耗。可以重新拍照或继续战斗。\n${getLootErrorHint(state.lootError)}`;
     if (canRetake) {
       els.equipmentActions.hidden = false;
       els.photoActionBtn.hidden = false;
@@ -6659,6 +6810,9 @@ function getLootErrorHint(message) {
   if (text.includes("响应结构")) {
     return "接口返回结构不标准，请把错误里的响应结构发给开发者适配。";
   }
+  if (text.includes("JSON") || text.includes("游戏约束") || text.includes("格式")) {
+    return "可以重试；如果经常出现，换一个更听指令的图文模型。";
+  }
   if (text.includes("已取消鉴定")) {
     return "本次照片已经放弃，可以重新拍照。";
   }
@@ -6666,6 +6820,22 @@ function getLootErrorHint(message) {
     return "可能是接口拥堵、图片过大、模型卡住或中转站无响应；建议重试，或换一张主体更清楚、背景更简单的照片。";
   }
   return "模型已返回内容，但格式不符合游戏约束；可以换模型或重试一张更清晰的现实物品照片。";
+}
+
+function formatLootErrorMessage(message) {
+  const text = String(message || "").trim();
+  if (!text) return "模型这次没有给出可用结果。";
+  const cleaned = text
+    .replace(/^鉴定失败[:：]\s*/, "")
+    .replace(/（?胶卷未消耗）?/g, "")
+    .trim();
+  if (cleaned.includes("没有按 JSON 格式") || cleaned.includes("没有按游戏要求返回 JSON")) {
+    return "模型没有按游戏要求返回 JSON。";
+  }
+  if (cleaned.includes("模型返回了文本")) {
+    return "模型返回内容不符合游戏约束。";
+  }
+  return shortenText(cleaned, 56);
 }
 
 function renderStatPills(stats) {
@@ -7453,6 +7623,15 @@ window.__photoHeroTestHooks = {
   async identifyImageForTest(config, image) {
     const item = await analyzeDirectly(config, image);
     return balanceItem(item, makePlaceholderImage());
+  },
+  parseModelTextForTest(text) {
+    return balanceItem(extractJson(text, null), makePlaceholderImage());
+  },
+  showLootErrorForTest(message) {
+    showLootError(message);
+    state.lastPhoto = "";
+    state.infoMode = "item";
+    render();
   },
   getPhotoValueRange() {
     return { min: getPhotoValueMin(), max: getPhotoValueMax() };

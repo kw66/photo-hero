@@ -1083,6 +1083,12 @@ dd {
   border-color: color-mix(in srgb, var(--enemy) 62%, var(--line));
 }
 
+.equipment-detail.is-error .detail-desc {
+  display: block;
+  max-height: 100%;
+  overflow: auto;
+}
+
 .equipment-detail.is-actionable {
   cursor: pointer;
   border-color: color-mix(in srgb, var(--amber) 72%, var(--ink));
@@ -2772,6 +2778,11 @@ textarea {
     gap: 3px;
     height: 158px;
     min-height: 158px;
+  }
+
+  .equipment-detail.is-error .detail-desc {
+    font-size: 0.78rem;
+    line-height: 1.38;
   }
 
   .equipment-detail.career-summary-panel {
