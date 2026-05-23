@@ -51,6 +51,21 @@ async function collectScenario(page, name, action = async () => {}) {
       visibleButtons,
       detailText: document.querySelector("#equipmentDetail")?.innerText || "",
       enemyText: document.querySelector("#enemyField")?.innerText || "",
+      infoText: document.querySelector(".info-panel")?.innerText || "",
+      activeInfoTab: document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "",
+      statCardCount: document.querySelectorAll(".global-stat").length,
+      todayStatCount: Array.from(document.querySelectorAll(".global-stat em")).filter((node) => /^今日 /.test(node.textContent.trim())).length,
+      groupQr: (() => {
+        const card = document.querySelector(".group-qr-card");
+        const img = document.querySelector(".group-qr-card img");
+        const rect = img?.getBoundingClientRect();
+        return {
+          text: card?.innerText.trim() || "",
+          loaded: Boolean(img?.complete && img.naturalWidth > 0),
+          src: img?.getAttribute("src") || "",
+          square: rect ? Math.abs(rect.width - rect.height) < 1 : false,
+        };
+      })(),
     };
   });
   metrics.errors = errors;
@@ -64,12 +79,22 @@ function assertScenario(name, metrics) {
   if (metrics.horizontalOverflow > 0) failures.push(`${name}: horizontal overflow ${metrics.horizontalOverflow}`);
   if (name === "mobile-fresh") {
     if (!metrics.visibleButtons.includes("选择怪物")) failures.push(`${name}: missing disabled 选择怪物 state`);
-    if (!metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: missing non-boss flee button`);
+    if (!metrics.visibleButtons.includes("绕过")) failures.push(`${name}: missing non-boss bypass button`);
+    if (!/API配置/.test(metrics.detailText)) failures.push(`${name}: empty appraisal panel should prompt API configuration`);
     if (/价值范围/.test(metrics.detailText)) failures.push(`${name}: exposes raw value range in empty state`);
   }
   if (name === "mobile-flee") {
-    if (metrics.state.floor !== 2) failures.push(`${name}: flee should advance to floor 2`);
-    if (!metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: non-boss floor after fleeing should still show flee`);
+    if (metrics.state.floor !== 2) failures.push(`${name}: bypass should advance to floor 2`);
+    if (!metrics.visibleButtons.includes("绕过")) failures.push(`${name}: non-boss floor after bypass should still show bypass`);
+  }
+  if (name === "mobile-battle-retreat") {
+    if (metrics.state.floor !== 1) failures.push(`${name}: retreat should stay on floor 1`);
+    if (metrics.state.player.hp !== 80) failures.push(`${name}: retreat should restore HP to 80`);
+    if (metrics.state.player.filmCount !== 3) failures.push(`${name}: retreat should not keep film rewards`);
+    if (metrics.state.currentBattle) failures.push(`${name}: retreat should clear current battle`);
+    if (!metrics.visibleButtons.includes("绕过")) failures.push(`${name}: retreat should return to pre-battle bypass state`);
+    const damaged = metrics.state.enemies.some((enemy) => enemy.hp !== enemy.maxHp);
+    if (damaged) failures.push(`${name}: retreat should restore enemy HP`);
   }
   if (name === "mobile-reward") {
     if (!metrics.visibleButtons.includes("选择")) failures.push(`${name}: missing reward confirm button`);
@@ -82,6 +107,19 @@ function assertScenario(name, metrics) {
   if (name === "mobile-boss-selection") {
     if (metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: boss floor still shows 逃跑`);
     if (!metrics.visibleButtons.includes("选择怪物")) failures.push(`${name}: boss floor should require selecting all monsters`);
+  }
+  if (name === "mobile-info") {
+    if (metrics.activeInfoTab !== "about") failures.push(`${name}: info panel should open on about/stat tab`);
+    if (!metrics.visibleButtons.includes("作者/统计")) failures.push(`${name}: missing author/stat tab`);
+    if (!metrics.visibleButtons.includes("拍照")) failures.push(`${name}: missing photo tab`);
+    if (!metrics.visibleButtons.includes("战斗")) failures.push(`${name}: missing battle tab`);
+    if (!/全站统计/.test(metrics.infoText)) failures.push(`${name}: missing global stats title`);
+    if (!/作者其他游戏/.test(metrics.infoText)) failures.push(`${name}: missing other games block`);
+    if (!metrics.groupQr.loaded || !metrics.groupQr.src.includes("xiaohongshu-group-qr.jpg")) failures.push(`${name}: Xiaohongshu QR image did not load`);
+    if (!metrics.groupQr.square) failures.push(`${name}: Xiaohongshu QR image should be square`);
+    if (metrics.groupQr.text) failures.push(`${name}: Xiaohongshu QR card should not show extra text`);
+    if (metrics.statCardCount !== 6) failures.push(`${name}: expected 6 global stat cards, got ${metrics.statCardCount}`);
+    if (metrics.todayStatCount !== 6) failures.push(`${name}: expected 6 today stat labels, got ${metrics.todayStatCount}`);
   }
   return failures;
 }
@@ -102,6 +140,40 @@ function assertScenario(name, metrics) {
   scenarios.mobileFlee = await collectScenario(mobile, "mobile-flee", async (page) => {
     await page.click("#fleeBtn");
     await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).floor === 2, null, { timeout: 3000 });
+  });
+
+  scenarios.mobileBattleRetreat = await collectScenario(mobile, "mobile-battle-retreat", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.setEnemies([{
+        id: "review-retreat",
+        testEnemy: true,
+        typeKey: "slime",
+        typeName: "史莱姆",
+        name: "史莱姆",
+        maxHp: 20,
+        hp: 20,
+        atk: 6,
+        def: 0,
+        speed: 2,
+        traits: [],
+      }]);
+      hooks.selectEnemies(["review-retreat"]);
+    });
+    await page.click("#attackBtn");
+    await page.waitForFunction(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      return Boolean(state.currentBattle);
+    }, null, { timeout: 3000 });
+    await page.click("#fleeBtn");
+    await page.waitForFunction(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      return !state.currentBattle && state.floor === 1 && state.player.hp === 80;
+    }, null, { timeout: 3000 });
+  });
+
+  scenarios.mobileInfo = await collectScenario(mobile, "mobile-info", async (page) => {
+    await page.click("#infoToggleBtn");
   });
 
   scenarios.mobileCareer = await collectScenario(mobile, "mobile-career", async (page) => {

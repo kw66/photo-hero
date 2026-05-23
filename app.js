@@ -13,9 +13,15 @@ const STATS_COUNTER_IDS = {
   totalPv: "photo_hero_pv_total",
   totalUv: "photo_hero_uv_total",
   totalGames: "photo_hero_game_total",
+  totalKills: "photo_hero_kills_total",
+  totalAppraisals: "photo_hero_appraisals_total",
+  totalFloors: "photo_hero_floors_total",
   dailyPvPrefix: "photo_hero_pv_day",
   dailyUvPrefix: "photo_hero_uv_day",
   dailyGamesPrefix: "photo_hero_game_day",
+  dailyKillsPrefix: "photo_hero_kills_day",
+  dailyAppraisalsPrefix: "photo_hero_appraisals_day",
+  dailyFloorsPrefix: "photo_hero_floors_day",
 };
 
 const SILICONFLOW_MODELS = [
@@ -482,6 +488,7 @@ const state = {
   battleReports: [],
   battleReportSeq: 0,
   currentBattle: null,
+  battleSnapshot: null,
   infoMode: "item",
   gameClear: false,
   bossReward: null,
@@ -538,7 +545,7 @@ function bindEvents() {
   });
 
   document.querySelectorAll("[data-info-tab]").forEach((button) => {
-    button.addEventListener("click", () => setInfoTab(button.dataset.infoTab || "photo"));
+    button.addEventListener("click", () => setInfoTab(button.dataset.infoTab || "about"));
   });
 
   [els.baseUrlInput, els.modelInput, els.customModelInput, els.apiKeyInput].forEach((input) => {
@@ -548,6 +555,7 @@ function bindEvents() {
       }
 
       renderApiStatus();
+      renderEquipmentDetail();
 
       if (els.chatResult.dataset.state === "missing") {
         setChatResult("配置已更新，可以重新测试。");
@@ -561,6 +569,7 @@ function bindEvents() {
         rememberCustomDraft();
       }
       renderApiStatus();
+      renderEquipmentDetail();
     });
   });
 
@@ -570,14 +579,17 @@ function bindEvents() {
     await preparePhotoFromFile(file, "", "照片读取失败");
   });
 
-  document.addEventListener("paste", handlePasteEvent);
-
   els.equipmentDetail.addEventListener("click", handleEquipmentDetailClick);
   els.equipmentDetail.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     handleEquipmentDetailClick(event);
   });
+  els.equipmentDetail.addEventListener("paste", handleEquipmentDetailPaste);
+  els.equipmentDetail.addEventListener("dragenter", handleEquipmentDetailDragEnter);
+  els.equipmentDetail.addEventListener("dragover", handleEquipmentDetailDragOver);
+  els.equipmentDetail.addEventListener("dragleave", handleEquipmentDetailDragLeave);
+  els.equipmentDetail.addEventListener("drop", handleEquipmentDetailDrop);
   document.addEventListener("click", handleDocumentClickForInfoMode);
   els.saveConfigBtn.addEventListener("click", saveConfig);
   els.testChatBtn.addEventListener("click", testVisionApi);
@@ -624,6 +636,69 @@ function openPhotoPickerForSelectedSlot() {
 
 function handleEquipmentDetailClick(event) {
   if (event.target.closest("button")) return;
+}
+
+function canPreparePhotoInDetail() {
+  if (isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || state.bossReward || state.gameClear) return false;
+  return !getInventoryItemAt(getSelectedSlotIndex());
+}
+
+async function preparePhotoFromDetailFile(file, errorPrefix, successMessage = "") {
+  if (!file) return false;
+  if (!canPreparePhotoInDetail()) {
+    showInputNotice(getPhotoInputBlockedMessage());
+    return false;
+  }
+  state.pendingPhotoSlotIndex = getSelectedSlotIndex();
+  state.infoMode = "item";
+  await preparePhotoFromFile(file, successMessage, errorPrefix);
+  els.equipmentDetail.focus({ preventScroll: true });
+  return true;
+}
+
+function getPhotoInputBlockedMessage() {
+  if (state.gameClear) return "通关总结中不能继续拍照。";
+  if (isPlayerDefeated()) return "照片勇者已经倒下，只能重开。";
+  if (state.bossReward) return "先选择 Boss 奖励。";
+  if (isAnalyzingPhoto()) return "正在鉴定照片，先等待或取消鉴定。";
+  if (hasPendingPhoto()) return "已有待鉴定照片，先鉴定或放弃。";
+  if (isEquipmentLocked()) return "战斗中不能拍照鉴定。";
+  if (getInventoryItemAt(getSelectedSlotIndex())) return "当前装备格已有装备，请选择空格。";
+  return "现在不能放入照片。";
+}
+
+async function handleEquipmentDetailPaste(event) {
+  if (!els.equipmentDetail.contains(document.activeElement)) return;
+  const file = getImageFileFromDataTransfer(event.clipboardData);
+  if (!file) return;
+  event.preventDefault();
+  await preparePhotoFromDetailFile(file, "粘贴图片失败");
+}
+
+function handleEquipmentDetailDragEnter(event) {
+  if (!dataTransferHasImage(event.dataTransfer)) return;
+  event.preventDefault();
+  els.equipmentDetail.classList.add("is-drag-over");
+}
+
+function handleEquipmentDetailDragOver(event) {
+  if (!dataTransferHasImage(event.dataTransfer)) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = canPreparePhotoInDetail() ? "copy" : "none";
+  els.equipmentDetail.classList.add("is-drag-over");
+}
+
+function handleEquipmentDetailDragLeave(event) {
+  if (event.currentTarget.contains(event.relatedTarget)) return;
+  els.equipmentDetail.classList.remove("is-drag-over");
+}
+
+async function handleEquipmentDetailDrop(event) {
+  const file = getImageFileFromDataTransfer(event.dataTransfer);
+  if (!file) return;
+  event.preventDefault();
+  els.equipmentDetail.classList.remove("is-drag-over");
+  await preparePhotoFromDetailFile(file, "拖入图片失败");
 }
 
 function handleDocumentClickForInfoMode(event) {
@@ -830,11 +905,11 @@ function setSecondaryPanel(panelId) {
 }
 
 function getActiveInfoTab() {
-  return document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "photo";
+  return document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "about";
 }
 
 function setInfoTab(tabId) {
-  const target = ["photo", "battle"].includes(tabId) ? tabId : "photo";
+  const target = ["about", "photo", "battle"].includes(tabId) ? tabId : "about";
   document.querySelectorAll("[data-info-tab]").forEach((button) => {
     const active = button.dataset.infoTab === target;
     button.setAttribute("aria-selected", String(active));
@@ -967,13 +1042,6 @@ async function preparePhotoFromFile(file, successMessage, errorPrefix) {
   }
 }
 
-async function handlePasteEvent(event) {
-  const file = getImageFileFromDataTransfer(event.clipboardData);
-  if (!file) return;
-  event.preventDefault();
-  await preparePhotoFromFile(file, "", "粘贴图片失败");
-}
-
 function getImageFileFromDataTransfer(dataTransfer) {
   if (!dataTransfer) return null;
 
@@ -983,6 +1051,14 @@ function getImageFileFromDataTransfer(dataTransfer) {
   const item = Array.from(dataTransfer.items || []).find((entry) => entry.kind === "file" && entry.type?.startsWith("image/"));
   const blob = item?.getAsFile?.();
   return blob || null;
+}
+
+function dataTransferHasImage(dataTransfer) {
+  if (!dataTransfer) return false;
+  if (getImageFileFromDataTransfer(dataTransfer)) return true;
+  return Array.from(dataTransfer.items || []).some((entry) => (
+    entry.kind === "file" && (!entry.type || entry.type.startsWith("image/"))
+  ));
 }
 
 function showInputNotice(message) {
@@ -1130,6 +1206,13 @@ function getMissingConfigFields(config) {
   if (!config.model) missing.push("Model");
   if (!config.apiKey) missing.push("API Key");
   return missing;
+}
+
+function getPhotoApiConfigHint() {
+  const missing = getMissingConfigFields(getConfigFromInputs());
+  if (!missing.length) return "";
+  if (missing.includes("API Key")) return "先点右上角 API配置，填入图文模型的 API Key 后再鉴定照片。";
+  return `先点右上角 API配置，补全 ${missing.join("、")} 后再鉴定照片。`;
 }
 
 async function analyzePhoto() {
@@ -2287,6 +2370,7 @@ function receiveItem(item, message) {
     ? `${message} 记录 ${fullItem.itemName}，无法提供属性。`
     : `${message} 获得 ${fullItem.itemName}。`;
   if (addInventoryItem(fullItem, rewardText, targetSlot)) {
+    if (!fullItem.tooLarge) recordGlobalGameMetric("Appraisals", 1);
     saveGame();
     render();
   }
@@ -2558,19 +2642,42 @@ function handlePrimaryAction() {
 }
 
 function fleeCurrentFloor() {
-  if (!canFleeCurrentFloor()) return;
+  if (canRetreatCurrentBattle()) return retreatCurrentBattle();
+  if (!canBypassCurrentFloor()) return false;
   state.infoMode = "log";
   addBattleEvent(`第${state.floor}层没有恋战，照片勇者继续向上。`, "info");
   advanceFloor();
   saveGame();
   render();
+  return true;
 }
 
 function canFleeCurrentFloor() {
+  return canBypassCurrentFloor() || canRetreatCurrentBattle();
+}
+
+function canBypassCurrentFloor() {
   if (state.gameClear || state.bossReward || isCareerSummaryOpen()) return false;
   if (isPlayerDefeated() || state.currentBattle || state.autoBattleTimer || state.battleStartTimer || state.pendingFloorAdvance) return false;
   if (isEquipmentLocked() || hasPendingPhoto()) return false;
   return !isBossRewardFloor(state.floor);
+}
+
+function canRetreatCurrentBattle() {
+  if (state.gameClear || state.bossReward || isCareerSummaryOpen()) return false;
+  if (isPlayerDefeated() || !state.currentBattle) return false;
+  if (state.battleStartTimer || state.pendingFloorAdvance || hasPendingPhoto() || isAnalyzingPhoto()) return false;
+  return !isBossRewardFloor(state.currentBattle.floor || state.floor);
+}
+
+function retreatCurrentBattle() {
+  if (!canRetreatCurrentBattle()) return false;
+  const snapshot = state.battleSnapshot;
+  stopAutoBattle();
+  restoreBattleSnapshot(snapshot);
+  saveGame();
+  render();
+  return true;
 }
 
 function cycleBattleSpeed() {
@@ -2683,6 +2790,7 @@ function resetBattleSpecial() {
 
 function beginBattle(enemies) {
   const activeIds = enemies.map((enemy) => enemy.id);
+  state.battleSnapshot = makeBattleSnapshot(activeIds);
   state.activeEnemyIds = activeIds;
   resetBattleSpecial();
   const stats = getBattleStats(activeIds);
@@ -2691,6 +2799,59 @@ function beginBattle(enemies) {
   state.battleClock = makeBattleClock(stats, enemies);
   ensureCurrentBattle(activeIds, stats);
   applyPreBattleFormEffects();
+}
+
+function makeBattleSnapshot(activeIds) {
+  return cloneSerializable({
+    floor: state.floor,
+    encounterId: state.encounterId,
+    enemies: state.enemies,
+    selectedEnemyIds: state.selectedEnemyIds,
+    activeEnemyIds: activeIds,
+    player: state.player,
+    inventory: state.inventory,
+    filmShards: state.filmShards,
+    filmRolls: state.filmRolls,
+    latestItem: state.latestItem,
+    battleReports: state.battleReports,
+    battleReportSeq: state.battleReportSeq,
+    infoMode: state.infoMode,
+  });
+}
+
+function restoreBattleSnapshot(snapshot) {
+  stopAutoBattle();
+  stopBattleTimers();
+  state.battleSnapshot = null;
+  state.currentBattle = null;
+  state.battleClock = null;
+  resetBattleSpecial();
+  clearEnemyCardMotion();
+
+  if (!snapshot || typeof snapshot !== "object") {
+    state.activeEnemyIds = [];
+    return;
+  }
+
+  state.floor = clampInt(snapshot.floor, 1, maxFloor);
+  state.encounterId = typeof snapshot.encounterId === "string" && snapshot.encounterId ? snapshot.encounterId : state.encounterId;
+  state.player = normalizePlayer(snapshot.player || state.player);
+  state.inventory = normalizeInventorySlots(snapshot.inventory);
+  state.selectedEnemyIds = Array.isArray(snapshot.selectedEnemyIds) ? snapshot.selectedEnemyIds.filter((id) => typeof id === "string") : [];
+  state.activeEnemyIds = [];
+  state.enemies = Array.isArray(snapshot.enemies) ? snapshot.enemies.map(normalizeEnemy).filter(Boolean) : state.enemies;
+  const validIds = new Set(state.enemies.map((enemy) => enemy.id));
+  state.selectedEnemyIds = state.selectedEnemyIds.filter((id) => validIds.has(id));
+  state.filmShards = clampInt(snapshot.filmShards, 0, 9);
+  state.filmRolls = clampInt(snapshot.filmRolls, 0, 999);
+  state.latestItem = snapshot.latestItem ? normalizeInventoryItem({ ...snapshot.latestItem, skipSpecialRoll: true }) : state.inventory.find(Boolean) || null;
+  state.battleReports = Array.isArray(snapshot.battleReports) ? snapshot.battleReports.map(normalizeBattleReport).filter(Boolean) : state.battleReports;
+  state.battleReportSeq = Number.isFinite(snapshot.battleReportSeq) ? snapshot.battleReportSeq : state.battleReportSeq;
+  state.infoMode = snapshot.infoMode === "log" ? "log" : snapshot.infoMode === "career" && state.careerSummary ? "career" : "item";
+}
+
+function cloneSerializable(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function getBattleRoundLimit(count = state.activeEnemyIds.length || state.selectedEnemyIds.length || 1, floor = state.floor) {
@@ -2723,6 +2884,7 @@ function resolveBattleAction() {
     removeEnemiesByIds(state.activeEnemyIds, false);
     finishCurrentBattle(bossTimeout ? "boss-timeout" : "enemy-fled");
     stopAutoBattle();
+    if (bossTimeout) recordGlobalGameMetric("Floors", 1);
     handleBattleEndAdvance("delay");
     return true;
   }
@@ -2758,6 +2920,7 @@ function resolveBattleAction() {
     const completedFloor = state.floor;
     finishCurrentBattle("victory");
     stopAutoBattle();
+    recordGlobalGameMetric("Floors", 1);
     if (completedFloor >= maxFloor) {
       advanceFloor();
       saveGame();
@@ -2969,6 +3132,7 @@ function applyFormKillEffects() {
 }
 
 function markEnemyHit(enemyId) {
+  if (state.enemyHitEffectUntilById[enemyId]) return;
   const token = state.hitEffectToken + 1;
   state.hitEffectToken = token;
   state.enemyHitEffectUntilById[enemyId] = token;
@@ -2980,6 +3144,7 @@ function markEnemyHit(enemyId) {
 }
 
 function markHeroHit() {
+  if (state.heroHitEffectUntil) return;
   const token = state.hitEffectToken + 1;
   state.hitEffectToken = token;
   state.heroHitEffectUntil = token;
@@ -3065,6 +3230,7 @@ function finishCurrentBattle(result) {
   const battle = state.currentBattle;
   applyFormBattleEndEffects(result, battle);
   settleFormProgressAfterBattle(result, battle);
+  recordBattleKillStats(result, battle);
   const hpDelta = state.player.hp - battle.startHp;
   const stats = getPlayerStats();
   const endHp = Math.min(state.player.hp, stats.maxHp);
@@ -3082,10 +3248,17 @@ function finishCurrentBattle(result) {
   state.battleReports.unshift(report);
   state.battleReports = state.battleReports.slice(0, battleReportLimit);
   state.currentBattle = null;
+  state.battleSnapshot = null;
   state.selectedEnemyIds = [];
   state.activeEnemyIds = [];
   state.battleClock = null;
   resetBattleSpecial();
+}
+
+function recordBattleKillStats(result, battle) {
+  if (result === "defeat") return;
+  const defeatedCount = Array.isArray(battle.defeatedIds) ? battle.defeatedIds.length : 0;
+  if (defeatedCount > 0) recordGlobalGameMetric("Kills", defeatedCount);
 }
 
 function applyFormBattleEndEffects(result, battle) {
@@ -3674,6 +3847,7 @@ function advanceFloor() {
   state.floor += 1;
   state.selectedEnemyIds = [];
   state.currentBattle = null;
+  state.battleSnapshot = null;
   state.activeEnemyIds = [];
   state.battleClock = null;
   resetBattleSpecial();
@@ -3692,6 +3866,7 @@ function completeGame() {
   state.selectedEnemyIds = [];
   state.activeEnemyIds = [];
   state.currentBattle = null;
+  state.battleSnapshot = null;
   state.battleClock = null;
   state.encounterId = "clear";
   resetBattleSpecial();
@@ -4071,9 +4246,15 @@ function createDefaultGlobalStats() {
     totalPv: 0,
     totalUv: 0,
     totalGames: 0,
+    totalKills: 0,
+    totalAppraisals: 0,
+    totalFloors: 0,
     todayPv: 0,
     todayUv: 0,
     todayGames: 0,
+    todayKills: 0,
+    todayAppraisals: 0,
+    todayFloors: 0,
   };
 }
 
@@ -4083,9 +4264,15 @@ function normalizeGlobalStats(input) {
     totalPv: clampInt(source.totalPv, 0, 99999999),
     totalUv: clampInt(source.totalUv, 0, 99999999),
     totalGames: clampInt(source.totalGames, 0, 99999999),
+    totalKills: clampInt(source.totalKills, 0, 99999999),
+    totalAppraisals: clampInt(source.totalAppraisals, 0, 99999999),
+    totalFloors: clampInt(source.totalFloors, 0, 99999999),
     todayPv: clampInt(source.todayPv, 0, 99999999),
     todayUv: clampInt(source.todayUv, 0, 99999999),
     todayGames: clampInt(source.todayGames, 0, 99999999),
+    todayKills: clampInt(source.todayKills, 0, 99999999),
+    todayAppraisals: clampInt(source.todayAppraisals, 0, 99999999),
+    todayFloors: clampInt(source.todayFloors, 0, 99999999),
   };
 }
 
@@ -4112,10 +4299,12 @@ async function recordGlobalVisit() {
 
   const isKnownVisitor = localStorage.getItem(STORAGE_KEYS.statsVisitor) === "true";
   const lastUvDate = localStorage.getItem(STORAGE_KEYS.statsLastUvDate);
-  if (!isKnownVisitor || lastUvDate !== today) {
+  if (!isKnownVisitor) {
     await incrementStatsCounter(STATS_COUNTER_IDS.totalUv);
-    await incrementStatsCounter(makeDailyCounterId(STATS_COUNTER_IDS.dailyUvPrefix, today));
     localStorage.setItem(STORAGE_KEYS.statsVisitor, "true");
+  }
+  if (lastUvDate !== today) {
+    await incrementStatsCounter(makeDailyCounterId(STATS_COUNTER_IDS.dailyUvPrefix, today));
     localStorage.setItem(STORAGE_KEYS.statsLastUvDate, today);
   }
 }
@@ -4141,6 +4330,26 @@ function recordGlobalGameStart() {
   });
 }
 
+function recordGlobalGameMetric(metric, amount = 1) {
+  if (!shouldRecordGlobalStats()) return;
+  const totalKey = STATS_COUNTER_IDS[`total${metric}`];
+  const dailyPrefix = STATS_COUNTER_IDS[`daily${metric}Prefix`];
+  const count = clampInt(amount, 0, 999);
+  if (!totalKey || !dailyPrefix || count <= 0) return;
+  const today = getLocalDateKey();
+  const dailyKey = makeDailyCounterId(dailyPrefix, today);
+  const updates = [];
+  for (let i = 0; i < count; i += 1) {
+    updates.push(incrementStatsCounter(totalKey));
+    updates.push(incrementStatsCounter(dailyKey));
+  }
+  void Promise.all(updates).then(refreshGlobalStats).catch((error) => {
+    console.warn("记录全站游戏事件失败:", error);
+    state.globalStatsStatus = "游戏统计同步失败。";
+    renderGlobalStatsPanel();
+  });
+}
+
 function shouldRecordGlobalStats() {
   const hostname = window.location.hostname;
   if (!hostname) return false;
@@ -4153,21 +4362,36 @@ async function refreshGlobalStats() {
   const dailyPv = makeDailyCounterId(STATS_COUNTER_IDS.dailyPvPrefix, today);
   const dailyUv = makeDailyCounterId(STATS_COUNTER_IDS.dailyUvPrefix, today);
   const dailyGames = makeDailyCounterId(STATS_COUNTER_IDS.dailyGamesPrefix, today);
+  const dailyKills = makeDailyCounterId(STATS_COUNTER_IDS.dailyKillsPrefix, today);
+  const dailyAppraisals = makeDailyCounterId(STATS_COUNTER_IDS.dailyAppraisalsPrefix, today);
+  const dailyFloors = makeDailyCounterId(STATS_COUNTER_IDS.dailyFloorsPrefix, today);
   const counters = await fetchStatsCounters([
     STATS_COUNTER_IDS.totalPv,
     STATS_COUNTER_IDS.totalUv,
     STATS_COUNTER_IDS.totalGames,
+    STATS_COUNTER_IDS.totalKills,
+    STATS_COUNTER_IDS.totalAppraisals,
+    STATS_COUNTER_IDS.totalFloors,
     dailyPv,
     dailyUv,
     dailyGames,
+    dailyKills,
+    dailyAppraisals,
+    dailyFloors,
   ]);
   state.globalStats = normalizeGlobalStats({
     totalPv: counters[STATS_COUNTER_IDS.totalPv],
     totalUv: counters[STATS_COUNTER_IDS.totalUv],
     totalGames: counters[STATS_COUNTER_IDS.totalGames],
+    totalKills: counters[STATS_COUNTER_IDS.totalKills],
+    totalAppraisals: counters[STATS_COUNTER_IDS.totalAppraisals],
+    totalFloors: counters[STATS_COUNTER_IDS.totalFloors],
     todayPv: counters[dailyPv],
     todayUv: counters[dailyUv],
     todayGames: counters[dailyGames],
+    todayKills: counters[dailyKills],
+    todayAppraisals: counters[dailyAppraisals],
+    todayFloors: counters[dailyFloors],
   });
   state.globalStatsStatus = "统计已更新。";
   renderGlobalStatsPanel();
@@ -4221,23 +4445,39 @@ function getLocalDateKey(date = new Date()) {
 function renderGlobalStatsPanel() {
   if (!els.globalStatsPanel) return;
   const stats = normalizeGlobalStats(state.globalStats);
-  const items = [
-    ["总访问", stats.totalPv],
-    ["总访客", stats.totalUv],
-    ["总游玩", stats.totalGames],
-    ["今日访问", stats.todayPv],
-    ["今日访客", stats.todayUv],
-    ["今日游玩", stats.todayGames],
+  const groups = [
+    {
+      title: "热度",
+      items: [
+        ["访问", stats.totalPv, stats.todayPv],
+        ["访客", stats.totalUv, stats.todayUv],
+        ["游玩", stats.totalGames, stats.todayGames],
+      ],
+    },
+    {
+      title: "冒险",
+      items: [
+        ["击败", stats.totalKills, stats.todayKills],
+        ["装备", stats.totalAppraisals, stats.todayAppraisals],
+        ["破层", stats.totalFloors, stats.todayFloors],
+      ],
+    },
   ];
   els.globalStatsPanel.innerHTML = `
-    <div class="global-stats-grid">
-      ${items.map(([label, value]) => `
-        <div class="global-stat">
-          <span>${escapeHtml(label)}</span>
-          <strong>${escapeHtml(formatCompactCount(value))}</strong>
+    ${groups.map((group) => `
+      <section class="global-stat-group" aria-label="${escapeHtml(group.title)}统计">
+        <h4>${escapeHtml(group.title)}</h4>
+        <div class="global-stats-grid">
+          ${group.items.map(([label, total, today]) => `
+            <div class="global-stat">
+              <span>${escapeHtml(label)}</span>
+              <strong>${escapeHtml(formatCompactCount(total))}</strong>
+              <em>今日 ${escapeHtml(formatCompactCount(today))}</em>
+            </div>
+          `).join("")}
         </div>
+      </section>
       `).join("")}
-    </div>
   `;
   if (els.globalStatsStatus) {
     els.globalStatsStatus.textContent = state.globalStatsStatus || "";
@@ -4667,6 +4907,7 @@ function resetGame() {
   state.battleReports = [];
   state.battleReportSeq = 0;
   state.currentBattle = null;
+  state.battleSnapshot = null;
   state.infoMode = "item";
   state.bossReward = null;
   state.formProgress = createDefaultFormProgress();
@@ -5727,7 +5968,8 @@ function render() {
   els.battleSpeedBtn.disabled = defeated || state.gameClear || bossRewardPending;
   els.fleeBtn.hidden = !canFleeCurrentFloor();
   els.fleeBtn.disabled = !canFleeCurrentFloor();
-  els.fleeBtn.setAttribute("aria-label", "跳过本层并进入下一层");
+  els.fleeBtn.textContent = canRetreatCurrentBattle() ? "逃跑" : "绕过";
+  els.fleeBtn.setAttribute("aria-label", canRetreatCurrentBattle() ? "退出本场战斗并恢复战前状态" : "绕过本层并进入下一层");
 
   renderApiStatus();
   renderCameraStatus();
@@ -6170,6 +6412,7 @@ function renderEquipmentDetail() {
 
   if (state.lastPhoto && showingItem) {
     if (state.lootError) els.equipmentDetail.classList.add("is-error");
+    const apiHint = getPhotoApiConfigHint();
     els.equipmentDetailName.textContent = "待鉴定照片";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
@@ -6177,6 +6420,8 @@ function renderEquipmentDetail() {
       ? "正在鉴定照片。若接口长时间无响应，可以取消后重新拍摄更清晰、主体更明确的照片。"
       : state.lootError
       ? `${state.lootError} 可以重新鉴定。`
+      : apiHint
+      ? apiHint
       : state.filmRolls >= 1
         ? "确认后鉴定并装入当前装备格。"
         : "胶卷不足，先击败怪物获得资源。";
@@ -6185,7 +6430,7 @@ function renderEquipmentDetail() {
     els.analyzePhotoBtn.textContent = analyzing ? "取消鉴定" : "鉴定";
     els.analyzePhotoBtn.setAttribute("aria-label", analyzing ? "取消鉴定" : "鉴定照片");
     els.analyzePhotoBtn.classList.toggle("is-cancel", analyzing);
-    els.analyzePhotoBtn.disabled = analyzing ? false : locked || Boolean(els.loadingState.textContent) || state.filmRolls < 1;
+    els.analyzePhotoBtn.disabled = analyzing ? false : locked || Boolean(els.loadingState.textContent) || state.filmRolls < 1 || Boolean(apiHint);
     if (!analyzing) {
       els.discardItemBtn.hidden = false;
       els.discardItemBtn.disabled = false;
@@ -6211,6 +6456,7 @@ function renderEquipmentDetail() {
   }
 
   if (!selected) {
+    const apiHint = getPhotoApiConfigHint();
     els.equipmentDetailName.textContent = "空装备格";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
@@ -6220,6 +6466,8 @@ function renderEquipmentDetail() {
         : state.bossReward
           ? "先选择 Boss 奖励。"
           : "战斗中不能拍照鉴定。"
+      : apiHint
+        ? apiHint
       : state.filmRolls >= 1
         ? "拍一件现实小物，让它变成照片装备。"
         : "胶卷不足，先击败怪物获得资源。";
@@ -6812,6 +7060,7 @@ function saveGame() {
     battleReports: state.battleReports,
     battleReportSeq: state.battleReportSeq,
     currentBattle: state.currentBattle,
+    battleSnapshot: state.battleSnapshot,
     infoMode: state.infoMode,
     battleSpecial: state.battleSpecial,
     careerSummary: state.careerSummary,
@@ -6869,6 +7118,7 @@ function loadSave() {
   state.battleReports = Array.isArray(save.battleReports) ? save.battleReports.map(normalizeBattleReport).filter(Boolean) : [];
   state.battleReportSeq = Number.isFinite(save.battleReportSeq) ? save.battleReportSeq : state.battleReports.length;
   state.currentBattle = normalizeCurrentBattle(save.currentBattle);
+  state.battleSnapshot = state.currentBattle ? normalizeBattleSnapshot(save.battleSnapshot) : null;
   state.careerSummary = normalizeCareerSummary(save.careerSummary);
   state.infoMode = save.infoMode === "career" && state.careerSummary ? "career" : save.infoMode === "log" ? "log" : "item";
   state.battleClock = normalizeBattleClock(save.battleClock);
@@ -6980,6 +7230,32 @@ function normalizeCurrentBattle(battle) {
     defeatedIds: Array.isArray(battle.defeatedIds) ? battle.defeatedIds.filter((item) => typeof item === "string") : [],
     defeatedTypes: Array.isArray(battle.defeatedTypes) ? battle.defeatedTypes.filter((item) => typeof item === "string") : [],
     createdAt: Number.isFinite(battle.createdAt) ? battle.createdAt : Date.now(),
+  };
+}
+
+function normalizeBattleSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  const enemies = Array.isArray(snapshot.enemies) ? snapshot.enemies.map(normalizeEnemy).filter(Boolean) : [];
+  if (!enemies.length) return null;
+  const validIds = new Set(enemies.map((enemy) => enemy.id));
+  return {
+    floor: clampInt(snapshot.floor, 1, maxFloor),
+    encounterId: typeof snapshot.encounterId === "string" && snapshot.encounterId ? snapshot.encounterId : state.encounterId,
+    enemies,
+    selectedEnemyIds: Array.isArray(snapshot.selectedEnemyIds)
+      ? snapshot.selectedEnemyIds.filter((id) => typeof id === "string" && validIds.has(id))
+      : [],
+    activeEnemyIds: Array.isArray(snapshot.activeEnemyIds)
+      ? snapshot.activeEnemyIds.filter((id) => typeof id === "string" && validIds.has(id))
+      : [],
+    player: normalizePlayer(snapshot.player || state.player),
+    inventory: normalizeInventorySlots(snapshot.inventory),
+    filmShards: clampInt(snapshot.filmShards, 0, 9),
+    filmRolls: clampInt(snapshot.filmRolls, 0, 999),
+    latestItem: snapshot.latestItem ? normalizeInventoryItem({ ...snapshot.latestItem, skipSpecialRoll: true }) : null,
+    battleReports: Array.isArray(snapshot.battleReports) ? snapshot.battleReports.map(normalizeBattleReport).filter(Boolean) : [],
+    battleReportSeq: Number.isFinite(snapshot.battleReportSeq) ? snapshot.battleReportSeq : 0,
+    infoMode: snapshot.infoMode === "log" || snapshot.infoMode === "item" ? snapshot.infoMode : "log",
   };
 }
 
@@ -7183,6 +7459,7 @@ window.__photoHeroTestHooks = {
     state.selectedEnemyIds = [];
     state.activeEnemyIds = [];
     state.currentBattle = null;
+    state.battleSnapshot = null;
     state.battleClock = null;
     resetBattleSpecial();
     clearEnemyCardMotion();
@@ -7201,6 +7478,7 @@ window.__photoHeroTestHooks = {
     state.selectedEnemyIds = state.enemies.map((enemy) => enemy.id);
     state.activeEnemyIds = [];
     state.currentBattle = null;
+    state.battleSnapshot = null;
     state.battleClock = null;
     resetBattleSpecial();
     clearEnemyCardMotion();
