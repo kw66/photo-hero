@@ -60,6 +60,7 @@ async function collectScenario(page, name, action = async () => {}) {
       mobileSaveFallback: window.__reviewMobileSaveFallback || null,
       monsterDistribution: window.__reviewMonsterDistribution || null,
       bossFilmDrops: window.__reviewBossFilmDrops || null,
+      cropAppraisal: window.__reviewCropAppraisal || null,
       groupQr: (() => {
         const card = document.querySelector(".author-qr-card");
         const group = document.querySelector(".group-qr");
@@ -153,6 +154,12 @@ function assertScenario(name, metrics) {
     if (floor30.length !== 3 || floor30.some((enemy) => enemy.drop !== "胶卷 0.1")) {
       failures.push(`${name}: floor 30 guards and knight captain should each show 胶卷 0.1, got ${floor30Drops}`);
     }
+  }
+  if (name === "crop-appraisal") {
+    const crop = metrics.cropAppraisal || {};
+    if (!crop.croppedSmaller) failures.push(`${name}: cropped image should be smaller than source`);
+    if (!crop.sameCropDuplicate) failures.push(`${name}: same source and same crop should be treated as duplicate`);
+    if (crop.differentCropDuplicate) failures.push(`${name}: same source with different crop should not be blocked by photo duplicate`);
   }
   if (name === "mobile-boss-selection") {
     if (metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: boss floor still shows 逃跑`);
@@ -392,6 +399,44 @@ function assertScenario(name, metrics) {
         greedyStatsByFilm[film.toFixed(1)] = { atk: stats.atk, def: stats.def, speed: stats.speed };
       }
       window.__reviewFormEconomy = { shield, lifesteal, regenShield, hpKill, speedPreStrike, greedyDropBonus, greedyStatsByFilm };
+    });
+  });
+
+  scenarios.cropAppraisal = await collectScenario(desktop, "crop-appraisal", async (page) => {
+    await page.evaluate(async () => {
+      const hooks = window.__photoHeroTestHooks;
+      const canvas = document.createElement("canvas");
+      canvas.width = 800;
+      canvas.height = 400;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#f5ebd7";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#bd3d36";
+      ctx.fillRect(60, 70, 230, 260);
+      ctx.fillStyle = "#245f9a";
+      ctx.fillRect(510, 70, 230, 260);
+      const source = canvas.toDataURL("image/jpeg", 0.82);
+      const cropA = { x: 0.05, y: 0.1, width: 0.35, height: 0.8 };
+      const cropB = { x: 0.6, y: 0.1, width: 0.35, height: 0.8 };
+      const cropped = await hooks.cropImageToDataUrl(source, cropA, 420, 0.72);
+      const sourceKey = hooks.makePhotoDuplicateKey(source);
+      const cropAKey = hooks.makePhotoDuplicateKey(cropped);
+      hooks.addRawItem({
+        itemName: "红色方块",
+        subjectName: "红色方块",
+        objectType: "测试块",
+        value: 8,
+        stats: { hp: 2 },
+        photoKey: cropAKey,
+        sourcePhotoKey: sourceKey,
+        cropRect: cropA,
+        skipSpecialRoll: true,
+      });
+      window.__reviewCropAppraisal = {
+        croppedSmaller: cropped.length < source.length,
+        sameCropDuplicate: Boolean(hooks.findCurrentPhotoDuplicateForTest(cropAKey, sourceKey, cropA)),
+        differentCropDuplicate: Boolean(hooks.findCurrentPhotoDuplicateForTest(hooks.makePhotoDuplicateKey(source), sourceKey, cropB)),
+      };
     });
   });
 

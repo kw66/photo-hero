@@ -476,6 +476,8 @@ const els = {
   savePhotoBtn: byId("savePhotoBtn"),
   pendingPhotoPreview: byId("pendingPhotoPreview"),
   pendingPhotoImage: byId("pendingPhotoImage"),
+  pendingCropOverlay: byId("pendingCropOverlay"),
+  pendingCropBox: byId("pendingCropBox"),
   discardItemBtn: byId("discardItemBtn"),
   loadingState: byId("loadingState"),
   battleLog: byId("battleLog"),
@@ -513,6 +515,9 @@ const state = {
   pendingPhotoSlotIndex: 0,
   selectedItemId: "",
   lastPhoto: "",
+  pendingCropRect: null,
+  cropMode: false,
+  cropDrag: null,
   latestItem: null,
   filmShards: 0,
   filmRolls: initialFilmRolls,
@@ -607,8 +612,8 @@ function bindEvents() {
   els.fleeBtn.addEventListener("click", fleeCurrentFloor);
   els.battleSpeedBtn.addEventListener("click", cycleBattleSpeed);
   els.resetGameBtn.addEventListener("click", resetGame);
-  els.photoActionBtn.addEventListener("click", openPhotoPickerForSelectedSlot);
-  els.savePhotoBtn.addEventListener("click", saveSelectedPhotoImage);
+  els.photoActionBtn.addEventListener("click", handlePhotoActionButtonClick);
+  els.savePhotoBtn.addEventListener("click", handleSavePhotoButtonClick);
   els.analyzePhotoBtn.addEventListener("click", () => {
     if (state.gameClear && isCareerSummaryOpen()) {
       downloadCareerSummaryImage();
@@ -620,7 +625,12 @@ function bindEvents() {
     }
     analyzePhoto();
   });
-  els.pendingPhotoPreview.addEventListener("click", () => openImageViewer(state.lastPhoto, "待鉴定照片"));
+  els.pendingPhotoPreview.addEventListener("click", handlePendingPhotoPreviewClick);
+  els.pendingPhotoPreview.addEventListener("pointerdown", handlePendingCropPointerDown);
+  els.pendingPhotoPreview.addEventListener("pointermove", handlePendingCropPointerMove);
+  els.pendingPhotoPreview.addEventListener("pointerup", handlePendingCropPointerUp);
+  els.pendingPhotoPreview.addEventListener("pointercancel", handlePendingCropPointerUp);
+  els.pendingPhotoImage.addEventListener("load", renderPendingCropOverlay);
   els.discardItemBtn.addEventListener("click", handleDiscardAction);
   els.imageViewer.addEventListener("click", (event) => {
     if (event.target === els.imageViewerImage) return;
@@ -647,8 +657,169 @@ function openPhotoPickerForSelectedSlot() {
   openPhotoPicker();
 }
 
+function handlePhotoActionButtonClick() {
+  if (state.lastPhoto && !isAnalyzingPhoto()) {
+    if (state.cropMode) {
+      confirmPendingCrop();
+    } else {
+      togglePendingCropMode();
+    }
+    return;
+  }
+  openPhotoPickerForSelectedSlot();
+}
+
+function handleSavePhotoButtonClick() {
+  if (state.lastPhoto && !isAnalyzingPhoto()) {
+    resetPendingCrop();
+    return;
+  }
+  saveSelectedPhotoImage();
+}
+
 function handleEquipmentDetailClick(event) {
   if (event.target.closest("button")) return;
+}
+
+function handlePendingPhotoPreviewClick(event) {
+  if (!state.lastPhoto || state.cropMode) return;
+  event.stopPropagation();
+  openImageViewer(state.lastPhoto, "待鉴定照片");
+}
+
+function togglePendingCropMode() {
+  if (!state.lastPhoto || isAnalyzingPhoto()) return;
+  state.cropMode = !state.cropMode;
+  if (state.cropMode && !state.pendingCropRect) {
+    state.pendingCropRect = makeDefaultCropRect();
+  }
+  state.cropDrag = null;
+  renderEquipmentDetail();
+}
+
+function confirmPendingCrop() {
+  if (!state.lastPhoto || !state.cropMode) return;
+  state.pendingCropRect = normalizeCropRect(state.pendingCropRect || makeDefaultCropRect());
+  state.cropMode = false;
+  state.cropDrag = null;
+  renderEquipmentDetail();
+}
+
+function resetPendingCrop() {
+  if (!state.lastPhoto) return;
+  state.pendingCropRect = null;
+  state.cropMode = false;
+  state.cropDrag = null;
+  renderEquipmentDetail();
+}
+
+function makeDefaultCropRect() {
+  return { x: 0.12, y: 0.12, width: 0.76, height: 0.76 };
+}
+
+function normalizeCropRect(rect) {
+  if (!rect || typeof rect !== "object") return null;
+  let rawX = clampNumber(rect.x, 0, 1);
+  let rawY = clampNumber(rect.y, 0, 1);
+  let rawWidth = clampNumber(rect.width, 0.08, 1);
+  let rawHeight = clampNumber(rect.height, 0.08, 1);
+  if (rawX + rawWidth > 1 && rawWidth > 0.08) rawWidth = Math.max(0.08, 1 - rawX);
+  if (rawY + rawHeight > 1 && rawHeight > 0.08) rawHeight = Math.max(0.08, 1 - rawY);
+  const x = Math.min(rawX, 1 - rawWidth);
+  const y = Math.min(rawY, 1 - rawHeight);
+  return { x, y, width: Math.min(rawWidth, 1 - x), height: Math.min(rawHeight, 1 - y) };
+}
+
+function cropRectsAlmostEqual(a, b) {
+  const rectA = normalizeCropRect(a);
+  const rectB = normalizeCropRect(b);
+  if (!rectA || !rectB) return false;
+  return Math.abs(rectA.x - rectB.x) < 0.01
+    && Math.abs(rectA.y - rectB.y) < 0.01
+    && Math.abs(rectA.width - rectB.width) < 0.01
+    && Math.abs(rectA.height - rectB.height) < 0.01;
+}
+
+function pointerToPreviewPoint(event) {
+  const rect = getPendingImageRenderedRect();
+  const x = clampNumber((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
+  const y = clampNumber((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1);
+  return { x, y };
+}
+
+function getPendingImageRenderedRect() {
+  const wrapper = els.pendingPhotoPreview.getBoundingClientRect();
+  const image = els.pendingPhotoImage;
+  const naturalWidth = image.naturalWidth || 1;
+  const naturalHeight = image.naturalHeight || 1;
+  const wrapperRatio = wrapper.width / Math.max(1, wrapper.height);
+  const imageRatio = naturalWidth / Math.max(1, naturalHeight);
+  if (imageRatio > wrapperRatio) {
+    const height = wrapper.height;
+    const width = height * imageRatio;
+    return {
+      left: wrapper.left - (width - wrapper.width) / 2,
+      top: wrapper.top,
+      width,
+      height,
+    };
+  }
+  const width = wrapper.width;
+  const height = width / imageRatio;
+  return {
+    left: wrapper.left,
+    top: wrapper.top - (height - wrapper.height) / 2,
+    width,
+    height,
+  };
+}
+
+function getPendingImageBoxStyle() {
+  const wrapper = els.pendingPhotoPreview.getBoundingClientRect();
+  if (!wrapper.width || !wrapper.height) return null;
+  const rendered = getPendingImageRenderedRect();
+  return {
+    left: ((rendered.left - wrapper.left) / wrapper.width) * 100,
+    top: ((rendered.top - wrapper.top) / wrapper.height) * 100,
+    width: (rendered.width / wrapper.width) * 100,
+    height: (rendered.height / wrapper.height) * 100,
+  };
+}
+
+function handlePendingCropPointerDown(event) {
+  if (!state.cropMode || isAnalyzingPhoto() || !state.lastPhoto) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const point = pointerToPreviewPoint(event);
+  state.cropDrag = { start: point, current: point };
+  state.pendingCropRect = { x: point.x, y: point.y, width: 0.08, height: 0.08 };
+  els.pendingPhotoPreview.setPointerCapture?.(event.pointerId);
+  renderPendingCropOverlay();
+}
+
+function handlePendingCropPointerMove(event) {
+  if (!state.cropMode || !state.cropDrag) return;
+  event.preventDefault();
+  const current = pointerToPreviewPoint(event);
+  const start = state.cropDrag.start;
+  state.cropDrag.current = current;
+  state.pendingCropRect = normalizeCropRect({
+    x: Math.min(start.x, current.x),
+    y: Math.min(start.y, current.y),
+    width: Math.abs(current.x - start.x),
+    height: Math.abs(current.y - start.y),
+  });
+  renderPendingCropOverlay();
+}
+
+function handlePendingCropPointerUp(event) {
+  if (!state.cropMode || !state.cropDrag) return;
+  event.preventDefault();
+  event.stopPropagation();
+  state.cropDrag = null;
+  state.pendingCropRect = normalizeCropRect(state.pendingCropRect || makeDefaultCropRect());
+  els.pendingPhotoPreview.releasePointerCapture?.(event.pointerId);
+  renderEquipmentDetail();
 }
 
 function canPreparePhotoInDetail() {
@@ -1152,6 +1323,9 @@ async function preparePhotoFromFile(file, successMessage, errorPrefix) {
   setBusy("处理图片...");
   try {
     state.lastPhoto = await compressImage(file);
+    state.pendingCropRect = null;
+    state.cropMode = false;
+    state.cropDrag = null;
     state.pendingPhotoSlotIndex = getSelectedSlotIndex();
     state.lootError = "";
     state.infoMode = "item";
@@ -1385,30 +1559,58 @@ async function analyzePhoto() {
     return;
   }
 
-  const photoKey = makePhotoDuplicateKey(state.lastPhoto);
-  const photoDuplicate = findCurrentPhotoDuplicate(photoKey);
-  if (photoDuplicate) {
-    const message = `当前装备栏已经有这张照片生成的装备：${formatItemDisplayName(photoDuplicate)}。`;
-    showLootError(`${message} 请拍摄新的物品。`);
-    addLog(`${message} 胶卷未消耗。`);
+  saveConfig(false);
+  const request = startAnalysisRequest();
+  let appraisalImage = state.lastPhoto;
+  let inventorySourceImage = state.lastPhoto;
+  let sourcePhotoKey = makePhotoDuplicateKey(state.lastPhoto);
+  let appraisalPhotoKey = sourcePhotoKey;
+  let cropRect = null;
+  try {
+    if (state.pendingCropRect) {
+      cropRect = normalizeCropRect(state.pendingCropRect);
+      appraisalImage = await cropImageToDataUrl(state.lastPhoto, cropRect, analysisImageMaxEdge, analysisImageQuality);
+      inventorySourceImage = appraisalImage;
+      appraisalPhotoKey = makePhotoDuplicateKey(appraisalImage);
+    }
+  } catch (error) {
+    showLootError(`圈定主体失败：${error.message || "请重新圈定或重拍"}`);
+    finishAnalysisRequest(request.id);
+    setBusy("");
     render();
     return;
   }
 
-  saveConfig(false);
-  const request = startAnalysisRequest();
-  const timing = createAppraisalTiming(state.lastPhoto);
+  const photoDuplicate = findCurrentPhotoDuplicate(appraisalPhotoKey, sourcePhotoKey, cropRect);
+  if (photoDuplicate) {
+    const message = `当前装备栏已经有这件影像生成的装备：${formatItemDisplayName(photoDuplicate)}。`;
+    showLootError(`${message} 请换个主体或重新拍摄。`);
+    addLog(`${message} 胶卷未消耗。`);
+    finishAnalysisRequest(request.id);
+    render();
+    return;
+  }
+
+  const timing = createAppraisalTiming(appraisalImage);
   state.lastAppraisalTiming = timing;
   setBusy("鉴定中...");
   render();
   try {
-    const item = await measureAppraisalStage(timing, "apiMs", () => analyzeDirectly(config, state.lastPhoto, { signal: request.controller.signal, timing }));
+    const item = await measureAppraisalStage(timing, "apiMs", () => analyzeDirectly(config, appraisalImage, { signal: request.controller.signal, timing, cropped: Boolean(cropRect) }));
     if (request.id !== state.analysisRequest?.id) return;
-    const inventoryImage = await measureAppraisalStage(timing, "inventoryResizeMs", () => makeInventoryImage(state.lastPhoto));
+    const inventoryImage = await measureAppraisalStage(timing, "inventoryResizeMs", () => makeInventoryImage(inventorySourceImage));
     if (request.id !== state.analysisRequest?.id) return;
-    const balancedItem = measureAppraisalStageSync(timing, "balanceMs", () => balanceItem({ ...item, photoKey }, inventoryImage));
+    const balancedItem = measureAppraisalStageSync(timing, "balanceMs", () => balanceItem({
+      ...item,
+      photoKey: appraisalPhotoKey,
+      sourcePhotoKey,
+      cropRect,
+    }, inventoryImage));
     balancedItem.image = inventoryImage;
     balancedItem.fullImage = state.lastPhoto;
+    balancedItem.appraisalImage = appraisalImage;
+    balancedItem.sourcePhotoKey = sourcePhotoKey;
+    balancedItem.cropRect = cropRect;
     const failureReason = getAppraisalFailureReason(balancedItem);
     if (failureReason) {
       throw new Error(failureReason);
@@ -1493,9 +1695,15 @@ function showLootError(message) {
   state.lootError = message;
 }
 
-function clearPendingPhoto() {
+function clearPendingPhoto(options = {}) {
   state.lastPhoto = "";
+  state.pendingCropRect = null;
+  state.cropMode = false;
+  state.cropDrag = null;
   state.pendingPhotoSlotIndex = getSelectedSlotIndex();
+  if (options.keepSelectedSlot && Number.isInteger(options.slotIndex)) {
+    state.pendingPhotoSlotIndex = clampSlotIndex(options.slotIndex);
+  }
 }
 
 function abandonPendingPhoto(message = "已放弃待鉴定照片。") {
@@ -1585,6 +1793,7 @@ function finishAppraisalTiming(timing) {
 
 async function analyzeDirectly(config, image, options = {}) {
   let response;
+  const prompt = getPhotoIdentificationPrompt(options);
   const body = withProviderRequestOptions(config, {
     model: config.model,
     temperature: 0.35,
@@ -1599,7 +1808,7 @@ async function analyzeDirectly(config, image, options = {}) {
         content: [
           {
             type: "text",
-            text: getPhotoIdentificationPrompt(),
+            text: prompt,
           },
           {
             type: "image_url",
@@ -1667,8 +1876,8 @@ async function compareIdentifiedObjects(config, currentItem, knownItem, signal =
         role: "user",
         content: [
           { type: "text", text: prompt },
-          { type: "image_url", image_url: { url: knownItem.image, detail: modelImageDetail } },
-          { type: "image_url", image_url: { url: currentItem.image, detail: modelImageDetail } },
+          { type: "image_url", image_url: { url: knownItem.appraisalImage || knownItem.image, detail: modelImageDetail } },
+          { type: "image_url", image_url: { url: currentItem.appraisalImage || currentItem.image, detail: modelImageDetail } },
         ],
       },
     ],
@@ -1772,8 +1981,11 @@ function buildChatEndpoint(input) {
   return url.toString();
 }
 
-function getPhotoIdentificationPrompt() {
-  return `${photoIdentificationUserPrompt}\n\n当前本局本地结算的装备价值范围：${getPhotoValueMin()} 到 ${getPhotoValueMax()}。你仍然不要输出最终 value 或最终 stats，只需要按 rubric 输出质量分与倾向。`;
+function getPhotoIdentificationPrompt(options = {}) {
+  const cropHint = options.cropped
+    ? "\n\n玩家已经圈定主体区域；请优先鉴定这块区域里的现实物体，不要因为画面被裁小、背景较少就判成商品图或素材图。"
+    : "";
+  return `${photoIdentificationUserPrompt}${cropHint}\n\n当前本局本地结算的装备价值范围：${getPhotoValueMin()} 到 ${getPhotoValueMax()}。你仍然不要输出最终 value 或最终 stats，只需要按 rubric 输出质量分与倾向。`;
 }
 
 function readModelText(payload, options = {}) {
@@ -2793,9 +3005,13 @@ function receiveItem(item, message) {
   const fullItem = {
     ...item,
     id: makeId("item"),
+    appraisalImage: "",
   };
   const targetSlot = Number.isInteger(state.pendingPhotoSlotIndex) ? state.pendingPhotoSlotIndex : getSelectedSlotIndex();
   state.lastPhoto = "";
+  state.pendingCropRect = null;
+  state.cropMode = false;
+  state.cropDrag = null;
   state.pendingPhotoSlotIndex = targetSlot;
   const rewardText = fullItem.tooLarge
     ? `${message} 记录 ${fullItem.itemName}，无法提供属性。`
@@ -2812,7 +3028,9 @@ async function findDuplicateIdentifiedItem(item, config = null, signal = null) {
   if (!duplicate) return null;
   if (duplicate.confidence !== "possible") return duplicate.item || null;
   if (!shouldVerifyPossibleDuplicateWithVision(item, duplicate.item)) return null;
-  if (!duplicate.item?.image || !item?.image || !config) return null;
+  const currentImage = item?.appraisalImage || item?.image || "";
+  const knownImage = duplicate.item?.appraisalImage || duplicate.item?.image || "";
+  if (!knownImage || !currentImage || !config) return null;
   const same = await compareIdentifiedObjects(config, item, duplicate.item, signal);
   return same ? duplicate.item : null;
 }
@@ -2846,10 +3064,16 @@ function countTokenOverlap(a, b) {
   return a.reduce((count, token) => count + (bSet.has(token) ? 1 : 0), 0);
 }
 
-function findCurrentPhotoDuplicate(photoKey) {
+function findCurrentPhotoDuplicate(photoKey, sourcePhotoKey = "", cropRect = null) {
   const normalized = makePhotoDuplicateKey(photoKey);
   if (!normalized) return null;
-  return getKnownIdentifiedItems().find((known) => known.photoKey === normalized)?.item || null;
+  const normalizedSource = makePhotoDuplicateKey(sourcePhotoKey);
+  const normalizedCrop = normalizeCropRect(cropRect);
+  return getKnownIdentifiedItems().find((known) => {
+    if (known.photoKey === normalized) return true;
+    if (!normalizedCrop || !normalizedSource || known.sourcePhotoKey !== normalizedSource) return false;
+    return cropRectsAlmostEqual(known.cropRect, normalizedCrop);
+  })?.item || null;
 }
 
 function findDuplicateByStoredIdentity(item) {
@@ -2869,6 +3093,8 @@ function getKnownIdentifiedItems() {
     known.push({
       item,
       photoKey: makePhotoDuplicateKey(item.photoKey),
+      sourcePhotoKey: makePhotoDuplicateKey(item.sourcePhotoKey),
+      cropRect: normalizeCropRect(item.cropRect),
       objectKey: makeStoredObjectDuplicateKey(item),
     });
   }
@@ -2922,6 +3148,9 @@ function makeObjectTypeKey(item) {
 
 function compareObjectIdentity(a, b) {
   if (!a || !b || a.tooLarge || b.tooLarge) return "";
+  const sourceA = makePhotoDuplicateKey(a.sourcePhotoKey);
+  const sourceB = makePhotoDuplicateKey(b.sourcePhotoKey);
+  if (sourceA && sourceB && sourceA === sourceB && cropRectsAlmostEqual(a.cropRect, b.cropRect)) return "exact";
   const photoA = makePhotoDuplicateKey(a.photoKey);
   const photoB = makePhotoDuplicateKey(b.photoKey);
   if (photoA && photoB && photoA !== pendingDuplicatePhotoKey && photoB !== pendingDuplicatePhotoKey && photoA === photoB) return "exact";
@@ -5933,7 +6162,11 @@ function isEquipmentLocked() {
 
 function handleDiscardAction() {
   if (hasPendingPhoto() && !isAnalyzingPhoto()) {
-    abandonPendingPhoto();
+    if (state.cropMode || state.pendingCropRect) {
+      resetPendingCrop();
+    } else {
+      abandonPendingPhoto();
+    }
     return true;
   }
   return dismantleSelectedItem();
@@ -6052,12 +6285,15 @@ function balanceItem(item, image = "") {
     semanticAppraisal: semanticSchema,
     confidence: clampNumber(safe.confidence, 0, 1),
     photoKey: cleanText(safe.photoKey, "", 48),
+    sourcePhotoKey: cleanText(safe.sourcePhotoKey, "", 48),
+    cropRect: normalizeCropRect(safe.cropRect),
     objectKey: cleanText(safe.objectKey, "", 80),
     film: Boolean(safe.film),
     skipSpecialRoll: Boolean(safe.skipSpecialRoll),
     tooLarge: noEffect,
     virtualImage: virtualPenalty.level !== "none",
     image,
+    appraisalImage: typeof safe.appraisalImage === "string" && safe.appraisalImage ? safe.appraisalImage : "",
     fullImage: typeof safe.fullImage === "string" && safe.fullImage ? safe.fullImage : "",
   };
   balanced.objectKey = cleanText(balanced.objectKey || makeObjectDuplicateKey(balanced), "", 80);
@@ -6081,8 +6317,11 @@ function normalizeInventoryItem(item) {
   normalized.specialAffinity = normalizeSpecialEffects(item?.specialAffinity || balanced.specialAffinity || []);
   normalized.semanticAppraisal = getRawSemanticFlag(item || {});
   normalized.photoKey = cleanText(item?.photoKey || balanced.photoKey, "", 48);
+  normalized.sourcePhotoKey = cleanText(item?.sourcePhotoKey || balanced.sourcePhotoKey, "", 48);
+  normalized.cropRect = normalizeCropRect(item?.cropRect || balanced.cropRect);
   normalized.objectKey = cleanText(item?.objectKey || balanced.objectKey || makeObjectDuplicateKey(normalized), "", 80);
   normalized.identityDescription = cleanText(item?.identityDescription || balanced.identityDescription, "", 160);
+  normalized.appraisalImage = typeof item?.appraisalImage === "string" && item.appraisalImage ? item.appraisalImage : balanced.appraisalImage || "";
   delete normalized.healAmount;
   delete normalized.consumable;
   return normalized;
@@ -6698,6 +6937,40 @@ async function makeInventoryImage(src) {
   return resizeImageToDataUrl(image, inventoryImageMaxEdge, inventoryImageQuality);
 }
 
+async function cropImageToDataUrl(src, cropRect, maxEdge = analysisImageMaxEdge, quality = analysisImageQuality) {
+  const normalized = normalizeCropRect(cropRect);
+  if (!normalized) return src;
+  const image = await loadImage(src);
+  return cropLoadedImageToDataUrl(image, normalized, maxEdge, quality);
+}
+
+function cropLoadedImageToDataUrl(image, cropRect, maxEdge, quality) {
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  if (!sourceWidth || !sourceHeight) {
+    throw new Error("图片尺寸读取失败，请重新拍摄或换一张图片。");
+  }
+  const rect = normalizeCropRect(cropRect);
+  if (!rect) return resizeImageToDataUrl(image, maxEdge, quality);
+  const sx = Math.max(0, Math.floor(rect.x * sourceWidth));
+  const sy = Math.max(0, Math.floor(rect.y * sourceHeight));
+  const sw = Math.max(1, Math.min(sourceWidth - sx, Math.round(rect.width * sourceWidth)));
+  const sh = Math.max(1, Math.min(sourceHeight - sy, Math.round(rect.height * sourceHeight)));
+  const scale = Math.min(1, maxEdge / Math.max(sw, sh));
+  const width = Math.max(1, Math.round(sw * scale));
+  const height = Math.max(1, Math.round(sh * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { alpha: false });
+  ctx.drawImage(image, sx, sy, sw, sh, 0, 0, width, height);
+  try {
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    throw new Error("主体裁切失败，请重新圈定。");
+  }
+}
+
 function loadBitmapWithTimeout(file) {
   return Promise.race([
     createImageBitmap(file, { imageOrientation: "from-image" }),
@@ -7215,7 +7488,7 @@ function renderEquipmentGrid() {
       state.lootError = "";
       state.infoMode = "item";
       if (!item) {
-        state.lastPhoto = "";
+        clearPendingPhoto({ keepSelectedSlot: true, slotIndex: i });
         state.pendingPhotoSlotIndex = i;
       } else if (isRepeatClick && (item.fullImage || item.image)) {
         openImageViewer(item.fullImage || item.image, formatItemDisplayName(item), getItemQuality(scoreItem(item)));
@@ -7250,6 +7523,8 @@ function renderEquipmentDetail() {
   els.equipmentActions.hidden = true;
   els.photoActionBtn.hidden = true;
   els.photoActionBtn.disabled = true;
+  els.photoActionBtn.textContent = "拍照";
+  els.photoActionBtn.setAttribute("aria-label", "拍照");
   els.analyzePhotoBtn.hidden = true;
   els.analyzePhotoBtn.disabled = true;
   els.analyzePhotoBtn.textContent = "鉴定";
@@ -7257,13 +7532,17 @@ function renderEquipmentDetail() {
   els.analyzePhotoBtn.onclick = null;
   els.savePhotoBtn.hidden = true;
   els.savePhotoBtn.disabled = true;
+  els.savePhotoBtn.textContent = "保存";
+  els.savePhotoBtn.setAttribute("aria-label", "保存照片");
   els.discardItemBtn.disabled = true;
   els.discardItemBtn.hidden = true;
   els.battleLog.hidden = true;
   els.equipmentDetailDesc.hidden = false;
   els.filmCountBadge.hidden = true;
   els.pendingPhotoPreview.hidden = true;
+  els.pendingPhotoPreview.classList.remove("is-crop-mode", "has-crop");
   els.pendingPhotoImage.removeAttribute("src");
+  renderPendingCropOverlay();
   els.loadingState.hidden = false;
   els.equipmentDetail.classList.remove("is-error", "is-actionable", "is-log", "career-summary-panel");
   clearEquipmentDetailQuality();
@@ -7285,6 +7564,8 @@ function renderEquipmentDetail() {
       els.equipmentActions.hidden = false;
       els.photoActionBtn.hidden = false;
       els.photoActionBtn.disabled = false;
+      els.photoActionBtn.textContent = "拍照";
+      els.photoActionBtn.setAttribute("aria-label", "重新拍照");
     }
     return;
   }
@@ -7292,33 +7573,53 @@ function renderEquipmentDetail() {
   if (state.lastPhoto && showingItem) {
     if (state.lootError) els.equipmentDetail.classList.add("is-error");
     const apiHint = getPhotoApiConfigHint();
-    els.equipmentDetailName.textContent = "待鉴定照片";
-    els.equipmentDetailStats.innerHTML = "";
-    els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = analyzing
+    const pendingPhotoCopy = analyzing
       ? "正在鉴定照片。若接口长时间无响应，可以取消后重拍一张主体更清楚的照片。"
+      : state.cropMode
+      ? "在照片上拖出物品范围，确认后再鉴定。"
+      : state.pendingCropRect
+      ? apiHint || "鉴定台会看向圈定的主体。"
       : state.lootError
       ? `${state.lootError} 可以重新鉴定。`
       : apiHint
       ? apiHint
       : state.filmRolls >= 1
-        ? "点击鉴定，把这张照片装入当前装备格。"
+        ? "照片里有多个物品时，可以先圈定主体。"
         : "胶卷不足，先击败怪物攒到新的拍照机会。";
+    els.equipmentDetailName.textContent = state.pendingCropRect ? "已圈定主体" : "待鉴定照片";
+    els.equipmentDetailStats.innerHTML = "";
+    els.equipmentDetailStats.hidden = true;
+    els.equipmentDetailDesc.textContent = pendingPhotoCopy;
     els.equipmentActions.hidden = false;
+    if (!analyzing) {
+      els.photoActionBtn.hidden = false;
+      els.photoActionBtn.disabled = false;
+      els.photoActionBtn.textContent = state.cropMode ? "确认" : "圈定主体";
+      els.photoActionBtn.setAttribute("aria-label", state.cropMode ? "确认主体范围" : "圈定照片主体");
+    }
     els.analyzePhotoBtn.hidden = false;
     els.analyzePhotoBtn.textContent = analyzing ? "取消鉴定" : "鉴定";
     els.analyzePhotoBtn.setAttribute("aria-label", analyzing ? "取消鉴定" : "鉴定照片");
     els.analyzePhotoBtn.classList.toggle("is-cancel", analyzing);
-    els.analyzePhotoBtn.disabled = analyzing ? false : locked || Boolean(els.loadingState.textContent) || state.filmRolls < 1 || Boolean(apiHint);
+    els.analyzePhotoBtn.disabled = analyzing ? false : state.cropMode || locked || Boolean(els.loadingState.textContent) || state.filmRolls < 1 || Boolean(apiHint);
+    if (!analyzing && (state.cropMode || state.pendingCropRect)) {
+      els.savePhotoBtn.hidden = false;
+      els.savePhotoBtn.disabled = false;
+      els.savePhotoBtn.textContent = "重置";
+      els.savePhotoBtn.setAttribute("aria-label", "重置主体范围");
+    }
     if (!analyzing) {
       els.discardItemBtn.hidden = false;
       els.discardItemBtn.disabled = false;
       els.discardItemBtn.classList.remove("danger-button");
-      els.discardItemBtn.textContent = "放弃照片";
-      els.discardItemBtn.setAttribute("aria-label", "放弃待鉴定照片");
+      els.discardItemBtn.textContent = state.cropMode || state.pendingCropRect ? "取消" : "放弃照片";
+      els.discardItemBtn.setAttribute("aria-label", state.cropMode || state.pendingCropRect ? "取消主体范围" : "放弃待鉴定照片");
     }
     els.pendingPhotoPreview.hidden = false;
     els.pendingPhotoImage.src = state.lastPhoto;
+    els.pendingPhotoPreview.classList.toggle("is-crop-mode", state.cropMode);
+    els.pendingPhotoPreview.classList.toggle("has-crop", Boolean(state.pendingCropRect));
+    renderPendingCropOverlay();
     return;
   }
 
@@ -7356,6 +7657,8 @@ function renderEquipmentDetail() {
     els.equipmentActions.hidden = state.gameClear;
     els.photoActionBtn.hidden = state.gameClear;
     els.photoActionBtn.disabled = state.gameClear || locked || state.filmRolls < 1;
+    els.photoActionBtn.textContent = "拍照";
+    els.photoActionBtn.setAttribute("aria-label", "拍照");
     return;
   }
 
@@ -7369,6 +7672,8 @@ function renderEquipmentDetail() {
   els.equipmentActions.hidden = false;
   els.savePhotoBtn.hidden = false;
   els.savePhotoBtn.disabled = locked || !(selected.fullImage || selected.image);
+  els.savePhotoBtn.textContent = "保存";
+  els.savePhotoBtn.setAttribute("aria-label", "保存照片");
   els.discardItemBtn.hidden = false;
   els.discardItemBtn.disabled = locked;
   els.discardItemBtn.classList.add("danger-button");
@@ -7385,6 +7690,20 @@ function clearEquipmentDetailQuality() {
 function setEquipmentDetailQuality(quality) {
   const safe = quality && quality.key ? quality : getItemQuality(0);
   els.equipmentDetail.dataset.quality = safe.key;
+}
+
+function renderPendingCropOverlay() {
+  if (!els.pendingCropOverlay || !els.pendingCropBox) return;
+  const rect = normalizeCropRect(state.pendingCropRect);
+  const visible = Boolean(state.lastPhoto && rect);
+  els.pendingCropOverlay.hidden = !visible;
+  els.pendingCropBox.hidden = !visible;
+  if (!visible) return;
+  const imageBox = getPendingImageBoxStyle() || { left: 0, top: 0, width: 100, height: 100 };
+  els.pendingCropBox.style.left = `${imageBox.left + rect.x * imageBox.width}%`;
+  els.pendingCropBox.style.top = `${imageBox.top + rect.y * imageBox.height}%`;
+  els.pendingCropBox.style.width = `${rect.width * imageBox.width}%`;
+  els.pendingCropBox.style.height = `${rect.height * imageBox.height}%`;
 }
 
 function renderCareerSummaryPanel() {
@@ -7922,6 +8241,8 @@ function renderGameTextOnly() {
       effects: getItemSpecialKeys(item),
       fullImage: item.fullImage || "",
       photoKey: item.photoKey || "",
+      sourcePhotoKey: item.sourcePhotoKey || "",
+      cropRect: item.cropRect || null,
       objectKey: item.objectKey || makeObjectDuplicateKey(item),
       specialState: item.specialState || {},
       equipped: !item.tooLarge,
@@ -8408,7 +8729,16 @@ window.__photoHeroTestHooks = {
     return { hp: state.player.hp, maxHp: getPlayerStats().maxHp, shield: state.player.shield };
   },
   getInventoryForTest() {
-    return state.inventory.map((item) => (item ? { id: item.id, itemName: item.itemName, value: item.value, stats: item.stats, specialEffects: item.specialEffects } : null));
+    return state.inventory.map((item) => (item ? {
+      id: item.id,
+      itemName: item.itemName,
+      value: item.value,
+      stats: item.stats,
+      specialEffects: item.specialEffects,
+      photoKey: item.photoKey || "",
+      sourcePhotoKey: item.sourcePhotoKey || "",
+      cropRect: item.cropRect || null,
+    } : null));
   },
   resetGameForTest() {
     resetGame();
@@ -8431,6 +8761,12 @@ window.__photoHeroTestHooks = {
   },
   getDismantleFilmReturnForTest(item) {
     return getDismantleFilmReturn(item);
+  },
+  cropImageToDataUrl,
+  normalizeCropRect,
+  findCurrentPhotoDuplicateForTest(photoKey, sourcePhotoKey = "", cropRect = null) {
+    const duplicate = findCurrentPhotoDuplicate(photoKey, sourcePhotoKey, cropRect);
+    return duplicate ? { id: duplicate.id, itemName: duplicate.itemName } : null;
   },
   saveSelectedPhotoImageForTest: saveSelectedPhotoImage,
   dismantleSelectedItemForTest() {

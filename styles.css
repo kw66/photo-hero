@@ -1085,6 +1085,12 @@ dd {
   .equipment-detail #analyzePhotoBtn.detail-action.is-cancel {
     min-width: 104px;
   }
+
+  .pending-photo-preview {
+    width: 108px;
+    height: 108px;
+    min-width: 108px;
+  }
 }
 
 .equipment-detail.is-error {
@@ -1232,6 +1238,7 @@ dd {
 }
 
 .pending-photo-preview {
+  position: relative;
   width: 74px;
   height: 74px;
   min-width: 74px;
@@ -1243,6 +1250,7 @@ dd {
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 72%),
     0 2px 0 rgb(23 19 15 / 14%);
+  touch-action: none;
 }
 
 .pending-photo-preview[hidden] {
@@ -1254,6 +1262,34 @@ dd {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.pending-crop-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgb(23 19 15 / 34%), rgb(23 19 15 / 34%));
+}
+
+.pending-crop-overlay[hidden],
+.pending-crop-box[hidden] {
+  display: none;
+}
+
+.pending-crop-box {
+  position: absolute;
+  border: 2px solid #fff8d8;
+  border-radius: 5px;
+  box-shadow:
+    0 0 0 999px rgb(23 19 15 / 42%),
+    0 0 0 1px rgb(23 19 15 / 82%),
+    0 0 12px rgb(255 221 126 / 72%);
+  background: rgb(255 248 216 / 10%);
+}
+
+.pending-photo-preview.is-crop-mode {
+  cursor: crosshair;
 }
 
 .detail-head {
