@@ -171,6 +171,8 @@ const photoSpecialEffects = [
   { key: "takeDamageDefense", label: "受到伤害临时防御+1", value: 15, kind: "takeDamageTemp", stat: "defense", amount: 1, cap: 5 },
   { key: "killMaxHp", label: "每次击杀生命上限+3", value: 14, kind: "killPermanent", stat: "hp", amount: 3 },
   { key: "killHpBoost", label: "每次击杀生命+10", value: 14, kind: "killHeal", amount: 10 },
+  { key: "sweep", label: "横扫：伤害50%扩散", value: 15, kind: "passive", spreadRatio: 0.5 },
+  { key: "peerless", label: "无双：击杀后攻防+3", value: 15, kind: "killBattleTemp", amount: 3 },
   { key: "doubleStrikeSpeedDown", label: "速度-2，攻击-2，连击翻倍", value: 16, kind: "passive", stat: "speed", amount: -2, attackAmount: -2, doubleStrikeMultiplier: 2 },
   { key: "shieldCrashAttackDown", label: "攻击-3，附带当前护盾伤害", value: 16, kind: "passive", stat: "attack", amount: -3, shieldDamageRatio: 1 },
   { key: "regenMultiplier", label: "回复翻倍", value: 15, kind: "passive", stat: "regen", multiplier: 2 },
@@ -240,6 +242,7 @@ const photoIdentificationUserPrompt = [
   `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}(价值${effect.value})`).join("；")}。`,
   "特殊效果只给语义很强的候选，普通物品可以 specialAffinity=[]；不要为了显得厉害乱给特殊效果。",
   "只有史诗或传说装备才可能出现特殊效果；史诗只在约三分之一情况下出特殊效果，传说必出一个特殊效果。",
+  "宽、长、扫帚、扇面、拍子、刷子等有横向扫开联想的实物可选 sweep；奖杯、徽章、冠军感、英雄感、强烈战斗胜利联想的实物可选 peerless。",
   "工具、现实玩具/模型武器、越打越顺手的现实物品可选 dealDamageAttack；盾牌、外壳、硬保护物可选 takeDamageDefense 或 shieldCrashAttackDown；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、成对/双件/高速物品可选 doubleStrikeSpeedDown；喝的、补给、净化、回复感物品可选 regenMultiplier；带尖锐、抽取、血感、锋利联想的物品可选 lifestealMultiplier。",
   "不要给游戏装备图、AI 渲染图、动画、插画、精修素材、卡牌素材 specialAffinity；普通拍摄的现实实物网图/截图可以有正常属性，但不应因为来源是网图而额外变强。现实卡片/贴纸/包装上的幻想武器也不要因为图案像武器就给强攻击或特殊效果。",
   "",
@@ -3451,6 +3454,8 @@ function createDefaultBattleSpecial() {
   return {
     attack: 0,
     defense: 0,
+    peerlessAttack: 0,
+    peerlessDefense: 0,
     attackDown: 0,
     speedDown: 0,
     defenseBreakRatio: 0,
@@ -3466,6 +3471,8 @@ function normalizeBattleSpecial(value) {
   return {
     attack: clampInt(source.attack, 0, attackCap || 0),
     defense: clampInt(source.defense, 0, defenseCap || 0),
+    peerlessAttack: clampInt(source.peerlessAttack, 0, 999),
+    peerlessDefense: clampInt(source.peerlessDefense, 0, 999),
     attackDown: clampInt(source.attackDown, 0, 999),
     speedDown: clampInt(source.speedDown, 0, 999),
     defenseBreakRatio: clampNumber(source.defenseBreakRatio, 0, 1),
@@ -3673,6 +3680,9 @@ function resolveHeroStrike(stats, round) {
     if (shieldCrashDamage > 0) parts.push(`护盾追加 ${shieldCrashDamage}`);
     if (hitResult.healed > 0 || hitResult.lifesteal > 0) parts.push(`吸取${hitResult.healed}血量`);
     if (hitResult.strikeCount > 1) parts.push(`连击${hitResult.strikeIndex + 1}/${hitResult.strikeCount}`);
+    if (hitResult.sweepResults?.length) {
+      parts.push(`横扫 ${hitResult.sweepResults.map((result) => `${result.enemyName}${result.totalDamage}`).join("、")}`);
+    }
     parts.push(...traitChanges);
     addBattleDetail(`第${round}回合勇者进攻${hitResult.enemyName}，${parts.join("，")}。`);
   }
@@ -3691,6 +3701,7 @@ function resolveHeroStrikeAgainstEnemy(initialEnemy = getHeroTargetEnemy(), sour
     const currentStats = getBattleStats(state.activeEnemyIds);
     const hitResult = applyHeroDamageToEnemy(enemy, currentStats, source);
     const totalDamage = hitResult.totalDamage;
+    const sweepResults = triggerSweepDamage(enemy, totalDamage, source);
     let healed = 0;
     const lifesteal = currentStats.lifesteal || 0;
     if (!hasAnyActiveTrait("noLifesteal") && lifesteal > 0) {
@@ -3710,11 +3721,14 @@ function resolveHeroStrikeAgainstEnemy(initialEnemy = getHeroTargetEnemy(), sour
       lifesteal,
       strikeIndex,
       strikeCount,
+      sweepResults,
       defeated,
     });
 
     if (defeated) {
       defeatEnemy(enemy);
+      enemy = source === "attack" ? getHeroTargetEnemy() : null;
+    } else if (sweepResults.some((result) => result.defeated)) {
       enemy = source === "attack" ? getHeroTargetEnemy() : null;
     }
   }
@@ -3739,6 +3753,66 @@ function applyHeroDamageToEnemy(enemy, stats, source = "attack") {
   return {
     rawDamage,
     shieldCrashDamage,
+    shieldLoss,
+    hpDamage,
+    totalDamage,
+    traitChanges,
+    source,
+  };
+}
+
+function triggerSweepDamage(sourceEnemy, totalDamage, source = "attack") {
+  const ratio = getSweepDamageRatio();
+  if (ratio <= 0 || totalDamage <= 0) return [];
+  const spreadDamage = Math.floor(totalDamage * ratio);
+  if (spreadDamage <= 0) return [];
+  const targets = getSweepNeighborEnemies(sourceEnemy);
+  const results = [];
+  for (const target of targets) {
+    const beforeAlive = target.hp > 0;
+    const hitResult = applyFixedHeroDamageToEnemy(target, spreadDamage, source);
+    if (!hitResult.totalDamage) continue;
+    const defeated = beforeAlive && target.hp <= 0;
+    results.push({
+      ...hitResult,
+      enemyId: target.id,
+      enemyName: target.name,
+      defeated,
+    });
+    if (defeated) defeatEnemy(target);
+  }
+  return results;
+}
+
+function getSweepDamageRatio() {
+  return getEquippedPhotoEffectInstances("sweep")
+    .reduce((ratio, { effect }) => Math.max(ratio, effect.spreadRatio || 0), 0);
+}
+
+function getSweepNeighborEnemies(sourceEnemy) {
+  if (!sourceEnemy) return [];
+  const activeEnemies = state.activeEnemyIds
+    .map((id) => state.enemies.find((enemy) => enemy.id === id))
+    .filter(Boolean);
+  const index = activeEnemies.findIndex((enemy) => enemy.id === sourceEnemy.id);
+  if (index < 0) return [];
+  return [activeEnemies[index - 1], activeEnemies[index + 1]]
+    .filter((enemy) => enemy && enemy.hp > 0);
+}
+
+function applyFixedHeroDamageToEnemy(enemy, damage, source = "sweep") {
+  const fixedDamage = Math.max(0, Math.trunc(damage || 0));
+  const modifiedDamage = applyEnemyIncomingDamageModifiers(enemy, fixedDamage, getActiveBattleEnemies());
+  const shieldLoss = Math.min(enemy.shield || 0, modifiedDamage);
+  enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
+  const hpDamage = Math.max(0, modifiedDamage - shieldLoss);
+  enemy.hp = Math.max(0, enemy.hp - hpDamage);
+  const totalDamage = shieldLoss + hpDamage;
+  if (totalDamage > 0) markEnemyHit(enemy.id);
+  const traitChanges = totalDamage > 0 ? triggerEnemyDamagedTraits(enemy) : [];
+  return {
+    rawDamage: fixedDamage,
+    shieldCrashDamage: 0,
     shieldLoss,
     hpDamage,
     totalDamage,
@@ -5567,6 +5641,7 @@ function simulateHeroStrikeTarget(sim, enemies, initialEnemy = null) {
     const hitResult = applySimHeroDamageToEnemy(sim, enemy, currentStats, enemies);
     const shieldLoss = hitResult.shieldLoss;
     const hpDamage = hitResult.hpDamage;
+    const sweepResults = triggerSimSweepDamage(sim, enemies, enemy, shieldLoss + hpDamage);
 
     const dealDamageGain = getTempSpecialGain("dealDamageAttack");
     if (shieldLoss + hpDamage > 0 && dealDamageGain > 0) {
@@ -5578,13 +5653,17 @@ function simulateHeroStrikeTarget(sim, enemies, initialEnemy = null) {
       healSimHero(sim, currentStats, currentStats.lifesteal);
     }
 
+    const defeatedThisStrike = [];
     if (enemy.hp <= 0) {
-      simulateFormKillEffects(sim, currentStats);
-      simulateKillSpecial(sim, currentStats);
-      sim.activeIds = sim.activeIds.filter((id) => id !== enemy.id);
-      sim.enemyTimes.delete(enemy.id);
-      sim.defeatedCount += 1;
-      defeatedIds.push(enemy.id);
+      defeatedThisStrike.push(enemy.id);
+      settleSimEnemyDefeat(sim, enemies, enemy);
+    }
+    for (const result of sweepResults) {
+      if (!result.defeated || defeatedThisStrike.includes(result.enemyId)) continue;
+      defeatedThisStrike.push(result.enemyId);
+    }
+    if (defeatedThisStrike.length) {
+      defeatedIds.push(...defeatedThisStrike);
       if (initialEnemy) break;
       enemy = null;
     }
@@ -5650,6 +5729,60 @@ function applySimHeroDamageToEnemy(sim, enemy, stats, enemies = []) {
   return { rawDamage, shieldCrashDamage, shieldLoss, hpDamage };
 }
 
+function triggerSimSweepDamage(sim, enemies, sourceEnemy, totalDamage) {
+  const ratio = getSweepDamageRatio();
+  if (ratio <= 0 || totalDamage <= 0) return [];
+  const spreadDamage = Math.floor(totalDamage * ratio);
+  if (spreadDamage <= 0) return [];
+  const targets = getSimSweepNeighborEnemies(sim, enemies, sourceEnemy);
+  const results = [];
+  for (const target of targets) {
+    const beforeAlive = target.hp > 0 && sim.activeIds.includes(target.id);
+    const hitResult = applySimFixedHeroDamageToEnemy(sim, target, spreadDamage, enemies);
+    if (!hitResult.totalDamage) continue;
+    const defeated = beforeAlive && target.hp <= 0;
+    results.push({ ...hitResult, enemyId: target.id, defeated });
+    if (defeated) {
+      settleSimEnemyDefeat(sim, enemies, target);
+    }
+  }
+  return results;
+}
+
+function settleSimEnemyDefeat(sim, enemies, enemy) {
+  if (!enemy || !sim.activeIds.includes(enemy.id)) return;
+  const stats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
+  simulateFormKillEffects(sim, stats);
+  simulateKillSpecial(sim, stats);
+  sim.activeIds = sim.activeIds.filter((id) => id !== enemy.id);
+  sim.enemyTimes.delete(enemy.id);
+  sim.defeatedCount += 1;
+}
+
+function getSimSweepNeighborEnemies(sim, enemies, sourceEnemy) {
+  if (!sourceEnemy) return [];
+  const activeEnemies = sim.activeIds
+    .map((id) => enemies.find((enemy) => enemy.id === id))
+    .filter(Boolean);
+  const index = activeEnemies.findIndex((enemy) => enemy.id === sourceEnemy.id);
+  if (index < 0) return [];
+  return [activeEnemies[index - 1], activeEnemies[index + 1]]
+    .filter((enemy) => enemy && enemy.hp > 0);
+}
+
+function applySimFixedHeroDamageToEnemy(sim, enemy, damage, enemies = []) {
+  void sim;
+  const fixedDamage = Math.max(0, Math.trunc(damage || 0));
+  const modifiedDamage = applyEnemyIncomingDamageModifiers(enemy, fixedDamage, getSimActiveEnemies(sim, enemies));
+  const shieldLoss = Math.min(enemy.shield || 0, modifiedDamage);
+  enemy.shield = Math.max(0, (enemy.shield || 0) - shieldLoss);
+  const hpDamage = Math.max(0, modifiedDamage - shieldLoss);
+  enemy.hp = Math.max(0, enemy.hp - hpDamage);
+  const totalDamage = shieldLoss + hpDamage;
+  if (totalDamage > 0) triggerSimEnemyDamagedTraits(enemy);
+  return { rawDamage: fixedDamage, shieldLoss, hpDamage, totalDamage };
+}
+
 function applySimPreBattleFormEffects(sim, enemies) {
   if (!getHeroFormLevelConfig().preBattleStrike || sim.battleSpecial.preBattleStruck) return;
   sim.battleSpecial.preBattleStruck = true;
@@ -5675,6 +5808,10 @@ function simulateKillSpecial(sim, stats) {
   const effect = active?.effect;
   if (effect?.stat === "hp" && effect.kind === "killPermanent") maxHpGain += effect.amount;
   if (effect?.kind === "killHeal") healGain += effect.amount;
+  if (effect?.kind === "killBattleTemp") {
+    sim.battleSpecial.peerlessAttack = (sim.battleSpecial.peerlessAttack || 0) + effect.amount;
+    sim.battleSpecial.peerlessDefense = (sim.battleSpecial.peerlessDefense || 0) + effect.amount;
+  }
   void maxHpGain;
   healSimHero(sim, stats, healGain);
 }
@@ -5948,8 +6085,8 @@ function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpec
 
   return {
     maxHp: state.player.baseHp + (bonus.hp || 0),
-    atk: state.player.baseAtk + (bonus.attack || 0) + (battleSpecial?.attack || 0) - passiveAttackPenalty - (battleSpecial?.attackDown || 0),
-    def: state.player.baseDef + (bonus.defense || 0) + (battleSpecial?.defense || 0),
+    atk: state.player.baseAtk + (bonus.attack || 0) + (battleSpecial?.attack || 0) + (battleSpecial?.peerlessAttack || 0) - passiveAttackPenalty - (battleSpecial?.attackDown || 0),
+    def: state.player.baseDef + (bonus.defense || 0) + (battleSpecial?.defense || 0) + (battleSpecial?.peerlessDefense || 0),
     speed: state.player.baseSpeed + (bonus.speed || 0) - passiveSpeedPenalty - (battleSpecial?.speedDown || 0),
     regen: regen * regenMultiplier,
     shield: state.player.baseShield + (bonus.shield || 0),
@@ -6129,6 +6266,11 @@ function triggerKillSpecial(enemy) {
     state.player.hp = Math.min(stats.maxHp, state.player.hp + effect.amount);
     const healed = state.player.hp - beforeHp;
     if (healed > 0) changes.push(`${formatItemDisplayName(item)} 生命+${healed}`);
+  } else if (effect.kind === "killBattleTemp") {
+    data.kills += 1;
+    state.battleSpecial.peerlessAttack = (state.battleSpecial.peerlessAttack || 0) + effect.amount;
+    state.battleSpecial.peerlessDefense = (state.battleSpecial.peerlessDefense || 0) + effect.amount;
+    changes.push(`${formatItemDisplayName(item)} 攻防+${effect.amount}`);
   }
   ensureItemSpecialState(item, key);
 
@@ -6802,6 +6944,8 @@ function inferSemanticSpecialEffects(text) {
   };
 
   if (/鞋|拖鞋|滑板|轮|风扇|扇|双|一对|速度|疾|飞|跑|旋转|气流|shoe|slipper|skateboard|wheel|fan|pair|speed|run|rotate|airflow/i.test(source)) add("doubleStrikeSpeedDown");
+  if (/扫|横扫|刷|扫帚|拖把|拍|扇面|扇子|宽|长条|横向|展开|范围|群|面|扫开|brush|broom|mop|racket|fan|wide|sweep|area/i.test(source)) add("sweep");
+  if (/无双|冠军|奖杯|奖牌|徽章|英雄|胜利|战神|王者|霸气|勇猛|一骑当千|trophy|medal|champion|hero|victory|peerless/i.test(source)) add("peerless");
   if (/刀|剪|针|钩|指甲刀|锥|刃|锯|尖|夹|钳|knife|scissor|needle|hook|clipper|blade|sharp|pliers/i.test(source)) add("dealDamageAttack");
   if (/锤|棍|棒|砖|石|键盘|鼠标|扳手|螺丝刀|球拍|拍子|硬物|武器|hammer|club|brick|stone|keyboard|mouse|tool|wrench|screwdriver|racket|weapon/i.test(source)) {
     add("dealDamageAttack");
@@ -6851,6 +6995,8 @@ function normalizeSpecialEffectKey(value) {
     if (/击杀.*生命|击杀.*回复|击杀.*回血/.test(text)) return "killHpBoost";
     if (/二连击|连击2|连击翻倍/.test(text)) return "doubleStrikeSpeedDown";
     if (/当前护盾|护盾.*0\.?5|护盾.*一半/.test(text)) return "shieldCrashAttackDown";
+    if (/横扫|扩散|溅射|范围伤害|周围.*伤害|伤害.*50/.test(text)) return "sweep";
+    if (/无双|击杀.*攻防|击杀.*攻击.*防御|攻防.*3/.test(text)) return "peerless";
     if (/回复翻倍|回复.*2倍|双倍回复/.test(text)) return "regenMultiplier";
     if (/吸血翻倍|吸血.*2倍|双倍吸血/.test(text)) return "lifestealMultiplier";
   }
@@ -7945,6 +8091,8 @@ function makeSettledItemDescription(item) {
   }
   if (effects.includes("doubleStrikeSpeedDown")) return `${name}让动作变重，却能把每次进攻拆成更密的连击。`;
   if (effects.includes("shieldCrashAttackDown")) return `${name}把护盾压到锋线上，出手时顺带撞出一段额外伤害。`;
+  if (effects.includes("sweep")) return `${name}适合横着扫开战线，主目标受创时会把余劲甩向旁边。`;
+  if (effects.includes("peerless")) return `${name}越战越勇，击败敌人后会在本场战斗里抬高攻防。`;
   if (effects.includes("dealDamageAttack")) return `${name}越打越顺手，命中后会临时磨出更高攻击。`;
   if (effects.includes("takeDamageDefense")) return `${name}挨打后更稳，战斗中会临时堆起防御。`;
   if (effects.includes("killMaxHp")) return `${name}会把击败的余温存进生命上限。`;
@@ -8784,6 +8932,7 @@ window.__photoHeroTestHooks = {
   setHeroForm,
   getMonsterAttackForStrike,
   applyHeroDamageToEnemy,
+  resolveHeroStrikeAgainstEnemy,
   resolveMonsterStrike,
   beginBattle,
   monsterTypes,

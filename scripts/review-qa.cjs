@@ -61,6 +61,7 @@ async function collectScenario(page, name, action = async () => {}) {
       monsterDistribution: window.__reviewMonsterDistribution || null,
       bossFilmDrops: window.__reviewBossFilmDrops || null,
       cropAppraisal: window.__reviewCropAppraisal || null,
+      groupSpecials: window.__reviewGroupSpecials || null,
       groupQr: (() => {
         const card = document.querySelector(".author-qr-card");
         const group = document.querySelector(".group-qr");
@@ -160,6 +161,18 @@ function assertScenario(name, metrics) {
     if (!crop.croppedSmaller) failures.push(`${name}: cropped image should be smaller than source`);
     if (!crop.sameCropDuplicate) failures.push(`${name}: same source and same crop should be treated as duplicate`);
     if (crop.differentCropDuplicate) failures.push(`${name}: same source with different crop should not be blocked by photo duplicate`);
+  }
+  if (name === "group-specials") {
+    const specials = metrics.groupSpecials || {};
+    if (specials.sweepLeftHp !== 2 || specials.sweepCenterHp !== 0 || specials.sweepRightHp !== 2) {
+      failures.push(`${name}: sweep should still hit neighbors when center is killed, got ${JSON.stringify(specials)}`);
+    }
+    if (specials.peerlessAtk !== 7 || specials.peerlessDef !== 4) {
+      failures.push(`${name}: peerless should add attack/defense +3 after kill, got ${JSON.stringify(specials)}`);
+    }
+    if (specials.peerlessAfterResetAtk !== 4 || specials.peerlessAfterResetDef !== 1) {
+      failures.push(`${name}: peerless bonus should reset outside battle, got ${JSON.stringify(specials)}`);
+    }
   }
   if (name === "mobile-boss-selection") {
     if (metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: boss floor still shows 逃跑`);
@@ -436,6 +449,52 @@ function assertScenario(name, metrics) {
         croppedSmaller: cropped.length < source.length,
         sameCropDuplicate: Boolean(hooks.findCurrentPhotoDuplicateForTest(cropAKey, sourceKey, cropA)),
         differentCropDuplicate: Boolean(hooks.findCurrentPhotoDuplicateForTest(hooks.makePhotoDuplicateKey(source), sourceKey, cropB)),
+      };
+    });
+  });
+
+  scenarios.groupSpecials = await collectScenario(desktop, "group-specials", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      const makeEnemy = (id, hp = 4) => ({
+        id,
+        testEnemy: true,
+        typeKey: "slime",
+        typeName: "史莱姆",
+        name: id,
+        maxHp: hp,
+        hp,
+        atk: 0,
+        def: 0,
+        speed: 1,
+        traits: [],
+      });
+      hooks.addSpecialItem("sweep", { itemName: "横扫测试刷", value: 15, stats: {}, specialAffinity: ["sweep"] });
+      hooks.setEnemies([makeEnemy("left"), makeEnemy("center"), makeEnemy("right")]);
+      hooks.selectEnemies(["left", "center", "right"]);
+      hooks.beginBattle(hooks.state.enemies);
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
+      const sweepLeftHp = hooks.state.enemies.find((enemy) => enemy.id === "left")?.hp;
+      const sweepCenterHp = hooks.state.enemies.find((enemy) => enemy.id === "center")?.hp;
+      const sweepRightHp = hooks.state.enemies.find((enemy) => enemy.id === "right")?.hp;
+
+      hooks.resetGameForTest();
+      hooks.addSpecialItem("peerless", { itemName: "无双测试章", value: 15, stats: {}, specialAffinity: ["peerless"] });
+      hooks.setEnemies([makeEnemy("peerless-kill", 1), makeEnemy("peerless-next", 10)]);
+      hooks.selectEnemies(["peerless-kill", "peerless-next"]);
+      hooks.beginBattle(hooks.state.enemies);
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
+      const peerlessStats = hooks.getPlayerStats();
+      hooks.resetGameForTest();
+      const resetStats = hooks.getPlayerStats();
+      window.__reviewGroupSpecials = {
+        sweepLeftHp,
+        sweepCenterHp,
+        sweepRightHp,
+        peerlessAtk: peerlessStats.atk,
+        peerlessDef: peerlessStats.def,
+        peerlessAfterResetAtk: resetStats.atk,
+        peerlessAfterResetDef: resetStats.def,
       };
     });
   });
