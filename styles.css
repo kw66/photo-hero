@@ -970,16 +970,17 @@ dd {
   }
 
   .game-panel {
-    height: auto;
+    height: min(711px, calc(100vh - 14px));
     min-height: 0;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .hero-zone {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto auto;
+    grid-template-rows: auto auto auto auto minmax(150px, auto);
     align-items: stretch;
-    overflow: visible;
+    height: 100%;
+    overflow: hidden;
   }
 
   .hero-head,
@@ -1016,7 +1017,7 @@ dd {
     grid-row: 2 / 6;
     height: auto;
     min-height: 0;
-    max-height: none;
+    max-height: 100%;
     overflow: hidden;
     align-self: stretch;
   }
@@ -1028,6 +1029,8 @@ dd {
   .equipment-detail .detail-body,
   .equipment-detail #battleLog {
     min-height: 0;
+    height: 100%;
+    max-height: 100%;
     overflow: auto;
   }
 
@@ -1039,6 +1042,7 @@ dd {
   .enemy-field {
     grid-column: 1;
     grid-row: 5;
+    overflow: hidden;
   }
 
   .enemy-card {
@@ -1246,6 +1250,24 @@ dd {
 
 .equipment-detail.is-log .detail-head {
   display: none;
+}
+
+.equipment-detail.is-log {
+  grid-template-rows: minmax(0, 1fr);
+  grid-auto-rows: 0;
+  contain: size layout;
+  overflow: hidden;
+}
+
+.equipment-detail.is-log > :not(#battleLog) {
+  display: none;
+}
+
+.equipment-detail.is-log #battleLog {
+  grid-row: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
 }
 
 .detail-action {
