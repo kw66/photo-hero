@@ -2,6 +2,27 @@ const { chromium } = require("playwright");
 
 const cases = [
   {
+    label: "isolated cartoon plush stays low and grounded",
+    input: {
+      itemName: "多足寿司玩偶",
+      subjectName: "长腿寿司卡通玩偶",
+      objectType: "卡通玩偶",
+      identityDescription: "黑色纯背景上的卡通寿司造型，米饭和虾肉纹理夸张，伸出多条细长腿，没有桌面、手持、阴影或实拍环境。",
+      description: "长出了腿的寿司，似乎随时准备跳出盘子发起突袭。",
+      reason: "主体=卡通寿司玩偶；低真实感；黑底孤立展示；没有实拍环境。",
+      tags: ["寿司", "玩偶", "卡通", "黑底"],
+      photoQuality: { clarity: 2, subjectArea: 3, backgroundClean: 1, realPhoto: 1, focusLight: 1, interesting: 2 },
+      statAffinity: [{ stat: "hp", score: 3 }, { stat: "shield", score: 2 }],
+      specialAffinity: ["killHpBoost"],
+    },
+    expect: ({ item, renderedDescription }) => (
+      item.value > 0
+      && item.value <= 10
+      && item.specialEffects.length === 0
+      && !/跳出|突袭|发起|奔跑|活过来|随时准备/.test(renderedDescription)
+    ),
+  },
+  {
     label: "sharp tool rejects regen affinity",
     input: {
       itemName: "旧不锈钢剪刀",

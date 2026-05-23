@@ -189,6 +189,7 @@ const photoIdentificationSystemPrompt = [
   "你不负责计算最终价值、最终属性点或最终特殊效果；这些数值由本地游戏规则统一结算。",
   "你的目标不是保守拒绝，而是把玩家亲自拍到的现实主体转成有趣、可解释的装备素材；高分奖励现实实拍、主体清楚、近距离、背景干净、有互动感的小物件。",
   "不要奖励网图、搜索图、截图、游戏装备图、AI 渲染图、插画、卡牌素材或纯虚拟道具；这些不是现实物体，不能因为画得酷就当成强装备。",
+  "现实玩具、模型、玩偶可以鉴定，但必须看得出它是被玩家实际拍到的实体；黑底/白底孤立图、抠图、商品图、素材图、卡通设定图不能按高真实感处理。",
 ].join("\n");
 
 const photoIdentificationUserPrompt = [
@@ -202,6 +203,7 @@ const photoIdentificationUserPrompt = [
   "5. 如果画面只是网页、相册、截图、游戏界面、游戏装备卡图、AI 渲染、插画、原画、透明背景素材或白底电商图，说明它不是玩家拍到的现实物体：isEquipable=false，realPhoto=0 或 1，specialAffinity=[]。",
   "6. 如果玩家拍到的是现实中的纸质卡片、贴纸、包装、海报或屏幕载体，主体应写成卡片/贴纸/包装/屏幕本身，不要把里面的幻想武器、角色或游戏道具当成实物；这类载体通常只给低 photoQuality、低 statAffinity，specialAffinity=[]。",
   "7. 现实玩具、模型、手办、摆件、道具、纸板/塑料/金属小物可以正常鉴定；关键是它必须像真实存在、可触碰、被玩家实际拍摄的物体。",
+  "8. 玩具、模型、玩偶、卡通角色如果只有纯黑/纯白/透明背景、孤立展示、没有桌面/手持/阴影/材质细节，或更像商品图、素材图、渲染图、贴图，就只能低 realPhoto、低分、无特殊效果；不要把图里的幻想动作当成真实能力。",
   "",
   "必须输出这个 JSON 结构，字段名使用英文：",
   "{\"itemName\":\"短装备名\",\"subjectName\":\"照片主体\",\"objectType\":\"主体物品类型\",\"identityDescription\":\"用于判断是否同一个现实物体的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
@@ -221,6 +223,7 @@ const photoIdentificationUserPrompt = [
   "请主动拉开分值：随手拍、主体偏小、物品很多或普通背景通常总分 6-9；主体清楚但构图一般通常 9-12；主体很清楚且有装备联想通常 12-14；只有主体近景占比大、背景干净、实拍感强且有趣的照片才给 14-15。",
   "如果主体模糊、占比小、背景杂、只是风景/大场景的一小部分，或只是抽象光斑/远景纹理，应降低 clarity、subjectArea、backgroundClean、realPhoto 或 interesting。",
   "网图、搜索图、截图、游戏装备图、AI 渲染图、插画、卡牌素材、透明背景图、白底商品图的 realPhoto 必须很低；即使画面精美、武器很酷，也不能给高分或特殊效果。",
+  "黑底孤立、白底孤立、透明背景、抠图感强、没有真实拍摄环境的玩偶/模型/卡通小物，realPhoto 最多 1，通常只能作为普通低分小物；必须在 reason 中写明低真实感原因。",
   "普通生活用品、自然小物、现实玩具模型、现实贴纸/包装/桌面摆件只要清晰拍好都可以高分；昂贵物、宏大景观、真实载具、人物整体、抽象光影、虚拟装备图即使好看，也不能因为好看就高分。",
   "",
   "属性语义：",
@@ -246,6 +249,7 @@ const photoIdentificationUserPrompt = [
   "itemName、subjectName、objectType、description、reason、tags 都用中文；只有图片主体本身是英文品牌/文字时，才可保留必要英文。",
   "description 用一句中文写成装备味道，像玩家捡到一件奇怪但能上阵的小道具；不要直接承诺最终属性数值或战斗效果，例如不要写 攻击+、回复+、被打回血、吸血、加护盾。",
   "description 必须和 statAffinity 一致：剪刀、刀、针、钩、指甲刀等尖锐工具不要写修复/补能/回血味道；水杯、药、净化器、毛巾等补给清洁物不要写锋利或吸血。",
+  "description 要贴着照片里的实体写，不要把玩偶、贴纸、模型、图案写成真的活物；例如不要写它会跳出盘子、突然袭击、自己奔跑、活过来。",
   "description 要有一点冒险感，但保持克制，不要使用夸张神器、无敌、传说降临这类空泛词。",
   "reason 只写一句内部依据，格式尽量像：主体=剪刀；尺寸=手持；质量=清晰；倾向=锋利。",
   "",
@@ -368,7 +372,7 @@ const monsterImages = {
 };
 
 const monsterTypes = {
-  slime: { name: "史莱姆", atk: 6, def: 0, hp: 18, speed: 2, traits: [{ type: "regen", value: 1, text: "回复1" }] },
+  slime: { name: "史莱姆", atk: 6, def: 0, hp: 20, speed: 2, traits: [{ type: "regen", value: 1, text: "回复1" }] },
   skeleton: { name: "骷髅", atk: 8, def: 5, hp: 32, speed: 3, traits: [{ type: "noLifesteal", text: "制裁：无法吸血" }] },
   bat: { name: "蝙蝠", atk: 8, def: 0, hp: 16, speed: 6, traits: [{ type: "lifesteal", value: 1, text: "吸血1" }] },
   mage: { name: "法师", atk: 6, def: 2, hp: 30, speed: 3, traits: [{ type: "magic", text: "魔攻：无视防御" }] },
@@ -471,6 +475,7 @@ const els = {
   equipmentActions: byId("equipmentActions"),
   photoActionBtn: byId("photoActionBtn"),
   analyzePhotoBtn: byId("analyzePhotoBtn"),
+  savePhotoBtn: byId("savePhotoBtn"),
   pendingPhotoPreview: byId("pendingPhotoPreview"),
   pendingPhotoImage: byId("pendingPhotoImage"),
   discardItemBtn: byId("discardItemBtn"),
@@ -604,6 +609,7 @@ function bindEvents() {
   els.battleSpeedBtn.addEventListener("click", cycleBattleSpeed);
   els.resetGameBtn.addEventListener("click", resetGame);
   els.photoActionBtn.addEventListener("click", openPhotoPickerForSelectedSlot);
+  els.savePhotoBtn.addEventListener("click", saveSelectedPhotoImage);
   els.analyzePhotoBtn.addEventListener("click", () => {
     if (state.gameClear && isCareerSummaryOpen()) {
       downloadCareerSummaryImage();
@@ -746,13 +752,91 @@ async function downloadCareerSummaryImage() {
   const summary = state.careerSummary || buildLocalCareerSummary();
   const snapshot = summary.snapshot || buildCareerSnapshot();
   const image = await makeCareerSummaryImage(summary, snapshot);
+  await saveImageDataUrl(image, `photo-hero-career-${new Date().toISOString().slice(0, 10)}.png`, "通关分享图已生成。");
+}
+
+async function saveSelectedPhotoImage() {
+  const item = getSelectedInventoryItem();
+  const source = item?.fullImage || item?.image || "";
+  if (!source) return;
+  const fileName = makePhotoSaveFileName(item);
+  await saveImageDataUrl(source, fileName, "照片已保存。");
+}
+
+async function saveImageDataUrl(image, fileName, successMessage = "图片已保存。") {
+  try {
+    const blob = await dataUrlToBlob(image);
+    const shouldUseMobileShare = isMobileBrowser() && navigator.canShare && navigator.share && typeof File === "function";
+    if (shouldUseMobileShare) {
+      const file = new File([blob], fileName, { type: blob.type || "image/jpeg" });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "照片勇者" });
+        addLog(successMessage);
+        return;
+      }
+    }
+
+    if (window.showSaveFilePicker) {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{
+          description: "图片",
+          accept: { [blob.type || "image/jpeg"]: [getFileExtension(fileName)] },
+        }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      addLog(successMessage);
+      return;
+    }
+
+    downloadImageDataUrl(image, fileName);
+    addLog(successMessage);
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    downloadImageDataUrl(image, fileName);
+    addLog("已改用浏览器下载保存。");
+  } finally {
+    render();
+  }
+}
+
+function isMobileBrowser() {
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+}
+
+function downloadImageDataUrl(image, fileName) {
   const link = document.createElement("a");
   link.href = image;
-  link.download = `photo-hero-career-${new Date().toISOString().slice(0, 10)}.png`;
+  link.download = fileName;
   document.body.append(link);
   link.click();
   link.remove();
-  addLog("通关分享图已生成。");
+}
+
+async function dataUrlToBlob(dataUrl) {
+  const response = await fetch(dataUrl);
+  return response.blob();
+}
+
+function makePhotoSaveFileName(item) {
+  const name = sanitizeFileName(formatItemDisplayName(item) || "照片装备");
+  return `photo-hero-${name}-${new Date().toISOString().slice(0, 10)}.jpg`;
+}
+
+function sanitizeFileName(name) {
+  const clean = String(name || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .slice(0, 32);
+  return clean || "photo";
+}
+
+function getFileExtension(fileName) {
+  const match = String(fileName || "").match(/\.[a-z0-9]+$/i);
+  return match ? match[0].toLowerCase() : ".jpg";
 }
 
 async function makeCareerSummaryImage(summary, snapshot) {
@@ -1282,6 +1366,7 @@ async function analyzePhoto() {
     if (request.id !== state.analysisRequest?.id) return;
     const balancedItem = balanceItem({ ...item, photoKey }, inventoryImage);
     balancedItem.image = inventoryImage;
+    balancedItem.fullImage = state.lastPhoto;
     const failureReason = getAppraisalFailureReason(balancedItem);
     if (failureReason) {
       throw new Error(failureReason);
@@ -2242,6 +2327,7 @@ function getVirtualImagePenalty(text, photoQuality = {}) {
   const screenshot = isScreenshotOnlyText(source);
   const digitalImage = isWebOrDigitalImageText(source);
   const gameArt = isGameOrCardArtText(source);
+  const isolatedToyArt = isLowRealityToyOrMascotImageText(source, quality);
   const fantasyEquipment = isFantasyEquipmentImageText(source);
   const lowRealismFantasy = quality.realPhoto <= 1 && (gameArt || fantasyEquipment || isImageLikeSubjectText(source));
   const explicitDigital = digitalImage || gameArt || isScreenshotOnlyText(source);
@@ -2255,6 +2341,7 @@ function getVirtualImagePenalty(text, photoQuality = {}) {
   }
 
   if ((digitalImage || gameArt || lowRealismFantasy) && !physicalCarrier && !realToyOrProp && !realObjectEvidence) {
+    if (isolatedToyArt) return makeVirtualImagePenalty("ordinaryCap");
     return makeVirtualImagePenalty("noEffect");
   }
 
@@ -2263,6 +2350,10 @@ function getVirtualImagePenalty(text, photoQuality = {}) {
   }
 
   if ((digitalImage || gameArt || fantasyEquipment || isPrintedFantasyCarrierText(source)) && physicalCarrier && !realToyOrProp) {
+    return makeVirtualImagePenalty("ordinaryCap");
+  }
+
+  if (isolatedToyArt && !realObjectEvidence) {
     return makeVirtualImagePenalty("ordinaryCap");
   }
 
@@ -2306,6 +2397,15 @@ function isFantasyEquipmentImageText(text) {
 
 function isImageLikeSubjectText(text) {
   return /(?:图片|图像|图案|画面|卡图|卡面|海报|插画|图标|image|picture|artwork|poster)/i.test(String(text || ""));
+}
+
+function isLowRealityToyOrMascotImageText(text, quality = normalizePhotoQuality({})) {
+  const source = String(text || "");
+  if (!/(?:玩具|模型|手办|公仔|玩偶|娃娃|卡通|吉祥物|角色|拟人|长腿|寿司|青蛙|toy|model|figure|plush|doll|cartoon|mascot|character)/i.test(source)) return false;
+  if (isRealObjectPhotoEvidenceText(source) && quality.realPhoto >= 2) return false;
+  const isolated = /(?:黑底|白底|纯黑|纯白|透明背景|抠图|孤立|单独展示|商品图|素材图|贴图|渲染|插画|图标|没有背景|无背景|black background|white background|transparent|cutout|isolated|product image|render|illustration|icon)/i.test(source);
+  const unrealStyle = /(?:卡通化|拟人|长腿|会跳|跳出|发起突袭|活过来|奔跑|cartoon|anthropomorphic|long legs|jump|attack)/i.test(source);
+  return isolated || unrealStyle || quality.realPhoto <= 1;
 }
 
 function isPhysicalImageCarrierText(text) {
@@ -5673,6 +5773,7 @@ function balanceItem(item, image = "") {
     tooLarge: noEffect,
     virtualImage: virtualPenalty.level !== "none",
     image,
+    fullImage: typeof safe.fullImage === "string" && safe.fullImage ? safe.fullImage : "",
   };
   balanced.objectKey = cleanText(balanced.objectKey || makeObjectDuplicateKey(balanced), "", 80);
   return balanced;
@@ -5685,6 +5786,7 @@ function normalizeInventoryItem(item) {
     id: typeof item?.id === "string" && item.id ? item.id : makeId("item"),
   };
   normalized.specialEffects = normalizeSpecialEffects(item?.specialEffects || balanced.specialEffects);
+  normalized.fullImage = typeof item?.fullImage === "string" && item.fullImage ? item.fullImage : "";
   normalized.specialState = normalizeSpecialState(item?.specialState || balanced.specialState, normalized.specialEffects);
   normalized.photoQuality = normalizePhotoQuality(item?.photoQuality || balanced.photoQuality || {});
   normalized.photoQualityScore = Number.isFinite(item?.photoQualityScore)
@@ -5888,6 +5990,7 @@ function getPhotoValueCapFromQuality(photoQuality, semanticText = "") {
   const virtualPenalty = getVirtualImagePenalty(text, quality);
   if (virtualPenalty.noEffect) return 0;
   if (Number.isFinite(virtualPenalty.cap)) return Math.min(getPhotoValueMax(), virtualPenalty.cap);
+  if (isLowRealityToyOrMascotImageText(text, quality)) return Math.min(getPhotoValueMax(), 10);
   if (quality.clarity <= 1 || quality.subjectArea <= 1 || quality.realPhoto <= 1) return Math.min(getPhotoValueMax(), 12);
   if (quality.backgroundClean <= 0 || quality.focusLight <= 0) return Math.min(getPhotoValueMax(), 14);
   if (hasCrowdedOrSmallSubjectText(text)) return Math.min(getPhotoValueMax(), 14);
@@ -5941,6 +6044,7 @@ function calculateAdjustedPhotoQualityScore(photoQuality, semanticText = "") {
   if (quality.backgroundClean <= 0) score -= 1;
   if (quality.backgroundClean < 2) score -= 1;
   if (quality.realPhoto <= 1) score -= 3;
+  if (isLowRealityToyOrMascotImageText(text, quality)) score -= 4;
   if (quality.interesting <= 0) score -= 2;
   if (quality.interesting <= 1 && !hasStrongEquipmentFantasyText(text)) score -= 1;
   if (hasCrowdedOrSmallSubjectText(text)) score -= 2;
@@ -6809,8 +6913,8 @@ function renderEquipmentGrid() {
       if (!item) {
         state.lastPhoto = "";
         state.pendingPhotoSlotIndex = i;
-      } else if (isRepeatClick && item.image) {
-        openImageViewer(item.image, formatItemDisplayName(item), getItemQuality(scoreItem(item)));
+      } else if (isRepeatClick && (item.fullImage || item.image)) {
+        openImageViewer(item.fullImage || item.image, formatItemDisplayName(item), getItemQuality(scoreItem(item)));
       }
       saveGame();
       render();
@@ -6845,6 +6949,8 @@ function renderEquipmentDetail() {
   els.analyzePhotoBtn.textContent = "鉴定";
   els.analyzePhotoBtn.classList.remove("is-cancel");
   els.analyzePhotoBtn.onclick = null;
+  els.savePhotoBtn.hidden = true;
+  els.savePhotoBtn.disabled = true;
   els.discardItemBtn.disabled = true;
   els.discardItemBtn.hidden = true;
   els.battleLog.hidden = true;
@@ -6953,6 +7059,8 @@ function renderEquipmentDetail() {
   els.equipmentDetailStats.hidden = false;
   els.equipmentDetailDesc.textContent = renderItemDescription(selected);
   els.equipmentActions.hidden = false;
+  els.savePhotoBtn.hidden = false;
+  els.savePhotoBtn.disabled = locked || !(selected.fullImage || selected.image);
   els.discardItemBtn.hidden = false;
   els.discardItemBtn.disabled = locked;
   els.discardItemBtn.classList.add("danger-button");
@@ -7179,6 +7287,13 @@ function makeSettledItemDescription(item) {
   const name = formatItemDisplayName(item);
   const stats = item?.stats || {};
   const effects = getItemSpecialKeys(item || {});
+  const identityText = `${item?.itemName || ""} ${item?.subjectName || ""} ${item?.objectType || ""} ${item?.identityDescription || ""} ${normalizeStringList(item?.tags).join(" ")}`;
+  if (isLowRealityToyOrMascotImageText(identityText, item?.photoQuality || {}) || isToyMascotSemanticText(identityText)) {
+    if (stats.defense > 0 || stats.shield > 0) return `${name}更像一件照片里的小摆件，能提供一点遮挡和守势联想。`;
+    if (stats.hp > 0 || stats.regen > 0) return `${name}带着轻松的玩具感，适合给勇者添一点耐久和缓冲。`;
+    if (stats.attack > 0) return `${name}有夸张的造型感，但力量只来自这个小物件本身。`;
+    return `${name}更像照片里的小玩具，被收进装备格后只留下轻微助力。`;
+  }
   if (effects.includes("doubleStrikeSpeedDown")) return `${name}让动作变重，却能把每次进攻拆成更密的连击。`;
   if (effects.includes("shieldCrashAttackDown")) return `${name}把护盾压到锋线上，出手时顺带撞出一段额外伤害。`;
   if (effects.includes("dealDamageAttack")) return `${name}越打越顺手，命中后会临时磨出更高攻击。`;
@@ -7204,11 +7319,19 @@ function isGenericItemDescription(text) {
   return /^(由照片鉴定出的装备|测试用拍照特殊装备|按模型文字保守鉴定|主体过大或主要是场景|装备|物品)/.test(String(text || "").trim());
 }
 
+function isToyMascotSemanticText(text) {
+  return /(?:玩具|模型|手办|公仔|玩偶|娃娃|卡通|吉祥物|角色|拟人|寿司|青蛙|toy|model|figure|plush|doll|cartoon|mascot|character)/i.test(String(text || ""));
+}
+
 function isItemDescriptionConsistent(item, description) {
   if (!item || item.tooLarge) return true;
   const text = String(description || "");
   const stats = item.stats || {};
   const effects = getItemSpecialKeys(item);
+  const identityText = `${item.itemName || ""} ${item.subjectName || ""} ${item.objectType || ""} ${item.identityDescription || ""} ${normalizeStringList(item.tags).join(" ")}`;
+  if (isToyMascotSemanticText(identityText) && /跳出|突袭|发起|奔跑|活过来|自己|随时准备|jump|attack|run|alive/i.test(text)) {
+    return false;
+  }
   if (isSharpToolSemanticText(`${item.itemName || ""} ${item.subjectName || ""} ${item.objectType || ""}`)) {
     const onlyRecoveryClaim = /回复|恢复|回血|修复|补能|再生|regen/i.test(text)
       && !/攻击|伤害|打击|破防|锋利|进攻|输出|攻势|吸血|吸取|夺取|追回生命|attack|lifesteal/i.test(text);
@@ -7464,6 +7587,7 @@ function renderGameTextOnly() {
       } : null,
       stats: item.stats || {},
       effects: getItemSpecialKeys(item),
+      fullImage: item.fullImage || "",
       photoKey: item.photoKey || "",
       objectKey: item.objectKey || makeObjectDuplicateKey(item),
       specialState: item.specialState || {},
