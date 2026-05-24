@@ -152,6 +152,7 @@ function assertScenario(name, metrics) {
   if (name === "monster-distribution") {
     const distribution = metrics.monsterDistribution || {};
     if (distribution.floor1AllSlime !== true) failures.push(`${name}: floor 1 should stay all slime`);
+    if (distribution.earlyInvalidCount !== 0) failures.push(`${name}: non-basic monsters appeared before floor 10: ${JSON.stringify(distribution.earlyInvalidByFloor)}`);
     if (distribution.earlyTier3Count !== 0) failures.push(`${name}: tier 3 monsters appeared before floor 11`);
     if ((distribution.floor11Tier3Rate || 0) > 0.42) failures.push(`${name}: floor 11 tier 3 rate too high: ${distribution.floor11Tier3Rate}`);
     if ((distribution.floor13Tier3Rate || 0) > 0.58) failures.push(`${name}: floor 13 tier 3 rate too high: ${distribution.floor13Tier3Rate}`);
@@ -1132,8 +1133,6 @@ function assertScenario(name, metrics) {
         bat: 1,
         skeleton: 1,
         mage: 2,
-        orc: 2,
-        golem: 2,
         wizard: 3,
         guard: 3,
         knight: 3,
@@ -1165,7 +1164,8 @@ function assertScenario(name, metrics) {
         };
       };
       const floor1 = sampleFloor(1, 12);
-      const early = [2, 3, 5, 8].map((floor) => sampleFloor(floor, 24));
+      const allowedBefore10 = new Set(["slime", "bat", "skeleton", "mage"]);
+      const early = [2, 3, 5, 8, 9].map((floor) => ({ floor, ...sampleFloor(floor, 24) }));
       const floor11 = sampleFloor(11);
       const floor13 = sampleFloor(13);
       const floor17 = sampleFloor(17);
@@ -1173,6 +1173,11 @@ function assertScenario(name, metrics) {
       hooks.state.runSeed = originalSeed;
       window.__reviewMonsterDistribution = {
         floor1AllSlime: Object.keys(floor1.typeCounts).length === 1 && floor1.typeCounts.slime === 36,
+        earlyInvalidByFloor: Object.fromEntries(early.map((item) => [
+          String(item.floor),
+          Object.fromEntries(Object.entries(item.typeCounts).filter(([type]) => !allowedBefore10.has(type))),
+        ])),
+        earlyInvalidCount: early.reduce((sum, item) => sum + Object.entries(item.typeCounts).filter(([type]) => !allowedBefore10.has(type)).reduce((inner, [, count]) => inner + count, 0), 0),
         earlyTier3Count: early.reduce((sum, item) => sum + Math.round(item.tier3Rate * 72), 0),
         floor11Tier3Rate: floor11.tier3Rate,
         floor13Tier3Rate: floor13.tier3Rate,
