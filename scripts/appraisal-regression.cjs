@@ -134,6 +134,27 @@ const cases = [
     expect: ({ item }) => item.value >= 17 && item.value <= 18 && item.stats.regen === 0 && (item.stats.speed > 0 || item.specialEffects.length > 0),
   },
   {
+    label: "fan rejects model shield stat and rerolls speed",
+    input: {
+      itemName: "白色台式转页扇",
+      subjectName: "转页扇",
+      objectType: "桌面电器",
+      identityDescription: "玩家实拍的白色台式转页扇，有圆形网罩、扇叶、底座和真实桌面背景。",
+      description: "带来清凉微风的桌面小风扇，能加速战场的节奏。",
+      reason: "主体=风扇；倾向=速度；模型误把网罩当护盾。",
+      tags: ["风扇", "转页扇", "旋转", "气流", "网罩"],
+      value: 17,
+      stats: { shield: 1 },
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 1, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "speed", score: 3 }],
+    },
+    expect: ({ item, renderedDescription }) => (
+      item.stats.shield === 0
+      && item.stats.speed > 0
+      && /风|速度|抢在|行动|节奏/.test(renderedDescription)
+    ),
+  },
+  {
     label: "real gaming mouse remains valid equipment",
     input: {
       itemName: "雷蛇游戏鼠标",

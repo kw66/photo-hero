@@ -6632,9 +6632,9 @@ function dismantleSelectedItem() {
 }
 
 function makePhotoStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) {
-  return [itemName, subjectName, objectType, sizeClass, identityDescription]
-    .filter(Boolean)
-    .join(" ");
+  const primaryText = [itemName, subjectName, objectType, sizeClass].filter(Boolean).join(" ");
+  if (primaryText && hasPhotoStatSemanticText(primaryText)) return primaryText;
+  return [primaryText, identityDescription].filter(Boolean).join(" ");
 }
 
 function balanceItem(item, image = "") {
@@ -7066,10 +7066,10 @@ function inferFallbackQualityScore(text) {
 
 function allocateStatsForItem(rawStats, itemName, valueBudget, statAffinity = []) {
   const normalized = normalizeStats(rawStats, 20);
-  if (calculateStatsValue(normalized) > 0 && areProvidedStatsSemanticallyConsistent(normalized, itemName)) {
+  const keys = getPreferredStatKeys(itemName, statAffinity);
+  if (calculateStatsValue(normalized) > 0 && areProvidedStatsSemanticallyConsistent(normalized, itemName, keys, valueBudget)) {
     return normalized;
   }
-  const keys = getPreferredStatKeys(itemName, statAffinity);
   const result = normalizeStats({}, 20);
   let remaining = Math.max(0, valueBudget);
   if (!keys.length || remaining <= 0) return result;
@@ -7124,11 +7124,17 @@ function allocateStatsForItem(rawStats, itemName, valueBudget, statAffinity = []
   return result;
 }
 
-function areProvidedStatsSemanticallyConsistent(stats, text) {
+function areProvidedStatsSemanticallyConsistent(stats, text, preferredKeys = [], valueBudget = 0) {
   const normalized = normalizeStats(stats, 20);
   const activeKeys = statOrder.filter((key) => (normalized[key] || 0) > 0);
   if (!activeKeys.length) return false;
-  return activeKeys.every((key) => hasSemanticForPhotoStat(key, text));
+  if (!activeKeys.every((key) => hasSemanticForPhotoStat(key, text))) return false;
+  if (hasStrongSpeedSemanticText(text) && !activeKeys.includes("speed")) return false;
+  const uniquePreferred = [...new Set(preferredKeys)].filter((key) => statOrder.includes(key));
+  if (uniquePreferred.length && !activeKeys.some((key) => uniquePreferred.includes(key))) return false;
+  const usedValue = calculateStatsValue(normalized);
+  if (valueBudget >= 13 && usedValue < Math.min(valueBudget * 0.5, valueBudget - 2)) return false;
+  return true;
 }
 
 function canSpendOnPhotoStat(key, text, remainingBudget, totalBudget) {
@@ -7150,6 +7156,10 @@ function hasSemanticForPhotoStat(key, text) {
     case "regen": return hasRegenSemanticText(text);
     default: return false;
   }
+}
+
+function hasPhotoStatSemanticText(text) {
+  return statOrder.some((key) => hasSemanticForPhotoStat(key, text));
 }
 
 function getAffordableSemanticStatKeys(text, statAffinity, budget) {
@@ -8475,7 +8485,7 @@ function isItemDescriptionConsistent(item, description) {
   const claims = [
     { key: "attack", hit: /攻击|伤害|打击|破防|锋利|进攻|输出|攻势|attack/i.test(text) },
     { key: "defense", hit: /防御|防线|抗打|硬接|坚固|稳住|减伤|defen[cs]e/i.test(text) },
-    { key: "speed", hit: /速度|更快|抢先|迅捷|敏捷|行动|speed/i.test(text) },
+    { key: "speed", hit: /速度|更快|抢先|迅捷|敏捷|行动|加速|节奏|微风|气流|旋转|speed|airflow|rotate/i.test(text) },
     { key: "shield", hit: /护盾|屏障|挡住|遮挡|盾|shield/i.test(text) },
     { key: "lifesteal", hit: /吸血|吸取|夺取|追回生命|lifesteal/i.test(text) },
     { key: "regen", hit: /回复|恢复|回血|修复|补能|再生|regen/i.test(text) },
