@@ -172,6 +172,10 @@ function assertScenario(name, metrics) {
     if (specials.sweepLeftHp !== 2 || specials.sweepCenterHp !== 0 || specials.sweepRightHp !== 2) {
       failures.push(`${name}: sweep should still hit neighbors when center is killed, got ${JSON.stringify(specials)}`);
     }
+    const visualSweepState = specials.visualSweepState || {};
+    if (visualSweepState["visual-left"] !== 2 || visualSweepState["visual-center"] !== 0 || visualSweepState["visual-right"] !== 2 || visualSweepState["visual-far"] !== 4) {
+      failures.push(`${name}: sweep should use visual card position, not selected attack order, got ${JSON.stringify(visualSweepState)}`);
+    }
     if (specials.peerlessAtk !== 7 || specials.peerlessDef !== 4) {
       failures.push(`${name}: peerless should add attack/defense +3 after kill, got ${JSON.stringify(specials)}`);
     }
@@ -531,6 +535,14 @@ function assertScenario(name, metrics) {
       const sweepRightHp = hooks.state.enemies.find((enemy) => enemy.id === "right")?.hp;
 
       hooks.resetGameForTest();
+      hooks.addSpecialItem("sweep", { itemName: "横扫测试刷", value: 15, stats: {}, specialAffinity: ["sweep"] });
+      hooks.setEnemies([makeEnemy("visual-left"), makeEnemy("visual-center"), makeEnemy("visual-right"), makeEnemy("visual-far")]);
+      hooks.selectEnemies(["visual-center", "visual-far", "visual-left", "visual-right"]);
+      hooks.beginBattle(hooks.state.selectedEnemyIds.map((id) => hooks.state.enemies.find((enemy) => enemy.id === id)).filter(Boolean));
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
+      const visualSweepState = Object.fromEntries(hooks.state.enemies.map((enemy) => [enemy.id, enemy.hp]));
+
+      hooks.resetGameForTest();
       hooks.addSpecialItem("peerless", { itemName: "无双测试章", value: 15, stats: {}, specialAffinity: ["peerless"] });
       hooks.setEnemies([makeEnemy("peerless-kill", 1), makeEnemy("peerless-next", 10)]);
       hooks.selectEnemies(["peerless-kill", "peerless-next"]);
@@ -543,6 +555,7 @@ function assertScenario(name, metrics) {
         sweepLeftHp,
         sweepCenterHp,
         sweepRightHp,
+        visualSweepState,
         peerlessAtk: peerlessStats.atk,
         peerlessDef: peerlessStats.def,
         peerlessAfterResetAtk: resetStats.atk,

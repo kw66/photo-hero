@@ -3902,13 +3902,19 @@ function getSweepDamageRatio() {
 
 function getSweepNeighborEnemies(sourceEnemy) {
   if (!sourceEnemy) return [];
-  const activeEnemies = state.activeEnemyIds
-    .map((id) => state.enemies.find((enemy) => enemy.id === id))
-    .filter(Boolean);
-  const index = activeEnemies.findIndex((enemy) => enemy.id === sourceEnemy.id);
-  if (index < 0) return [];
-  return [activeEnemies[index - 1], activeEnemies[index + 1]]
-    .filter((enemy) => enemy && enemy.hp > 0);
+  const sourceIndex = getEnemyVisualIndex(sourceEnemy);
+  if (sourceIndex < 0) return [];
+  return state.enemies
+    .map((enemy, visualIndex) => ({ enemy, visualIndex }))
+    .filter((entry) => entry.enemy.id !== sourceEnemy.id && entry.enemy.hp > 0 && state.activeEnemyIds.includes(entry.enemy.id))
+    .sort((a, b) => Math.abs(a.visualIndex - sourceIndex) - Math.abs(b.visualIndex - sourceIndex) || a.visualIndex - b.visualIndex)
+    .slice(0, 2)
+    .map((entry) => entry.enemy);
+}
+
+function getEnemyVisualIndex(enemy) {
+  if (!enemy) return -1;
+  return state.enemies.findIndex((item) => item.id === enemy.id);
 }
 
 function applyFixedHeroDamageToEnemy(enemy, damage, source = "sweep") {
@@ -5715,6 +5721,7 @@ function damageSimHero(sim, amount) {
 function cloneEnemyForSimulation(enemy) {
   return {
     ...enemy,
+    visualIndex: getEnemyVisualIndex(enemy),
     traits: cloneTraits(enemy.traits || []),
   };
 }
@@ -5871,13 +5878,23 @@ function settleSimEnemyDefeat(sim, enemies, enemy) {
 
 function getSimSweepNeighborEnemies(sim, enemies, sourceEnemy) {
   if (!sourceEnemy) return [];
-  const activeEnemies = sim.activeIds
-    .map((id) => enemies.find((enemy) => enemy.id === id))
-    .filter(Boolean);
-  const index = activeEnemies.findIndex((enemy) => enemy.id === sourceEnemy.id);
-  if (index < 0) return [];
-  return [activeEnemies[index - 1], activeEnemies[index + 1]]
-    .filter((enemy) => enemy && enemy.hp > 0);
+  const sourceIndex = getSimEnemyVisualIndex(sourceEnemy, enemies);
+  if (sourceIndex < 0) return [];
+  return enemies
+    .map((enemy, fallbackIndex) => ({ enemy, visualIndex: getSimEnemyVisualIndex(enemy, enemies, fallbackIndex) }))
+    .filter((entry) => entry.enemy.id !== sourceEnemy.id && entry.enemy.hp > 0 && sim.activeIds.includes(entry.enemy.id))
+    .sort((a, b) => Math.abs(a.visualIndex - sourceIndex) - Math.abs(b.visualIndex - sourceIndex) || a.visualIndex - b.visualIndex)
+    .slice(0, 2)
+    .map((entry) => entry.enemy);
+}
+
+function getSimEnemyVisualIndex(enemy, enemies, fallbackIndex = -1) {
+  if (!enemy) return -1;
+  if (Number.isFinite(enemy.visualIndex) && enemy.visualIndex >= 0) return enemy.visualIndex;
+  const stateIndex = state.enemies.findIndex((item) => item.id === enemy.id);
+  if (stateIndex >= 0) return stateIndex;
+  if (Number.isFinite(enemy.slot) && enemy.slot >= 0) return enemy.slot;
+  return fallbackIndex;
 }
 
 function applySimFixedHeroDamageToEnemy(sim, enemy, damage, enemies = []) {
