@@ -62,6 +62,7 @@ async function collectScenario(page, name, action = async () => {}) {
       bossFilmDrops: window.__reviewBossFilmDrops || null,
       cropAppraisal: window.__reviewCropAppraisal || null,
       groupSpecials: window.__reviewGroupSpecials || null,
+      linkedTraits: window.__reviewLinkedTraits || null,
       panelToggle: window.__reviewPanelToggle || null,
       groupQr: (() => {
         const card = document.querySelector(".author-qr-card");
@@ -177,6 +178,26 @@ function assertScenario(name, metrics) {
     if (specials.peerlessAfterResetAtk !== 4 || specials.peerlessAfterResetDef !== 1) {
       failures.push(`${name}: peerless bonus should reset outside battle, got ${JSON.stringify(specials)}`);
     }
+  }
+  if (name === "linked-traits") {
+    const traits = metrics.linkedTraits || {};
+    if (!traits.guardShieldApplied || !traits.guardShieldDisplayed) {
+      failures.push(`${name}: guard team shield should apply and display as over-cap HP, got ${JSON.stringify(traits.guardState)}`);
+    }
+    if (!traits.startAutoBattleGuardShieldApplied) {
+      failures.push(`${name}: guard team shield should survive the real startAutoBattle render path, got ${JSON.stringify(traits.startAutoBattleGuardState)}`);
+    }
+    if (!traits.warcryApplied) failures.push(`${name}: warrior warcry should buff all active enemies, got ${JSON.stringify(traits.warriorState)}`);
+    if (traits.wizardDef !== 0) failures.push(`${name}: two wizards should reduce hero defense to 0, got ${traits.wizardDef}`);
+    if (traits.patrolShield !== 0 || traits.patrolHp !== 75) failures.push(`${name}: patrol breakShield should clear shield and apply full HP loss, got ${JSON.stringify(traits.patrolState)}`);
+    if (traits.golemHp !== 7) failures.push(`${name}: golem sturdy should limit normal hero damage to 1, got hp ${traits.golemHp}`);
+    if (traits.octopusDamage !== 41) failures.push(`${name}: octopus giant should add max-HP gap damage, got ${traits.octopusDamage}`);
+    if (traits.demonAttackDown !== 1 || traits.dragonSpeedDown !== 1) failures.push(`${name}: demon/dragon debuffs should stack on attack, got ${JSON.stringify(traits.debuffState)}`);
+    if (traits.archmageAtk !== 17 || traits.archmageDef !== 6) failures.push(`${name}: archmage promotion should gain attack when hit and defense after attack, got ${JSON.stringify(traits.archmageState)}`);
+    if (traits.knightDamageWithGuards !== 0 || traits.knightDamageAfterGuardDeath !== 17) {
+      failures.push(`${name}: knight captain guard reduction should depend on living guards, got ${JSON.stringify(traits.knightState)}`);
+    }
+    if (traits.shieldCrashGolemHp !== 5) failures.push(`${name}: shield crash should add current shield damage against sturdy enemies, got hp ${traits.shieldCrashGolemHp}`);
   }
   if (name === "panel-toggle") {
     const panel = metrics.panelToggle || {};
@@ -526,6 +547,127 @@ function assertScenario(name, metrics) {
         peerlessDef: peerlessStats.def,
         peerlessAfterResetAtk: resetStats.atk,
         peerlessAfterResetDef: resetStats.def,
+      };
+    });
+  });
+
+  scenarios.linkedTraits = await collectScenario(desktop, "linked-traits", async (page) => {
+    await page.evaluate(async () => {
+      const hooks = window.__photoHeroTestHooks;
+      const baseEnemy = (id, typeKey, overrides = {}) => {
+        const type = hooks.monsterTypes[typeKey] || hooks.monsterTypes.slime;
+        return {
+          id,
+          testEnemy: true,
+          typeKey,
+          typeName: type.name,
+          name: type.name,
+          maxHp: overrides.maxHp ?? type.hp,
+          hp: overrides.hp ?? overrides.maxHp ?? type.hp,
+          atk: overrides.atk ?? type.atk,
+          def: overrides.def ?? type.def,
+          speed: overrides.speed ?? type.speed,
+          maxShield: overrides.maxShield ?? 0,
+          shield: overrides.shield ?? 0,
+          traits: (overrides.traits || type.traits || []).map((trait) => ({ ...trait })),
+        };
+      };
+      const begin = (enemies) => {
+        hooks.setEnemies(enemies);
+        hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));
+        hooks.beginBattle(hooks.state.enemies);
+        return hooks.state.enemies;
+      };
+
+      let enemies = begin([baseEnemy("g1", "guard"), baseEnemy("g2", "guard"), baseEnemy("kc", "knightCaptain")]);
+      const guardState = enemies.map((enemy) => ({
+        id: enemy.id,
+        shield: enemy.shield,
+        maxShield: enemy.maxShield,
+        display: `${Math.ceil(enemy.hp + enemy.shield)}/${enemy.maxHp}`,
+      }));
+      const guardShieldApplied = guardState.every((enemy) => enemy.shield === 40 && enemy.maxShield === 40);
+      const guardShieldDisplayed = guardState.filter((enemy) => enemy.id.startsWith("g")).every((enemy) => enemy.display === "90/50")
+        && guardState.find((enemy) => enemy.id === "kc")?.display === "80/40";
+      const knightDamageWithGuards = hooks.applyHeroDamageToEnemy(enemies[2], { atk: 20, def: 1, speed: 1, maxHp: 80, shield: 0, regen: 0, lifesteal: 0 }).totalDamage;
+      enemies[0].hp = 0;
+      enemies[1].hp = 0;
+      const knightDamageAfterGuardDeath = hooks.applyHeroDamageToEnemy(enemies[2], { atk: 20, def: 1, speed: 1, maxHp: 80, shield: 0, regen: 0, lifesteal: 0 }).totalDamage;
+
+      hooks.setEnemies([baseEnemy("sg1", "guard"), baseEnemy("sg2", "guard"), baseEnemy("skc", "knightCaptain")]);
+      hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));
+      hooks.startAutoBattle();
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      const startAutoBattleGuardState = hooks.state.enemies.map((enemy) => ({
+        id: enemy.id,
+        shield: enemy.shield,
+        maxShield: enemy.maxShield,
+      }));
+      const startAutoBattleGuardShieldApplied = startAutoBattleGuardState.every((enemy) => enemy.shield === 40 && enemy.maxShield === 40);
+
+      enemies = begin([baseEnemy("w1", "warrior"), baseEnemy("s1", "slime"), baseEnemy("s2", "slime")]);
+      const warriorState = enemies.map((enemy) => ({ atk: enemy.atk, def: enemy.def, speed: enemy.speed }));
+      const warcryApplied = warriorState[0].atk === 15 && warriorState[0].def === 8 && warriorState[0].speed === 3
+        && warriorState[1].atk === 9 && warriorState[1].def === 3 && warriorState[1].speed === 3;
+
+      enemies = begin([baseEnemy("z1", "wizard"), baseEnemy("z2", "wizard")]);
+      const wizardDef = hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)).def;
+
+      hooks.setHeroStats({ hp: 80, shield: 3, baseDef: 1 });
+      enemies = begin([baseEnemy("p1", "patrol", { atk: 6 })]);
+      hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["p1"]), 1);
+      const patrolState = { hp: hooks.state.player.hp, shield: hooks.state.player.shield };
+
+      enemies = begin([baseEnemy("go1", "golem")]);
+      hooks.applyHeroDamageToEnemy(enemies[0], { atk: 20, def: 1, speed: 1, maxHp: 80, shield: 0, regen: 0, lifesteal: 0 });
+      const golemHp = enemies[0].hp;
+
+      enemies = begin([baseEnemy("oc1", "octopus")]);
+      const octopusDamage = hooks.getMonsterAttackForStrike(enemies[0], { maxHp: 80 });
+
+      enemies = begin([baseEnemy("dm1", "demon", { atk: 1 })]);
+      hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["dm1"]), 1);
+      const demonAttackDown = hooks.state.battleSpecial.attackDown;
+      enemies = begin([baseEnemy("dr1", "dragon", { atk: 1 })]);
+      hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["dr1"]), 1);
+      const dragonSpeedDown = hooks.state.battleSpecial.speedDown;
+
+      enemies = begin([baseEnemy("am1", "archmage")]);
+      hooks.applyHeroDamageToEnemy(enemies[0], { atk: 20, def: 1, speed: 1, maxHp: 80, shield: 0, regen: 0, lifesteal: 0 });
+      hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["am1"]), 1);
+      const archmageState = { atk: enemies[0].atk, def: enemies[0].def };
+
+      hooks.resetGameForTest();
+      hooks.addSpecialItem("shieldCrashAttackDown", { itemName: "护盾撞击测试", value: 16, stats: {} });
+      hooks.setHeroStats({ shield: hooks.getPlayerStats().shield });
+      enemies = begin([baseEnemy("go2", "golem")]);
+      hooks.applyHeroDamageToEnemy(enemies[0], hooks.getBattleStatsForTest(["go2"]));
+      const shieldCrashGolemHp = enemies[0].hp;
+
+      window.__reviewLinkedTraits = {
+        guardState,
+        guardShieldApplied,
+        guardShieldDisplayed,
+        startAutoBattleGuardState,
+        startAutoBattleGuardShieldApplied,
+        warriorState,
+        warcryApplied,
+        wizardDef,
+        patrolState,
+        patrolHp: patrolState.hp,
+        patrolShield: patrolState.shield,
+        golemHp,
+        octopusDamage,
+        debuffState: { demonAttackDown, dragonSpeedDown },
+        demonAttackDown,
+        dragonSpeedDown,
+        archmageState,
+        archmageAtk: archmageState.atk,
+        archmageDef: archmageState.def,
+        knightState: { knightDamageWithGuards, knightDamageAfterGuardDeath },
+        knightDamageWithGuards,
+        knightDamageAfterGuardDeath,
+        shieldCrashGolemHp,
       };
     });
   });

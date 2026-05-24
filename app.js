@@ -3505,11 +3505,15 @@ function startAutoBattle() {
 
   ensureEncounter();
   if (!canStartSelectedBattle()) return;
-  const selectedEnemies = getSelectedEnemies();
+  const selectedEnemyIds = state.selectedEnemyIds
+    .filter((id) => state.enemies.some((enemy) => enemy.id === id && enemy.hp > 0));
+  const selectedEnemies = selectedEnemyIds
+    .map((id) => state.enemies.find((enemy) => enemy.id === id))
+    .filter(Boolean);
   if (!selectedEnemies.length) return;
   recordGlobalGameStart();
 
-  const selectedIds = new Set(selectedEnemies.map((enemy) => enemy.id));
+  const selectedIds = new Set(selectedEnemyIds);
   const unselectedIds = state.enemies
     .filter((enemy) => enemy.hp > 0 && !selectedIds.has(enemy.id))
     .map((enemy) => enemy.id);
@@ -3520,7 +3524,10 @@ function startAutoBattle() {
     state.battleStartTimer = 0;
     for (const id of unselectedIds) state.enemyFaceDownIds.add(id);
     state.enemyFlipDownIds = new Set();
-    beginBattle(selectedEnemies);
+    const currentSelectedEnemies = selectedEnemyIds
+      .map((id) => state.enemies.find((enemy) => enemy.id === id && enemy.hp > 0))
+      .filter(Boolean);
+    beginBattle(currentSelectedEnemies);
     resolveBattleAction();
     if (state.currentBattle && state.player.hp > 0) {
       state.autoBattleTimer = window.setInterval(runAutoBattleTick, getBattleIntervalMs());
