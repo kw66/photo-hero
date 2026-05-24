@@ -127,7 +127,7 @@ const analysisImageQuality = 0.72;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
-const gameSaveVersion = 21;
+const gameSaveVersion = 22;
 const initialFilmRolls = 3;
 const heroFormUpgradeKills = 10;
 const bossFloors = new Set([10, 20, 30, 40]);
@@ -392,7 +392,7 @@ const monsterTypes = {
   orc: { name: "兽人", atk: 12, def: 7, hp: 60, speed: 2, traits: [{ type: "regen", value: 5, text: "回复5" }] },
   swordsman: { name: "剑士", atk: 30, def: 0, hp: 20, speed: 5, traits: [{ type: "multiHit", value: 2, text: "连击2" }] },
   warrior: { name: "战士", atk: 12, def: 5, hp: 30, speed: 2, traits: [{ type: "teamWarcry", atk: 3, def: 3, speed: 1, text: "战意：全体攻防+3，速+1" }] },
-  archmage: { name: "大法师", atk: 16, def: 5, hp: 72, speed: 4, traits: [{ type: "promotion", text: "晋升：攻击涨防，被攻击涨攻" }] },
+  archmage: { name: "大法师", atk: 10, def: 5, hp: 72, speed: 3, traits: [{ type: "magic", text: "魔攻：无视防御" }, { type: "summonMageOnAttack", text: "召唤：有空位则召唤法师" }] },
   skeletonCaptain: { name: "骷髅队长", atk: 12, def: 5, hp: 44, speed: 3, traits: [{ type: "noLifesteal", text: "制裁：无法吸血" }] },
   knightCaptain: { name: "骑士队长", atk: 15, def: 3, hp: 40, speed: 4, traits: [{ type: "summonGuards", text: "群殴：开战召唤2个卫兵" }] },
 };
@@ -3617,15 +3617,25 @@ function beginBattle(enemies) {
 }
 
 function expandEnemiesForBattle(enemies) {
+  if (shouldSummonArchmageMages(enemies)) {
+    const archmage = enemies[0];
+    const leftMage = makeSummonedMage(archmage, 0);
+    const battleArchmage = { ...archmage, slot: 1, summonedBattleCenter: true, summonBattleKind: "archmage" };
+    const rightMage = makeSummonedMage(archmage, 2);
+    state.enemies = [leftMage, battleArchmage, rightMage];
+    state.enemyFaceDownIds = new Set();
+    state.enemyFlipDownIds = new Set();
+    return getExpandedBossTargetEnemies(state.enemies);
+  }
   if (!shouldSummonKnightCaptainGuards(enemies)) return enemies;
   const captain = enemies[0];
   const leftGuard = makeSummonedGuard(captain, 0);
-  const battleCaptain = { ...captain, slot: 1, summonedBattleCenter: true };
+  const battleCaptain = { ...captain, slot: 1, summonedBattleCenter: true, summonBattleKind: "knightCaptain" };
   const rightGuard = makeSummonedGuard(captain, 2);
   state.enemies = [leftGuard, battleCaptain, rightGuard];
   state.enemyFaceDownIds = new Set();
   state.enemyFlipDownIds = new Set();
-  return [leftGuard, rightGuard, battleCaptain];
+  return getExpandedBossTargetEnemies(state.enemies);
 }
 
 function shouldSummonKnightCaptainGuards(enemies) {
@@ -3637,6 +3647,32 @@ function shouldSummonKnightCaptainGuards(enemies) {
     && !enemies[0].summonedBattleCenter;
 }
 
+function shouldSummonArchmageMages(enemies) {
+  return state.floor === 38
+    && Array.isArray(enemies)
+    && enemies.length === 1
+    && enemies[0]?.typeKey === "archmage"
+    && hasTrait(enemies[0], "summonMageOnAttack")
+    && !enemies[0].summonedBattleCenter;
+}
+
+function getExpandedBossTargetEnemies(enemies = state.enemies) {
+  const list = Array.isArray(enemies) ? enemies.filter(Boolean) : [];
+  const center = list.find((enemy) => enemy.summonedBattleCenter);
+  if (!center) return list;
+  const sideEnemies = list
+    .filter((enemy) => enemy.id !== center.id)
+    .sort((a, b) => getEnemyVisualSlot(a) - getEnemyVisualSlot(b));
+  return [sideEnemies[0], sideEnemies[1], center].filter(Boolean);
+}
+
+function getEnemyVisualSlot(enemy) {
+  if (Number.isFinite(enemy?.visualIndex)) return enemy.visualIndex;
+  if (Number.isFinite(enemy?.archmageSummonSlot)) return enemy.archmageSummonSlot;
+  if (Number.isFinite(enemy?.slot)) return enemy.slot;
+  return 0;
+}
+
 function makeSummonedGuard(captain, slot) {
   const guard = makeEnemy("guard", captain.floor || state.floor, slot);
   return {
@@ -3644,6 +3680,17 @@ function makeSummonedGuard(captain, slot) {
     id: `${captain.id}-summoned-guard-${slot === 0 ? "left" : "right"}`,
     summoned: true,
     summonSourceId: captain.id,
+  };
+}
+
+function makeSummonedMage(archmage, slot) {
+  const mage = makeEnemy("mage", archmage.floor || state.floor, slot);
+  return {
+    ...mage,
+    id: `${archmage.id}-summoned-mage-${slot === 0 ? "left" : "right"}`,
+    summoned: true,
+    summonSourceId: archmage.id,
+    archmageSummonSlot: slot,
   };
 }
 
@@ -3997,9 +4044,16 @@ function resolveMonsterStrike(enemy, stats, round) {
   let totalRegen = 0;
   let monsterStealTotal = 0;
   let immuneCount = 0;
+  let attackActionCount = 0;
   const traitChanges = [];
 
   for (let i = 0; i < hitCount; i += 1) {
+    const summoned = trySummonArchmageMage(enemy);
+    if (summoned) {
+      traitChanges.push(`召唤${summoned.name}`);
+      continue;
+    }
+    attackActionCount += 1;
     const currentStatsBeforeHit = getBattleStats(state.activeEnemyIds);
     const monsterAtk = getMonsterAttackForStrike(enemy, currentStatsBeforeHit, getActiveBattleEnemies());
     const damage = hasTrait(enemy, "magic") ? Math.max(0, monsterAtk) : Math.max(0, monsterAtk - currentStatsBeforeHit.def);
@@ -4059,9 +4113,64 @@ function resolveMonsterStrike(enemy, stats, round) {
   if (monsterHealed > 0) parts.push(`${enemy.name}回复 ${monsterHealed}`);
   if (monsterStealTotal > 0) parts.push(`${enemy.name}吸取 ${monsterStealTotal}`);
   parts.push(...traitChanges);
-  if (hasTrait(enemy, "magic")) parts.push("无视防御");
+  if (attackActionCount > 0 && hasTrait(enemy, "magic")) parts.push("无视防御");
   if (hasTrait(enemy, "breakShield")) parts.push("破盾");
   addBattleDetail(`第${round}回合${enemy.name}进攻，${parts.join("，")}。`);
+}
+
+function trySummonArchmageMage(enemy) {
+  if (!enemy || !hasTrait(enemy, "summonMageOnAttack")) return null;
+  const target = state.enemies
+    .filter((item) => item?.typeKey === "mage" && item.summonSourceId === enemy.id)
+    .sort((a, b) => (a.archmageSummonSlot ?? a.slot ?? 0) - (b.archmageSummonSlot ?? b.slot ?? 0))
+    .find((item) => item.hp <= 0 || !state.activeEnemyIds.includes(item.id));
+  if (!target) return null;
+
+  reviveSummonedMage(target, enemy);
+  return target;
+}
+
+function reviveSummonedMage(target, archmage) {
+  const slot = Number.isFinite(target.archmageSummonSlot) ? target.archmageSummonSlot : Number.isFinite(target.slot) ? target.slot : 0;
+  const id = target.id;
+  const visualIndex = Number.isFinite(target.visualIndex) ? target.visualIndex : slot;
+  const restored = makeEnemy("mage", archmage.floor || state.floor, slot);
+  Object.assign(target, {
+    ...restored,
+    id,
+    slot,
+    visualIndex,
+    summoned: true,
+    summonSourceId: archmage.id,
+    archmageSummonSlot: slot,
+  });
+  state.enemyFaceDownIds.delete(target.id);
+  state.enemyFlipDownIds.delete(target.id);
+  delete state.enemyHitEffectUntilById[target.id];
+  addActiveEnemyIdInExpandedBossOrder(target.id);
+  addEnemyClockForRevivedEnemy(target);
+}
+
+function addActiveEnemyIdInExpandedBossOrder(enemyId) {
+  if (!state.activeEnemyIds.includes(enemyId)) state.activeEnemyIds.push(enemyId);
+  const orderedIds = getExpandedBossTargetEnemies(state.enemies).map((enemy) => enemy.id);
+  const orderSet = new Set(orderedIds);
+  if (!orderedIds.length) return;
+  const activeSet = new Set(state.activeEnemyIds);
+  state.activeEnemyIds = [
+    ...orderedIds.filter((id) => activeSet.has(id)),
+    ...state.activeEnemyIds.filter((id) => !orderSet.has(id)),
+  ];
+}
+
+function addEnemyClockForRevivedEnemy(enemy) {
+  if (!state.battleClock?.enemies || !enemy) return;
+  if (state.battleClock.enemies.some((clock) => clock.id === enemy.id)) return;
+  const activeEnemies = getActiveBattleEnemies();
+  state.battleClock.enemies.push({
+    id: enemy.id,
+    time: getCurrentBattleClockTime() + getActionInterval(getEffectiveEnemySpeed(enemy, activeEnemies)),
+  });
 }
 
 function applyHeroRegenAfterHit(stats) {
@@ -5904,6 +6013,7 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
   const hitCount = getTraitValue(enemy, "multiHit", 1);
   for (let i = 0; i < hitCount; i += 1) {
     if (sim.actualDead) break;
+    if (trySimSummonArchmageMage(sim, enemy, enemies)) continue;
     const currentStatsBeforeHit = getSimBattleStats(sim, enemies);
     const monsterAtk = getMonsterAttackForStrike(enemy, currentStatsBeforeHit, getSimActiveEnemies(sim, enemies));
     const damage = hasTrait(enemy, "magic") ? Math.max(0, monsterAtk) : Math.max(0, monsterAtk - currentStatsBeforeHit.def);
@@ -5942,6 +6052,54 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
   if (monsterRegen > 0 && enemy.hp > 0) {
     enemy.hp = Math.min(enemy.maxHp, enemy.hp + monsterRegen);
   }
+}
+
+function trySimSummonArchmageMage(sim, enemy, enemies) {
+  if (!enemy || !hasTrait(enemy, "summonMageOnAttack")) return null;
+  const target = enemies
+    .filter((item) => item?.typeKey === "mage" && item.summonSourceId === enemy.id)
+    .sort((a, b) => (a.archmageSummonSlot ?? a.slot ?? 0) - (b.archmageSummonSlot ?? b.slot ?? 0))
+    .find((item) => item.hp <= 0 || !sim.activeIds.includes(item.id));
+  if (!target) return null;
+
+  reviveSimSummonedMage(sim, enemies, target, enemy);
+  return target;
+}
+
+function reviveSimSummonedMage(sim, enemies, target, archmage) {
+  const slot = Number.isFinite(target.archmageSummonSlot) ? target.archmageSummonSlot : Number.isFinite(target.slot) ? target.slot : 0;
+  const id = target.id;
+  const visualIndex = Number.isFinite(target.visualIndex) ? target.visualIndex : slot;
+  const restored = makeEnemy("mage", archmage.floor || state.floor, slot);
+  Object.assign(target, {
+    ...restored,
+    id,
+    slot,
+    visualIndex,
+    summoned: true,
+    summonSourceId: archmage.id,
+    archmageSummonSlot: slot,
+  });
+  addSimActiveIdInExpandedBossOrder(sim, enemies, target.id);
+  addSimEnemyClock(sim, enemies, target);
+}
+
+function addSimActiveIdInExpandedBossOrder(sim, enemies, enemyId) {
+  if (!sim.activeIds.includes(enemyId)) sim.activeIds.push(enemyId);
+  const orderedIds = getExpandedBossEstimateTargetEnemies(enemies).map((enemy) => enemy.id);
+  const orderSet = new Set(orderedIds);
+  if (!orderedIds.length) return;
+  const activeSet = new Set(sim.activeIds);
+  sim.activeIds = [
+    ...orderedIds.filter((id) => activeSet.has(id)),
+    ...sim.activeIds.filter((id) => !orderSet.has(id)),
+  ];
+}
+
+function addSimEnemyClock(sim, enemies, enemy) {
+  if (!enemy || sim.enemyTimes.has(enemy.id)) return;
+  const activeEnemies = getSimActiveEnemies(sim, enemies);
+  sim.enemyTimes.set(enemy.id, getCurrentSimClockTime(sim) + getActionInterval(getEffectiveEnemySpeed(enemy, activeEnemies)));
 }
 
 function applySimHeroDamageToEnemy(sim, enemy, stats, enemies = []) {
@@ -7877,13 +8035,25 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
 }
 
 function expandEnemiesForEstimate(enemies) {
+  if (shouldSummonArchmageMages(enemies)) {
+    const archmage = enemies[0];
+    return getExpandedBossEstimateTargetEnemies([
+      { ...makeSummonedMage(archmage, 0), visualIndex: 0 },
+      { ...archmage, slot: 1, summonedBattleCenter: true, summonBattleKind: "archmage", visualIndex: 1 },
+      { ...makeSummonedMage(archmage, 2), visualIndex: 2 },
+    ]);
+  }
   if (!shouldSummonKnightCaptainGuards(enemies)) return enemies;
   const captain = enemies[0];
-  return [
+  return getExpandedBossEstimateTargetEnemies([
     { ...makeSummonedGuard(captain, 0), visualIndex: 0 },
+    { ...captain, slot: 1, summonedBattleCenter: true, summonBattleKind: "knightCaptain", visualIndex: 1 },
     { ...makeSummonedGuard(captain, 2), visualIndex: 2 },
-    { ...captain, slot: 1, summonedBattleCenter: true, visualIndex: 1 },
-  ];
+  ]);
+}
+
+function getExpandedBossEstimateTargetEnemies(enemies = []) {
+  return getExpandedBossTargetEnemies(enemies);
 }
 
 function formatHpLossEstimate(loss, actualStartHp) {
@@ -9350,6 +9520,7 @@ window.__photoHeroTestHooks = {
   getMonsterDisplayStats,
   applyHeroDamageToEnemy,
   defeatEnemy,
+  finishEnemyFlipDownForTest: finishEnemyFlipDown,
   resolveHeroStrikeAgainstEnemy,
   resolveMonsterStrike,
   beginBattle,

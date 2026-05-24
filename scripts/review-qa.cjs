@@ -254,7 +254,12 @@ function assertScenario(name, metrics) {
     if (traits.demonPromotionAtk !== 19 || traits.demonPromotionDef !== 9 || traits.dragonSpeedAfterAttack !== 4) {
       failures.push(`${name}: demon should promote and dragon should speed up on attack, got ${JSON.stringify(traits.bossGrowthState)}`);
     }
-    if (traits.archmageAtk !== 17 || traits.archmageDef !== 6) failures.push(`${name}: archmage promotion should gain attack when hit and defense after attack, got ${JSON.stringify(traits.archmageState)}`);
+    if (traits.archmageStats?.atk !== 10 || traits.archmageStats?.def !== 5 || traits.archmageStats?.speed !== 3) {
+      failures.push(`${name}: archmage stats should be 10/5/3, got ${JSON.stringify(traits.archmageStats)}`);
+    }
+    if (traits.archmageSummonHpChanged || traits.archmageSummonLeftHp !== 30 || traits.archmageSummonActiveOrder?.join(",") !== "mage,mage,archmage" || traits.archmageSummonDrops?.join(",") !== "胶卷 0.0,胶卷 0.3,胶卷 0.0") {
+      failures.push(`${name}: archmage summon should revive a side mage without damaging hero and keep target/drop order, got ${JSON.stringify(traits.archmageSummonState)}`);
+    }
     if (traits.knightDamageWithGuards !== 17 || traits.knightDamageAfterGuardDeath !== 17) {
       failures.push(`${name}: knight captain should not reduce damage through guards, got ${JSON.stringify(traits.knightState)}`);
     }
@@ -1034,10 +1039,31 @@ function assertScenario(name, metrics) {
       hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["dr1"]), 1);
       const dragonSpeedAfterAttack = enemies[0].speed;
 
-      enemies = begin([baseEnemy("am1", "archmage")]);
-      hooks.applyHeroDamageToEnemy(enemies[0], { atk: 20, def: 1, speed: 1, maxHp: 80, shield: 0, regen: 0, lifesteal: 0 });
-      hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["am1"]), 1);
-      const archmageState = { atk: enemies[0].atk, def: enemies[0].def };
+      hooks.setFloor(38);
+      hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));
+      hooks.beginBattle(hooks.state.enemies);
+      enemies = hooks.state.enemies;
+      const archmage = enemies.find((enemy) => enemy.typeKey === "archmage");
+      const leftMage = enemies[0];
+      const leftMageId = leftMage.id;
+      const archmageStats = { atk: archmage.atk, def: archmage.def, speed: archmage.speed };
+      const hpBeforeArchmageSummon = hooks.state.player.hp;
+      leftMage.hp = 0;
+      hooks.defeatEnemy(leftMage);
+      if (hooks.state.enemyFlipDownIds?.has?.(leftMageId)) hooks.finishEnemyFlipDownForTest(leftMageId);
+      hooks.resolveMonsterStrike(archmage, hooks.getBattleStatsForTest(hooks.state.activeEnemyIds), 1);
+      const revivedLeftMage = hooks.state.enemies.find((enemy) => enemy.id === leftMageId);
+      const archmageSummonState = {
+        leftHp: revivedLeftMage?.hp,
+        hpBefore: hpBeforeArchmageSummon,
+        hpAfter: hooks.state.player.hp,
+        activeOrder: [...hooks.state.activeEnemyIds],
+        activeOrderTypes: hooks.state.activeEnemyIds
+          .map((id) => hooks.state.enemies.find((enemy) => enemy.id === id)?.typeKey)
+          .filter(Boolean),
+        drops: hooks.state.enemies.map((enemy) => enemy.summoned ? "胶卷 0.0" : "胶卷 0.3"),
+        faceDown: hooks.state.enemyFaceDownIds?.has?.(leftMageId),
+      };
 
       hooks.resetGameForTest();
       hooks.addSpecialItem("shieldCrashAttackDown", { itemName: "护盾撞击测试", value: 16, stats: {} });
@@ -1082,9 +1108,12 @@ function assertScenario(name, metrics) {
         demonPromotionAtk: demonPromotionState.atk,
         demonPromotionDef: demonPromotionState.def,
         dragonSpeedAfterAttack,
-        archmageState,
-        archmageAtk: archmageState.atk,
-        archmageDef: archmageState.def,
+        archmageStats,
+        archmageSummonState,
+        archmageSummonHpChanged: archmageSummonState.hpAfter !== archmageSummonState.hpBefore,
+        archmageSummonLeftHp: archmageSummonState.leftHp,
+        archmageSummonActiveOrder: archmageSummonState.activeOrderTypes,
+        archmageSummonDrops: archmageSummonState.drops,
         knightState: { knightDamageWithGuards, knightDamageAfterGuardDeath },
         knightDamageWithGuards,
         knightDamageAfterGuardDeath,
