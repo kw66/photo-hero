@@ -2409,7 +2409,7 @@ dd {
 .author-links {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(110px, 0.45fr) minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -2422,6 +2422,14 @@ dd {
   border: 1px solid color-mix(in srgb, var(--line-strong) 40%, var(--line));
   border-radius: 6px;
   background: rgb(255 255 255 / 52%);
+}
+
+.project-social-card {
+  align-content: center;
+}
+
+.project-social-card p {
+  margin: 0;
 }
 
 .group-qr {

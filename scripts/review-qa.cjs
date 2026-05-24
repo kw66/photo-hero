@@ -71,6 +71,8 @@ async function collectScenario(page, name, action = async () => {}) {
         const group = document.querySelector(".group-qr");
         const links = document.querySelector(".author-links");
         const img = document.querySelector(".group-qr img");
+        const projectSocial = document.querySelector(".project-social-card");
+        const anchors = Array.from(projectSocial?.querySelectorAll("a") || []);
         const rect = img?.getBoundingClientRect();
         const cardRect = card?.getBoundingClientRect();
         const groupRect = group?.getBoundingClientRect();
@@ -80,6 +82,9 @@ async function collectScenario(page, name, action = async () => {}) {
           loaded: Boolean(img?.complete && img.naturalWidth > 0),
           src: img?.getAttribute("src") || "",
           square: rect ? Math.abs(rect.width - rect.height) < 1 : false,
+          linksText: links?.innerText.trim() || "",
+          projectSocialText: projectSocial?.innerText.trim() || "",
+          projectSocialLinks: anchors.map((node) => ({ text: node.textContent.trim(), href: node.href })),
           rightSide: Boolean(
             cardRect
             && groupRect
@@ -311,6 +316,11 @@ function assertScenario(name, metrics) {
     if (!metrics.groupQr.loaded || !metrics.groupQr.src.includes("xiaohongshu-group-qr.jpg")) failures.push(`${name}: Xiaohongshu QR image did not load`);
     if (!metrics.groupQr.square) failures.push(`${name}: Xiaohongshu QR image should be square`);
     if (metrics.groupQr.text !== "加入小红书游戏群") failures.push(`${name}: Xiaohongshu QR copy should be 加入小红书游戏群`);
+    if (!/项目地址（求个star⭐）/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing compact project link copy`);
+    if (!/小红书交流帖（求点赞❤️）/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing compact Xiaohongshu post copy`);
+    if (/github\.com\/kw66\/photo-hero|打开帖子|小红书帖子（求点赞）/.test(metrics.groupQr.linksText || "")) failures.push(`${name}: author block still exposes old link text`);
+    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "项目地址（求个star⭐）" && link.href.includes("github.com/kw66/photo-hero"))) failures.push(`${name}: project label should link to GitHub`);
+    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "小红书交流帖（求点赞❤️）" && link.href.includes("xhslink.com/o/CZFSiD3gdh"))) failures.push(`${name}: Xiaohongshu label should link to post`);
     if (!metrics.groupQr.rightSide) failures.push(`${name}: Xiaohongshu QR should sit on the right side of author block`);
     if (metrics.statCardCount !== 7) failures.push(`${name}: expected 7 global stat cards, got ${metrics.statCardCount}`);
     if (metrics.todayStatCount !== 7) failures.push(`${name}: expected 7 today stat labels, got ${metrics.todayStatCount}`);
