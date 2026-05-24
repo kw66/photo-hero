@@ -178,6 +178,50 @@ const cases = [
     ),
   },
   {
+    label: "real desk clutter does not over-penalize clear subject",
+    input: {
+      itemName: "黑色中性笔",
+      subjectName: "中性笔",
+      objectType: "文具",
+      identityDescription: "玩家随手拍的桌面照片，黑色中性笔放在笔记本上，旁边有键盘和杯子，但笔主体清楚，有真实阴影和桌面反光。",
+      description: "黑色中性笔像一根细长的开路符。",
+      reason: "主体=中性笔；桌面实拍；背景有杂物但主体清楚。",
+      tags: ["文具", "桌面", "实拍", "背景多"],
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 0, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 2 }, { stat: "speed", score: 1 }],
+    },
+    expect: ({ item }) => (
+      item.value >= 14
+      && item.value <= 17
+      && !item.tooLarge
+      && !item.virtualImage
+      && item.stats.attack > 0
+    ),
+  },
+  {
+    label: "clean product image stays ordinary despite clean background",
+    input: {
+      itemName: "白底商品剪刀",
+      subjectName: "剪刀",
+      objectType: "电商商品图",
+      identityDescription: "白底电商商品展示图，一把剪刀居中摆放，背景非常干净，没有桌面阴影、手持痕迹或生活环境。",
+      description: "白底商品剪刀看起来很锋利。",
+      reason: "主体=剪刀；白底商品图；缺少玩家实拍证据。",
+      tags: ["白底商品图", "剪刀", "电商"],
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 1, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "attack", score: 3 }],
+      specialAffinity: ["dealDamageAttack"],
+    },
+    expect: ({ item }) => (
+      item.value > 0
+      && item.value <= 10
+      && item.virtualImage
+      && item.specialEffects.length === 0
+      && item.stats.regen === 0
+      && (item.stats.attack > 0 || item.stats.lifesteal > 0)
+    ),
+  },
+  {
     label: "normal real object screenshot is capped but not rejected",
     input: {
       itemName: "白色小风扇",

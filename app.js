@@ -190,9 +190,9 @@ const photoIdentificationSystemPrompt = [
   "你必须只输出一个 JSON 对象，不要 Markdown，不要代码块，不要额外解释。",
   "第一字符必须是 {，最后一个字符必须是 }。",
   "你不负责计算最终价值、最终属性点或最终特殊效果；这些数值由本地游戏规则统一结算。",
-  "优先把玩家拍到的现实小主体转成有趣装备素材；高分奖励真实拍摄、主体清楚、近距离、背景不抢主体、有互动感的小物件。",
+  "优先把玩家拍到的现实小主体转成有趣装备素材；真实实物和玩家随手拍的证据最重要，其次看主体是否清楚，最后才考虑背景干净和趣味性。",
   "不要一概拒绝网图或截图；正常拍摄的现实实物可以鉴定。压制游戏装备图、AI 渲染图、动画/插画、透明素材、白底电商图、精修宣传图和纯虚拟道具。",
-  "大范围实拍只降低质量分，不等于网图或虚拟图；只要能找到明确现实小主体，就鉴定该主体。",
+  "大范围实拍、桌面杂物或生活背景不等于网图或虚拟图；只要背景没有抢走主体，并且能找到明确现实小主体，就鉴定该主体。",
   "现实玩具、模型、玩偶可以鉴定，但孤立黑白底、抠图、商品图、素材图、卡通设定图不能按高真实感处理。",
 ].join("\n");
 
@@ -203,7 +203,7 @@ const photoIdentificationUserPrompt = [
   "1. 找最大、最清楚、最像单个实体的主体；忽略背景、桌面、墙面和边缘杂物。",
   "2. 手持、口袋、桌面、可搬动小物都 isEquipable=true；普通、破旧、包装、贴纸、玩具、模型、小型植物、石头、叶片、装饰物都可以。",
   "3. 真实汽车、公交、火车、飞机、船、整栋建筑、整间房、床、沙发、冰箱、道路、天空、山海河湖等人尺寸以上主体 isEquipable=false。",
-  "4. 大背景中有明确前景小物时，鉴定前景小物；大范围、室内、桌面杂物、远构图只降低 subjectArea/backgroundClean，不要直接判成网图或虚拟图。",
+  "4. 大背景中有明确前景小物时，鉴定前景小物；大范围、室内、桌面杂物、远构图只轻微影响 subjectArea/backgroundClean，不要直接判成网图或虚拟图。",
   "5. 网图/截图不自动无效；正常拍摄的现实实物仍按实物鉴定。游戏界面、游戏装备卡图、AI 渲染、动画、插画、原画、透明素材、白底电商图、精修宣传图才低 realPhoto。",
   "6. 纸质卡片、贴纸、包装、海报、屏幕载体按载体本身鉴定，不把里面的幻想武器、角色或游戏道具当实物；通常低 photoQuality、低 statAffinity、specialAffinity=[]。",
   "7. 玩具、模型、手办、摆件、道具、纸板/塑料/金属小物可鉴定；但孤立黑白底、抠图、商品图、素材图、渲染图只能低 realPhoto、低分、无特殊效果。",
@@ -221,9 +221,9 @@ const photoIdentificationUserPrompt = [
   "",
   "照片质量 photoQuality：",
   "clarity 主体清楚程度 0-3；subjectArea 主体占图面积 0-3；backgroundClean 背景干净 0-2；realPhoto 现实实拍感 0-3；focusLight 光线/对焦 0-2；interesting 有趣、让人想装备 0-2。",
-  "评分校准：clarity=3 需要主体边缘清晰、不用猜；主体约占四分之一到三分之一可给 subjectArea=2，接近半屏才给 3，角落小物给 0-1；背景不抢主体即可 backgroundClean=1；确实像玩家实拍现实物体可 realPhoto=3；普通但有装备联想可 interesting=1。",
-  "主动拉开分值：随手拍/主体偏小/物品多通常总分 7-10；主体清楚但构图一般 10-13；清楚实拍且主体明确、有装备联想 13-16；近景清晰、实拍感强、有趣或很适合装备 16-18；非常出色的现实实拍才接近 19-20。",
-  "大范围真实照片只要有清楚现实小主体，realPhoto 仍可给 2-3；不要因范围大降到 0-1。白底商品图、精修图、PS 摆拍、透明素材、游戏装备图、AI 图、动画/插画、卡牌素材 realPhoto 必须低，不能高分或给特殊效果。",
+  "评分校准：clarity=3 需要主体边缘清晰、不用猜；主体约占四分之一到三分之一可给 subjectArea=2，接近半屏才给 3，角落小物给 0-1；背景不抢主体即可 backgroundClean=1，普通桌面、手边杂物、生活环境不是失败项；确实像玩家实拍现实物体可 realPhoto=3；普通但有装备联想可 interesting=1。",
+  "主动拉开分值：真实感是第一门槛。随手实拍但主体偏小/背景生活化通常 8-12；主体清楚但构图一般 11-14；清楚实拍且主体明确、有装备联想 14-17；近景清晰、实拍感强、有趣或很适合装备 17-19；非常出色的现实实拍才接近 20。背景干净和有趣只能在 realPhoto 足够高、主体真实清楚时加分。",
+  "大范围真实照片只要有清楚现实小主体，realPhoto 仍可给 2-3；不要因范围大、桌面杂物、房间背景降到 0-1。白底商品图、精修图、PS 摆拍、透明素材、游戏装备图、AI 图、动画/插画、卡牌素材 realPhoto 必须低，不能因为背景干净、有趣、构图精美而高分或给特殊效果。",
   "生活用品、自然小物、现实玩具模型、现实贴纸/包装、桌面摆件、电脑外设只要主体清晰都可得分；游戏鼠标/键盘是现实外设。昂贵物、宏大景观、真实载具、人物整体、抽象光影、虚拟装备图不能因为好看而高分。",
   "",
   "属性语义：",
@@ -2976,6 +2976,7 @@ function hasLifestealSemanticText(text) {
 
 function hasRegenSemanticText(text) {
   const source = String(text || "");
+  if (isSharpToolSemanticText(source) && !hasStrongRegenSemanticText(source)) return false;
   return hasAirPurifierSemanticText(source) || /(?:回复|恢复|治愈|修复|补能|清洁|净化|清新|水|咖啡|饮|药|茶|奶|充电|电池|灯|纸巾|毛巾|植物|花|叶|种子|可爱|柔软|贴纸|卡通|图案|青蛙|heal|regen|repair|clean|purify|water|coffee|drink|medicine|charger|battery|light|tissue|towel|plant|flower|leaf|seed|cute|soft|sticker|cartoon|pattern)/i.test(source);
 }
 
@@ -6562,7 +6563,10 @@ function balanceItem(item, image = "") {
   const specialValue = calculateSpecialEffectsValue(specialEffects);
   const statBudget = Math.max(0, requestedValue - specialValue);
   const targetValue = noEffect ? 0 : requestedValue;
-  const statSemanticText = virtualPenalty.level === "ordinaryCap"
+  const usePhysicalCarrierStats = virtualPenalty.level === "ordinaryCap"
+    && isPhysicalImageCarrierText(semanticText)
+    && !isPolishedCommercialImageText(semanticText);
+  const statSemanticText = usePhysicalCarrierStats
     ? makePhysicalCarrierStatText(semanticText)
     : objectStatEvidenceText;
   const statAffinityForAllocation = virtualPenalty.level === "ordinaryCap"
@@ -6827,15 +6831,18 @@ function getPhotoValueCapFromQuality(photoQuality, semanticText = "") {
   if (Number.isFinite(virtualPenalty.cap)) return Math.min(getPhotoValueMax(), virtualPenalty.cap);
   if (isLowRealityToyOrMascotImageText(text, quality)) return Math.min(getPhotoValueMax(), 10);
   const realObjectPhoto = isDirectRealPhotoText(text, quality) && !isPolishedCommercialImageText(text);
+  const mildlyClutteredRealPhoto = realObjectPhoto && hasMildRealPhotoBackgroundText(text) && !hasSeverelyClutteredOrTinySubjectText(text);
   if (quality.realPhoto <= 1) return Math.min(getPhotoValueMax(), 12);
   if (quality.clarity <= 1 || quality.subjectArea <= 1) return Math.min(getPhotoValueMax(), realObjectPhoto ? 14 : 12);
   if (quality.backgroundClean <= 0 || quality.focusLight <= 0) return Math.min(getPhotoValueMax(), realObjectPhoto ? 16 : 14);
-  if (hasCrowdedOrSmallSubjectText(text)) return Math.min(getPhotoValueMax(), 14);
+  if (hasSeverelyClutteredOrTinySubjectText(text)) return Math.min(getPhotoValueMax(), realObjectPhoto ? 15 : 13);
+  if (hasCrowdedOrSmallSubjectText(text)) return Math.min(getPhotoValueMax(), mildlyClutteredRealPhoto ? 17 : realObjectPhoto ? 16 : 14);
   if (/抽象|光斑|远景|纹理|风景|海岸|山|天空|道路|街道|森林|荒原|人物|人像|动物|猫|狗|abstract|bokeh|landscape|sky|road|street|forest|portrait|animal|cat|dog/i.test(text) && !isSmallEquipableNaturalText(text) && !isPortableEquipmentText(text)) {
     return Math.min(getPhotoValueMax(), 14);
   }
   if (quality.interesting <= 0) return Math.min(getPhotoValueMax(), realObjectPhoto && isPortableEquipmentText(text) ? 16 : 15);
-  if (quality.clarity < 3 || quality.subjectArea < 2 || quality.backgroundClean < 1) return Math.min(getPhotoValueMax(), 16);
+  if (quality.clarity < 3 || quality.subjectArea < 2) return Math.min(getPhotoValueMax(), realObjectPhoto ? 17 : 16);
+  if (quality.backgroundClean < 1) return Math.min(getPhotoValueMax(), realObjectPhoto ? 17 : 15);
   if (quality.subjectArea < 3 || quality.backgroundClean < 2) return Math.min(getPhotoValueMax(), realObjectPhoto ? 18 : 16);
   if (quality.clarity < 3) return Math.min(getPhotoValueMax(), realObjectPhoto ? 17 : 16);
   if (quality.interesting < 2) return Math.min(getPhotoValueMax(), realObjectPhoto && isPortableEquipmentText(text) ? 18 : hasStrongEquipmentFantasyText(text) ? 17 : 16);
@@ -6871,13 +6878,16 @@ function calculateAdjustedPhotoQualityScore(photoQuality, semanticText = "") {
   const virtualPenalty = getVirtualImagePenalty(text, quality);
   if (virtualPenalty.noEffect) return 0;
 
-  if (quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 3 && quality.focusLight >= 2 && quality.interesting >= 1) score += 1;
-  if (quality.clarity >= 3 && quality.subjectArea >= 3 && quality.backgroundClean >= 2) score += 1;
-  if (quality.interesting >= 2 && isPortableEquipmentText(text) && virtualPenalty.level === "none") score += 1;
   const realObjectPhoto = isDirectRealPhotoText(text, quality) && !isPolishedCommercialImageText(text);
+  const mildBackground = hasMildRealPhotoBackgroundText(text);
+  const severeClutter = hasSeverelyClutteredOrTinySubjectText(text);
+  if (realObjectPhoto && quality.realPhoto >= 3 && quality.clarity >= 2) score += 2;
   if (realObjectPhoto && quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 3) score += 2;
   if (realObjectPhoto && isPortableEquipmentText(text) && quality.focusLight >= 2) score += 1;
-  if (realObjectPhoto && quality.backgroundClean >= 1 && !hasCrowdedOrSmallSubjectText(text)) score += 1;
+  if (realObjectPhoto && quality.backgroundClean >= 1 && !severeClutter) score += 1;
+  if (quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 3 && quality.focusLight >= 2 && quality.interesting >= 1) score += 1;
+  if (quality.clarity >= 3 && quality.subjectArea >= 3 && quality.backgroundClean >= 2 && realObjectPhoto) score += 1;
+  if (quality.interesting >= 2 && isPortableEquipmentText(text) && virtualPenalty.level === "none" && realObjectPhoto) score += 1;
 
   if (quality.clarity <= 1) score -= 2;
   if (quality.subjectArea <= 1) score -= realObjectPhoto ? 1 : 2;
@@ -6888,15 +6898,25 @@ function calculateAdjustedPhotoQualityScore(photoQuality, semanticText = "") {
   if (isLowRealityToyOrMascotImageText(text, quality)) score -= 4;
   if (quality.interesting <= 0) score -= realObjectPhoto ? 1 : 2;
   if (quality.interesting <= 1 && !hasStrongEquipmentFantasyText(text) && !realObjectPhoto) score -= 1;
-  if (hasCrowdedOrSmallSubjectText(text)) score -= 2;
+  if (severeClutter) score -= realObjectPhoto ? 1 : 3;
+  else if (hasCrowdedOrSmallSubjectText(text)) score -= realObjectPhoto ? (mildBackground ? 0 : 1) : 2;
   if (virtualPenalty.level === "ordinaryCap") score -= 3;
   if (/抽象|光斑|远景|纹理|风景|海岸|山|天空|道路|街道|森林|荒原|人物|人像|动物|猫|狗|abstract|bokeh|landscape|sky|road|street|forest|portrait|animal|cat|dog/i.test(text) && !isSmallEquipableNaturalText(text) && !isPortableEquipmentText(text)) score -= 3;
 
   return Math.max(0, Math.min(15, score));
 }
 
+function hasMildRealPhotoBackgroundText(text) {
+  return /背景较多|背景多|生活背景|桌面|房间|室内|手边|周围能看到|旁边有|周围有|墙面|桌面杂物|其他杂物|真实阴影|真实反光|real shadow|real reflection|desk|room|indoor/i.test(String(text || ""));
+}
+
+function hasSeverelyClutteredOrTinySubjectText(text) {
+  return /主体(?:很|太|极|非常|过于)?小|主体不明显|主体不清|主体难以辨认|角落小物|远处小物|占比很小|占画面很小|物品很多|很多物品|许多物品|一堆|堆满|杂乱|凌乱|背景乱|背景复杂|背景抢主体|主体被遮挡|many objects|very small subject|tiny subject|messy|cluttered|hard to identify|busy background/i.test(String(text || ""));
+}
+
 function hasCrowdedOrSmallSubjectText(text) {
-  return /物品很多|很多物品|多个物品|许多物品|很多东西|一堆|堆满|杂乱|凌乱|背景杂|背景乱|背景复杂|主体(?:较|偏)?小|主体不大|占比(?:较|偏)?小|占画面(?:较|偏)?小|周围有|旁边有|其中一|角落|边缘|远处|many objects|clutter|messy|small subject|busy background/i.test(String(text || ""));
+  return hasSeverelyClutteredOrTinySubjectText(text)
+    || /多个物品|很多东西|背景杂|主体(?:较|偏)?小|主体不大|占比(?:较|偏)?小|占画面(?:较|偏)?小|其中一|角落|边缘|远处|clutter|small subject|busy background/i.test(String(text || ""));
 }
 
 function calculatePhotoQualityTotal(photoQuality) {
