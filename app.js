@@ -487,6 +487,11 @@ const els = {
   imageViewer: byId("imageViewer"),
   imageViewerImage: byId("imageViewerImage"),
   imageViewerCaption: byId("imageViewerCaption"),
+  viewerCropOverlay: byId("viewerCropOverlay"),
+  viewerCropBox: byId("viewerCropBox"),
+  viewerCropActions: byId("viewerCropActions"),
+  viewerCropConfirm: byId("viewerCropConfirm"),
+  viewerCropCancel: byId("viewerCropCancel"),
 };
 
 const state = {
@@ -521,6 +526,8 @@ const state = {
   pendingCropRect: null,
   cropMode: false,
   cropDrag: null,
+  viewerCropActive: false,
+  viewerCropDrag: null,
   latestItem: null,
   filmShards: 0,
   filmRolls: initialFilmRolls,
@@ -554,7 +561,7 @@ render();
 
 function bindEvents() {
   document.querySelectorAll("[data-panel-target]").forEach((button) => {
-    button.addEventListener("click", () => setSecondaryPanel(button.dataset.panelTarget || "none"));
+    button.addEventListener("click", () => toggleSecondaryPanel(button.dataset.panelTarget || "none"));
   });
 
   document.querySelectorAll(".preset-button").forEach((button) => {
@@ -629,15 +636,27 @@ function bindEvents() {
     analyzePhoto();
   });
   els.pendingPhotoPreview.addEventListener("click", handlePendingPhotoPreviewClick);
-  els.pendingPhotoPreview.addEventListener("pointerdown", handlePendingCropPointerDown);
-  els.pendingPhotoPreview.addEventListener("pointermove", handlePendingCropPointerMove);
-  els.pendingPhotoPreview.addEventListener("pointerup", handlePendingCropPointerUp);
-  els.pendingPhotoPreview.addEventListener("pointercancel", handlePendingCropPointerUp);
   els.pendingPhotoImage.addEventListener("load", renderPendingCropOverlay);
   els.discardItemBtn.addEventListener("click", handleDiscardAction);
   els.imageViewer.addEventListener("click", (event) => {
+    if (event.target.closest(".viewer-crop-actions")) return;
+    if (state.viewerCropActive) return;
     if (event.target === els.imageViewerImage) return;
     closeImageViewer();
+  });
+  els.imageViewerImage.addEventListener("pointerdown", handleViewerCropPointerDown);
+  els.imageViewerImage.addEventListener("pointermove", handleViewerCropPointerMove);
+  els.imageViewerImage.addEventListener("pointerup", handleViewerCropPointerUp);
+  els.imageViewerImage.addEventListener("pointercancel", handleViewerCropPointerUp);
+  els.imageViewerImage.addEventListener("load", renderViewerCropOverlay);
+  els.viewerCropConfirm.addEventListener("click", confirmPendingCrop);
+  els.viewerCropCancel.addEventListener("click", cancelViewerCropMode);
+  [els.viewerCropConfirm, els.viewerCropCancel].forEach((button) => {
+    button.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      button.click();
+    });
   });
   renderHeroForms();
 }
@@ -692,11 +711,12 @@ function handlePendingPhotoPreviewClick(event) {
 
 function togglePendingCropMode() {
   if (!state.lastPhoto || isAnalyzingPhoto()) return;
-  state.cropMode = !state.cropMode;
-  if (state.cropMode && !state.pendingCropRect) {
-    state.pendingCropRect = makeDefaultCropRect();
-  }
+  state.cropMode = true;
+  state.viewerCropActive = true;
+  if (!state.pendingCropRect) state.pendingCropRect = makeDefaultCropRect();
   state.cropDrag = null;
+  state.viewerCropDrag = null;
+  openImageViewer(state.lastPhoto, "圈定主体", null, { cropMode: true });
   renderEquipmentDetail();
 }
 
@@ -705,7 +725,25 @@ function confirmPendingCrop() {
   state.pendingCropRect = normalizeCropRect(state.pendingCropRect || makeDefaultCropRect());
   state.cropMode = false;
   state.cropDrag = null;
+  state.viewerCropActive = false;
+  state.viewerCropDrag = null;
+  closeImageViewer();
   renderEquipmentDetail();
+  renderGameTextOnly();
+}
+
+function cancelViewerCropMode() {
+  if (!state.cropMode) {
+    closeImageViewer();
+    return;
+  }
+  state.cropMode = false;
+  state.viewerCropActive = false;
+  state.cropDrag = null;
+  state.viewerCropDrag = null;
+  closeImageViewer();
+  renderEquipmentDetail();
+  renderGameTextOnly();
 }
 
 function resetPendingCrop() {
@@ -713,7 +751,11 @@ function resetPendingCrop() {
   state.pendingCropRect = null;
   state.cropMode = false;
   state.cropDrag = null;
+  state.viewerCropActive = false;
+  state.viewerCropDrag = null;
+  closeImageViewer();
   renderEquipmentDetail();
+  renderGameTextOnly();
 }
 
 function makeDefaultCropRect() {
@@ -743,11 +785,14 @@ function cropRectsAlmostEqual(a, b) {
     && Math.abs(rectA.height - rectB.height) < 0.01;
 }
 
-function pointerToPreviewPoint(event) {
-  const rect = getPendingImageRenderedRect();
+function pointerToImagePoint(event, rect) {
   const x = clampNumber((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
   const y = clampNumber((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1);
   return { x, y };
+}
+
+function pointerToPreviewPoint(event) {
+  return pointerToImagePoint(event, getPendingImageRenderedRect());
 }
 
 function getPendingImageRenderedRect() {
@@ -823,6 +868,50 @@ function handlePendingCropPointerUp(event) {
   state.pendingCropRect = normalizeCropRect(state.pendingCropRect || makeDefaultCropRect());
   els.pendingPhotoPreview.releasePointerCapture?.(event.pointerId);
   renderEquipmentDetail();
+}
+
+function getViewerImageRenderedRect() {
+  return els.imageViewerImage.getBoundingClientRect();
+}
+
+function pointerToViewerPoint(event) {
+  return pointerToImagePoint(event, getViewerImageRenderedRect());
+}
+
+function handleViewerCropPointerDown(event) {
+  if (!state.viewerCropActive || !state.cropMode || isAnalyzingPhoto() || !state.lastPhoto) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const point = pointerToViewerPoint(event);
+  state.viewerCropDrag = { start: point, current: point };
+  state.pendingCropRect = { x: point.x, y: point.y, width: 0.08, height: 0.08 };
+  els.imageViewerImage.setPointerCapture?.(event.pointerId);
+  renderViewerCropOverlay();
+}
+
+function handleViewerCropPointerMove(event) {
+  if (!state.viewerCropActive || !state.cropMode || !state.viewerCropDrag) return;
+  event.preventDefault();
+  const current = pointerToViewerPoint(event);
+  const start = state.viewerCropDrag.start;
+  state.viewerCropDrag.current = current;
+  state.pendingCropRect = normalizeCropRect({
+    x: Math.min(start.x, current.x),
+    y: Math.min(start.y, current.y),
+    width: Math.abs(current.x - start.x),
+    height: Math.abs(current.y - start.y),
+  });
+  renderViewerCropOverlay();
+}
+
+function handleViewerCropPointerUp(event) {
+  if (!state.viewerCropActive || !state.cropMode || !state.viewerCropDrag) return;
+  event.preventDefault();
+  event.stopPropagation();
+  state.viewerCropDrag = null;
+  state.pendingCropRect = normalizeCropRect(state.pendingCropRect || makeDefaultCropRect());
+  els.imageViewerImage.releasePointerCapture?.(event.pointerId);
+  renderViewerCropOverlay();
 }
 
 function canPreparePhotoInDetail() {
@@ -905,8 +994,10 @@ function openImageViewer(src, caption = "", quality = null, options = {}) {
   const safeQuality = quality && quality.key ? quality : null;
   els.imageViewerImage.src = src;
   const captionText = safeQuality?.label ? `${safeQuality.label} · ${caption}` : caption;
-  els.imageViewerCaption.textContent = options.saveHint ? `${captionText} · 长按图片保存` : captionText;
+  els.imageViewerCaption.textContent = options.cropMode ? "拖出主体范围后点确认" : options.saveHint ? `${captionText} · 长按图片保存` : captionText;
   els.imageViewer.classList.toggle("is-save-fallback", Boolean(options.saveHint));
+  els.imageViewer.classList.toggle("is-crop-editor", Boolean(options.cropMode));
+  els.viewerCropActions.hidden = !options.cropMode;
   if (safeQuality) {
     els.imageViewer.dataset.quality = safeQuality.key;
     els.imageViewerCaption.dataset.quality = safeQuality.label || "";
@@ -915,13 +1006,18 @@ function openImageViewer(src, caption = "", quality = null, options = {}) {
     delete els.imageViewerCaption.dataset.quality;
   }
   els.imageViewer.hidden = false;
+  renderViewerCropOverlay();
 }
 
 function closeImageViewer() {
   els.imageViewer.hidden = true;
   els.imageViewerImage.removeAttribute("src");
   els.imageViewerCaption.textContent = "";
-  els.imageViewer.classList.remove("is-save-fallback");
+  els.imageViewer.classList.remove("is-save-fallback", "is-crop-editor");
+  els.viewerCropActions.hidden = true;
+  state.viewerCropActive = false;
+  state.viewerCropDrag = null;
+  renderViewerCropOverlay();
   delete els.imageViewer.dataset.quality;
   delete els.imageViewerCaption.dataset.quality;
 }
@@ -1205,6 +1301,14 @@ function setSecondaryPanel(panelId) {
   document.querySelectorAll("[data-panel-target]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.panelTarget === target));
   });
+}
+
+function toggleSecondaryPanel(panelId) {
+  const target = ["config", "forms", "info"].includes(panelId) ? panelId : "";
+  const activeTarget = els.secondaryArea.classList.contains("is-collapsed")
+    ? ""
+    : document.querySelector(".secondary-content:not([hidden])")?.dataset.secondaryPanel || "";
+  setSecondaryPanel(target && activeTarget === target ? "" : target);
 }
 
 function getActiveInfoTab() {
@@ -5085,8 +5189,7 @@ function getHeroFormProgressText(form = getHeroForm()) {
 }
 
 function getHeroFormDisplayName(form = getHeroForm()) {
-  const prefix = getHeroFormLevel(form) >= 2 ? "mega" : "";
-  return `${prefix}${form.label}形态`;
+  return getHeroFormLevel(form) >= 2 ? `mega${form.label}` : `${form.label}形态`;
 }
 
 function adjustHeroResourcesAfterStatChange(oldStats, newStats, oldShield = state.player.shield) {
@@ -7852,6 +7955,23 @@ function renderPendingCropOverlay() {
   els.pendingCropBox.style.height = `${rect.height * imageBox.height}%`;
 }
 
+function renderViewerCropOverlay() {
+  if (!els.viewerCropOverlay || !els.viewerCropBox) return;
+  const rect = normalizeCropRect(state.pendingCropRect);
+  const visible = Boolean(state.viewerCropActive && state.cropMode && state.lastPhoto && rect && !els.imageViewer.hidden);
+  els.viewerCropOverlay.hidden = !visible;
+  els.viewerCropBox.hidden = !visible;
+  if (!visible) return;
+  const viewerRect = els.imageViewer.getBoundingClientRect();
+  const imageRect = getViewerImageRenderedRect();
+  const left = imageRect.left - viewerRect.left + rect.x * imageRect.width;
+  const top = imageRect.top - viewerRect.top + rect.y * imageRect.height;
+  els.viewerCropBox.style.left = `${left}px`;
+  els.viewerCropBox.style.top = `${top}px`;
+  els.viewerCropBox.style.width = `${rect.width * imageRect.width}px`;
+  els.viewerCropBox.style.height = `${rect.height * imageRect.height}px`;
+}
+
 function renderCareerSummaryPanel() {
   const summary = state.careerSummary || buildLocalCareerSummary();
   const snapshot = summary.snapshot || buildCareerSnapshot();
@@ -8369,6 +8489,8 @@ function renderGameTextOnly() {
       note: state.careerSummary.note || "",
     } : null,
     hasPhoto: Boolean(state.lastPhoto),
+    pendingCropRect: normalizeCropRect(state.pendingCropRect),
+    cropMode: Boolean(state.cropMode),
     latestItem: state.latestItem,
     inventory: state.inventory.map((item, slotIndex) => item ? ({
       slotIndex,
@@ -8923,6 +9045,18 @@ window.__photoHeroTestHooks = {
   showLootErrorForTest(message) {
     showLootError(message);
     state.lastPhoto = "";
+    state.infoMode = "item";
+    render();
+  },
+  setPendingPhotoForTest(image) {
+    state.lastPhoto = image || "";
+    state.pendingCropRect = null;
+    state.cropMode = false;
+    state.cropDrag = null;
+    state.viewerCropActive = false;
+    state.viewerCropDrag = null;
+    state.pendingPhotoSlotIndex = getSelectedSlotIndex();
+    state.lootError = "";
     state.infoMode = "item";
     render();
   },

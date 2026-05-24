@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260523-input-qr">
+    <link rel="stylesheet" href="./styles.css?v=20260524-fullscreen-crop">
   </head>
   <body>
     <main class="app-shell">
@@ -102,7 +102,7 @@
                             <p><a href="https://xhslink.com/m/A2DFslJF4mb" target="_blank" rel="noreferrer">落星峦</a></p>
                           </div>
                           <div>
-                            <h3>项目地址</h3>
+                            <h3>项目地址（求个star⭐）</h3>
                             <p><a href="https://github.com/kw66/photo-hero" target="_blank" rel="noreferrer">github.com/kw66/photo-hero</a></p>
                           </div>
                         </div>
@@ -255,11 +255,21 @@
       </section>
     </main>
 
-    <button class="image-viewer" id="imageViewer" type="button" hidden aria-label="关闭装备大图">
+    <div class="image-viewer" id="imageViewer" hidden aria-label="关闭装备大图">
       <img id="imageViewerImage" alt="装备大图">
+      <span class="viewer-crop-overlay" id="viewerCropOverlay" aria-hidden="true">
+        <span class="viewer-crop-box" id="viewerCropBox"></span>
+      </span>
+      <span class="viewer-crop-actions" id="viewerCropActions" hidden>
+        <span>拖动圈定主体</span>
+        <span class="viewer-crop-buttons">
+          <span class="viewer-action-button" id="viewerCropCancel" role="button" tabindex="0">取消</span>
+          <span class="viewer-action-button is-primary" id="viewerCropConfirm" role="button" tabindex="0">确认</span>
+        </span>
+      </span>
       <span id="imageViewerCaption"></span>
-    </button>
+    </div>
 
-    <script defer src="./app.js?v=20260523-boss-film"></script>
+    <script defer src="./app.js?v=20260524-fullscreen-crop"></script>
   </body>
 </html>

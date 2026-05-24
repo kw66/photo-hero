@@ -1556,6 +1556,10 @@ dd {
   display: none;
 }
 
+.image-viewer.is-crop-editor {
+  cursor: default;
+}
+
 .image-viewer img {
   max-width: min(100%, 720px);
   max-height: 88vh;
@@ -1566,6 +1570,13 @@ dd {
   box-shadow:
     0 0 0 1px rgb(255 250 240 / 24%),
     0 0 28px color-mix(in srgb, var(--viewer-quality, #fffaf0) 32%, transparent);
+}
+
+.image-viewer.is-crop-editor img {
+  cursor: crosshair;
+  max-width: min(100%, 980px);
+  max-height: 82vh;
+  touch-action: none;
 }
 
 .image-viewer.is-save-fallback img {
@@ -1580,6 +1591,77 @@ dd {
   text-shadow:
     0 1px 0 rgb(0 0 0 / 48%),
     0 0 12px color-mix(in srgb, var(--viewer-quality, #fffaf0) 42%, transparent);
+}
+
+.viewer-crop-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgb(0 0 0 / 20%);
+}
+
+.viewer-crop-overlay[hidden],
+.viewer-crop-box[hidden],
+.viewer-crop-actions[hidden] {
+  display: none;
+}
+
+.viewer-crop-box {
+  position: absolute;
+  border: 2px solid #fff8d8;
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 9999px rgb(0 0 0 / 42%),
+    0 0 0 1px rgb(23 19 15 / 82%),
+    0 0 16px rgb(255 221 126 / 80%);
+  background: rgb(255 248 216 / 10%);
+}
+
+.viewer-crop-actions {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 2px solid rgb(255 250 240 / 72%);
+  border-radius: var(--radius);
+  background: rgb(23 19 15 / 76%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
+}
+
+.viewer-crop-actions > span:first-child {
+  color: #fffaf0;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.viewer-crop-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.viewer-action-button {
+  min-width: 72px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 2px solid rgb(255 250 240 / 72%);
+  border-radius: var(--radius);
+  background: #fffaf0;
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 900;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 28%);
+}
+
+.viewer-action-button.is-primary {
+  border-color: #2f281e;
+  background: linear-gradient(180deg, #ffe17b, #e4a93d);
 }
 
 .image-viewer[data-quality="common"] {

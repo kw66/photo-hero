@@ -62,6 +62,7 @@ async function collectScenario(page, name, action = async () => {}) {
       bossFilmDrops: window.__reviewBossFilmDrops || null,
       cropAppraisal: window.__reviewCropAppraisal || null,
       groupSpecials: window.__reviewGroupSpecials || null,
+      panelToggle: window.__reviewPanelToggle || null,
       groupQr: (() => {
         const card = document.querySelector(".author-qr-card");
         const group = document.querySelector(".group-qr");
@@ -161,6 +162,9 @@ function assertScenario(name, metrics) {
     if (!crop.croppedSmaller) failures.push(`${name}: cropped image should be smaller than source`);
     if (!crop.sameCropDuplicate) failures.push(`${name}: same source and same crop should be treated as duplicate`);
     if (crop.differentCropDuplicate) failures.push(`${name}: same source with different crop should not be blocked by photo duplicate`);
+    if (!crop.viewerOpened) failures.push(`${name}: crop action should open the full-screen viewer`);
+    if (!crop.viewerClosedAfterConfirm) failures.push(`${name}: crop confirm should close the full-screen viewer`);
+    if (!crop.viewerCropSaved) failures.push(`${name}: full-screen crop should save a crop rectangle`);
   }
   if (name === "group-specials") {
     const specials = metrics.groupSpecials || {};
@@ -173,6 +177,11 @@ function assertScenario(name, metrics) {
     if (specials.peerlessAfterResetAtk !== 4 || specials.peerlessAfterResetDef !== 1) {
       failures.push(`${name}: peerless bonus should reset outside battle, got ${JSON.stringify(specials)}`);
     }
+  }
+  if (name === "panel-toggle") {
+    const panel = metrics.panelToggle || {};
+    if (!panel.infoOpened || !panel.infoClosed) failures.push(`${name}: info button should open then close the info panel`);
+    if (!panel.configOpened || !panel.configClosed) failures.push(`${name}: API button should open then close the config panel`);
   }
   if (name === "mobile-boss-selection") {
     if (metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: boss floor still shows 逃跑`);
@@ -416,7 +425,7 @@ function assertScenario(name, metrics) {
   });
 
   scenarios.cropAppraisal = await collectScenario(desktop, "crop-appraisal", async (page) => {
-    await page.evaluate(async () => {
+    const source = await page.evaluate(async () => {
       const hooks = window.__photoHeroTestHooks;
       const canvas = document.createElement("canvas");
       canvas.width = 800;
@@ -450,7 +459,29 @@ function assertScenario(name, metrics) {
         sameCropDuplicate: Boolean(hooks.findCurrentPhotoDuplicateForTest(cropAKey, sourceKey, cropA)),
         differentCropDuplicate: Boolean(hooks.findCurrentPhotoDuplicateForTest(hooks.makePhotoDuplicateKey(source), sourceKey, cropB)),
       };
+      hooks.setPendingPhotoForTest(source);
+      return source;
     });
+    void source;
+    await page.click("#photoActionBtn");
+    await page.waitForFunction(() => !document.querySelector("#imageViewer").hidden && document.querySelector("#imageViewer").classList.contains("is-crop-editor"), null, { timeout: 3000 });
+    const viewerOpened = await page.evaluate(() => !document.querySelector("#imageViewer").hidden);
+    const imageBox = await page.locator("#imageViewerImage").boundingBox();
+    await page.mouse.move(imageBox.x + imageBox.width * 0.18, imageBox.y + imageBox.height * 0.22);
+    await page.mouse.down();
+    await page.mouse.move(imageBox.x + imageBox.width * 0.55, imageBox.y + imageBox.height * 0.72, { steps: 8 });
+    await page.mouse.up();
+    await page.click("#viewerCropConfirm");
+    await page.waitForFunction(() => document.querySelector("#imageViewer").hidden, null, { timeout: 3000 });
+    await page.evaluate((viewerOpened) => {
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewCropAppraisal = {
+        ...window.__reviewCropAppraisal,
+        viewerOpened,
+        viewerClosedAfterConfirm: Boolean(document.querySelector("#imageViewer").hidden),
+        viewerCropSaved: Boolean(state.pendingCropRect && !state.cropMode),
+      };
+    }, viewerOpened);
   });
 
   scenarios.groupSpecials = await collectScenario(desktop, "group-specials", async (page) => {
@@ -496,6 +527,32 @@ function assertScenario(name, metrics) {
         peerlessAfterResetAtk: resetStats.atk,
         peerlessAfterResetDef: resetStats.def,
       };
+    });
+  });
+
+  scenarios.panelToggle = await collectScenario(desktop, "panel-toggle", async (page) => {
+    const panelState = async () => page.evaluate(() => {
+      const area = document.querySelector("#secondaryArea");
+      return {
+        infoVisible: Boolean(document.querySelector('[data-secondary-panel="info"]:not([hidden])')) && !area?.classList.contains("is-collapsed"),
+        configVisible: Boolean(document.querySelector('[data-secondary-panel="config"]:not([hidden])')) && !area?.classList.contains("is-collapsed"),
+      };
+    });
+    await page.click("#infoToggleBtn");
+    const infoOpenState = await panelState();
+    await page.click("#infoToggleBtn");
+    const infoClosedState = await panelState();
+    await page.click("#configToggleBtn");
+    const configOpenState = await panelState();
+    await page.click("#configToggleBtn");
+    const configClosedState = await panelState();
+    await page.evaluate((result) => {
+      window.__reviewPanelToggle = result;
+    }, {
+      infoOpened: infoOpenState.infoVisible,
+      infoClosed: !infoClosedState.infoVisible && !infoClosedState.configVisible,
+      configOpened: configOpenState.configVisible,
+      configClosed: !configClosedState.infoVisible && !configClosedState.configVisible,
     });
   });
 
