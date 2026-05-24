@@ -167,8 +167,8 @@ const photoSpecialEffects = [
   { key: "killDefense", label: "每击杀7怪防御+1", value: 16, kind: "killThreshold", threshold: 7, stat: "defense", amount: 1 },
   { key: "killShield", label: "每击杀2怪护盾+1", value: 14, kind: "killThreshold", threshold: 2, stat: "shield", amount: 1 },
   { key: "killSpeed", label: "每击杀10怪速度+1", value: 16, kind: "killThreshold", threshold: 10, stat: "speed", amount: 1 },
-  { key: "dealDamageAttack", label: "造成伤害临时攻击+1", value: 15, kind: "dealDamageTemp", stat: "attack", amount: 1, cap: 6 },
-  { key: "takeDamageDefense", label: "受到伤害临时防御+1", value: 15, kind: "takeDamageTemp", stat: "defense", amount: 1, cap: 5 },
+  { key: "dealDamageAttack", label: "进攻临时攻击+1", value: 15, kind: "dealDamageTemp", stat: "attack", amount: 1, cap: 6 },
+  { key: "takeDamageDefense", label: "受击临时防御+1", value: 15, kind: "takeDamageTemp", stat: "defense", amount: 1, cap: 5 },
   { key: "killMaxHp", label: "每次击杀生命上限+3", value: 14, kind: "killPermanent", stat: "hp", amount: 3 },
   { key: "killHpBoost", label: "每次击杀生命+10", value: 14, kind: "killHeal", amount: 10 },
   { key: "sweep", label: "横扫：伤害50%扩散", value: 15, kind: "passive", spreadRatio: 0.5 },
@@ -243,7 +243,7 @@ const photoIdentificationUserPrompt = [
   "特殊效果只给语义很强的候选，普通物品可以 specialAffinity=[]；不要为了显得厉害乱给特殊效果。",
   "只有史诗或传说装备才可能出现特殊效果；史诗只在约三分之一情况下出特殊效果，传说必出一个特殊效果。",
   "宽、长、扫帚、扇面、拍子、刷子等有横向扫开联想的实物可选 sweep；奖杯、徽章、冠军感、英雄感、强烈战斗胜利联想的实物可选 peerless。",
-  "工具、现实玩具/模型武器、越打越顺手的现实物品可选 dealDamageAttack；盾牌、外壳、硬保护物可选 takeDamageDefense 或 shieldCrashAttackDown；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、成对/双件/高速物品可选 doubleStrikeSpeedDown；喝的、补给、净化、回复感物品可选 regenMultiplier；带尖锐、抽取、血感、锋利联想的物品可选 lifestealMultiplier。",
+  "工具、现实玩具/模型武器、越打越顺手的现实物品可选 dealDamageAttack；盾牌、外壳、硬保护物可选 takeDamageDefense 或 shieldCrashAttackDown；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、成对/双件/高速物品可选 doubleStrikeSpeedDown；宽面、扫帚、刷子、拍子、扇面等横向扫开联想可选 sweep；喝的、补给、净化、回复感物品可选 regenMultiplier；带尖锐、抽取、血感、锋利联想的物品可选 lifestealMultiplier。",
   "不要给游戏装备图、AI 渲染图、动画、插画、精修素材、卡牌素材 specialAffinity；普通拍摄的现实实物网图/截图可以有正常属性，但不应因为来源是网图而额外变强。现实卡片/贴纸/包装上的幻想武器也不要因为图案像武器就给强攻击或特殊效果。",
   "",
   "命名和描述：",
@@ -3606,8 +3606,8 @@ function beginBattle(enemies) {
   const stats = getBattleStats(activeIds);
   state.player.shield = stats.shield;
   state.player.shieldMonsterId = state.encounterId;
-  state.battleClock = makeBattleClock(stats, enemies);
   applyPreBattleFormEffects();
+  state.battleClock = makeBattleClock(getBattleStats(state.activeEnemyIds), getActiveBattleEnemies());
 }
 
 function applyBattleStartEnemyAuras(enemies = getActiveBattleEnemies()) {
@@ -3821,7 +3821,7 @@ function resolveHeroStrikeAgainstEnemy(initialEnemy = getHeroTargetEnemy(), sour
       healed = state.player.hp - beforeHp;
     }
 
-    if (totalDamage > 0) triggerDealDamageSpecial();
+    triggerAttackActionSpecial();
 
     const defeated = enemy.hp <= 0;
     results.push({
@@ -3926,7 +3926,8 @@ function applyFixedHeroDamageToEnemy(enemy, damage, source = "sweep") {
   enemy.hp = Math.max(0, enemy.hp - hpDamage);
   const totalDamage = shieldLoss + hpDamage;
   if (totalDamage > 0) markEnemyHit(enemy.id);
-  const traitChanges = totalDamage > 0 ? triggerEnemyDamagedTraits(enemy) : [];
+  if (fixedDamage > 0) markEnemyHit(enemy.id);
+  const traitChanges = fixedDamage > 0 ? triggerEnemyDamagedTraits(enemy) : [];
   return {
     rawDamage: fixedDamage,
     shieldCrashDamage: 0,
@@ -3963,6 +3964,7 @@ function resolveMonsterStrike(enemy, stats, round) {
   let totalRegen = 0;
   let monsterStealTotal = 0;
   let immuneCount = 0;
+  const traitChanges = [];
 
   for (let i = 0; i < hitCount; i += 1) {
     const currentStatsBeforeHit = getBattleStats(state.activeEnemyIds);
@@ -3988,9 +3990,7 @@ function resolveMonsterStrike(enemy, stats, round) {
       state.player.hp = Math.min(currentStatsBeforeHit.maxHp, state.player.hp + shieldLoss);
       totalRegen += state.player.hp - beforeHp;
     }
-    if (shieldLoss + hpLoss > 0) {
-      triggerTakeDamageSpecial();
-    }
+    triggerDefendedActionSpecial();
 
     const currentStats = getBattleStats(state.activeEnemyIds);
     if (state.player.hp > 0 && !hasAnyActiveTrait("noRegen") && currentStats.regen > 0) {
@@ -4006,10 +4006,9 @@ function resolveMonsterStrike(enemy, stats, round) {
       monsterStealTotal += enemy.hp - beforeHp;
     }
 
+    traitChanges.push(...triggerEnemyAttackTraits(enemy));
     if (state.player.hp <= 0) break;
   }
-
-  const traitChanges = triggerEnemyAttackTraits(enemy);
 
   const monsterRegen = getTraitValue(enemy, "regen", 0);
   let monsterHealed = 0;
@@ -5609,12 +5608,12 @@ function applyBattleSpecialPassives(stats) {
 }
 
 function getEquippedPhotoEffectInstances(key) {
-  const active = getActiveEquippedPhotoSpecialInstance();
-  if (!active || (key && active.key !== key)) return [];
-  return [active];
+  const activeByKey = getActiveEquippedPhotoSpecialInstancesByKey();
+  if (key) return activeByKey.has(key) ? [activeByKey.get(key)] : [];
+  return [...activeByKey.values()];
 }
 
-function getActiveEquippedPhotoSpecialInstance() {
+function getActiveEquippedPhotoSpecialInstancesByKey() {
   const candidates = [];
   ensureInventorySlots();
   const equippedItems = getEquippedItems();
@@ -5624,8 +5623,11 @@ function getActiveEquippedPhotoSpecialInstance() {
       candidates.push({ ...instance, item, slotIndex: slotIndex < 0 ? 999 : slotIndex });
     }
   }
-  if (!candidates.length) return null;
+  if (!candidates.length) return new Map();
   candidates.sort((a, b) => {
+    const keyDiff = photoSpecialEffects.findIndex((effect) => effect.key === a.key)
+      - photoSpecialEffects.findIndex((effect) => effect.key === b.key);
+    if (keyDiff) return keyDiff;
     const valueDiff = (b.effect?.value || 0) - (a.effect?.value || 0);
     if (valueDiff) return valueDiff;
     const slotDiff = a.slotIndex - b.slotIndex;
@@ -5633,7 +5635,24 @@ function getActiveEquippedPhotoSpecialInstance() {
     return photoSpecialEffects.findIndex((effect) => effect.key === a.key)
       - photoSpecialEffects.findIndex((effect) => effect.key === b.key);
   });
-  return candidates[0];
+  const activeByKey = new Map();
+  for (const candidate of candidates) {
+    if (!activeByKey.has(candidate.key)) activeByKey.set(candidate.key, candidate);
+  }
+  return activeByKey;
+}
+
+function getActiveEquippedPhotoSpecialInstance() {
+  const active = getEquippedPhotoEffectInstances();
+  if (!active.length) return null;
+  return [...active].sort((a, b) => {
+    const valueDiff = (b.effect?.value || 0) - (a.effect?.value || 0);
+    if (valueDiff) return valueDiff;
+    const slotDiff = a.slotIndex - b.slotIndex;
+    if (slotDiff) return slotDiff;
+    return photoSpecialEffects.findIndex((effect) => effect.key === a.key)
+      - photoSpecialEffects.findIndex((effect) => effect.key === b.key);
+  })[0];
 }
 
 function getHeroStrikeCount() {
@@ -5736,6 +5755,13 @@ function getSimActiveEnemies(sim, enemies) {
   return enemies.filter((enemy) => sim.activeIds.includes(enemy.id));
 }
 
+function getSimBattleStats(sim, enemies) {
+  const stats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
+  stats.realMaxHp = getSimActualMaxHp(stats, sim);
+  stats.maxHp += getSimMaxHpBonus(sim);
+  return stats;
+}
+
 function simulateHeroStrike(sim, enemies, stats) {
   void stats;
   if (sim.actualDead) return [];
@@ -5752,16 +5778,14 @@ function simulateHeroStrikeTarget(sim, enemies, initialEnemy = null) {
     if (!enemy) enemy = sim.activeIds.map((id) => enemies.find((item) => item.id === id)).find(Boolean);
     if (!enemy || enemy.hp <= 0 || !sim.activeIds.includes(enemy.id)) break;
 
-    const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
-    currentStats.realMaxHp = getSimActualMaxHp(currentStats, sim);
-    currentStats.maxHp += getSimMaxHpBonus(sim);
+    const currentStats = getSimBattleStats(sim, enemies);
     const hitResult = applySimHeroDamageToEnemy(sim, enemy, currentStats, enemies);
     const shieldLoss = hitResult.shieldLoss;
     const hpDamage = hitResult.hpDamage;
     const sweepResults = triggerSimSweepDamage(sim, enemies, enemy, shieldLoss + hpDamage);
 
     const dealDamageGain = getTempSpecialGain("dealDamageAttack");
-    if (shieldLoss + hpDamage > 0 && dealDamageGain > 0) {
+    if (dealDamageGain > 0) {
       const cap = getTempSpecialCap("dealDamageAttack");
       sim.battleSpecial.attack = Math.min(cap, (sim.battleSpecial.attack || 0) + dealDamageGain);
     }
@@ -5790,11 +5814,13 @@ function simulateHeroStrikeTarget(sim, enemies, initialEnemy = null) {
 }
 
 function simulateMonsterStrike(sim, enemy, enemies, stats) {
+  void stats;
   const hitCount = getTraitValue(enemy, "multiHit", 1);
   for (let i = 0; i < hitCount; i += 1) {
     if (sim.actualDead) break;
-    const monsterAtk = getMonsterAttackForStrike(enemy, stats);
-    const damage = hasTrait(enemy, "magic") ? Math.max(0, monsterAtk) : Math.max(0, monsterAtk - stats.def);
+    const currentStatsBeforeHit = getSimBattleStats(sim, enemies);
+    const monsterAtk = getMonsterAttackForStrike(enemy, currentStatsBeforeHit);
+    const damage = hasTrait(enemy, "magic") ? Math.max(0, monsterAtk) : Math.max(0, monsterAtk - currentStatsBeforeHit.def);
     const immunity = getHeroFormLevelConfig().damageImmunity || 0;
     const isImmune = sim.battleSpecial.damageImmuneUsed < immunity && damage > 0;
     if (isImmune) sim.battleSpecial.damageImmuneUsed += 1;
@@ -5805,27 +5831,27 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
     sim.shield -= shieldLoss;
     damageSimHero(sim, hpLoss);
     if (shieldLoss > 0 && getHeroFormLevelConfig().shieldLossToHeal) {
-      healSimHero(sim, stats, shieldLoss);
+      healSimHero(sim, currentStatsBeforeHit, shieldLoss);
     }
     const takeDamageGain = getTempSpecialGain("takeDamageDefense");
-    if (shieldLoss + hpLoss > 0 && takeDamageGain > 0) {
+    if (takeDamageGain > 0) {
       const cap = getTempSpecialCap("takeDamageDefense");
       sim.battleSpecial.defense = Math.min(cap, (sim.battleSpecial.defense || 0) + takeDamageGain);
     }
 
-    if (sim.actualHp > 0 && !enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noRegen")) && stats.regen > 0) {
-      regenSimHeroAfterHit(sim, stats);
+    const currentStats = getSimBattleStats(sim, enemies);
+    if (sim.actualHp > 0 && !enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noRegen")) && currentStats.regen > 0) {
+      regenSimHeroAfterHit(sim, currentStats);
     }
 
     const monsterSteal = getTraitValue(enemy, "lifesteal", 0);
     if (monsterSteal > 0) enemy.hp = Math.min(enemy.maxHp, enemy.hp + monsterSteal);
+    triggerSimEnemyAttackTraits(sim, enemy);
     if (sim.actualHp <= 0) {
       sim.actualDead = true;
       break;
     }
   }
-
-  triggerSimEnemyAttackTraits(sim, enemy);
 
   const monsterRegen = getTraitValue(enemy, "regen", 0);
   if (monsterRegen > 0 && enemy.hp > 0) {
@@ -5868,7 +5894,7 @@ function triggerSimSweepDamage(sim, enemies, sourceEnemy, totalDamage) {
 
 function settleSimEnemyDefeat(sim, enemies, enemy) {
   if (!enemy || !sim.activeIds.includes(enemy.id)) return;
-  const stats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
+  const stats = getSimBattleStats(sim, enemies);
   simulateFormKillEffects(sim, stats);
   simulateKillSpecial(sim, stats);
   sim.activeIds = sim.activeIds.filter((id) => id !== enemy.id);
@@ -5906,7 +5932,7 @@ function applySimFixedHeroDamageToEnemy(sim, enemy, damage, enemies = []) {
   const hpDamage = Math.max(0, modifiedDamage - shieldLoss);
   enemy.hp = Math.max(0, enemy.hp - hpDamage);
   const totalDamage = shieldLoss + hpDamage;
-  if (totalDamage > 0) triggerSimEnemyDamagedTraits(enemy);
+  if (fixedDamage > 0) triggerSimEnemyDamagedTraits(enemy);
   return { rawDamage: fixedDamage, shieldLoss, hpDamage, totalDamage };
 }
 
@@ -5931,13 +5957,13 @@ function simulateFormKillEffects(sim, stats) {
 function simulateKillSpecial(sim, stats) {
   let maxHpGain = 0;
   let healGain = 0;
-  const active = getActiveEquippedPhotoSpecialInstance();
-  const effect = active?.effect;
-  if (effect?.stat === "hp" && effect.kind === "killPermanent") maxHpGain += effect.amount;
-  if (effect?.kind === "killHeal") healGain += effect.amount;
-  if (effect?.kind === "killBattleTemp") {
-    sim.battleSpecial.peerlessAttack = (sim.battleSpecial.peerlessAttack || 0) + effect.amount;
-    sim.battleSpecial.peerlessDefense = (sim.battleSpecial.peerlessDefense || 0) + effect.amount;
+  for (const { effect } of getEquippedPhotoEffectInstances()) {
+    if (effect?.stat === "hp" && effect.kind === "killPermanent") maxHpGain += effect.amount;
+    if (effect?.kind === "killHeal") healGain += effect.amount;
+    if (effect?.kind === "killBattleTemp") {
+      sim.battleSpecial.peerlessAttack = (sim.battleSpecial.peerlessAttack || 0) + effect.amount;
+      sim.battleSpecial.peerlessDefense = (sim.battleSpecial.peerlessDefense || 0) + effect.amount;
+    }
   }
   void maxHpGain;
   healSimHero(sim, stats, healGain);
@@ -6187,7 +6213,11 @@ function getPlayerStats() {
 }
 
 function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpecial()) {
-  const bonus = { ...getHeroFormStats() };
+  return getPlayerStatsForForm(getHeroForm(), battleSpecial);
+}
+
+function getPlayerStatsForForm(form = getHeroForm(), battleSpecial = createDefaultBattleSpecial()) {
+  const bonus = { ...getHeroFormStatsFor(form) };
   const inventoryBonus = getInventoryStatBonus();
   for (const key of statOrder) {
     bonus[key] = (bonus[key] || 0) + (inventoryBonus[key] || 0);
@@ -6239,7 +6269,24 @@ function getHeroFormStats() {
 }
 
 function getHeroFormStatsFor(form = getHeroForm()) {
-  return normalizeSignedStats(getHeroFormLevelConfig(form).stats || {}, 999);
+  const stats = normalizeSignedStats(getHeroFormLevelConfig(form).stats || {}, 999);
+  const sharedStats = getSharedHeroFormStatsFor(form);
+  for (const key of statOrder) {
+    stats[key] = (stats[key] || 0) + (sharedStats[key] || 0);
+  }
+  return stats;
+}
+
+function getSharedHeroFormStats() {
+  return getSharedHeroFormStatsFor(getHeroForm());
+}
+
+function getSharedHeroFormStatsFor(activeForm = getHeroForm()) {
+  const bonus = normalizeSignedStats({}, 999);
+  const hpForm = heroFormMap.get("hp");
+  if (!hpForm || activeForm?.id === "hp" || getHeroFormLevel(hpForm) < 2) return bonus;
+  bonus.hp += Math.max(0, hpForm.levels?.[2]?.stats?.hp || 0);
+  return bonus;
 }
 
 function getHeroFormFilmStatBonus() {
@@ -6281,23 +6328,16 @@ function setHeroForm(formId) {
   const oldStats = getPlayerStats();
   const oldShield = state.player.shield;
   const targetForm = heroFormMap.get(formId);
-  const currentForm = getHeroForm();
-  const hpLoss = (getHeroFormLevelConfig(currentForm).stats?.hp || 0) - (getHeroFormLevelConfig(targetForm).stats?.hp || 0);
-  if (hpLoss > 0 && state.player.hp <= hpLoss) {
+  const nextStatsPreview = getPlayerStatsForForm(targetForm);
+  const maxHpLoss = Math.max(0, oldStats.maxHp - nextStatsPreview.maxHp);
+  if (maxHpLoss > 0 && state.player.hp <= maxHpLoss) {
     addBattleEvent("当前生命不足，无法切换会降低生命上限的形态。", "info");
     render();
     return;
   }
   state.player.formId = formId;
   const newStats = getPlayerStats();
-  if (newStats.maxHp > oldStats.maxHp) {
-    state.player.hp += newStats.maxHp - oldStats.maxHp;
-  } else if (hpLoss > 0) {
-    state.player.hp = Math.min(state.player.hp - hpLoss, newStats.maxHp);
-  } else {
-    state.player.hp = Math.min(state.player.hp, newStats.maxHp);
-  }
-  state.player.hp = Math.max(0, state.player.hp);
+  adjustHeroResourcesAfterStatChange(oldStats, newStats, oldShield);
   syncShieldAfterEquipmentChange(oldStats.shield, newStats.shield, oldShield);
   saveGame();
   render();
@@ -6305,13 +6345,14 @@ function setHeroForm(formId) {
 
 function getItemSpecialStats(item) {
   const result = normalizeStats({}, 999);
-  const active = getActiveEquippedPhotoSpecialInstance();
-  if (!active || active.item?.id !== item?.id) return result;
-  const { effect, state: stateData } = active;
-  if (effect.kind === "killThreshold" && effect.stat) {
-    result[effect.stat] += clampInt(stateData.bonus, 0, 999) * effect.amount;
-  } else if (effect.kind === "killPermanent" && effect.stat) {
-    result[effect.stat] += clampInt(stateData.bonus, 0, 999);
+  if (!item?.id) return result;
+  for (const { effect, state: stateData, item: activeItem } of getEquippedPhotoEffectInstances()) {
+    if (activeItem?.id !== item.id) continue;
+    if (effect.kind === "killThreshold" && effect.stat) {
+      result[effect.stat] += clampInt(stateData.bonus, 0, 999) * effect.amount;
+    } else if (effect.kind === "killPermanent" && effect.stat) {
+      result[effect.stat] += clampInt(stateData.bonus, 0, 999);
+    }
   }
   return result;
 }
@@ -6354,13 +6395,13 @@ function getTempSpecialCap(key) {
   return getEquippedPhotoEffectInstances(key).reduce((sum, { effect }) => sum + (effect.cap || 0), 0);
 }
 
-function triggerDealDamageSpecial() {
+function triggerAttackActionSpecial() {
   const gain = getTempSpecialGain("dealDamageAttack");
   if (gain <= 0) return;
   state.battleSpecial.attack = Math.min(getTempSpecialCap("dealDamageAttack"), (state.battleSpecial.attack || 0) + gain);
 }
 
-function triggerTakeDamageSpecial() {
+function triggerDefendedActionSpecial() {
   const gain = getTempSpecialGain("takeDamageDefense");
   if (gain <= 0) return;
   state.battleSpecial.defense = Math.min(getTempSpecialCap("takeDamageDefense"), (state.battleSpecial.defense || 0) + gain);
@@ -6369,37 +6410,38 @@ function triggerTakeDamageSpecial() {
 function triggerKillSpecial(enemy) {
   void enemy;
   const changes = [];
-  const active = getActiveEquippedPhotoSpecialInstance();
-  if (!active) return;
-  const { key, effect, state: data, item } = active;
+  const activeInstances = getEquippedPhotoEffectInstances();
+  if (!activeInstances.length) return;
 
-  if (effect.kind === "killThreshold") {
-    data.kills += 1;
-    const targetBonus = Math.floor(data.kills / effect.threshold);
-    if (targetBonus > data.bonus) {
-      const gain = (targetBonus - data.bonus) * effect.amount;
-      data.bonus = targetBonus;
-      changes.push(`${formatItemDisplayName(item)} ${statLabels[effect.stat] || effect.stat}+${gain}`);
+  for (const { key, effect, state: data, item } of activeInstances) {
+    if (effect.kind === "killThreshold") {
+      data.kills += 1;
+      const targetBonus = Math.floor(data.kills / effect.threshold);
+      if (targetBonus > data.bonus) {
+        const gain = (targetBonus - data.bonus) * effect.amount;
+        data.bonus = targetBonus;
+        changes.push(`${formatItemDisplayName(item)} ${statLabels[effect.stat] || effect.stat}+${gain}`);
+      }
+    } else if (effect.kind === "killPermanent") {
+      data.kills += 1;
+      data.bonus += effect.amount;
+      changes.push(`${formatItemDisplayName(item)} ${statLabels[effect.stat] || effect.stat}+${effect.amount}`);
+    } else if (effect.kind === "killHeal") {
+      data.kills += 1;
+      data.bonus += effect.amount;
+      const stats = getBattleStats(state.activeEnemyIds);
+      const beforeHp = state.player.hp;
+      state.player.hp = Math.min(stats.maxHp, state.player.hp + effect.amount);
+      const healed = state.player.hp - beforeHp;
+      if (healed > 0) changes.push(`${formatItemDisplayName(item)} 生命+${healed}`);
+    } else if (effect.kind === "killBattleTemp") {
+      data.kills += 1;
+      state.battleSpecial.peerlessAttack = (state.battleSpecial.peerlessAttack || 0) + effect.amount;
+      state.battleSpecial.peerlessDefense = (state.battleSpecial.peerlessDefense || 0) + effect.amount;
+      changes.push(`${formatItemDisplayName(item)} 攻防+${effect.amount}`);
     }
-  } else if (effect.kind === "killPermanent") {
-    data.kills += 1;
-    data.bonus += effect.amount;
-    changes.push(`${formatItemDisplayName(item)} ${statLabels[effect.stat] || effect.stat}+${effect.amount}`);
-  } else if (effect.kind === "killHeal") {
-    data.kills += 1;
-    data.bonus += effect.amount;
-    const stats = getBattleStats(state.activeEnemyIds);
-    const beforeHp = state.player.hp;
-    state.player.hp = Math.min(stats.maxHp, state.player.hp + effect.amount);
-    const healed = state.player.hp - beforeHp;
-    if (healed > 0) changes.push(`${formatItemDisplayName(item)} 生命+${healed}`);
-  } else if (effect.kind === "killBattleTemp") {
-    data.kills += 1;
-    state.battleSpecial.peerlessAttack = (state.battleSpecial.peerlessAttack || 0) + effect.amount;
-    state.battleSpecial.peerlessDefense = (state.battleSpecial.peerlessDefense || 0) + effect.amount;
-    changes.push(`${formatItemDisplayName(item)} 攻防+${effect.amount}`);
+    ensureItemSpecialState(item, key);
   }
-  ensureItemSpecialState(item, key);
 
   if (changes.length) {
     addBattleDetail(`击杀触发：${changes.join("；")}。`);
@@ -7016,7 +7058,7 @@ function choosePhotoSpecialEffects(item, image, valueBudget) {
     : normalizeSpecialEffects(item.specialEffects || item.effects || item.special || item.specialEffect)
       .filter((key) => isSpecialEffectSemanticallyAllowed(key, item))
       .filter((key) => isPhotoSpecialEffectEligible(key, valueBudget, item));
-  if (item.skipSpecialRoll && provided.length) return provided.slice(0, 1);
+  if (item.skipSpecialRoll && provided.length) return provided;
   if (item.skipSpecialRoll) return [];
   const qualityKey = getItemQuality(valueBudget).key;
   if (qualityKey !== "epic" && qualityKey !== "legendary") return [];
@@ -7116,8 +7158,8 @@ function normalizeSpecialEffectKey(value) {
     if (/击杀.*(?:7|8).*防/.test(text)) return "killDefense";
     if (/击杀.*(?:2|4).*盾/.test(text)) return "killShield";
     if (/击杀.*(?:10|12).*速/.test(text)) return "killSpeed";
-    if (/造成伤害.*攻|攻击.*最多(?:4|6|10)/.test(text)) return "dealDamageAttack";
-    if (/受到伤害.*防|受击.*防|防御.*最多(?:4|5|8)/.test(text)) return "takeDamageDefense";
+    if (/进攻.*攻|造成伤害.*攻|攻击.*最多(?:4|6|10)/.test(text)) return "dealDamageAttack";
+    if (/受击.*防|受到攻击.*防|受到伤害.*防|防御.*最多(?:4|5|8)/.test(text)) return "takeDamageDefense";
     if (/击杀.*生命上限/.test(text)) return "killMaxHp";
     if (/击杀.*生命|击杀.*回复|击杀.*回血/.test(text)) return "killHpBoost";
     if (/二连击|连击2|连击翻倍/.test(text)) return "doubleStrikeSpeedDown";
@@ -7627,9 +7669,7 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
     }
     const nextEnemyId = getNextSimEnemyId(sim);
     const enemyTime = nextEnemyId ? sim.enemyTimes.get(nextEnemyId) : Infinity;
-    const currentStats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
-    currentStats.realMaxHp = getSimActualMaxHp(currentStats, sim);
-    currentStats.maxHp += getSimMaxHpBonus(sim);
+    const currentStats = getSimBattleStats(sim, enemies);
     if (sim.heroTime === Infinity && (!nextEnemyId || enemyTime === Infinity)) {
       for (const id of sim.activeIds) {
         estimates.set(id, makeUnresolvedEstimate("speed", enemies.find((enemy) => enemy.id === id), enemies));
@@ -7656,7 +7696,7 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
       }
       sim.enemyTimes.set(nextEnemyId, enemyTime + getActionInterval(enemy?.speed || 0));
       if (enemy && hasTrait(enemy, "speedDownOnAttack")) {
-        sim.heroTime = enemyActionTime + getActionInterval(getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial).speed);
+        sim.heroTime = enemyActionTime + getActionInterval(getSimBattleStats(sim, enemies).speed);
       }
       sim.round += 1;
     }
@@ -8237,8 +8277,8 @@ function makeSettledItemDescription(item) {
   if (effects.includes("shieldCrashAttackDown")) return `${name}把护盾压到锋线上，出手时顺带撞出一段额外伤害。`;
   if (effects.includes("sweep")) return `${name}适合横着扫开战线，主目标受创时会把余劲甩向旁边。`;
   if (effects.includes("peerless")) return `${name}越战越勇，击败敌人后会在本场战斗里抬高攻防。`;
-  if (effects.includes("dealDamageAttack")) return `${name}越打越顺手，命中后会临时磨出更高攻击。`;
-  if (effects.includes("takeDamageDefense")) return `${name}挨打后更稳，战斗中会临时堆起防御。`;
+  if (effects.includes("dealDamageAttack")) return `${name}越打越顺手，每次进攻都会临时磨出更高攻击。`;
+  if (effects.includes("takeDamageDefense")) return `${name}挨打后更稳，每次受击都会临时堆起防御。`;
   if (effects.includes("killMaxHp")) return `${name}会把击败的余温存进生命上限。`;
   if (effects.includes("killHpBoost")) return `${name}适合边打边补，每次击败怪物都会回复生命。`;
   if (stats.attack > 0 && stats.lifesteal > 0) return `${name}又利又贪，既能破开敌人，也能从进攻里追回生命。`;
@@ -8302,10 +8342,11 @@ function renderSpecialEffectPills(item) {
 function getVisibleItemSpecialInstances(item) {
   const instances = getItemSpecialInstances(item);
   if (!instances.length) return [];
-  const active = getActiveEquippedPhotoSpecialInstance();
-  if (item?.id && active?.item?.id === item.id) {
-    const selected = instances.find((instance) => instance.key === active.key);
-    return selected ? [selected] : [];
+  if (item?.id) {
+    const activeKeys = new Set(getEquippedPhotoEffectInstances()
+      .filter((instance) => instance.item?.id === item.id)
+      .map((instance) => instance.key));
+    return instances.filter((instance) => activeKeys.has(instance.key));
   }
   return [];
 }
@@ -8963,6 +9004,26 @@ window.__photoHeroTestHooks = {
     }, input.image || makePlaceholderImage());
     addInventoryItem({ ...item, id: makeId("test-special"), fullImage: input.fullImage || item.fullImage || "" }, "测试特殊装备已加入。");
   },
+  addSpecialComboItem(effectKeys, input = {}) {
+    const keys = Array.isArray(effectKeys) ? effectKeys.filter((key) => photoSpecialEffectMap.has(key)) : [];
+    const value = Math.max(
+      input.value || 16,
+      ...keys.map((key) => photoSpecialEffectMap.get(key)?.value || 0),
+    );
+    const item = balanceItem({
+      itemName: input.itemName || "测试组合特装",
+      rarity: input.rarity || "legendary",
+      value,
+      stats: input.stats || {},
+      specialEffects: keys,
+      skipSpecialRoll: true,
+      description: input.description || "测试用组合特殊装备。",
+      identityDescription: input.identityDescription || "",
+      photoKey: input.photoKey || makeId("test-photo"),
+      confidence: 1,
+    }, input.image || makePlaceholderImage());
+    addInventoryItem({ ...item, id: makeId("test-combo-special"), fullImage: input.fullImage || item.fullImage || "" }, "测试组合特装已加入。");
+  },
   addRawItem(input) {
     const item = {
       ...balanceItem({ ...(input || {}), photoKey: input?.photoKey || pendingDuplicatePhotoKey, skipSpecialRoll: input?.skipSpecialRoll ?? true }, input?.image || makePlaceholderImage()),
@@ -9015,6 +9076,13 @@ window.__photoHeroTestHooks = {
   getActiveSpecialForTest() {
     const active = getActiveEquippedPhotoSpecialInstance();
     return active ? { key: active.key, itemName: active.item?.itemName || "", value: active.effect?.value || 0 } : null;
+  },
+  getActiveSpecialsForTest() {
+    return getEquippedPhotoEffectInstances().map((active) => ({
+      key: active.key,
+      itemName: active.item?.itemName || "",
+      value: active.effect?.value || 0,
+    }));
   },
   getBattleStatsForTest(ids = state.activeEnemyIds) {
     return getBattleStats(ids);

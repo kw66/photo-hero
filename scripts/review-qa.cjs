@@ -182,6 +182,26 @@ function assertScenario(name, metrics) {
     if (specials.peerlessAfterResetAtk !== 4 || specials.peerlessAfterResetDef !== 1) {
       failures.push(`${name}: peerless bonus should reset outside battle, got ${JSON.stringify(specials)}`);
     }
+    const activeKeys = specials.activeSpecialKeys || [];
+    for (const key of ["dealDamageAttack", "takeDamageDefense", "doubleStrikeSpeedDown", "shieldCrashAttackDown"]) {
+      if (!activeKeys.includes(key)) failures.push(`${name}: different unique passives should each be active, missing ${key}, got ${JSON.stringify(activeKeys)}`);
+    }
+    if ((activeKeys.filter((key) => key === "dealDamageAttack").length) !== 1) {
+      failures.push(`${name}: same passive key should only activate once, got ${JSON.stringify(activeKeys)}`);
+    }
+    if (specials.comboStrikeCount !== 2 || specials.comboShieldDamage !== 10 || specials.comboAttackAfterHit !== 2 || specials.comboDefenseAfterHit !== 1) {
+      failures.push(`${name}: combo passives should interact in one battle, got ${JSON.stringify(specials)}`);
+    }
+    if (specials.zeroHeroDamage !== 0 || specials.zeroAttackAfterHit !== 1 || specials.zeroHpAfterHeroStrike !== 62 || specials.zeroDefenseAfterMonster !== 1 || specials.zeroHpAfterMonster !== 64) {
+      failures.push(`${name}: attack/defense/regen/lifesteal should trigger from actions even at zero damage, got ${JSON.stringify(specials)}`);
+    }
+    if (specials.sweepActionAttack !== 1 || specials.sweepActionHp !== 52) {
+      failures.push(`${name}: sweep should not count as extra attack action for attack gain/lifesteal, got ${JSON.stringify(specials)}`);
+    }
+    const megaDefense = specials.megaDefenseState || {};
+    if (megaDefense.immuneUsed !== 1 || megaDefense.defenseSpecial !== 1 || megaDefense.hp !== 42) {
+      failures.push(`${name}: mega defense immunity should still count as a defended action, got ${JSON.stringify(megaDefense)}`);
+    }
   }
   if (name === "linked-traits") {
     const traits = metrics.linkedTraits || {};
@@ -241,8 +261,11 @@ function assertScenario(name, metrics) {
     if (formChecks.hpKill?.maxHp !== 93 || formChecks.hpKill?.hp !== 56) {
       failures.push(`${name}: mega HP kill should add max HP +3 and heal 6 in battle, got ${JSON.stringify(formChecks.hpKill)}`);
     }
-    if (formChecks.speedPreStrike?.hp !== 6) {
-      failures.push(`${name}: mega speed pre-strike should trigger double strike on each enemy, got ${JSON.stringify(formChecks.speedPreStrike)}`);
+    if (formChecks.hpShared?.defenseMaxHp !== 90 || formChecks.hpShared?.afterKillDefenseMaxHp !== 93 || formChecks.hpShared?.afterKillDefenseHp !== 56) {
+      failures.push(`${name}: mega HP max should be shared across forms and persist after kill, got ${JSON.stringify(formChecks.hpShared)}`);
+    }
+    if (formChecks.speedPreStrike?.hp !== 3 || formChecks.speedPreStrike?.attackBonus !== 2 || formChecks.speedPreStrike?.hpAfter !== 52 || formChecks.speedPreStrike?.heroClock === Infinity) {
+      failures.push(`${name}: mega speed pre-strike should trigger double strike/action effects before clock setup, got ${JSON.stringify(formChecks.speedPreStrike)}`);
     }
     if (formChecks.greedyDropBonus !== 0.1) failures.push(`${name}: mega greedy should keep film drop +0.1`);
     const expected = {
@@ -396,8 +419,12 @@ function assertScenario(name, metrics) {
       hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(["review-regen-hit"]), 1);
       const regenShield = { shieldAfterHit: hooks.state.player.shield, maxShield: hooks.getPlayerStats().shield };
       hooks.resetGameForTest();
-      setMegaForm("hp");
+      hooks.setFormProgress({ hp: { kills: 10, level: 2 }, defense: { kills: 10, level: 2 } });
+      hooks.setHeroForm("hp");
       hooks.setHeroStats({ hp: 50 });
+      hooks.setHeroForm("defense");
+      const defenseMaxHp = hooks.getPlayerStats().maxHp;
+      hooks.setHeroForm("hp");
       hooks.setEnemies([{
         id: "review-hp-kill",
         testEnemy: true,
@@ -415,9 +442,21 @@ function assertScenario(name, metrics) {
       hooks.beginBattle(hooks.state.enemies);
       hooks.resolveBattleAction();
       const hpKill = { hp: hooks.state.player.hp, maxHp: hooks.getPlayerStats().maxHp };
+      hooks.state.pendingFloorAdvance = false;
+      hooks.setHeroForm("defense");
+      const hpShared = {
+        defenseMaxHp,
+        afterKillDefenseMaxHp: hooks.getPlayerStats().maxHp,
+        afterKillDefenseHp: hooks.state.player.hp,
+      };
       hooks.resetGameForTest();
       setMegaForm("speed");
-      hooks.addSpecialItem("doubleStrikeSpeedDown", { itemName: "连击测试靴", value: 16, stats: {} });
+      hooks.addSpecialComboItem(["doubleStrikeSpeedDown", "dealDamageAttack"], {
+        itemName: "连击进攻测试工具靴",
+        value: 18,
+        stats: { lifesteal: 1 },
+        description: "shoe speed tool sharp attack",
+      });
       hooks.setEnemies([{
         id: "review-speed-pre",
         testEnemy: true,
@@ -432,8 +471,14 @@ function assertScenario(name, metrics) {
         traits: [],
       }]);
       hooks.selectEnemies(["review-speed-pre"]);
+      hooks.setHeroStats({ hp: 50, baseHp: 80, baseAtk: 5, baseLifesteal: 1 });
       hooks.beginBattle(hooks.state.enemies);
-      const speedPreStrike = { hp: hooks.state.enemies[0]?.hp };
+      const speedPreStrike = {
+        hp: hooks.state.enemies[0]?.hp,
+        attackBonus: hooks.state.battleSpecial.attack,
+        hpAfter: hooks.state.player.hp,
+        heroClock: hooks.state.battleClock?.hero,
+      };
       hooks.resetGameForTest();
       setMegaForm("greedy");
       const greedyDropBonus = JSON.parse(window.render_game_to_text()).player.form.filmDropBonus;
@@ -445,7 +490,7 @@ function assertScenario(name, metrics) {
         const stats = hooks.getPlayerStats();
         greedyStatsByFilm[film.toFixed(1)] = { atk: stats.atk, def: stats.def, speed: stats.speed };
       }
-      window.__reviewFormEconomy = { shield, lifesteal, regenShield, hpKill, speedPreStrike, greedyDropBonus, greedyStatsByFilm };
+      window.__reviewFormEconomy = { shield, lifesteal, regenShield, hpKill, hpShared, speedPreStrike, greedyDropBonus, greedyStatsByFilm };
     });
   });
 
@@ -551,6 +596,77 @@ function assertScenario(name, metrics) {
       const peerlessStats = hooks.getPlayerStats();
       hooks.resetGameForTest();
       const resetStats = hooks.getPlayerStats();
+
+      hooks.resetGameForTest();
+      hooks.addSpecialComboItem(["dealDamageAttack", "takeDamageDefense", "doubleStrikeSpeedDown", "shieldCrashAttackDown"], {
+        itemName: "fan knife shield combo",
+        subjectName: "fan knife shield combo",
+        objectType: "fan knife shield shell",
+        description: "fan speed knife sharp shield shell protect",
+        value: 16,
+        stats: { shield: 7 },
+      });
+      hooks.addSpecialItem("dealDamageAttack", { itemName: "knife low tester", description: "knife sharp", value: 15, stats: {}, specialAffinity: ["dealDamageAttack"] });
+      hooks.setEnemies([{ ...makeEnemy("combo-target", 30), atk: 4 }]);
+      hooks.selectEnemies(["combo-target"]);
+      hooks.setHeroStats({ baseShield: 10, hp: 80 });
+      hooks.beginBattle(hooks.state.enemies);
+      const comboResults = hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
+      const activeSpecialKeys = hooks.getActiveSpecialsForTest().map((item) => item.key);
+      const comboStrikeCount = comboResults.length;
+      const comboShieldDamage = comboResults[0]?.shieldCrashDamage || 0;
+      const comboAttackAfterHit = hooks.state.battleSpecial.attack;
+      const comboDefenseAfterHit = hooks.state.battleSpecial.defense;
+
+      hooks.resetGameForTest();
+      hooks.addSpecialComboItem(["dealDamageAttack", "takeDamageDefense"], {
+        itemName: "sharp shield action tester",
+        subjectName: "sharp shield action tester",
+        objectType: "knife shield shell",
+        description: "knife sharp shield shell protect",
+        value: 16,
+        stats: {},
+      });
+      hooks.setHeroStats({ hp: 70, baseHp: 80, baseAtk: 1, baseDef: 10, baseShield: 0, baseLifesteal: 2, baseRegen: 2, shield: 0 });
+      hooks.setEnemies([{ ...makeEnemy("zero-action-target", 20), atk: 1, def: 99 }]);
+      hooks.selectEnemies(["zero-action-target"]);
+      hooks.beginBattle(hooks.state.enemies);
+      hooks.state.player.hp = 60;
+      const zeroHeroResults = hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
+      const zeroAttackAfterHit = hooks.state.battleSpecial.attack;
+      const zeroHpAfterHeroStrike = hooks.state.player.hp;
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
+      const zeroDefenseAfterMonster = hooks.state.battleSpecial.defense;
+      const zeroHpAfterMonster = hooks.state.player.hp;
+
+      hooks.resetGameForTest();
+      hooks.addSpecialItem("sweep", { itemName: "wide sweep brush", description: "wide sweep brush", value: 15, stats: {}, specialAffinity: ["sweep"] });
+      hooks.addSpecialItem("dealDamageAttack", { itemName: "sharp knife tester", description: "knife sharp", value: 15, stats: {}, specialAffinity: ["dealDamageAttack"] });
+      hooks.setEnemies([makeEnemy("sweep-left", 20), makeEnemy("sweep-center", 4), makeEnemy("sweep-right", 20)]);
+      hooks.selectEnemies(["sweep-left", "sweep-center", "sweep-right"]);
+      hooks.setHeroStats({ hp: 70, baseHp: 80, baseAtk: 4, baseShield: 0, baseLifesteal: 2, shield: 0 });
+      hooks.beginBattle(hooks.state.enemies);
+      hooks.state.player.hp = 50;
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
+      const sweepActionAttack = hooks.state.battleSpecial.attack;
+      const sweepActionHp = hooks.state.player.hp;
+
+      hooks.resetGameForTest();
+      hooks.addSpecialItem("takeDamageDefense", { itemName: "shield shell tester", description: "shield shell protect", value: 15, stats: {}, specialAffinity: ["takeDamageDefense"] });
+      hooks.setFormProgress({ defense: { kills: 10, level: 2 } });
+      hooks.setHeroForm("defense");
+      hooks.setHeroStats({ hp: 80, baseRegen: 2, baseShield: 0, shield: 0 });
+      hooks.setEnemies([{ ...makeEnemy("immune-hit", 20), atk: 10 }]);
+      hooks.selectEnemies(["immune-hit"]);
+      hooks.beginBattle(hooks.state.enemies);
+      hooks.state.player.hp = 40;
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
+      const megaDefenseState = {
+        hp: hooks.state.player.hp,
+        defenseSpecial: hooks.state.battleSpecial.defense,
+        immuneUsed: hooks.state.battleSpecial.damageImmuneUsed,
+      };
       window.__reviewGroupSpecials = {
         sweepLeftHp,
         sweepCenterHp,
@@ -560,6 +676,19 @@ function assertScenario(name, metrics) {
         peerlessDef: peerlessStats.def,
         peerlessAfterResetAtk: resetStats.atk,
         peerlessAfterResetDef: resetStats.def,
+        activeSpecialKeys,
+        comboStrikeCount,
+        comboShieldDamage,
+        comboAttackAfterHit,
+        comboDefenseAfterHit,
+        zeroHeroDamage: zeroHeroResults[0]?.totalDamage || 0,
+        zeroAttackAfterHit,
+        zeroHpAfterHeroStrike,
+        zeroDefenseAfterMonster,
+        zeroHpAfterMonster,
+        sweepActionAttack,
+        sweepActionHp,
+        megaDefenseState,
       };
     });
   });
