@@ -2428,8 +2428,36 @@ dd {
   align-content: center;
 }
 
+.author-inline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+
+.author-inline strong {
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  font-weight: 950;
+}
+
 .project-social-card p {
   margin: 0;
+}
+
+.project-social-card a {
+  text-decoration: none;
+}
+
+.project-social-card a span {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.project-social-card a em {
+  font-style: normal;
+  text-decoration: none;
 }
 
 .group-qr {
