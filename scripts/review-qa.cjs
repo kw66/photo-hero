@@ -255,8 +255,8 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: demon should promote and dragon should speed up on attack, got ${JSON.stringify(traits.bossGrowthState)}`);
     }
     if (traits.archmageAtk !== 17 || traits.archmageDef !== 6) failures.push(`${name}: archmage promotion should gain attack when hit and defense after attack, got ${JSON.stringify(traits.archmageState)}`);
-    if (traits.knightDamageWithGuards !== 0 || traits.knightDamageAfterGuardDeath !== 17) {
-      failures.push(`${name}: knight captain guard reduction should depend on living guards, got ${JSON.stringify(traits.knightState)}`);
+    if (traits.knightDamageWithGuards !== 17 || traits.knightDamageAfterGuardDeath !== 17) {
+      failures.push(`${name}: knight captain should not reduce damage through guards, got ${JSON.stringify(traits.knightState)}`);
     }
     if (traits.shieldCrashGolemHp !== 5) failures.push(`${name}: shield crash should add current shield damage against sturdy enemies, got hp ${traits.shieldCrashGolemHp}`);
   }
@@ -289,7 +289,10 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: knight captain attack order should be left guard, right guard, captain, got ${JSON.stringify(summon.activeOrderTypes)}`);
     }
     if (summon.summonedDrops?.join(",") !== "胶卷 0.0,胶卷 0.3,胶卷 0.0") {
-      failures.push(`${name}: summoned guards should not add film economy, got ${JSON.stringify(summon.summonedDrops)}`);
+      failures.push(`${name}: summoned guards should have base 胶卷 0.0 and captain should keep 胶卷 0.3, got ${JSON.stringify(summon.summonedDrops)}`);
+    }
+    if (summon.greedySummonedDrops?.join(",") !== "胶卷 0.1,胶卷 0.4,胶卷 0.1") {
+      failures.push(`${name}: greedy form should add +0.1 film to summoned guards and captain, got ${JSON.stringify(summon.greedySummonedDrops)}`);
     }
     if (!bossRetreat.inBattleRetreatVisible) failures.push(`${name}: boss battle should show retreat after battle starts`);
     if (bossRetreat.afterFloor !== 30 || bossRetreat.afterBattleActive) failures.push(`${name}: boss retreat should restore pre-battle boss floor, got ${JSON.stringify(bossRetreat)}`);
@@ -483,6 +486,7 @@ function assertScenario(name, metrics) {
     const inBattleRetreatVisible = await page.locator("#fleeBtn").isVisible();
     await page.evaluate(() => {
       const state = JSON.parse(window.render_game_to_text());
+      const hooks = window.__photoHeroTestHooks;
       window.__reviewKnightCaptainSummon = {
         inBattleTypes: state.enemies.map((enemy) => enemy.typeKey),
         inBattleOrders: state.enemies.map((enemy) => enemy.selectionOrder),
@@ -512,6 +516,20 @@ function assertScenario(name, metrics) {
         enemyHpChanged: after.enemies.some((enemy) => beforeEnemies.has(enemy.id) && beforeEnemies.get(enemy.id) !== enemy.hp),
       };
     }, inBattleRetreatVisible);
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.setFloor(30);
+      hooks.setHeroForm("greedy");
+      hooks.setFormProgress({ greedy: { kills: 10, level: 2 } });
+      hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));
+    });
+    await page.click("#attackBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).currentBattle, null, { timeout: 3000 });
+    await page.evaluate(() => {
+      window.__reviewKnightCaptainSummon.greedySummonedDrops = JSON.parse(window.render_game_to_text()).enemies.map((enemy) => enemy.drop);
+    });
+    await page.click("#fleeBtn");
+    await page.waitForFunction(() => !JSON.parse(window.render_game_to_text()).currentBattle, null, { timeout: 3000 });
   });
 
   scenarios.mobileRewardBossRetreat = await collectScenario(mobile, "mobile-reward-boss-retreat", async (page) => {

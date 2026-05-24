@@ -127,7 +127,7 @@ const analysisImageQuality = 0.72;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
-const gameSaveVersion = 20;
+const gameSaveVersion = 21;
 const initialFilmRolls = 3;
 const heroFormUpgradeKills = 10;
 const bossFloors = new Set([10, 20, 30, 40]);
@@ -394,7 +394,7 @@ const monsterTypes = {
   warrior: { name: "战士", atk: 12, def: 5, hp: 30, speed: 2, traits: [{ type: "teamWarcry", atk: 3, def: 3, speed: 1, text: "战意：全体攻防+3，速+1" }] },
   archmage: { name: "大法师", atk: 16, def: 5, hp: 72, speed: 4, traits: [{ type: "promotion", text: "晋升：攻击涨防，被攻击涨攻" }] },
   skeletonCaptain: { name: "骷髅队长", atk: 12, def: 5, hp: 44, speed: 3, traits: [{ type: "noLifesteal", text: "制裁：无法吸血" }] },
-  knightCaptain: { name: "骑士队长", atk: 15, def: 3, hp: 40, speed: 4, traits: [{ type: "guardedByGuards", value: 50, text: "护驾：每个卫兵减伤50%" }, { type: "summonGuards", text: "群殴：开战召唤2个卫兵" }] },
+  knightCaptain: { name: "骑士队长", atk: 15, def: 3, hp: 40, speed: 4, traits: [{ type: "summonGuards", text: "群殴：开战召唤2个卫兵" }] },
 };
 
 const normalMonsterUnlocks = [
@@ -5199,7 +5199,9 @@ function getHeroFormFilmShardBonus() {
 function getEnemyFilmShardDrop(enemy) {
   if (getHeroFormLevelConfig().noFilmDrop) return 0;
   const baseShards = getEnemyBaseFilmShards(enemy);
-  return Math.max(0, baseShards + getGlobalFilmDropBonus() + getHeroFormFilmShardBonus());
+  const bonusShards = getGlobalFilmDropBonus() + getHeroFormFilmShardBonus();
+  if (enemy?.summoned) return Math.max(0, bonusShards);
+  return Math.max(0, baseShards + bonusShards);
 }
 
 function getEnemyPreviewFilmShardDrop(enemy) {
@@ -6119,18 +6121,10 @@ function cloneTraits(traits = []) {
   return traits.map((trait) => ({ ...trait }));
 }
 
-function getAliveGuardCount(enemies = getActiveBattleEnemies()) {
-  return enemies.filter((enemy) => enemy.typeKey === "guard" && enemy.hp > 0).length;
-}
-
 function applyEnemyIncomingDamageModifiers(enemy, damage, enemies = getActiveBattleEnemies()) {
-  let result = Math.max(0, Math.floor(Number(damage) || 0));
-  if (hasTrait(enemy, "guardedByGuards")) {
-    const guardCount = getAliveGuardCount(enemies);
-    const reduction = Math.min(1, guardCount * (getTraitValue(enemy, "guardedByGuards", 50) / 100));
-    result = Math.floor(result * Math.max(0, 1 - reduction));
-  }
-  return result;
+  void enemy;
+  void enemies;
+  return Math.max(0, Math.floor(Number(damage) || 0));
 }
 
 function getMonsterAttackForStrike(enemy, heroStats, enemies = getActiveBattleEnemies()) {
