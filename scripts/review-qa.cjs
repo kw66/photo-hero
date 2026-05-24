@@ -63,6 +63,8 @@ async function collectScenario(page, name, action = async () => {}) {
       cropAppraisal: window.__reviewCropAppraisal || null,
       groupSpecials: window.__reviewGroupSpecials || null,
       linkedTraits: window.__reviewLinkedTraits || null,
+      bossRetreat: window.__reviewBossRetreat || null,
+      knightCaptainSummon: window.__reviewKnightCaptainSummon || null,
       panelToggle: window.__reviewPanelToggle || null,
       groupQr: (() => {
         const card = document.querySelector(".author-qr-card");
@@ -154,8 +156,8 @@ function assertScenario(name, metrics) {
     }
     const floor30 = drops["30"] || [];
     const floor30Drops = floor30.map((enemy) => `${enemy.typeKey}:${enemy.drop}`).join(",");
-    if (floor30.length !== 3 || floor30.some((enemy) => enemy.drop !== "胶卷 0.1")) {
-      failures.push(`${name}: floor 30 guards and knight captain should each show 胶卷 0.1, got ${floor30Drops}`);
+    if (floor30.length !== 1 || floor30[0]?.typeKey !== "knightCaptain" || floor30[0]?.drop !== "胶卷 0.3") {
+      failures.push(`${name}: floor 30 should preview one knight captain with 胶卷 0.3, got ${floor30Drops}`);
     }
   }
   if (name === "crop-appraisal") {
@@ -211,11 +213,31 @@ function assertScenario(name, metrics) {
     if (!traits.startAutoBattleGuardShieldApplied) {
       failures.push(`${name}: guard team shield should survive the real startAutoBattle render path, got ${JSON.stringify(traits.startAutoBattleGuardState)}`);
     }
-    if (!traits.warcryApplied) failures.push(`${name}: warrior warcry should buff all active enemies, got ${JSON.stringify(traits.warriorState)}`);
+    if (!traits.warcryApplied || !traits.warcryRemoved || traits.warcryClockAfterDeath !== 0.5) {
+      failures.push(`${name}: warrior warcry should be a live aura only, got ${JSON.stringify({ base: traits.warriorBaseState, live: traits.warriorLiveState, after: traits.warriorAfterDeathState, clock: traits.warcryClockAfterDeath })}`);
+    }
+    if (traits.wizardSingleDef !== 5 || traits.wizardTempDefAfterHit !== 5) {
+      failures.push(`${name}: one wizard should halve positive defense and also suppress temporary defense, got ${JSON.stringify({ single: traits.wizardSingleDef, afterHit: traits.wizardTempDefAfterHit })}`);
+    }
     if (traits.wizardDef !== 0) failures.push(`${name}: two wizards should reduce hero defense to 0, got ${traits.wizardDef}`);
-    if (traits.patrolShield !== 0 || traits.patrolHp !== 75) failures.push(`${name}: patrol breakShield should clear shield and apply full HP loss, got ${JSON.stringify(traits.patrolState)}`);
+    if (traits.wizardAfterDeathDef !== 10) {
+      failures.push(`${name}: wizard defense break should disappear after wizard death, got ${traits.wizardAfterDeathDef}`);
+    }
+    if (traits.wizardNegativeDef !== -3 || traits.wizardNegativeHp !== 67) {
+      failures.push(`${name}: wizard should not turn negative defense into zero, got ${JSON.stringify({ def: traits.wizardNegativeDef, hp: traits.wizardNegativeHp })}`);
+    }
+    if (traits.patrolShield !== 0 || traits.patrolHp !== 75 || traits.patrolAfterDeathShield !== 0) failures.push(`${name}: patrol breakShield should be a battle-start result that persists after patrol dies, got ${JSON.stringify(traits.patrolState)}`);
+    if (traits.noLifestealBefore !== 0 || traits.noLifestealAfter !== 2) {
+      failures.push(`${name}: skeleton no-lifesteal should disappear after skeleton death, got ${JSON.stringify({ before: traits.noLifestealBefore, after: traits.noLifestealAfter })}`);
+    }
+    if (traits.noRegenBefore !== 0 || traits.noRegenAfter !== 4) {
+      failures.push(`${name}: knight no-regen should disappear after knight death, got ${JSON.stringify({ before: traits.noRegenBefore, after: traits.noRegenAfter })}`);
+    }
     if (traits.golemHp !== 7) failures.push(`${name}: golem sturdy should limit normal hero damage to 1, got hp ${traits.golemHp}`);
     if (traits.octopusDamage !== 41) failures.push(`${name}: octopus giant should add max-HP gap damage, got ${traits.octopusDamage}`);
+    if (traits.octopusDisplayAtk !== 41 || !/生命上限差/.test(traits.octopusTraitText || "")) {
+      failures.push(`${name}: octopus card should show effective attack and max-HP-gap copy, got ${JSON.stringify({ atk: traits.octopusDisplayAtk, trait: traits.octopusTraitText })}`);
+    }
     if (traits.demonAttackDown !== 1 || traits.dragonSpeedDown !== 1) failures.push(`${name}: demon/dragon debuffs should stack on attack, got ${JSON.stringify(traits.debuffState)}`);
     if (traits.archmageAtk !== 17 || traits.archmageDef !== 6) failures.push(`${name}: archmage promotion should gain attack when hit and defense after attack, got ${JSON.stringify(traits.archmageState)}`);
     if (traits.knightDamageWithGuards !== 0 || traits.knightDamageAfterGuardDeath !== 17) {
@@ -231,6 +253,43 @@ function assertScenario(name, metrics) {
   if (name === "mobile-boss-selection") {
     if (metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: boss floor still shows 逃跑`);
     if (!metrics.visibleButtons.includes("选择怪物")) failures.push(`${name}: boss floor should require selecting all monsters`);
+    const enemies = metrics.state.enemies || [];
+    if (enemies.length !== 1 || enemies[0].typeKey !== "knightCaptain") {
+      failures.push(`${name}: floor 30 should preview one wide knight captain card, got ${JSON.stringify(enemies.map((enemy) => enemy.typeKey))}`);
+    }
+    if (enemies[0]?.drop !== "胶卷 0.3") {
+      failures.push(`${name}: floor 30 preview should show boss drop 胶卷 0.3, got ${enemies[0]?.drop}`);
+    }
+  }
+  if (name === "mobile-boss-retreat") {
+    const bossRetreat = metrics.bossRetreat || {};
+    const summon = metrics.knightCaptainSummon || {};
+    if (summon.inBattleTypes?.join(",") !== "guard,knightCaptain,guard") {
+      failures.push(`${name}: knight captain should summon visual guard/captain/guard cards, got ${JSON.stringify(summon.inBattleTypes)}`);
+    }
+    if (summon.inBattleOrders?.join(",") !== "1,3,2") {
+      failures.push(`${name}: knight captain battle order should display 1,3,2, got ${JSON.stringify(summon.inBattleOrders)}`);
+    }
+    if (summon.activeOrderTypes?.join(",") !== "guard,guard,knightCaptain") {
+      failures.push(`${name}: knight captain attack order should be left guard, right guard, captain, got ${JSON.stringify(summon.activeOrderTypes)}`);
+    }
+    if (summon.summonedDrops?.join(",") !== "胶卷 0.0,胶卷 0.3,胶卷 0.0") {
+      failures.push(`${name}: summoned guards should not add film economy, got ${JSON.stringify(summon.summonedDrops)}`);
+    }
+    if (!bossRetreat.inBattleRetreatVisible) failures.push(`${name}: boss battle should show retreat after battle starts`);
+    if (bossRetreat.afterFloor !== 30 || bossRetreat.afterBattleActive) failures.push(`${name}: boss retreat should restore pre-battle boss floor, got ${JSON.stringify(bossRetreat)}`);
+    if (bossRetreat.afterHp !== bossRetreat.beforeHp || bossRetreat.afterShield !== bossRetreat.beforeShield) failures.push(`${name}: boss retreat should restore hero HP/shield, got ${JSON.stringify(bossRetreat)}`);
+    if (bossRetreat.enemyHpChanged) failures.push(`${name}: boss retreat should restore enemy HP, got ${JSON.stringify(bossRetreat)}`);
+    if (bossRetreat.afterRetreatVisible) failures.push(`${name}: boss pre-battle state should not show retreat after retreat`);
+    if (bossRetreat.afterTypes?.join(",") !== "knightCaptain") {
+      failures.push(`${name}: boss retreat should restore a single knight captain card, got ${JSON.stringify(bossRetreat.afterTypes)}`);
+    }
+  }
+  if (name === "mobile-reward-boss-retreat") {
+    const bossRetreat = metrics.bossRetreat || {};
+    if (!bossRetreat.inBattleRetreatVisible) failures.push(`${name}: reward boss battle should show retreat after battle starts`);
+    if (bossRetreat.afterFloor !== 25 || bossRetreat.afterBattleActive) failures.push(`${name}: reward boss retreat should restore pre-battle reward boss floor, got ${JSON.stringify(bossRetreat)}`);
+    if (bossRetreat.afterRetreatVisible) failures.push(`${name}: reward boss pre-battle state should not show retreat after retreat`);
   }
   if (name === "mobile-info") {
     if (metrics.activeInfoTab !== "about") failures.push(`${name}: info panel should open on about/stat tab`);
@@ -261,10 +320,10 @@ function assertScenario(name, metrics) {
     if (formChecks.hpKill?.maxHp !== 93 || formChecks.hpKill?.hp !== 56) {
       failures.push(`${name}: mega HP kill should add max HP +3 and heal 6 in battle, got ${JSON.stringify(formChecks.hpKill)}`);
     }
-    if (formChecks.hpShared?.defenseMaxHp !== 90 || formChecks.hpShared?.afterKillDefenseMaxHp !== 93 || formChecks.hpShared?.afterKillDefenseHp !== 56) {
-      failures.push(`${name}: mega HP max should be shared across forms and persist after kill, got ${JSON.stringify(formChecks.hpShared)}`);
+    if (formChecks.hpShared?.defenseMaxHp !== 50 || formChecks.hpShared?.afterKillDefenseMaxHp !== 53 || formChecks.hpShared?.afterKillDefenseHp !== 16) {
+      failures.push(`${name}: mega HP form bonus should not be shared, but kill max HP should persist across forms, got ${JSON.stringify(formChecks.hpShared)}`);
     }
-    if (formChecks.hpSwitch?.attackHp !== 30 || formChecks.hpSwitch?.backHp !== 60 || formChecks.hpSwitch?.lowForm !== "hp" || formChecks.hpSwitch?.lowHp !== 20) {
+    if (formChecks.hpSwitch?.attackHp !== 30 || formChecks.hpSwitch?.backHp !== 60 || formChecks.hpSwitch?.lowForm !== "hp" || formChecks.hpSwitch?.lowHp !== 20 || formChecks.hpSwitch?.megaAttackHp !== 30 || formChecks.hpSwitch?.megaBackHp !== 70 || formChecks.hpSwitch?.megaLowForm !== "hp") {
       failures.push(`${name}: switching away from HP form should preserve missing HP and block lethal max-HP loss, got ${JSON.stringify(formChecks.hpSwitch)}`);
     }
     if (formChecks.speedPreStrike?.hp !== 3 || formChecks.speedPreStrike?.attackBonus !== 2 || formChecks.speedPreStrike?.hpAfter !== 52 || formChecks.speedPreStrike?.heroClock === Infinity) {
@@ -388,6 +447,72 @@ function assertScenario(name, metrics) {
     await page.evaluate(() => window.__photoHeroTestHooks.setFloor(30));
   });
 
+  scenarios.mobileBossRetreat = await collectScenario(mobile, "mobile-boss-retreat", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.setFloor(30);
+      hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));
+      window.__reviewBossRetreatStart = JSON.parse(window.render_game_to_text());
+    });
+    await page.click("#attackBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).currentBattle, null, { timeout: 3000 });
+    const inBattleRetreatVisible = await page.locator("#fleeBtn").isVisible();
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewKnightCaptainSummon = {
+        inBattleTypes: state.enemies.map((enemy) => enemy.typeKey),
+        inBattleOrders: state.enemies.map((enemy) => enemy.selectionOrder),
+        activeOrderTypes: state.activeEnemyIds
+          .map((id) => state.enemies.find((enemy) => enemy.id === id)?.typeKey)
+          .filter(Boolean),
+        summonedDrops: state.enemies.map((enemy) => enemy.drop),
+      };
+    });
+    await page.click("#fleeBtn");
+    await page.waitForFunction(() => !JSON.parse(window.render_game_to_text()).currentBattle, null, { timeout: 3000 });
+    await page.evaluate((visible) => {
+      const before = window.__reviewBossRetreatStart;
+      const after = JSON.parse(window.render_game_to_text());
+      const beforeEnemies = new Map((before?.enemies || []).map((enemy) => [enemy.id, enemy.hp]));
+      window.__reviewBossRetreat = {
+        inBattleRetreatVisible: visible,
+        beforeHp: before?.player?.hp,
+        beforeShield: before?.player?.shield,
+        afterHp: after.player.hp,
+        afterShield: after.player.shield,
+        afterFloor: after.floor,
+        afterBattleActive: Boolean(after.currentBattle),
+        afterTypes: after.enemies.map((enemy) => enemy.typeKey),
+        afterRetreatVisible: Array.from(document.querySelectorAll("button"))
+          .some((node) => !node.hidden && node.offsetParent !== null && node.textContent.trim().includes("閫冭窇")),
+        enemyHpChanged: after.enemies.some((enemy) => beforeEnemies.has(enemy.id) && beforeEnemies.get(enemy.id) !== enemy.hp),
+      };
+    }, inBattleRetreatVisible);
+  });
+
+  scenarios.mobileRewardBossRetreat = await collectScenario(mobile, "mobile-reward-boss-retreat", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.setFloor(25);
+      hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));
+    });
+    await page.click("#attackBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).currentBattle, null, { timeout: 3000 });
+    const inBattleRetreatVisible = await page.locator("#fleeBtn").isVisible();
+    await page.click("#fleeBtn");
+    await page.waitForFunction(() => !JSON.parse(window.render_game_to_text()).currentBattle, null, { timeout: 3000 });
+    await page.evaluate((visible) => {
+      const after = JSON.parse(window.render_game_to_text());
+      window.__reviewBossRetreat = {
+        inBattleRetreatVisible: visible,
+        afterFloor: after.floor,
+        afterBattleActive: Boolean(after.currentBattle),
+        afterRetreatVisible: Array.from(document.querySelectorAll("button"))
+          .some((node) => !node.hidden && node.offsetParent !== null && node.textContent.trim().includes("閫冭窇")),
+      };
+    }, inBattleRetreatVisible);
+  });
+
   scenarios.mobileFormEconomy = await collectScenario(mobile, "mobile-form-economy", async (page) => {
     await page.evaluate(() => {
       const hooks = window.__photoHeroTestHooks;
@@ -460,11 +585,27 @@ function assertScenario(name, metrics) {
       const backHp = hooks.state.player.hp;
       hooks.setHeroStats({ hp: 20 });
       hooks.setHeroForm("attack");
+      const lowForm = hooks.state.player.formId;
+      const lowHp = hooks.state.player.hp;
+      hooks.resetGameForTest();
+      hooks.setFormProgress({ hp: { kills: 10, level: 2 } });
+      hooks.setHeroForm("hp");
+      hooks.setHeroStats({ hp: 70 });
+      hooks.setHeroForm("attack");
+      const megaAttackHp = hooks.state.player.hp;
+      hooks.setHeroForm("hp");
+      const megaBackHp = hooks.state.player.hp;
+      hooks.setHeroStats({ hp: 40 });
+      hooks.setHeroForm("attack");
       const hpSwitch = {
         attackHp,
         backHp,
-        lowForm: hooks.state.player.formId,
-        lowHp: hooks.state.player.hp,
+        lowForm,
+        lowHp,
+        megaAttackHp,
+        megaBackHp,
+        megaLowForm: hooks.state.player.formId,
+        megaLowHp: hooks.state.player.hp,
       };
       hooks.resetGameForTest();
       setMegaForm("speed");
@@ -765,17 +906,72 @@ function assertScenario(name, metrics) {
       const startAutoBattleGuardShieldApplied = startAutoBattleGuardState.every((enemy) => enemy.shield === 40 && enemy.maxShield === 40);
 
       enemies = begin([baseEnemy("w1", "warrior"), baseEnemy("s1", "slime"), baseEnemy("s2", "slime")]);
-      const warriorState = enemies.map((enemy) => ({ atk: enemy.atk, def: enemy.def, speed: enemy.speed }));
-      const warcryApplied = warriorState[0].atk === 15 && warriorState[0].def === 8 && warriorState[0].speed === 3
-        && warriorState[1].atk === 9 && warriorState[1].def === 3 && warriorState[1].speed === 3;
+      const warriorBaseState = enemies.map((enemy) => ({ atk: enemy.atk, def: enemy.def, speed: enemy.speed }));
+      const warriorLiveState = enemies.map((enemy) => hooks.getMonsterDisplayStats(enemy, enemies.map((item) => item.id)));
+      const warcryApplied = warriorBaseState[0].atk === 12 && warriorBaseState[0].def === 5 && warriorBaseState[0].speed === 2
+        && warriorLiveState[0].atk === 15 && warriorLiveState[0].def === 8 && warriorLiveState[0].speed === 3
+        && warriorLiveState[1].atk === 9 && warriorLiveState[1].def === 3 && warriorLiveState[1].speed === 3;
+      hooks.state.battleClock = {
+        hero: 0,
+        enemies: [
+          { id: "w1", time: 0.3333333333333333 },
+          { id: "s1", time: 0.3333333333333333 },
+          { id: "s2", time: 0.3333333333333333 },
+        ],
+        round: 1,
+        encounterId: hooks.state.encounterId,
+      };
+      hooks.state.activeEnemyIds = ["w1", "s1", "s2"];
+      hooks.applyHeroDamageToEnemy(enemies[0], { atk: 999, def: 1, speed: 1, maxHp: 80, shield: 0, regen: 0, lifesteal: 0 });
+      hooks.defeatEnemy(enemies[0]);
+      const warcryClockAfterDeath = hooks.state.battleClock.enemies.find((clock) => clock.id === "s1")?.time;
+      const warriorAfterDeathState = enemies.map((enemy) => hooks.getMonsterDisplayStats(enemy, enemies.map((item) => item.id)));
+      const warcryRemoved = warriorAfterDeathState[1].atk === 6 && warriorAfterDeathState[1].def === 0 && warriorAfterDeathState[1].speed === 2
+        && warriorAfterDeathState[2].atk === 6 && warriorAfterDeathState[2].def === 0 && warriorAfterDeathState[2].speed === 2;
 
+      hooks.setHeroStats({ hp: 80, shield: 3, baseDef: 10, baseShield: 0 });
+      enemies = begin([baseEnemy("z0", "wizard")]);
+      const wizardSingleDef = hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)).def;
+      hooks.addSpecialItem("takeDamageDefense", { itemName: "阻击护壳测试", description: "shield shell protect", value: 15, stats: {}, specialAffinity: ["takeDamageDefense"] });
+      hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["z0"]), 1);
+      const wizardTempDefAfterHit = hooks.getBattleStatsForTest(["z0"]).def;
+
+      hooks.setHeroStats({ hp: 80, shield: 3, baseDef: 10, baseShield: 3 });
       enemies = begin([baseEnemy("z1", "wizard"), baseEnemy("z2", "wizard")]);
       const wizardDef = hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)).def;
+      enemies[0].hp = 0;
+      enemies[1].hp = 0;
+      const wizardAfterDeathDef = hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)).def;
+
+      hooks.setHeroStats({ hp: 80, shield: 0, baseDef: -3, baseShield: 0 });
+      enemies = begin([baseEnemy("zn1", "wizard", { atk: 10 })]);
+      const wizardNegativeDef = hooks.getBattleStatsForTest(["zn1"]).def;
+      hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["zn1"]), 1);
+      const wizardNegativeHp = hooks.state.player.hp;
 
       hooks.setHeroStats({ hp: 80, shield: 3, baseDef: 1 });
       enemies = begin([baseEnemy("p1", "patrol", { atk: 6 })]);
       hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["p1"]), 1);
-      const patrolState = { hp: hooks.state.player.hp, shield: hooks.state.player.shield };
+      enemies[0].hp = 0;
+      const patrolState = { hp: hooks.state.player.hp, shield: hooks.state.player.shield, afterDeathShield: hooks.state.player.shield };
+
+      hooks.resetGameForTest();
+      hooks.setHeroStats({ hp: 50, shield: 0, baseAtk: 0, baseDef: 999, baseLifesteal: 2 });
+      enemies = begin([baseEnemy("sk1", "skeleton"), baseEnemy("sl1", "slime", { hp: 20, def: 0, traits: [] })]);
+      hooks.resolveHeroStrikeAgainstEnemy(enemies[1]);
+      const noLifestealBefore = hooks.state.player.hp - 50;
+      enemies[0].hp = 0;
+      hooks.resolveHeroStrikeAgainstEnemy(enemies[1]);
+      const noLifestealAfter = hooks.state.player.hp - 50;
+
+      hooks.resetGameForTest();
+      hooks.setHeroStats({ hp: 40, shield: 0, baseDef: 999, baseRegen: 4 });
+      enemies = begin([baseEnemy("kn1", "knight"), baseEnemy("sl2", "slime", { atk: 0, traits: [] })]);
+      hooks.resolveMonsterStrike(enemies[1], hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)), 1);
+      const noRegenBefore = hooks.state.player.hp - 40;
+      enemies[0].hp = 0;
+      hooks.resolveMonsterStrike(enemies[1], hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)), 1);
+      const noRegenAfter = hooks.state.player.hp - 40;
 
       enemies = begin([baseEnemy("go1", "golem")]);
       hooks.applyHeroDamageToEnemy(enemies[0], { atk: 20, def: 1, speed: 1, maxHp: 80, shield: 0, regen: 0, lifesteal: 0 });
@@ -783,6 +979,9 @@ function assertScenario(name, metrics) {
 
       enemies = begin([baseEnemy("oc1", "octopus")]);
       const octopusDamage = hooks.getMonsterAttackForStrike(enemies[0], { maxHp: 80 });
+      const octopusState = JSON.parse(window.render_game_to_text()).enemies.find((enemy) => enemy.id === "oc1") || {};
+      const octopusDisplayAtk = octopusState.displayAtk;
+      const octopusTraitText = (octopusState.traits || []).join(" / ");
 
       enemies = begin([baseEnemy("dm1", "demon", { atk: 1 })]);
       hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["dm1"]), 1);
@@ -809,14 +1008,30 @@ function assertScenario(name, metrics) {
         guardShieldDisplayed,
         startAutoBattleGuardState,
         startAutoBattleGuardShieldApplied,
-        warriorState,
+        warriorBaseState,
+        warriorLiveState,
+        warriorAfterDeathState,
         warcryApplied,
+        warcryRemoved,
+        warcryClockAfterDeath,
+        wizardSingleDef,
+        wizardTempDefAfterHit,
         wizardDef,
+        wizardAfterDeathDef,
+        wizardNegativeDef,
+        wizardNegativeHp,
         patrolState,
         patrolHp: patrolState.hp,
         patrolShield: patrolState.shield,
+        patrolAfterDeathShield: patrolState.afterDeathShield,
+        noLifestealBefore,
+        noLifestealAfter,
+        noRegenBefore,
+        noRegenAfter,
         golemHp,
         octopusDamage,
+        octopusDisplayAtk,
+        octopusTraitText,
         debuffState: { demonAttackDown, dragonSpeedDown },
         demonAttackDown,
         dragonSpeedDown,

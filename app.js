@@ -125,7 +125,7 @@ const analysisImageQuality = 0.72;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
-const gameSaveVersion = 18;
+const gameSaveVersion = 19;
 const initialFilmRolls = 3;
 const heroFormUpgradeKills = 10;
 const bossFloors = new Set([10, 20, 30, 40]);
@@ -133,7 +133,7 @@ const rewardBossFloors = new Set([25, 35, 38]);
 const bossRewardChoiceFloors = [10, 20, 25, 30, 35, 38];
 const bossRewardChoiceCount = bossRewardChoiceFloors.length;
 const bossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
-const highFilmBossMonsterKeys = new Set(["skeletonCaptain", "vampire", "demon", "octopus", "dragon", "archmage"]);
+const highFilmBossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
 
 const statLabels = {
   hp: "生命上限",
@@ -381,8 +381,8 @@ const monsterTypes = {
   guard: { name: "卫兵", atk: 8, def: 8, hp: 50, speed: 2, traits: [{ type: "teamShield", value: 20, text: "护阵：全体护盾+20" }] },
   knight: { name: "骑士", atk: 15, def: 6, hp: 45, speed: 4, traits: [{ type: "noRegen", text: "红莲：无法回复" }] },
   golem: { name: "石头人", atk: 15, def: 18, hp: 8, speed: 1, traits: [{ type: "sturdy", text: "坚固：防御至少为敌方攻击-1" }] },
-  patrol: { name: "警卫", atk: 16, def: 6, hp: 50, speed: 4, traits: [{ type: "breakShield", text: "破盾：护盾清0" }] },
-  octopus: { name: "章鱼", atk: 1, def: 0, hp: 120, speed: 4, traits: [{ type: "giant", value: 120, text: "巨物：攻击增加生命差" }] },
+  patrol: { name: "警卫", atk: 16, def: 6, hp: 50, speed: 4, traits: [{ type: "breakShield", text: "破盾：开局护盾清0" }] },
+  octopus: { name: "章鱼", atk: 1, def: 0, hp: 120, speed: 4, traits: [{ type: "giant", value: 120, text: "巨物：攻击增加生命上限差" }] },
   dragon: { name: "魔龙", atk: 24, def: 10, hp: 80, speed: 3, traits: [{ type: "speedDownOnAttack", value: 1, text: "龙威：每次攻击速度-1" }] },
   vampire: { name: "吸血鬼", atk: 15, def: 0, hp: 66, speed: 6, traits: [{ type: "lifesteal", value: 6, text: "吸血6" }] },
   demon: { name: "魔王", atk: 25, def: 15, hp: 75, speed: 5, traits: [{ type: "attackDownOnAttack", value: 1, text: "压制：每次攻击敌方攻击-1" }] },
@@ -391,7 +391,7 @@ const monsterTypes = {
   warrior: { name: "战士", atk: 12, def: 5, hp: 30, speed: 2, traits: [{ type: "teamWarcry", atk: 3, def: 3, speed: 1, text: "战意：全体攻防+3，速+1" }] },
   archmage: { name: "大法师", atk: 16, def: 5, hp: 72, speed: 4, traits: [{ type: "promotion", text: "晋升：攻击涨防，被攻击涨攻" }] },
   skeletonCaptain: { name: "骷髅队长", atk: 12, def: 5, hp: 44, speed: 3, traits: [{ type: "noLifesteal", text: "制裁：无法吸血" }] },
-  knightCaptain: { name: "骑士队长", atk: 15, def: 3, hp: 40, speed: 4, traits: [{ type: "guardedByGuards", value: 50, text: "护驾：每个卫兵减伤50%" }] },
+  knightCaptain: { name: "骑士队长", atk: 15, def: 3, hp: 40, speed: 4, traits: [{ type: "guardedByGuards", value: 50, text: "护驾：每个卫兵减伤50%" }, { type: "summonGuards", text: "群殴：开战召唤2个卫兵" }] },
 };
 
 const normalMonsterUnlocks = [
@@ -3459,7 +3459,7 @@ function canRetreatCurrentBattle() {
   if (state.gameClear || state.bossReward || isCareerSummaryOpen()) return false;
   if (isPlayerDefeated() || !state.currentBattle) return false;
   if (state.battleStartTimer || state.pendingFloorAdvance || hasPendingPhoto() || isAnalyzingPhoto()) return false;
-  return !isBossRewardFloor(state.currentBattle.floor || state.floor);
+  return true;
 }
 
 function retreatCurrentBattle() {
@@ -3598,17 +3598,54 @@ function resetBattleSpecial() {
 }
 
 function beginBattle(enemies) {
-  const activeIds = enemies.map((enemy) => enemy.id);
-  state.battleSnapshot = makeBattleSnapshot(activeIds);
+  const snapshotIds = enemies.map((enemy) => enemy.id);
+  state.battleSnapshot = makeBattleSnapshot(snapshotIds);
+  const activeIds = expandEnemiesForBattle(enemies).map((enemy) => enemy.id);
   state.activeEnemyIds = activeIds;
+  state.selectedEnemyIds = [...activeIds];
   resetBattleSpecial();
   ensureCurrentBattle(activeIds);
-  applyBattleStartEnemyAuras(enemies);
+  const activeEnemies = activeIds
+    .map((id) => state.enemies.find((enemy) => enemy.id === id))
+    .filter(Boolean);
+  applyBattleStartEnemyAuras(activeEnemies);
   const stats = getBattleStats(activeIds);
   state.player.shield = stats.shield;
   state.player.shieldMonsterId = state.encounterId;
+  applyBattleStartHeroEffects(activeEnemies);
   applyPreBattleFormEffects();
   state.battleClock = makeBattleClock(getBattleStats(state.activeEnemyIds), getActiveBattleEnemies());
+}
+
+function expandEnemiesForBattle(enemies) {
+  if (!shouldSummonKnightCaptainGuards(enemies)) return enemies;
+  const captain = enemies[0];
+  const leftGuard = makeSummonedGuard(captain, 0);
+  const battleCaptain = { ...captain, slot: 1, summonedBattleCenter: true };
+  const rightGuard = makeSummonedGuard(captain, 2);
+  state.enemies = [leftGuard, battleCaptain, rightGuard];
+  state.enemyFaceDownIds = new Set();
+  state.enemyFlipDownIds = new Set();
+  return [leftGuard, rightGuard, battleCaptain];
+}
+
+function shouldSummonKnightCaptainGuards(enemies) {
+  return state.floor === 30
+    && Array.isArray(enemies)
+    && enemies.length === 1
+    && enemies[0]?.typeKey === "knightCaptain"
+    && hasTrait(enemies[0], "summonGuards")
+    && !enemies[0].summonedBattleCenter;
+}
+
+function makeSummonedGuard(captain, slot) {
+  const guard = makeEnemy("guard", captain.floor || state.floor, slot);
+  return {
+    ...guard,
+    id: `${captain.id}-summoned-guard-${slot === 0 ? "left" : "right"}`,
+    summoned: true,
+    summonSourceId: captain.id,
+  };
 }
 
 function applyBattleStartEnemyAuras(enemies = getActiveBattleEnemies()) {
@@ -3620,15 +3657,15 @@ function applyBattleStartEnemyAuras(enemies = getActiveBattleEnemies()) {
       enemy.shield = Math.max(0, enemy.shield || 0) + shieldBonus;
     }
   }
-  const warcry = getEnemyWarcryBonus(activeEnemies);
-  if (warcry.atk || warcry.def || warcry.speed) {
-    for (const enemy of activeEnemies) {
-      enemy.atk = Math.max(0, (enemy.atk || 0) + warcry.atk);
-      enemy.def = Math.max(0, (enemy.def || 0) + warcry.def);
-      enemy.speed = Math.max(1, (enemy.speed || 1) + warcry.speed);
-    }
+}
+
+function applyBattleStartHeroEffects(enemies = getActiveBattleEnemies()) {
+  const activeEnemies = Array.isArray(enemies) ? enemies.filter((enemy) => enemy?.hp > 0) : [];
+  if (activeEnemies.some((enemy) => hasTrait(enemy, "breakShield")) && state.player.shield > 0) {
+    const shieldLoss = state.player.shield;
+    state.player.shield = 0;
+    addBattleDetail(`警卫破盾，护盾清空 ${shieldLoss}。`);
   }
-  state.battleSpecial.defenseBreakRatio = getEnemyDefenseBreakRatio(activeEnemies);
 }
 
 function makeBattleSnapshot(activeIds) {
@@ -3736,7 +3773,7 @@ function resolveBattleAction() {
     const enemy = state.enemies.find((item) => item.id === enemyClock.id);
     const enemyActionTime = enemyClock.time;
     if (enemy) resolveMonsterStrike(enemy, stats, round);
-    enemyClock.time += getActionInterval(enemy?.speed || 0);
+    enemyClock.time += getActionInterval(getEffectiveEnemySpeed(enemy, getActiveBattleEnemies()));
     if (enemy && hasTrait(enemy, "speedDownOnAttack")) {
       state.battleClock.hero = enemyActionTime + getActionInterval(getBattleStats(state.activeEnemyIds).speed);
     }
@@ -3969,7 +4006,7 @@ function resolveMonsterStrike(enemy, stats, round) {
 
   for (let i = 0; i < hitCount; i += 1) {
     const currentStatsBeforeHit = getBattleStats(state.activeEnemyIds);
-    const monsterAtk = getMonsterAttackForStrike(enemy, currentStatsBeforeHit);
+    const monsterAtk = getMonsterAttackForStrike(enemy, currentStatsBeforeHit, getActiveBattleEnemies());
     const damage = hasTrait(enemy, "magic") ? Math.max(0, monsterAtk) : Math.max(0, monsterAtk - currentStatsBeforeHit.def);
     const immunity = getHeroFormLevelConfig().damageImmunity || 0;
     const isImmune = state.battleSpecial.damageImmuneUsed < immunity && damage > 0;
@@ -3978,9 +4015,8 @@ function resolveMonsterStrike(enemy, stats, round) {
       immuneCount += 1;
     }
     const effectiveDamage = isImmune ? 0 : damage;
-    const breakShield = hasTrait(enemy, "breakShield") && state.player.shield > 0;
-    const shieldLoss = breakShield ? state.player.shield : Math.min(state.player.shield, effectiveDamage);
-    const hpLoss = breakShield ? effectiveDamage : effectiveDamage - shieldLoss;
+    const shieldLoss = Math.min(state.player.shield, effectiveDamage);
+    const hpLoss = effectiveDamage - shieldLoss;
     state.player.shield -= shieldLoss;
     state.player.hp = Math.max(0, state.player.hp - hpLoss);
     totalHpLoss += hpLoss;
@@ -4133,7 +4169,37 @@ function removeActiveEnemyIds(ids) {
   state.activeEnemyIds = state.activeEnemyIds.filter((id) => !idSet.has(id));
   if (state.battleClock?.enemies) {
     state.battleClock.enemies = state.battleClock.enemies.filter((clock) => !idSet.has(clock.id));
+    rescaleEnemyClocksForActiveAuras();
   }
+}
+
+function rescaleEnemyClocksForActiveAuras() {
+  if (!state.battleClock?.enemies?.length) return;
+  const activeEnemies = getActiveBattleEnemies();
+  const activeEnemyMap = new Map(activeEnemies.map((enemy) => [enemy.id, enemy]));
+  const currentTime = getCurrentBattleClockTime();
+  for (const clock of state.battleClock.enemies) {
+    const enemy = activeEnemyMap.get(clock.id);
+    if (!enemy) continue;
+    const interval = getActionInterval(getEffectiveEnemySpeed(enemy, activeEnemies));
+    if (interval === Infinity) {
+      clock.time = Infinity;
+      continue;
+    }
+    clock.time = currentTime + interval;
+  }
+}
+
+function getCurrentBattleClockTime() {
+  if (!state.battleClock) return 0;
+  const times = [];
+  if (Number.isFinite(state.battleClock.hero)) times.push(state.battleClock.hero);
+  if (Array.isArray(state.battleClock.enemies)) {
+    for (const clock of state.battleClock.enemies) {
+      if (Number.isFinite(clock.time)) times.push(clock.time);
+    }
+  }
+  return times.length ? Math.max(0, Math.min(...times)) : 0;
 }
 
 function ensureCurrentBattle(activeIds, stats = getBattleStats(activeIds)) {
@@ -4739,7 +4805,7 @@ function makeBattleClock(stats, enemies) {
     hero: getActionInterval(stats.speed),
     enemies: enemies.map((enemy) => ({
       id: enemy.id,
-      time: getActionInterval(enemy.speed),
+      time: getActionInterval(getEffectiveEnemySpeed(enemy, enemies)),
     })),
     round: 1,
     encounterId: state.encounterId,
@@ -4766,7 +4832,7 @@ function getHeroTargetEnemy() {
 function getActiveBattleEnemies() {
   return state.activeEnemyIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
-    .filter(Boolean);
+    .filter((enemy) => enemy && enemy.hp > 0);
 }
 
 function handleBattleEndAdvance(mode = "instant") {
@@ -4891,7 +4957,7 @@ function getFloorMonsterTypes(floor) {
   if (floor === 10) return ["skeletonCaptain"];
   if (floor === 20) return ["vampire"];
   if (floor === 25) return ["octopus"];
-  if (floor === 30) return ["guard", "guard", "knightCaptain"];
+  if (floor === 30) return ["knightCaptain"];
   if (floor === 35) return ["dragon"];
   if (floor === 38) return ["archmage"];
   if (floor === 40) return ["demon"];
@@ -5146,6 +5212,7 @@ function getEnemyPreviewFilmShardDrop(enemy) {
 }
 
 function getEnemyBaseFilmShards(enemy) {
+  if (enemy?.summoned) return 0;
   const typeKey = enemy?.typeKey || "";
   return highFilmBossMonsterKeys.has(typeKey) ? 3 : 1;
 }
@@ -5578,7 +5645,7 @@ function getBattleStats(activeIds = state.activeEnemyIds) {
   const stats = getPlayerStats();
   const activeEnemies = activeIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
-    .filter(Boolean);
+    .filter((enemy) => enemy && enemy.hp > 0);
   return applyEnemyBattleModifiers(stats, activeEnemies, state.battleSpecial);
 }
 
@@ -5594,12 +5661,19 @@ function getBattleStatsForEnemiesWithSpecial(enemies, battleSpecial) {
 
 function applyEnemyBattleModifiers(stats, enemies, battleSpecial = createDefaultBattleSpecial()) {
   applyBattleSpecialPassives(stats);
+  const aliveEnemies = getAliveTraitEnemies(enemies);
+  Object.defineProperty(stats, "activeEnemies", {
+    value: aliveEnemies,
+    configurable: true,
+  });
   const defenseBreakRatio = Math.max(
-    getEnemyDefenseBreakRatio(enemies),
-    clampNumber(battleSpecial?.defenseBreakRatio, 0, 1),
+    getEnemyDefenseBreakRatio(aliveEnemies),
+    0,
   );
   if (defenseBreakRatio > 0) {
-    stats.def = Math.floor(Math.max(0, stats.def) * Math.max(0, 1 - defenseBreakRatio));
+    stats.def = stats.def > 0
+      ? Math.floor(stats.def * Math.max(0, 1 - defenseBreakRatio))
+      : stats.def;
   }
   return stats;
 }
@@ -5671,7 +5745,7 @@ function createBattleSimulation(enemies) {
     actualDead: false,
     activeIds: enemies.map((enemy) => enemy.id),
     heroTime: Infinity,
-    enemyTimes: new Map(enemies.map((enemy) => [enemy.id, getActionInterval(enemy.speed)])),
+    enemyTimes: new Map(enemies.map((enemy) => [enemy.id, getActionInterval(getEffectiveEnemySpeed(enemy, enemies))])),
     round: 1,
     rounds: 0,
     defeatedCount: 0,
@@ -5680,6 +5754,7 @@ function createBattleSimulation(enemies) {
   applySimBattleStartEnemyAuras(sim, enemies);
   const stats = getBattleStatsForEnemiesWithSpecial(enemies, sim.battleSpecial);
   sim.shield = stats.shield;
+  applySimBattleStartHeroEffects(sim, enemies);
   sim.heroTime = getActionInterval(stats.speed);
   return sim;
 }
@@ -5692,15 +5767,10 @@ function applySimBattleStartEnemyAuras(sim, enemies = []) {
       enemy.shield = Math.max(0, enemy.shield || 0) + shieldBonus;
     }
   }
-  const warcry = getEnemyWarcryBonus(enemies);
-  if (warcry.atk || warcry.def || warcry.speed) {
-    for (const enemy of enemies) {
-      enemy.atk = Math.max(0, (enemy.atk || 0) + warcry.atk);
-      enemy.def = Math.max(0, (enemy.def || 0) + warcry.def);
-      enemy.speed = Math.max(1, (enemy.speed || 1) + warcry.speed);
-    }
-  }
-  sim.battleSpecial.defenseBreakRatio = getEnemyDefenseBreakRatio(enemies);
+}
+
+function applySimBattleStartHeroEffects(sim, enemies = []) {
+  if (getAliveTraitEnemies(enemies).some((enemy) => hasTrait(enemy, "breakShield"))) sim.shield = 0;
 }
 
 function getSimMaxHpBonus(sim) {
@@ -5741,7 +5811,7 @@ function damageSimHero(sim, amount) {
 function cloneEnemyForSimulation(enemy) {
   return {
     ...enemy,
-    visualIndex: getEnemyVisualIndex(enemy),
+    visualIndex: Number.isFinite(enemy.visualIndex) ? enemy.visualIndex : getEnemyVisualIndex(enemy),
     traits: cloneTraits(enemy.traits || []),
   };
 }
@@ -5761,6 +5831,24 @@ function getSimBattleStats(sim, enemies) {
   stats.realMaxHp = getSimActualMaxHp(stats, sim);
   stats.maxHp += getSimMaxHpBonus(sim);
   return stats;
+}
+
+function getAliveTraitEnemies(enemies = []) {
+  return (Array.isArray(enemies) ? enemies : []).filter((enemy) => enemy && enemy.hp > 0);
+}
+
+function getEffectiveEnemyStats(enemy, enemies = getActiveBattleEnemies()) {
+  const activeEnemies = getAliveTraitEnemies(enemies);
+  const warcry = getEnemyWarcryBonus(activeEnemies);
+  return {
+    atk: Math.max(0, (enemy?.atk || 0) + warcry.atk),
+    def: Math.max(0, (enemy?.def || 0) + warcry.def),
+    speed: Math.max(1, (enemy?.speed || 1) + warcry.speed),
+  };
+}
+
+function getEffectiveEnemySpeed(enemy, enemies = getActiveBattleEnemies()) {
+  return getEffectiveEnemyStats(enemy, enemies).speed;
 }
 
 function simulateHeroStrike(sim, enemies, stats) {
@@ -5820,15 +5908,14 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
   for (let i = 0; i < hitCount; i += 1) {
     if (sim.actualDead) break;
     const currentStatsBeforeHit = getSimBattleStats(sim, enemies);
-    const monsterAtk = getMonsterAttackForStrike(enemy, currentStatsBeforeHit);
+    const monsterAtk = getMonsterAttackForStrike(enemy, currentStatsBeforeHit, getSimActiveEnemies(sim, enemies));
     const damage = hasTrait(enemy, "magic") ? Math.max(0, monsterAtk) : Math.max(0, monsterAtk - currentStatsBeforeHit.def);
     const immunity = getHeroFormLevelConfig().damageImmunity || 0;
     const isImmune = sim.battleSpecial.damageImmuneUsed < immunity && damage > 0;
     if (isImmune) sim.battleSpecial.damageImmuneUsed += 1;
     const effectiveDamage = isImmune ? 0 : damage;
-    const breakShield = hasTrait(enemy, "breakShield") && sim.shield > 0;
-    const shieldLoss = breakShield ? sim.shield : Math.min(sim.shield, effectiveDamage);
-    const hpLoss = breakShield ? effectiveDamage : effectiveDamage - shieldLoss;
+    const shieldLoss = Math.min(sim.shield, effectiveDamage);
+    const hpLoss = effectiveDamage - shieldLoss;
     sim.shield -= shieldLoss;
     damageSimHero(sim, hpLoss);
     if (shieldLoss > 0 && getHeroFormLevelConfig().shieldLossToHeal) {
@@ -5900,7 +5987,28 @@ function settleSimEnemyDefeat(sim, enemies, enemy) {
   simulateKillSpecial(sim, stats);
   sim.activeIds = sim.activeIds.filter((id) => id !== enemy.id);
   sim.enemyTimes.delete(enemy.id);
+  rescaleSimEnemyTimesForActiveAuras(sim, enemies);
   sim.defeatedCount += 1;
+}
+
+function rescaleSimEnemyTimesForActiveAuras(sim, enemies) {
+  const activeEnemies = getSimActiveEnemies(sim, enemies);
+  const activeEnemyMap = new Map(activeEnemies.map((enemy) => [enemy.id, enemy]));
+  const currentTime = getCurrentSimClockTime(sim);
+  for (const id of sim.activeIds) {
+    const enemy = activeEnemyMap.get(id);
+    if (!enemy) continue;
+    sim.enemyTimes.set(id, currentTime + getActionInterval(getEffectiveEnemySpeed(enemy, activeEnemies)));
+  }
+}
+
+function getCurrentSimClockTime(sim) {
+  const times = [];
+  if (Number.isFinite(sim.heroTime)) times.push(sim.heroTime);
+  for (const time of sim.enemyTimes.values()) {
+    if (Number.isFinite(time)) times.push(time);
+  }
+  return times.length ? Math.max(0, Math.min(...times)) : 0;
 }
 
 function getSimSweepNeighborEnemies(sim, enemies, sourceEnemy) {
@@ -5974,6 +6082,10 @@ function hasAnyActiveTrait(type) {
   return getActiveBattleEnemies().some((enemy) => hasTrait(enemy, type));
 }
 
+function hasAnyActiveTraitInEnemies(enemies, type) {
+  return getAliveTraitEnemies(enemies).some((enemy) => hasTrait(enemy, type));
+}
+
 function hasTrait(enemy, type) {
   return Array.isArray(enemy.traits) && enemy.traits.some((trait) => trait.type === type);
 }
@@ -5992,7 +6104,7 @@ function sumEnemyTraitValues(enemies = [], type, fallback = 0) {
 }
 
 function getEnemyWarcryBonus(enemies = []) {
-  return enemies.reduce((bonus, enemy) => {
+  return getAliveTraitEnemies(enemies).reduce((bonus, enemy) => {
     const trait = Array.isArray(enemy?.traits) ? enemy.traits.find((item) => item.type === "teamWarcry") : null;
     if (!trait) return bonus;
     bonus.atk += Number.isFinite(trait.atk) ? trait.atk : 0;
@@ -6003,7 +6115,7 @@ function getEnemyWarcryBonus(enemies = []) {
 }
 
 function getEnemyDefenseBreakRatio(enemies = []) {
-  const breakCount = enemies.filter((enemy) => hasTrait(enemy, "defenseBreakAura")).length;
+  const breakCount = getAliveTraitEnemies(enemies).filter((enemy) => hasTrait(enemy, "defenseBreakAura")).length;
   if (breakCount <= 0) return 0;
   return Math.min(1, breakCount * 0.5);
 }
@@ -6026,14 +6138,38 @@ function applyEnemyIncomingDamageModifiers(enemy, damage, enemies = getActiveBat
   return result;
 }
 
-function getMonsterAttackForStrike(enemy, heroStats) {
-  let atk = Math.max(0, enemy?.atk || 0);
+function getMonsterAttackForStrike(enemy, heroStats, enemies = getActiveBattleEnemies()) {
+  let atk = getEffectiveEnemyStats(enemy, enemies).atk;
   if (hasTrait(enemy, "giant")) {
     const baseHp = getTraitValue(enemy, "giant", enemy.maxHp || 0);
     const heroMaxHp = Number.isFinite(heroStats?.realMaxHp) ? heroStats.realMaxHp : heroStats?.maxHp;
     atk += Math.max(0, baseHp - Math.max(0, heroMaxHp || 0));
   }
   return atk;
+}
+
+function getMonsterDisplayAttack(enemy, activeIds = state.activeEnemyIds) {
+  const activeEnemies = activeIds?.length
+    ? activeIds.map((id) => state.enemies.find((item) => item.id === id)).filter(Boolean)
+    : getActiveBattleEnemies();
+  if (!enemy || !hasTrait(enemy, "giant")) return getEffectiveEnemyStats(enemy, activeEnemies.length ? activeEnemies : [enemy]).atk;
+  const stats = activeIds?.length
+    ? getBattleStats(activeIds)
+    : getPlayerStats();
+  return getMonsterAttackForStrike(enemy, stats, activeEnemies.length ? activeEnemies : [enemy]);
+}
+
+function getMonsterDisplayStats(enemy, activeIds = state.activeEnemyIds) {
+  const activeEnemies = activeIds?.length
+    ? activeIds.map((id) => state.enemies.find((item) => item.id === id)).filter(Boolean)
+    : getActiveBattleEnemies();
+  const enemies = activeEnemies.length ? activeEnemies : [enemy].filter(Boolean);
+  const effectiveStats = getEffectiveEnemyStats(enemy, enemies);
+  return {
+    atk: getMonsterDisplayAttack(enemy, activeIds),
+    def: effectiveStats.def,
+    speed: effectiveStats.speed,
+  };
 }
 
 function triggerEnemyDamagedTraits(enemy) {
@@ -6223,7 +6359,7 @@ function getPlayerStatsForForm(form = getHeroForm(), battleSpecial = createDefau
   for (const key of statOrder) {
     bonus[key] = (bonus[key] || 0) + (inventoryBonus[key] || 0);
   }
-  const formFilmStats = getHeroFormFilmStatBonus();
+  const formFilmStats = getHeroFormFilmStatBonus(form);
   for (const key of statOrder) {
     bonus[key] = (bonus[key] || 0) + (formFilmStats[key] || 0);
   }
@@ -6253,12 +6389,14 @@ function getPlayerStatsForForm(form = getHeroForm(), battleSpecial = createDefau
 }
 
 function getEffectiveEnemyDefense(enemy, stats = getBattleStats(state.activeEnemyIds)) {
+  const activeEnemies = Array.isArray(stats?.activeEnemies) ? stats.activeEnemies : getActiveBattleEnemies();
+  const effectiveDef = getEffectiveEnemyStats(enemy, activeEnemies).def;
   if (hasTrait(enemy, "sturdy")) {
-    return Math.max(enemy?.def || 0, (stats?.atk || 0) - 1);
+    return Math.max(effectiveDef, (stats?.atk || 0) - 1);
   }
   const ratio = getHeroFormLevelConfig().ignoreDefenseRatio || 0;
-  const ignored = Math.floor(Math.max(0, enemy?.def || 0) * ratio);
-  return (enemy?.def || 0) - ignored;
+  const ignored = Math.floor(Math.max(0, effectiveDef) * ratio);
+  return effectiveDef - ignored;
 }
 
 function getHeroForm() {
@@ -6270,28 +6408,11 @@ function getHeroFormStats() {
 }
 
 function getHeroFormStatsFor(form = getHeroForm()) {
-  const stats = normalizeSignedStats(getHeroFormLevelConfig(form).stats || {}, 999);
-  const sharedStats = getSharedHeroFormStatsFor(form);
-  for (const key of statOrder) {
-    stats[key] = (stats[key] || 0) + (sharedStats[key] || 0);
-  }
-  return stats;
+  return normalizeSignedStats(getHeroFormLevelConfig(form).stats || {}, 999);
 }
 
-function getSharedHeroFormStats() {
-  return getSharedHeroFormStatsFor(getHeroForm());
-}
-
-function getSharedHeroFormStatsFor(activeForm = getHeroForm()) {
-  const bonus = normalizeSignedStats({}, 999);
-  const hpForm = heroFormMap.get("hp");
-  if (!hpForm || activeForm?.id === "hp" || getHeroFormLevel(hpForm) < 2) return bonus;
-  bonus.hp += Math.max(0, hpForm.levels?.[2]?.stats?.hp || 0);
-  return bonus;
-}
-
-function getHeroFormFilmStatBonus() {
-  const config = getHeroFormLevelConfig();
+function getHeroFormFilmStatBonus(form = getHeroForm()) {
+  const config = getHeroFormLevelConfig(form);
   if (!config.filmStatCycle) return normalizeStats({}, 999);
   const points = clampInt(Math.floor(getFilmCount()), 0, 999);
   return {
@@ -7528,6 +7649,7 @@ function renderEnemyField() {
     const traitText = enemy.traits?.map((trait) => trait.text).filter(Boolean).join(" / ") || "";
     const imageUrl = getMonsterImageUrl(enemy.typeKey);
     const dropText = formatEnemyFilmDrop(enemy);
+    const displayStats = getMonsterDisplayStats(enemy, state.activeEnemyIds.includes(enemy.id) ? state.activeEnemyIds : [enemy.id]);
     button.innerHTML = `
       ${selectionOrder ? `<span class="selection-badge">${selectionOrder}</span>` : ""}
       <div class="enemy-card-head">
@@ -7540,9 +7662,9 @@ function renderEnemyField() {
         </div>
       </div>
       <dl class="enemy-card-stats">
-        <div><dt>攻</dt><dd>${enemy.atk}</dd></div>
-        <div><dt>防</dt><dd>${enemy.def}</dd></div>
-        <div><dt>速</dt><dd>${enemy.speed}</dd></div>
+        <div><dt>攻</dt><dd>${displayStats.atk}</dd></div>
+        <div><dt>防</dt><dd>${displayStats.def}</dd></div>
+        <div><dt>速</dt><dd>${displayStats.speed}</dd></div>
       </dl>
       <div class="enemy-card-result">
         <span>${dropText}</span>
@@ -7656,10 +7778,10 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
     return new Map(enemyIds.map((id) => [id, frozen.get(id) || makeUnknownEstimate()]));
   }
   const estimates = new Map();
-  const enemies = enemyIds
+  const sourceEnemies = enemyIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
     .filter(Boolean)
-    .map(cloneEnemyForSimulation);
+  const enemies = expandEnemiesForEstimate(sourceEnemies).map(cloneEnemyForSimulation);
   if (!enemies.length) return estimates;
 
   const actualStartHp = state.player.hp;
@@ -7714,7 +7836,7 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
         }
         break;
       }
-      sim.enemyTimes.set(nextEnemyId, enemyTime + getActionInterval(enemy?.speed || 0));
+      sim.enemyTimes.set(nextEnemyId, enemyTime + getActionInterval(getEffectiveEnemySpeed(enemy, getSimActiveEnemies(sim, enemies))));
       if (enemy && hasTrait(enemy, "speedDownOnAttack")) {
         sim.heroTime = enemyActionTime + getActionInterval(getSimBattleStats(sim, enemies).speed);
       }
@@ -7728,6 +7850,16 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
     }
   }
   return estimates;
+}
+
+function expandEnemiesForEstimate(enemies) {
+  if (!shouldSummonKnightCaptainGuards(enemies)) return enemies;
+  const captain = enemies[0];
+  return [
+    { ...makeSummonedGuard(captain, 0), visualIndex: 0 },
+    { ...makeSummonedGuard(captain, 2), visualIndex: 2 },
+    { ...captain, slot: 1, summonedBattleCenter: true, visualIndex: 1 },
+  ];
 }
 
 function formatHpLossEstimate(loss, actualStartHp) {
@@ -8551,10 +8683,13 @@ function renderGameTextOnly() {
       maxHp: enemy.maxHp,
       shield: enemy.shield,
       atk: enemy.atk,
+      displayStats: getMonsterDisplayStats(enemy, state.activeEnemyIds.includes(enemy.id) ? state.activeEnemyIds : [enemy.id]),
+      displayAtk: getMonsterDisplayAttack(enemy, state.activeEnemyIds.includes(enemy.id) ? state.activeEnemyIds : [enemy.id]),
       def: enemy.def,
       speed: enemy.speed,
       traits: enemy.traits?.map((trait) => trait.text || trait.type) || [],
       drop: formatEnemyFilmDrop(enemy),
+      summoned: Boolean(enemy.summoned),
       damageEstimate: enemyDamageEstimates.get(enemy.id)?.text || "",
       damageEstimateState: enemyDamageEstimates.get(enemy.id)?.state || "",
       selected: state.selectedEnemyIds.includes(enemy.id),
@@ -9179,7 +9314,9 @@ window.__photoHeroTestHooks = {
   },
   setHeroForm,
   getMonsterAttackForStrike,
+  getMonsterDisplayStats,
   applyHeroDamageToEnemy,
+  defeatEnemy,
   resolveHeroStrikeAgainstEnemy,
   resolveMonsterStrike,
   beginBattle,
