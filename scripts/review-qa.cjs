@@ -124,6 +124,12 @@ function assertScenario(name, metrics) {
     if (!metrics.visibleButtons.includes("选择")) failures.push(`${name}: missing reward confirm button`);
     if (/可切换|点选|点选择确认/.test(metrics.enemyText)) failures.push(`${name}: reward cards still show old footer copy`);
   }
+  if (name === "mobile-reward-boss-bypass") {
+    if (!metrics.visibleButtons.includes("绕过")) failures.push(`${name}: reward boss pre-battle should show 绕过`);
+    if (metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: reward boss pre-battle should not show 逃跑`);
+    if (metrics.state.floor !== 25) failures.push(`${name}: should inspect reward boss floor 25, got ${metrics.state.floor}`);
+    if (metrics.state.currentBattle) failures.push(`${name}: should remain pre-battle`);
+  }
   if (name === "mobile-career") {
     if (!metrics.visibleButtons.includes("生涯总结")) failures.push(`${name}: missing career summary button`);
     if (!metrics.equipmentGrid || metrics.equipmentGrid.height <= 0) failures.push(`${name}: equipment grid should stay usable after clear`);
@@ -238,6 +244,7 @@ function assertScenario(name, metrics) {
     if (traits.octopusDisplayAtk !== 41 || !/生命上限差/.test(traits.octopusTraitText || "")) {
       failures.push(`${name}: octopus card should show effective attack and max-HP-gap copy, got ${JSON.stringify({ atk: traits.octopusDisplayAtk, trait: traits.octopusTraitText })}`);
     }
+    if (traits.octopusSpeed !== 2) failures.push(`${name}: octopus speed should be 2, got ${traits.octopusSpeed}`);
     if (traits.demonAttackDown !== 1 || traits.dragonSpeedDown !== 1) failures.push(`${name}: demon/dragon debuffs should stack on attack, got ${JSON.stringify(traits.debuffState)}`);
     if (traits.archmageAtk !== 17 || traits.archmageDef !== 6) failures.push(`${name}: archmage promotion should gain attack when hit and defense after attack, got ${JSON.stringify(traits.archmageState)}`);
     if (traits.knightDamageWithGuards !== 0 || traits.knightDamageAfterGuardDeath !== 17) {
@@ -358,6 +365,10 @@ function assertScenario(name, metrics) {
 
   scenarios.mobileReward = await collectScenario(mobile, "mobile-reward", async (page) => {
     await page.evaluate(() => window.__photoHeroTestHooks.startBossRewardChoice(10));
+  });
+
+  scenarios.mobileRewardBossBypass = await collectScenario(mobile, "mobile-reward-boss-bypass", async (page) => {
+    await page.evaluate(() => window.__photoHeroTestHooks.setFloor(25));
   });
 
   scenarios.mobileFlee = await collectScenario(mobile, "mobile-flee", async (page) => {
@@ -981,6 +992,7 @@ function assertScenario(name, metrics) {
       const octopusDamage = hooks.getMonsterAttackForStrike(enemies[0], { maxHp: 80 });
       const octopusState = JSON.parse(window.render_game_to_text()).enemies.find((enemy) => enemy.id === "oc1") || {};
       const octopusDisplayAtk = octopusState.displayAtk;
+      const octopusSpeed = octopusState.displayStats?.speed;
       const octopusTraitText = (octopusState.traits || []).join(" / ");
 
       enemies = begin([baseEnemy("dm1", "demon", { atk: 1 })]);
@@ -1031,6 +1043,7 @@ function assertScenario(name, metrics) {
         golemHp,
         octopusDamage,
         octopusDisplayAtk,
+        octopusSpeed,
         octopusTraitText,
         debuffState: { demonAttackDown, dragonSpeedDown },
         demonAttackDown,

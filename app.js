@@ -382,7 +382,7 @@ const monsterTypes = {
   knight: { name: "骑士", atk: 15, def: 6, hp: 45, speed: 4, traits: [{ type: "noRegen", text: "红莲：无法回复" }] },
   golem: { name: "石头人", atk: 15, def: 18, hp: 8, speed: 1, traits: [{ type: "sturdy", text: "坚固：防御至少为敌方攻击-1" }] },
   patrol: { name: "警卫", atk: 16, def: 6, hp: 50, speed: 4, traits: [{ type: "breakShield", text: "破盾：开局护盾清0" }] },
-  octopus: { name: "章鱼", atk: 1, def: 0, hp: 120, speed: 4, traits: [{ type: "giant", value: 120, text: "巨物：攻击增加生命上限差" }] },
+  octopus: { name: "章鱼", atk: 1, def: 0, hp: 120, speed: 2, traits: [{ type: "giant", value: 120, text: "巨物：攻击增加生命上限差" }] },
   dragon: { name: "魔龙", atk: 24, def: 10, hp: 80, speed: 3, traits: [{ type: "speedDownOnAttack", value: 1, text: "龙威：每次攻击速度-1" }] },
   vampire: { name: "吸血鬼", atk: 15, def: 0, hp: 66, speed: 6, traits: [{ type: "lifesteal", value: 6, text: "吸血6" }] },
   demon: { name: "魔王", atk: 25, def: 15, hp: 75, speed: 5, traits: [{ type: "attackDownOnAttack", value: 1, text: "压制：每次攻击敌方攻击-1" }] },
@@ -3452,7 +3452,7 @@ function canBypassCurrentFloor() {
   if (state.gameClear || state.bossReward || isCareerSummaryOpen()) return false;
   if (isPlayerDefeated() || state.currentBattle || state.autoBattleTimer || state.battleStartTimer || state.pendingFloorAdvance) return false;
   if (isEquipmentLocked() || hasPendingPhoto()) return false;
-  return !isBossRewardFloor(state.floor);
+  return !isBossFloor(state.floor);
 }
 
 function canRetreatCurrentBattle() {
