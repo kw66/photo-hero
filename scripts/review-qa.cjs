@@ -251,7 +251,9 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: octopus card should show effective attack and max-HP-gap copy, got ${JSON.stringify({ atk: traits.octopusDisplayAtk, trait: traits.octopusTraitText })}`);
     }
     if (traits.octopusSpeed !== 2) failures.push(`${name}: octopus speed should be 2, got ${traits.octopusSpeed}`);
-    if (traits.demonAttackDown !== 1 || traits.dragonSpeedDown !== 1) failures.push(`${name}: demon/dragon debuffs should stack on attack, got ${JSON.stringify(traits.debuffState)}`);
+    if (traits.demonPromotionAtk !== 19 || traits.demonPromotionDef !== 9 || traits.dragonSpeedAfterAttack !== 4) {
+      failures.push(`${name}: demon should promote and dragon should speed up on attack, got ${JSON.stringify(traits.bossGrowthState)}`);
+    }
     if (traits.archmageAtk !== 17 || traits.archmageDef !== 6) failures.push(`${name}: archmage promotion should gain attack when hit and defense after attack, got ${JSON.stringify(traits.archmageState)}`);
     if (traits.knightDamageWithGuards !== 0 || traits.knightDamageAfterGuardDeath !== 17) {
       failures.push(`${name}: knight captain guard reduction should depend on living guards, got ${JSON.stringify(traits.knightState)}`);
@@ -1006,12 +1008,13 @@ function assertScenario(name, metrics) {
       const octopusSpeed = octopusState.displayStats?.speed;
       const octopusTraitText = (octopusState.traits || []).join(" / ");
 
-      enemies = begin([baseEnemy("dm1", "demon", { atk: 1 })]);
+      enemies = begin([baseEnemy("dm1", "demon")]);
+      hooks.applyHeroDamageToEnemy(enemies[0], { atk: 20, def: 1, speed: 1, maxHp: 80, shield: 0, regen: 0, lifesteal: 0 });
       hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["dm1"]), 1);
-      const demonAttackDown = hooks.state.battleSpecial.attackDown;
+      const demonPromotionState = { atk: enemies[0].atk, def: enemies[0].def };
       enemies = begin([baseEnemy("dr1", "dragon", { atk: 1 })]);
       hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["dr1"]), 1);
-      const dragonSpeedDown = hooks.state.battleSpecial.speedDown;
+      const dragonSpeedAfterAttack = enemies[0].speed;
 
       enemies = begin([baseEnemy("am1", "archmage")]);
       hooks.applyHeroDamageToEnemy(enemies[0], { atk: 20, def: 1, speed: 1, maxHp: 80, shield: 0, regen: 0, lifesteal: 0 });
@@ -1056,9 +1059,11 @@ function assertScenario(name, metrics) {
         octopusDisplayAtk,
         octopusSpeed,
         octopusTraitText,
-        debuffState: { demonAttackDown, dragonSpeedDown },
-        demonAttackDown,
-        dragonSpeedDown,
+        bossGrowthState: { demonPromotionState, dragonSpeedAfterAttack },
+        demonPromotionState,
+        demonPromotionAtk: demonPromotionState.atk,
+        demonPromotionDef: demonPromotionState.def,
+        dragonSpeedAfterAttack,
         archmageState,
         archmageAtk: archmageState.atk,
         archmageDef: archmageState.def,

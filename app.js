@@ -127,7 +127,7 @@ const analysisImageQuality = 0.72;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
-const gameSaveVersion = 19;
+const gameSaveVersion = 20;
 const initialFilmRolls = 3;
 const heroFormUpgradeKills = 10;
 const bossFloors = new Set([10, 20, 30, 40]);
@@ -386,9 +386,9 @@ const monsterTypes = {
   golem: { name: "石头人", atk: 15, def: 18, hp: 8, speed: 1, traits: [{ type: "sturdy", text: "坚固：防御至少为敌方攻击-1" }] },
   patrol: { name: "警卫", atk: 16, def: 6, hp: 50, speed: 4, traits: [{ type: "breakShield", text: "破盾：开局护盾清0" }] },
   octopus: { name: "章鱼", atk: 1, def: 0, hp: 120, speed: 2, traits: [{ type: "giant", value: 120, text: "巨物：攻击增加与勇者的生命上限差" }] },
-  dragon: { name: "魔龙", atk: 24, def: 10, hp: 80, speed: 3, traits: [{ type: "speedDownOnAttack", value: 1, text: "龙威：每次攻击使勇者速度-1" }] },
+  dragon: { name: "魔龙", atk: 24, def: 10, hp: 80, speed: 3, traits: [{ type: "speedUpOnAttack", value: 1, text: "龙威：每次攻击速度+1" }] },
   vampire: { name: "吸血鬼", atk: 15, def: 0, hp: 66, speed: 6, traits: [{ type: "lifesteal", value: 6, text: "吸血6" }] },
-  demon: { name: "魔王", atk: 25, def: 12, hp: 75, speed: 4, traits: [{ type: "attackDownOnAttack", value: 1, text: "压制：每次攻击使勇者攻击-1" }] },
+  demon: { name: "魔王", atk: 18, def: 8, hp: 100, speed: 4, traits: [{ type: "promotion", text: "晋升：攻击涨防，被攻击涨攻" }] },
   orc: { name: "兽人", atk: 12, def: 7, hp: 60, speed: 2, traits: [{ type: "regen", value: 5, text: "回复5" }] },
   swordsman: { name: "剑士", atk: 30, def: 0, hp: 20, speed: 5, traits: [{ type: "multiHit", value: 2, text: "连击2" }] },
   warrior: { name: "战士", atk: 12, def: 5, hp: 30, speed: 2, traits: [{ type: "teamWarcry", atk: 3, def: 3, speed: 1, text: "战意：全体攻防+3，速+1" }] },
@@ -3571,8 +3571,6 @@ function createDefaultBattleSpecial() {
     defense: 0,
     peerlessAttack: 0,
     peerlessDefense: 0,
-    attackDown: 0,
-    speedDown: 0,
     defenseBreakRatio: 0,
     damageImmuneUsed: 0,
     preBattleStruck: false,
@@ -3588,8 +3586,6 @@ function normalizeBattleSpecial(value) {
     defense: clampInt(source.defense, 0, defenseCap || 0),
     peerlessAttack: clampInt(source.peerlessAttack, 0, 999),
     peerlessDefense: clampInt(source.peerlessDefense, 0, 999),
-    attackDown: clampInt(source.attackDown, 0, 999),
-    speedDown: clampInt(source.speedDown, 0, 999),
     defenseBreakRatio: clampNumber(source.defenseBreakRatio, 0, 1),
     damageImmuneUsed: clampInt(source.damageImmuneUsed, 0, 999),
     preBattleStruck: Boolean(source.preBattleStruck),
@@ -3774,12 +3770,8 @@ function resolveBattleAction() {
     state.battleClock.round += 1;
   } else {
     const enemy = state.enemies.find((item) => item.id === enemyClock.id);
-    const enemyActionTime = enemyClock.time;
     if (enemy) resolveMonsterStrike(enemy, stats, round);
     enemyClock.time += getActionInterval(getEffectiveEnemySpeed(enemy, getActiveBattleEnemies()));
-    if (enemy && hasTrait(enemy, "speedDownOnAttack")) {
-      state.battleClock.hero = enemyActionTime + getActionInterval(getBattleStats(state.activeEnemyIds).speed);
-    }
     state.battleClock.round += 1;
   }
 
@@ -6189,15 +6181,10 @@ function triggerEnemyAttackTraits(enemy) {
     enemy.def = Math.max(0, (enemy.def || 0) + 1);
     changes.push("晋升防御+1");
   }
-  if (hasTrait(enemy, "attackDownOnAttack")) {
-    const value = Math.max(1, getTraitValue(enemy, "attackDownOnAttack", 1));
-    state.battleSpecial.attackDown = (state.battleSpecial.attackDown || 0) + value;
-    changes.push(`压制攻击-${value}`);
-  }
-  if (hasTrait(enemy, "speedDownOnAttack")) {
-    const value = Math.max(1, getTraitValue(enemy, "speedDownOnAttack", 1));
-    state.battleSpecial.speedDown = (state.battleSpecial.speedDown || 0) + value;
-    changes.push(`龙威速度-${value}`);
+  if (hasTrait(enemy, "speedUpOnAttack")) {
+    const value = Math.max(1, getTraitValue(enemy, "speedUpOnAttack", 1));
+    enemy.speed = Math.max(1, (enemy.speed || 1) + value);
+    changes.push(`龙威速度+${value}`);
   }
   return changes;
 }
@@ -6212,11 +6199,8 @@ function triggerSimEnemyAttackTraits(sim, enemy) {
   if (hasTrait(enemy, "promotion")) {
     enemy.def = Math.max(0, (enemy.def || 0) + 1);
   }
-  if (hasTrait(enemy, "attackDownOnAttack")) {
-    sim.battleSpecial.attackDown = (sim.battleSpecial.attackDown || 0) + Math.max(1, getTraitValue(enemy, "attackDownOnAttack", 1));
-  }
-  if (hasTrait(enemy, "speedDownOnAttack")) {
-    sim.battleSpecial.speedDown = (sim.battleSpecial.speedDown || 0) + Math.max(1, getTraitValue(enemy, "speedDownOnAttack", 1));
+  if (hasTrait(enemy, "speedUpOnAttack")) {
+    enemy.speed = Math.max(1, (enemy.speed || 1) + Math.max(1, getTraitValue(enemy, "speedUpOnAttack", 1)));
   }
 }
 
@@ -6382,9 +6366,9 @@ function getPlayerStatsForForm(form = getHeroForm(), battleSpecial = createDefau
 
   return {
     maxHp: state.player.baseHp + (bonus.hp || 0),
-    atk: state.player.baseAtk + (bonus.attack || 0) + (battleSpecial?.attack || 0) + (battleSpecial?.peerlessAttack || 0) - passiveAttackPenalty - (battleSpecial?.attackDown || 0),
+    atk: state.player.baseAtk + (bonus.attack || 0) + (battleSpecial?.attack || 0) + (battleSpecial?.peerlessAttack || 0) - passiveAttackPenalty,
     def: state.player.baseDef + (bonus.defense || 0) + (battleSpecial?.defense || 0) + (battleSpecial?.peerlessDefense || 0),
-    speed: state.player.baseSpeed + (bonus.speed || 0) - passiveSpeedPenalty - (battleSpecial?.speedDown || 0),
+    speed: state.player.baseSpeed + (bonus.speed || 0) - passiveSpeedPenalty,
     regen: regen * regenMultiplier,
     shield: state.player.baseShield + (bonus.shield || 0),
     lifesteal: lifesteal * lifestealMultiplier,
@@ -7878,7 +7862,6 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
       sim.round += 1;
     } else {
       const enemy = enemies.find((item) => item.id === nextEnemyId);
-      const enemyActionTime = enemyTime;
       if (enemy) simulateMonsterStrike(sim, enemy, enemies, currentStats);
       if (sim.actualDead) {
         for (const id of sim.activeIds) {
@@ -7887,9 +7870,6 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
         break;
       }
       sim.enemyTimes.set(nextEnemyId, enemyTime + getActionInterval(getEffectiveEnemySpeed(enemy, getSimActiveEnemies(sim, enemies))));
-      if (enemy && hasTrait(enemy, "speedDownOnAttack")) {
-        sim.heroTime = enemyActionTime + getActionInterval(getSimBattleStats(sim, enemies).speed);
-      }
       sim.round += 1;
     }
   }
