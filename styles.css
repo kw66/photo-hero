@@ -662,10 +662,21 @@ dd {
 .forms-panel,
 .info-panel {
   min-width: 0;
+}
+
+.forms-panel {
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgb(255 253 248 / 82%);
+}
+
+.config-panel,
+.info-panel {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .section-title,
@@ -2328,7 +2339,6 @@ dd {
 .config-panel,
 .info-panel {
   align-self: start;
-  background: color-mix(in srgb, var(--paper) 88%, white 12%);
 }
 
 .info-panel {

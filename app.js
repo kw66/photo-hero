@@ -5211,7 +5211,7 @@ function adjustHeroResourcesAfterStatChange(oldStats, newStats, oldShield = stat
   if (maxHpDelta > 0) {
     state.player.hp += maxHpDelta;
   } else if (maxHpDelta < 0) {
-    state.player.hp = Math.min(state.player.hp, newStats.maxHp);
+    state.player.hp += maxHpDelta;
   } else {
     state.player.hp = Math.min(state.player.hp, newStats.maxHp);
   }
@@ -8151,12 +8151,14 @@ function renderHeroForms() {
     const level = getHeroFormLevel(form);
     const progressText = getHeroFormProgressText(form);
     const effectLines = getHeroFormEffectLines(form, level);
+    const currentStats = getPlayerStats();
+    const previewStats = getPlayerStatsForForm(form);
     const button = document.createElement("button");
     button.className = "form-card";
     button.type = "button";
     button.dataset.formId = form.id;
     button.dataset.formKey = form.id;
-    const hpLoss = (getHeroFormLevelConfig(currentForm).stats?.hp || 0) - (getHeroFormLevelConfig(form).stats?.hp || 0);
+    const hpLoss = Math.max(0, (currentStats.maxHp || 0) - (previewStats.maxHp || 0));
     const locked = isEquipmentLocked() || (hpLoss > 0 && state.player.hp <= hpLoss);
     button.disabled = locked;
     button.setAttribute("aria-pressed", String(form.id === currentForm.id));

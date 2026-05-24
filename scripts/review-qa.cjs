@@ -264,6 +264,9 @@ function assertScenario(name, metrics) {
     if (formChecks.hpShared?.defenseMaxHp !== 90 || formChecks.hpShared?.afterKillDefenseMaxHp !== 93 || formChecks.hpShared?.afterKillDefenseHp !== 56) {
       failures.push(`${name}: mega HP max should be shared across forms and persist after kill, got ${JSON.stringify(formChecks.hpShared)}`);
     }
+    if (formChecks.hpSwitch?.attackHp !== 30 || formChecks.hpSwitch?.backHp !== 60 || formChecks.hpSwitch?.lowForm !== "hp" || formChecks.hpSwitch?.lowHp !== 20) {
+      failures.push(`${name}: switching away from HP form should preserve missing HP and block lethal max-HP loss, got ${JSON.stringify(formChecks.hpSwitch)}`);
+    }
     if (formChecks.speedPreStrike?.hp !== 3 || formChecks.speedPreStrike?.attackBonus !== 2 || formChecks.speedPreStrike?.hpAfter !== 52 || formChecks.speedPreStrike?.heroClock === Infinity) {
       failures.push(`${name}: mega speed pre-strike should trigger double strike/action effects before clock setup, got ${JSON.stringify(formChecks.speedPreStrike)}`);
     }
@@ -450,6 +453,20 @@ function assertScenario(name, metrics) {
         afterKillDefenseHp: hooks.state.player.hp,
       };
       hooks.resetGameForTest();
+      hooks.setHeroStats({ hp: 60 });
+      hooks.setHeroForm("attack");
+      const attackHp = hooks.state.player.hp;
+      hooks.setHeroForm("hp");
+      const backHp = hooks.state.player.hp;
+      hooks.setHeroStats({ hp: 20 });
+      hooks.setHeroForm("attack");
+      const hpSwitch = {
+        attackHp,
+        backHp,
+        lowForm: hooks.state.player.formId,
+        lowHp: hooks.state.player.hp,
+      };
+      hooks.resetGameForTest();
       setMegaForm("speed");
       hooks.addSpecialComboItem(["doubleStrikeSpeedDown", "dealDamageAttack"], {
         itemName: "连击进攻测试工具靴",
@@ -490,7 +507,7 @@ function assertScenario(name, metrics) {
         const stats = hooks.getPlayerStats();
         greedyStatsByFilm[film.toFixed(1)] = { atk: stats.atk, def: stats.def, speed: stats.speed };
       }
-      window.__reviewFormEconomy = { shield, lifesteal, regenShield, hpKill, hpShared, speedPreStrike, greedyDropBonus, greedyStatsByFilm };
+      window.__reviewFormEconomy = { shield, lifesteal, regenShield, hpKill, hpShared, hpSwitch, speedPreStrike, greedyDropBonus, greedyStatsByFilm };
     });
   });
 
