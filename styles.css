@@ -1035,6 +1035,7 @@ dd {
     max-height: 100%;
     overflow: hidden;
     align-self: stretch;
+    margin-bottom: 18px;
   }
 
   .equipment-detail.career-summary-panel {
@@ -1057,7 +1058,9 @@ dd {
   .enemy-field {
     grid-column: 1;
     grid-row: 5;
-    overflow: hidden;
+    overflow: visible;
+    padding: 3px 3px 0;
+    margin: -3px -3px 0;
   }
 
   .enemy-card {
