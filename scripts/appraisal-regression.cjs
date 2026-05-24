@@ -131,7 +131,7 @@ const cases = [
       photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 1, realPhoto: 3, focusLight: 2, interesting: 1 },
       statAffinity: [{ stat: "speed", score: 3 }],
     },
-    expect: ({ item }) => item.value >= 17 && item.value <= 18 && item.stats.regen === 0 && (item.stats.speed > 0 || item.specialEffects.length > 0),
+    expect: ({ item }) => item.value >= 20 && item.stats.regen === 0 && (item.stats.speed > 0 || item.specialEffects.length > 0),
   },
   {
     label: "fan rejects model shield stat and rerolls speed",
@@ -182,7 +182,7 @@ const cases = [
       itemName: "黑色小音响",
       subjectName: "音响",
       objectType: "桌面电子设备",
-      identityDescription: "室内大范围实拍照片，桌面上有一个黑色小音响，周围能看到墙面、桌面和其他杂物，但音响实体清楚可见，有真实阴影和反光。",
+      identityDescription: "室内大范围实拍照片，桌面上有一个黑色小音响，周围能看到墙面、桌面和其他杂物，但音响实体清楚可见，有接触阴影、真实桌面反光和一致的室内光线。",
       description: "黑色小音响像一枚沉稳的桌面号角。",
       reason: "主体=音响；尺寸=桌面小物；背景较多但为现实实拍。",
       tags: ["音响", "桌面", "实拍", "背景多"],
@@ -193,7 +193,7 @@ const cases = [
       item.value > 0
       && !item.tooLarge
       && !item.virtualImage
-      && item.value <= 14
+      && item.value <= 15
       && item.stats.speed === 0
       && (item.stats.attack > 0 || item.stats.defense > 0 || item.stats.regen > 0)
     ),
@@ -204,7 +204,7 @@ const cases = [
       itemName: "黑色中性笔",
       subjectName: "中性笔",
       objectType: "文具",
-      identityDescription: "玩家随手拍的桌面照片，黑色中性笔放在笔记本上，旁边有键盘和杯子，但笔主体清楚，有真实阴影和桌面反光。",
+      identityDescription: "玩家随手拍的桌面照片，黑色中性笔放在笔记本上，旁边有键盘和杯子，但笔主体清楚，有接触阴影、桌面反光和自然高光。",
       description: "黑色中性笔像一根细长的开路符。",
       reason: "主体=中性笔；桌面实拍；背景有杂物但主体清楚。",
       tags: ["文具", "桌面", "实拍", "背景多"],
@@ -212,11 +212,11 @@ const cases = [
       statAffinity: [{ stat: "attack", score: 2 }, { stat: "speed", score: 1 }],
     },
     expect: ({ item }) => (
-      item.value >= 14
-      && item.value <= 17
+      item.value >= 17
+      && item.value <= 18
       && !item.tooLarge
       && !item.virtualImage
-      && item.stats.attack > 0
+      && (item.stats.attack > 0 || item.specialEffects.length > 0)
     ),
   },
   {
@@ -225,7 +225,7 @@ const cases = [
       itemName: "白底商品剪刀",
       subjectName: "剪刀",
       objectType: "电商商品图",
-      identityDescription: "白底电商商品展示图，一把剪刀居中摆放，背景非常干净，没有桌面阴影、手持痕迹或生活环境。",
+      identityDescription: "白底电商商品展示图，一把剪刀居中摆放，背景非常干净，只有棚拍商品阴影，没有桌面接触阴影、手持痕迹或生活环境。",
       description: "白底商品剪刀看起来很锋利。",
       reason: "主体=剪刀；白底商品图；缺少玩家实拍证据。",
       tags: ["白底商品图", "剪刀", "电商"],
@@ -235,7 +235,7 @@ const cases = [
     },
     expect: ({ item }) => (
       item.value > 0
-      && item.value <= 10
+      && item.value <= 11
       && item.virtualImage
       && item.specialEffects.length === 0
       && item.stats.regen === 0
@@ -257,7 +257,7 @@ const cases = [
     },
     expect: ({ item }) => (
       item.value > 0
-      && item.value <= 16
+      && item.value <= 17
       && !item.tooLarge
       && !item.virtualImage
       && (item.stats.speed > 0 || item.specialEffects.length > 0)
@@ -304,6 +304,13 @@ const cases = [
   const runtimeChecks = await page.evaluate(() => {
     const hooks = window.__photoHeroTestHooks;
     hooks.resetGameForTest?.();
+    hooks.setRunRewards?.({ photoValueMin: 8, photoValueMax: 26 });
+    const valueMapping = {
+      low: hooks.getPhotoValueMappingForTest?.(0),
+      mid: hooks.getPhotoValueMappingForTest?.(7.5),
+      high: hooks.getPhotoValueMappingForTest?.(15),
+    };
+    hooks.setRunRewards?.({ photoValueMin: 5, photoValueMax: 22 });
     hooks.addSpecialItem("killAttack", { value: 15, itemName: "攻势书本", specialAffinity: ["killAttack"] });
     hooks.addSpecialItem("doubleStrikeSpeedDown", { value: 16, itemName: "连击风扇", specialAffinity: ["doubleStrikeSpeedDown"] });
     hooks.addTestItem({ itemName: "红苹果", subjectName: "苹果", objectType: "水果", value: 9, stats: { hp: 1 }, photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 }, statAffinity: [{ stat: "hp", score: 3 }] });
@@ -314,6 +321,7 @@ const cases = [
       hp: hooks.getHeroStateForTest?.()?.hp,
       maxHp: heroStats.maxHp,
       itemCount: hooks.getInventoryForTest?.()?.filter(Boolean).length || 0,
+      valueMapping,
     };
   });
   await browser.close();
@@ -332,6 +340,9 @@ const cases = [
   });
   if (runtimeChecks.activeSpecial?.key && runtimeChecks.activeSpecial.key !== "doubleStrikeSpeedDown") failures.push({ label: "active special should prefer strongest", activeSpecial: runtimeChecks.activeSpecial });
   if (runtimeChecks.hp !== undefined && runtimeChecks.maxHp !== undefined && runtimeChecks.hp > runtimeChecks.maxHp) failures.push({ label: "hp overflow after hp item", runtimeChecks });
+  if (runtimeChecks.valueMapping?.low?.mappedValue !== 8 || runtimeChecks.valueMapping?.mid?.mappedValue !== 17 || runtimeChecks.valueMapping?.high?.mappedValue !== 26) {
+    failures.push({ label: "photo score should linearly map to current value range", valueMapping: runtimeChecks.valueMapping });
+  }
   if (errors.length) failures.push({ label: "console errors", errors });
 
   console.log(JSON.stringify({

@@ -110,6 +110,8 @@ const modelMaxTokens = 512;
 const modelImageDetail = "low";
 const defaultPhotoValueMin = 5;
 const defaultPhotoValueMax = 20;
+const basePhotoScoreMin = 5;
+const basePhotoScoreMax = 15;
 const battleSpeedOptions = [1, 2, 4];
 const battleRoundBaseMs = 1000;
 const battleHitEffectMs = 260;
@@ -220,10 +222,11 @@ const photoIdentificationUserPrompt = [
   "6. 同一个现实物体只能鉴定一次，但同类型不同款式的物体可以分别鉴定。identityDescription 必须写清颜色、材质、形状、品牌/文字、磨损、纹理、局部特征、背景位置等可区分细节，用于后续和旧照片比较是否同一个物体。",
   "",
   "照片质量 photoQuality：",
-  "clarity 主体清楚程度 0-3；subjectArea 主体占图面积 0-3；backgroundClean 背景干净 0-2；realPhoto 现实实拍感 0-3；focusLight 光线/对焦 0-2；interesting 有趣、让人想装备 0-2。",
+  "clarity 主体清楚程度 0-3；subjectArea 主体占图面积 0-3；backgroundClean 背景干净 0-2；realPhoto 现实实拍感 0-3；focusLight 光线/对焦/光影可信度 0-2；interesting 有趣、让人想装备 0-2。",
   "评分校准：clarity=3 需要主体边缘清晰、不用猜；主体约占四分之一到三分之一可给 subjectArea=2，接近半屏才给 3，角落小物给 0-1；背景不抢主体即可 backgroundClean=1，普通桌面、手边杂物、生活环境不是失败项；确实像玩家实拍现实物体可 realPhoto=3；普通但有装备联想可 interesting=1。",
-  "主动拉开分值：真实感是第一门槛。随手实拍但主体偏小/背景生活化通常 8-12；主体清楚但构图一般 11-14；清楚实拍且主体明确、有装备联想 14-17；近景清晰、实拍感强、有趣或很适合装备 17-19；非常出色的现实实拍才接近 20。背景干净和有趣只能在 realPhoto 足够高、主体真实清楚时加分。",
-  "大范围真实照片只要有清楚现实小主体，realPhoto 仍可给 2-3；不要因范围大、桌面杂物、房间背景降到 0-1。白底商品图、精修图、PS 摆拍、透明素材、游戏装备图、AI 图、动画/插画、卡牌素材 realPhoto 必须低，不能因为背景干净、有趣、构图精美而高分或给特殊效果。",
+  "光影校准：focusLight=2 不只是亮，还要看物体和环境是否融合，例如接触阴影、投影方向、桌面反光、边缘高光、色温、轻微噪点/模糊是否自然一致。真实照片可以有普通室内光、阴影和背景；白底商品图、棚拍、抠图、AI/渲染图即使光影漂亮也不能因此高 realPhoto。",
+  "主动拉开分值：先按照片本身判断基础分 5-15。真实感是第一门槛：随手实拍但主体偏小/背景生活化通常 7-10；主体清楚但构图一般 9-12；清楚实拍且主体明确、有装备联想 12-14；近景清晰、实拍感强、有趣或很适合装备 14-15。背景干净和有趣只能在 realPhoto 足够高、主体真实清楚时加分。",
+  "大范围真实照片只要有清楚现实小主体，realPhoto 仍可给 2-3；不要因范围大、桌面杂物、房间背景降到 0-1。白底商品图、精修图、PS 摆拍、棚拍、透明素材、游戏装备图、AI 图、动画/插画、卡牌素材 realPhoto 必须低，不能因为背景干净、有趣、构图精美、光影漂亮而高分或给特殊效果。",
   "生活用品、自然小物、现实玩具模型、现实贴纸/包装、桌面摆件、电脑外设只要主体清晰都可得分；游戏鼠标/键盘是现实外设。昂贵物、宏大景观、真实载具、人物整体、抽象光影、虚拟装备图不能因为好看而高分。",
   "",
   "属性语义：",
@@ -2873,7 +2876,7 @@ function isRealObjectPhotoEvidenceText(text) {
   const source = String(text || "");
   if (isScreenshotOnlyText(source)) return false;
   if (hasNegatedRealPhotoText(source)) return false;
-  return /(?:实拍|拍摄|现实|真实|实物|实体|手持|桌面|近景|放在|拿着|材质|塑料|金属|木质|纸质|陶瓷|玻璃|橡胶|布料|磨损|纹理|阴影|反光|real photo|photographed|physical|real object|on desk|handheld)/i.test(source);
+  return /(?:实拍|拍摄|现实|真实|实物|实体|手持|桌面|近景|放在|拿着|材质|塑料|金属|木质|纸质|陶瓷|玻璃|橡胶|布料|磨损|纹理|阴影|投影|接触阴影|自然阴影|桌面阴影|反光|高光|色温|环境光|光线方向|real photo|photographed|physical|real object|on desk|handheld|shadow|contact shadow|reflection|highlight|lighting)/i.test(source);
 }
 
 function hasNegatedRealPhotoText(text) {
@@ -6674,7 +6677,7 @@ function balanceItem(item, image = "") {
       ? requestedValue
       : adjustPhotoItemValueForSemanticMinimum(requestedValue, objectStatEvidenceText, statAffinity);
     if (!preserveSettledOutput && Number.isFinite(virtualPenalty.cap)) {
-      requestedValue = Math.min(requestedValue, virtualPenalty.cap);
+      requestedValue = Math.min(requestedValue, mapLegacyPhotoValueCapToCurrentRange(virtualPenalty.cap));
     }
   }
   const specialEffects = noEffect || virtualPenalty.suppressSpecial
@@ -6862,12 +6865,36 @@ function calculatePhotoItemValue(item, semanticText = "") {
   const min = getPhotoValueMin();
   const max = getPhotoValueMax();
   if (max <= min) return min;
-  const normalized = Math.max(0, Math.min(1, qualityScore / 15));
-  const curved = Math.pow(normalized, 1.8);
-  let value = min + Math.round(curved * (max - min));
+  let value = mapPhotoQualityScoreToValue(qualityScore);
   const cap = getPhotoValueCapFromQuality(quality, semanticText);
   value = Math.min(value, cap);
   return Math.max(min, Math.min(max, value));
+}
+
+function mapPhotoQualityScoreToBaseValue(qualityScore) {
+  const normalized = clampNumber(qualityScore, 0, 15) / 15;
+  return basePhotoScoreMin + (normalized * (basePhotoScoreMax - basePhotoScoreMin));
+}
+
+function mapBasePhotoValueToCurrentRange(baseValue) {
+  const min = getPhotoValueMin();
+  const max = getPhotoValueMax();
+  if (max <= min) return min;
+  const normalized = (clampNumber(baseValue, basePhotoScoreMin, basePhotoScoreMax) - basePhotoScoreMin) / (basePhotoScoreMax - basePhotoScoreMin);
+  return min + Math.round(normalized * (max - min));
+}
+
+function mapPhotoQualityScoreToValue(qualityScore) {
+  return mapBasePhotoValueToCurrentRange(mapPhotoQualityScoreToBaseValue(qualityScore));
+}
+
+function mapLegacyPhotoValueCapToCurrentRange(legacyCap) {
+  if (legacyCap <= 0) return 0;
+  const legacyMin = defaultPhotoValueMin;
+  const legacyMax = defaultPhotoValueMax;
+  const normalized = (clampNumber(legacyCap, legacyMin, legacyMax) - legacyMin) / (legacyMax - legacyMin);
+  const baseCap = basePhotoScoreMin + (normalized * (basePhotoScoreMax - basePhotoScoreMin));
+  return mapBasePhotoValueToCurrentRange(baseCap);
 }
 
 function adjustPhotoItemValueForSemanticMinimum(value, semanticText = "", statAffinity = []) {
@@ -6949,24 +6976,24 @@ function getPhotoValueCapFromQuality(photoQuality, semanticText = "") {
   const text = String(semanticText || "");
   const virtualPenalty = getVirtualImagePenalty(text, quality);
   if (virtualPenalty.noEffect) return 0;
-  if (Number.isFinite(virtualPenalty.cap)) return Math.min(getPhotoValueMax(), virtualPenalty.cap);
-  if (isLowRealityToyOrMascotImageText(text, quality)) return Math.min(getPhotoValueMax(), 10);
+  if (Number.isFinite(virtualPenalty.cap)) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(virtualPenalty.cap));
+  if (isLowRealityToyOrMascotImageText(text, quality)) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(10));
   const realObjectPhoto = isDirectRealPhotoText(text, quality) && !isPolishedCommercialImageText(text);
   const mildlyClutteredRealPhoto = realObjectPhoto && hasMildRealPhotoBackgroundText(text) && !hasSeverelyClutteredOrTinySubjectText(text);
-  if (quality.realPhoto <= 1) return Math.min(getPhotoValueMax(), 12);
-  if (quality.clarity <= 1 || quality.subjectArea <= 1) return Math.min(getPhotoValueMax(), realObjectPhoto ? 14 : 12);
-  if (quality.backgroundClean <= 0 || quality.focusLight <= 0) return Math.min(getPhotoValueMax(), realObjectPhoto ? 16 : 14);
-  if (hasSeverelyClutteredOrTinySubjectText(text)) return Math.min(getPhotoValueMax(), realObjectPhoto ? 15 : 13);
-  if (hasCrowdedOrSmallSubjectText(text)) return Math.min(getPhotoValueMax(), mildlyClutteredRealPhoto ? 17 : realObjectPhoto ? 16 : 14);
+  if (quality.realPhoto <= 1) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(12));
+  if (quality.clarity <= 1 || quality.subjectArea <= 1) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(realObjectPhoto ? 14 : 12));
+  if (quality.backgroundClean <= 0 || quality.focusLight <= 0) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(realObjectPhoto ? 16 : 14));
+  if (hasSeverelyClutteredOrTinySubjectText(text)) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(realObjectPhoto ? 15 : 13));
+  if (hasCrowdedOrSmallSubjectText(text)) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(mildlyClutteredRealPhoto ? 17 : realObjectPhoto ? 16 : 14));
   if (/抽象|光斑|远景|纹理|风景|海岸|山|天空|道路|街道|森林|荒原|人物|人像|动物|猫|狗|abstract|bokeh|landscape|sky|road|street|forest|portrait|animal|cat|dog/i.test(text) && !isSmallEquipableNaturalText(text) && !isPortableEquipmentText(text)) {
-    return Math.min(getPhotoValueMax(), 14);
+    return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(14));
   }
-  if (quality.interesting <= 0) return Math.min(getPhotoValueMax(), realObjectPhoto && isPortableEquipmentText(text) ? 16 : 15);
-  if (quality.clarity < 3 || quality.subjectArea < 2) return Math.min(getPhotoValueMax(), realObjectPhoto ? 17 : 16);
-  if (quality.backgroundClean < 1) return Math.min(getPhotoValueMax(), realObjectPhoto ? 17 : 15);
-  if (quality.subjectArea < 3 || quality.backgroundClean < 2) return Math.min(getPhotoValueMax(), realObjectPhoto ? 18 : 16);
-  if (quality.clarity < 3) return Math.min(getPhotoValueMax(), realObjectPhoto ? 17 : 16);
-  if (quality.interesting < 2) return Math.min(getPhotoValueMax(), realObjectPhoto && isPortableEquipmentText(text) ? 18 : hasStrongEquipmentFantasyText(text) ? 17 : 16);
+  if (quality.interesting <= 0) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(realObjectPhoto && isPortableEquipmentText(text) ? 16 : 15));
+  if (quality.clarity < 3 || quality.subjectArea < 2) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(realObjectPhoto ? 17 : 16));
+  if (quality.backgroundClean < 1) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(realObjectPhoto ? 17 : 15));
+  if (quality.subjectArea < 3 || quality.backgroundClean < 2) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(realObjectPhoto ? 18 : 16));
+  if (quality.clarity < 3) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(realObjectPhoto ? 17 : 16));
+  if (quality.interesting < 2) return Math.min(getPhotoValueMax(), mapLegacyPhotoValueCapToCurrentRange(realObjectPhoto && isPortableEquipmentText(text) ? 18 : hasStrongEquipmentFantasyText(text) ? 17 : 16));
   return getPhotoValueMax();
 }
 
@@ -7002,9 +7029,13 @@ function calculateAdjustedPhotoQualityScore(photoQuality, semanticText = "") {
   const realObjectPhoto = isDirectRealPhotoText(text, quality) && !isPolishedCommercialImageText(text);
   const mildBackground = hasMildRealPhotoBackgroundText(text);
   const severeClutter = hasSeverelyClutteredOrTinySubjectText(text);
+  const realLightShadow = hasRealLightShadowEvidenceText(text);
+  const fakeStudioLight = hasPolishedLightOnlyText(text);
   if (realObjectPhoto && quality.realPhoto >= 3 && quality.clarity >= 2) score += 2;
   if (realObjectPhoto && quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 3) score += 2;
   if (realObjectPhoto && isPortableEquipmentText(text) && quality.focusLight >= 2) score += 1;
+  if (realObjectPhoto && realLightShadow && quality.focusLight >= 2) score += 1;
+  if (realObjectPhoto && realLightShadow && quality.realPhoto >= 3 && quality.clarity >= 2 && !severeClutter) score += 1;
   if (realObjectPhoto && quality.backgroundClean >= 1 && !severeClutter) score += 1;
   if (quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 3 && quality.focusLight >= 2 && quality.interesting >= 1) score += 1;
   if (quality.clarity >= 3 && quality.subjectArea >= 3 && quality.backgroundClean >= 2 && realObjectPhoto) score += 1;
@@ -7022,13 +7053,22 @@ function calculateAdjustedPhotoQualityScore(photoQuality, semanticText = "") {
   if (severeClutter) score -= realObjectPhoto ? 1 : 3;
   else if (hasCrowdedOrSmallSubjectText(text)) score -= realObjectPhoto ? (mildBackground ? 0 : 1) : 2;
   if (virtualPenalty.level === "ordinaryCap") score -= 3;
+  if (fakeStudioLight && !realObjectPhoto) score -= 2;
   if (/抽象|光斑|远景|纹理|风景|海岸|山|天空|道路|街道|森林|荒原|人物|人像|动物|猫|狗|abstract|bokeh|landscape|sky|road|street|forest|portrait|animal|cat|dog/i.test(text) && !isSmallEquipableNaturalText(text) && !isPortableEquipmentText(text)) score -= 3;
 
   return Math.max(0, Math.min(15, score));
 }
 
+function hasRealLightShadowEvidenceText(text) {
+  return /接触阴影|自然阴影|真实阴影|桌面阴影|投影方向|光线方向一致|环境光|桌面反光|真实反光|边缘高光|自然高光|色温一致|噪点一致|轻微模糊|背景融合|物体贴在桌面|shadow on desk|contact shadow|real shadow|real reflection|natural reflection|consistent lighting|ambient light|highlight/i.test(String(text || ""));
+}
+
+function hasPolishedLightOnlyText(text) {
+  return /棚拍|影棚|布光|精修|商品展示|白底商品|抠图|透明背景|渲染光影|AI光影|过于完美|studio lighting|studio shot|product lighting|rendered lighting|perfect lighting/i.test(String(text || ""));
+}
+
 function hasMildRealPhotoBackgroundText(text) {
-  return /背景较多|背景多|生活背景|桌面|房间|室内|手边|周围能看到|旁边有|周围有|墙面|桌面杂物|其他杂物|真实阴影|真实反光|real shadow|real reflection|desk|room|indoor/i.test(String(text || ""));
+  return /背景较多|背景多|生活背景|桌面|房间|室内|手边|周围能看到|旁边有|周围有|墙面|桌面杂物|其他杂物|真实阴影|自然阴影|接触阴影|桌面阴影|真实反光|桌面反光|环境光|real shadow|contact shadow|real reflection|desk|room|indoor/i.test(String(text || ""));
 }
 
 function hasSeverelyClutteredOrTinySubjectText(text) {
@@ -9221,6 +9261,15 @@ window.__photoHeroTestHooks = {
     if (Number.isFinite(next.filmShards)) state.filmShards = next.filmShards;
     saveGame();
     render();
+  },
+  getPhotoValueMappingForTest(score) {
+    return {
+      score,
+      baseValue: mapPhotoQualityScoreToBaseValue(score),
+      mappedValue: mapPhotoQualityScoreToValue(score),
+      min: getPhotoValueMin(),
+      max: getPhotoValueMax(),
+    };
   },
   setFormProgress(next = {}) {
     state.formProgress = normalizeFormProgress(next);
