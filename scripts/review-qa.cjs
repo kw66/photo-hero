@@ -479,6 +479,20 @@ function assertScenario(name, metrics) {
   if (name === "mobile-form-economy") {
     const formChecks = metrics.formEconomy || {};
     if (formChecks.shield !== 15) failures.push(`${name}: mega shield should add 15 shield`);
+    if (formChecks.shieldAvatar?.dataFormKey !== "shield") {
+      failures.push(`${name}: main avatar card should expose shield form key, got ${JSON.stringify(formChecks.shieldAvatar)}`);
+    }
+    if (formChecks.shieldAvatar?.objectPosition !== "50% 50%") {
+      failures.push(`${name}: main shield avatar should be vertically centered, got ${JSON.stringify(formChecks.shieldAvatar)}`);
+    }
+    if (
+      !formChecks.shieldAvatar
+      || formChecks.shieldAvatar.centerFromCardTop < 38
+      || formChecks.shieldAvatar.centerFromCardTop > 48
+      || formChecks.shieldAvatar.bottomGapToLabel < 12
+    ) {
+      failures.push(`${name}: main shield avatar should sit near the other forms without touching the label, got ${JSON.stringify(formChecks.shieldAvatar)}`);
+    }
     if (formChecks.lifesteal?.lifesteal !== 4 || formChecks.lifesteal?.def !== -1) {
       failures.push(`${name}: mega lifesteal should be lifesteal +4 and defense -2 from base, got ${JSON.stringify(formChecks.lifesteal)}`);
     }
@@ -905,7 +919,7 @@ function assertScenario(name, metrics) {
   });
 
   scenarios.mobileFormEconomy = await collectScenario(mobile, "mobile-form-economy", async (page) => {
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       const hooks = window.__photoHeroTestHooks;
       const setMegaForm = (formId) => {
         hooks.setHeroForm(formId);
@@ -913,7 +927,65 @@ function assertScenario(name, metrics) {
           [formId]: { kills: 10, level: 2 },
         });
       };
+      const readMainAvatarAlignment = async (formId) => {
+        hooks.setHeroForm(formId);
+        hooks.render();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const img = document.querySelector("#heroAvatarImage");
+        const card = img?.closest(".hero-form-card");
+        const label = card?.querySelector("[data-form-label]");
+        if (!img || !card || !label) return null;
+        await img.decode().catch(() => {});
+        if (!img.naturalWidth || !img.naturalHeight) return null;
+        const rect = img.getBoundingClientRect();
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.ceil(rect.width);
+        canvas.height = Math.ceil(rect.height);
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        const style = getComputedStyle(img);
+        const parsePx = (value) => Number.parseFloat(value || "0") || 0;
+        const paddingTop = parsePx(style.paddingTop);
+        const paddingRight = parsePx(style.paddingRight);
+        const paddingBottom = parsePx(style.paddingBottom);
+        const paddingLeft = parsePx(style.paddingLeft);
+        const contentWidth = rect.width - paddingLeft - paddingRight;
+        const contentHeight = rect.height - paddingTop - paddingBottom;
+        const scale = Math.min(contentWidth / img.naturalWidth, contentHeight / img.naturalHeight);
+        const drawWidth = img.naturalWidth * scale;
+        const drawHeight = img.naturalHeight * scale;
+        const positionParts = style.objectPosition.split(/\s+/);
+        const positionY = positionParts[1] || positionParts[0] || "50%";
+        const offsetX = (contentWidth - drawWidth) / 2;
+        const offsetY = positionY === "50%" || positionY === "center" ? (contentHeight - drawHeight) / 2 : 0;
+        ctx.drawImage(img, paddingLeft + offsetX, paddingTop + offsetY, drawWidth, drawHeight);
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        let minX = canvas.width;
+        let minY = canvas.height;
+        let maxX = -1;
+        let maxY = -1;
+        for (let y = 0; y < canvas.height; y += 1) {
+          for (let x = 0; x < canvas.width; x += 1) {
+            if (data[(y * canvas.width + x) * 4 + 3] <= 12) continue;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+        if (maxX < 0) return null;
+        const labelTop = label.getBoundingClientRect().top - card.getBoundingClientRect().top;
+        return {
+          formId,
+          dataFormKey: card.dataset.formKey || "",
+          objectPosition: style.objectPosition,
+          minY,
+          maxY,
+          centerFromCardTop: Math.round(((minY + maxY + 1) / 2) * 10) / 10,
+          bottomGapToLabel: Math.round((labelTop - maxY) * 10) / 10,
+        };
+      };
       setMegaForm("shield");
+      const shieldAvatar = await readMainAvatarAlignment("shield");
       const shield = hooks.getPlayerStats().shield - 3;
       setMegaForm("lifesteal");
       const lifestealStats = hooks.getPlayerStats();
@@ -1043,7 +1115,7 @@ function assertScenario(name, metrics) {
         header: document.querySelector("[data-form-label]")?.textContent.trim() || "",
         cards: Array.from(document.querySelectorAll(".form-card-meta strong")).map((node) => node.textContent.trim()),
       };
-      window.__reviewFormEconomy = { shield, lifesteal, regenShield, hpKill, hpShared, hpSwitch, speedPreStrike, greedyDropBonus, greedyStatsByFilm, visibleFormLabels };
+      window.__reviewFormEconomy = { shield, shieldAvatar, lifesteal, regenShield, hpKill, hpShared, hpSwitch, speedPreStrike, greedyDropBonus, greedyStatsByFilm, visibleFormLabels };
     });
   });
 

@@ -8709,7 +8709,11 @@ function render() {
   const form = getHeroForm();
   els.heroAvatarImage.src = getHeroFormImageUrl(form);
   els.heroAvatarImage.alt = `照片勇者${form.label}形态`;
-  els.heroAvatarImage.closest(".hero-form-card")?.classList.toggle("is-hit", Boolean(state.heroHitEffectUntil));
+  const heroFormCard = els.heroAvatarImage.closest(".hero-form-card");
+  if (heroFormCard) {
+    heroFormCard.dataset.formKey = form.id;
+    heroFormCard.classList.toggle("is-hit", Boolean(state.heroHitEffectUntil));
+  }
   renderHeroForms();
 
   els.playerHpText.textContent = `${state.player.hp}/${stats.maxHp}`;

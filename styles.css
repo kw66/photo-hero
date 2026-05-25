@@ -548,6 +548,10 @@ h3 {
   image-rendering: auto;
 }
 
+.hero-form-card[data-form-key="shield"] img {
+  object-position: center center;
+}
+
 .hero-form-card span {
   position: absolute;
   inset-inline: 0;
