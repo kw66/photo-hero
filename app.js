@@ -128,7 +128,7 @@ const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
 const introFloor = 0;
-const gameSaveVersion = 23;
+const gameSaveVersion = 24;
 const initialFilmRolls = 0;
 const introFilmRewardCount = 3;
 const heroFormUpgradeKills = 10;
@@ -1477,7 +1477,7 @@ function bindEvents() {
   els.photoActionBtn.addEventListener("click", handlePhotoActionButtonClick);
   els.savePhotoBtn.addEventListener("click", handleSavePhotoButtonClick);
   els.analyzePhotoBtn.addEventListener("click", () => {
-    if (state.gameClear && isCareerSummaryOpen()) {
+    if (isCareerSummaryOpen() && state.careerSummary) {
       downloadCareerSummaryImage();
       return;
     }
@@ -1520,7 +1520,7 @@ function openPhotoPicker() {
 }
 
 function openPhotoPickerForSelectedSlot() {
-  if (state.gameClear && isCareerSummaryOpen()) {
+  if (isCareerSummaryOpen() && state.careerSummary) {
     requestCareerSummary(true);
     return;
   }
@@ -1894,12 +1894,13 @@ function closeImageViewer() {
 }
 
 async function downloadCareerSummaryImage() {
-  if (!state.gameClear) return;
+  if (!state.careerSummary && !state.gameClear && !isPlayerDefeated()) return;
   const summary = state.careerSummary || buildLocalCareerSummary();
   const snapshot = summary.snapshot || buildCareerSnapshot();
+  const outcome = getCareerSummaryOutcome(summary);
   const image = await makeCareerSummaryImage(summary, snapshot);
-  await saveImageDataUrl(image, `photo-hero-career-${new Date().toISOString().slice(0, 10)}.png`, "通关分享图已生成。", {
-    fallbackCaption: "通关分享图",
+  await saveImageDataUrl(image, `photo-hero-${outcome}-ending-${new Date().toISOString().slice(0, 10)}.png`, "塔史分享图已生成。", {
+    fallbackCaption: outcome === "defeat" ? "战败塔史分享图" : "通关塔史分享图",
   });
 }
 
@@ -2034,44 +2035,60 @@ async function makeCareerSummaryImage(summary, snapshot) {
 }
 
 async function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
-  ctx.fillStyle = "#fffaf0";
+  const outcome = getCareerSummaryOutcome(summary);
+  const isDefeat = outcome === "defeat";
+  const accent = isDefeat ? "#d65b4f" : "#d09b3e";
+  const accentSoft = isDefeat ? "#5a2e2b" : "#5b4324";
+  ctx.fillStyle = "#0b0d0b";
   ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = "#edf4e8";
-  for (let x = 0; x < width; x += 54) ctx.fillRect(x, 0, 2, height);
-  for (let y = 0; y < height; y += 54) ctx.fillRect(0, y, width, 2);
+  ctx.fillStyle = "#131713";
+  for (let x = 0; x < width; x += 72) ctx.fillRect(x, 0, 3, height);
+  for (let y = 0; y < height; y += 48) ctx.fillRect(0, y, width, 3);
+  ctx.fillStyle = "rgba(255, 248, 216, 0.035)";
+  for (let y = 26; y < height; y += 96) {
+    for (let x = 34; x < width; x += 144) {
+      ctx.fillRect(x, y, 46, 3);
+    }
+  }
 
   const margin = 62;
-  roundRect(ctx, margin, margin, width - margin * 2, height - margin * 2, 28);
-  ctx.fillStyle = "#fffdf8";
+  roundRect(ctx, margin, margin, width - margin * 2, height - margin * 2, 18);
+  ctx.fillStyle = "#202621";
   ctx.fill();
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = "#17130f";
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "#5f6a60";
   ctx.stroke();
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(margin + 14, margin + 14, width - margin * 2 - 28, height - margin * 2 - 28);
 
   const parsedSummary = getCareerSummaryParagraphs(summary);
+  const floor = snapshot.defeatFloor || snapshot.floor || state.floor;
+  const subtitle = isDefeat
+    ? `${getCareerSummaryStatusText(summary)} · 止步第${floor}层`
+    : `${getCareerSummaryStatusText(summary)} · 第${maxFloor}层通关`;
+  const statRows = isDefeat
+    ? [["层数", floor], ["击败", snapshot.killCount], ["装备", snapshot.equipmentCount]]
+    : [["怪物", snapshot.killCount], ["Boss", snapshot.bossKillCount], ["装备", snapshot.equipmentCount]];
 
-  ctx.fillStyle = "#245f9a";
+  ctx.fillStyle = accent;
   ctx.font = "900 46px sans-serif";
-  ctx.fillText("照片勇者塔史残页", margin + 34, margin + 78);
-  ctx.fillStyle = "#6f665c";
+  ctx.fillText(isDefeat ? "照片勇者塔史残页" : "照片勇者塔顶旧史", margin + 34, margin + 78);
+  ctx.fillStyle = "#b9c2b8";
   ctx.font = "800 24px sans-serif";
-  ctx.fillText(`${getCareerSummaryStatusText(summary)} · 第${maxFloor}层通关`, margin + 36, margin + 118);
+  ctx.fillText(subtitle, margin + 36, margin + 118);
 
   const statY = margin + 168;
   const statWidth = (width - margin * 2 - 88) / 3;
-  [
-    ["怪物", snapshot.killCount],
-    ["Boss", snapshot.bossKillCount],
-    ["装备", snapshot.equipmentCount],
-  ].forEach(([label, value], index) => {
+  statRows.forEach(([label, value], index) => {
     const x = margin + 34 + index * (statWidth + 10);
     roundRect(ctx, x, statY, statWidth, 74, 12);
-    ctx.fillStyle = "#f6dfb4";
+    ctx.fillStyle = "#111511";
     ctx.fill();
-    ctx.strokeStyle = "#cdbb9a";
+    ctx.strokeStyle = index === 0 ? accent : "#424c43";
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = "#17130f";
+    ctx.fillStyle = "#f4ead2";
     ctx.font = "900 26px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(`${label} ${value}`, x + statWidth / 2, statY + 47);
@@ -2079,18 +2096,18 @@ async function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
   });
 
   const ability = `形态 ${snapshot.formLabel}  生命${snapshot.stats.maxHp}  攻击${snapshot.stats.atk}  防御${snapshot.stats.def}  速度${snapshot.stats.speed}  护盾${snapshot.stats.shield}  回复${snapshot.stats.regen}  吸血${snapshot.stats.lifesteal}`;
-  ctx.fillStyle = "#17130f";
+  ctx.fillStyle = "#d8dfd2";
   ctx.font = "900 23px sans-serif";
   wrapCanvasText(ctx, ability, margin + 36, statY + 124, width - margin * 2 - 72, 32, 2);
 
-  ctx.fillStyle = "#245f9a";
+  ctx.fillStyle = accent;
   ctx.font = "900 34px sans-serif";
   ctx.fillText(parsedSummary.title, margin + 36, statY + 214);
-  ctx.fillStyle = "#c67b1e";
+  ctx.fillStyle = "#e0c07a";
   ctx.font = "900 20px sans-serif";
-  ctx.fillText("多年后仍在塔里流传", margin + 38, statY + 246);
+  ctx.fillText(isDefeat ? "旧账没有合上，只停在这一页" : "多年后仍在塔里流传", margin + 38, statY + 246);
 
-  ctx.fillStyle = "#17130f";
+  ctx.fillStyle = "#f4ead2";
   ctx.font = "700 24px sans-serif";
   let textY = statY + 288;
   for (const paragraph of parsedSummary.paragraphs.slice(0, 3)) {
@@ -2098,14 +2115,16 @@ async function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
     if (textY > height - 328) break;
   }
 
-  ctx.fillStyle = "#245f9a";
+  ctx.fillStyle = accent;
   ctx.font = "900 28px sans-serif";
-  ctx.fillText("塔史记名装备", margin + 36, height - 298);
+  ctx.fillText(isDefeat ? "遗落在塔中的装备" : "塔史记名装备", margin + 36, height - 298);
   await drawCareerEquipmentCanvas(ctx, snapshot, margin + 36, height - 268, width - margin * 2 - 72, 176);
 
-  ctx.fillStyle = "#6f665c";
+  ctx.fillStyle = "#aeb8ac";
   ctx.font = "700 22px sans-serif";
-  ctx.fillText("photo-hero · 现实物品写入魔塔旧史", margin + 36, height - 84);
+  ctx.fillText(isDefeat ? "photo-hero · 现实物品留在魔塔残页" : "photo-hero · 现实物品写入魔塔旧史", margin + 36, height - 84);
+  ctx.fillStyle = accentSoft;
+  ctx.fillRect(margin + 34, height - 70, width - margin * 2 - 68, 4);
 }
 
 async function drawCareerEquipmentCanvas(ctx, snapshot, x, y, width, height) {
@@ -2115,7 +2134,7 @@ async function drawCareerEquipmentCanvas(ctx, snapshot, x, y, width, height) {
   const cellWidth = (width - gap * (columns - 1)) / columns;
   const cellHeight = (height - gap) / 2;
   if (!items.length) {
-    ctx.fillStyle = "#6f665c";
+    ctx.fillStyle = "#aeb8ac";
     ctx.font = "800 24px sans-serif";
     ctx.fillText("没有照片装备记录", x, y + 62);
     return;
@@ -2152,9 +2171,9 @@ async function drawCareerEquipmentCanvas(ctx, snapshot, x, y, width, height) {
     if (image) {
       drawImageCover(ctx, image, imageX, imageY, imageW, imageH);
     } else {
-      ctx.fillStyle = "#fffdf8";
+      ctx.fillStyle = "#151a16";
       ctx.fillRect(imageX, imageY, imageW, imageH);
-      ctx.fillStyle = "#cdbb9a";
+      ctx.fillStyle = "#6b756c";
       ctx.font = "900 18px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText("PHOTO", imageX + imageW / 2, imageY + imageH / 2 + 6);
@@ -2162,7 +2181,7 @@ async function drawCareerEquipmentCanvas(ctx, snapshot, x, y, width, height) {
     }
     ctx.restore();
 
-    ctx.fillStyle = "rgba(23, 19, 15, 0.78)";
+    ctx.fillStyle = "rgba(8, 10, 8, 0.84)";
     ctx.fillRect(cellX + 6, cellY + cellHeight - 28, cellWidth - 12, 22);
     ctx.fillStyle = color.text;
     ctx.font = "900 15px sans-serif";
@@ -2181,10 +2200,10 @@ function drawImageCover(ctx, image, x, y, width, height) {
 
 function getQualityCanvasColor(key) {
   const colors = {
-    common: { border: "#b8b4aa", bg: "#fffefa", text: "#ddd8cc" },
-    rare: { border: "#4f8fd6", bg: "#eff8ff", text: "#75b8ff" },
-    epic: { border: "#8b5fce", bg: "#f8f1ff", text: "#caa7ff" },
-    legendary: { border: "#d98520", bg: "#fff6df", text: "#ffc35a" },
+    common: { border: "#6f776f", bg: "#151a16", text: "#ddd8cc" },
+    rare: { border: "#4f8fd6", bg: "#17202a", text: "#75b8ff" },
+    epic: { border: "#8b5fce", bg: "#211a2b", text: "#caa7ff" },
+    legendary: { border: "#d98520", bg: "#2b2014", text: "#ffc35a" },
   };
   return colors[key] || colors.common;
 }
@@ -4432,6 +4451,10 @@ function handlePrimaryAction() {
     showCareerSummary();
     return;
   }
+  if (isPlayerDefeated() && state.careerSummary) {
+    showCareerSummary();
+    return;
+  }
   if (isIntroFloor()) {
     confirmIntroRewards();
     return;
@@ -5440,6 +5463,9 @@ function finishCurrentBattle(result) {
     state.tutorial.postKillHintShown = true;
     addBattleEvent("胶卷攒够后，可以继续拍新装备。", "info");
   }
+  if (result === "defeat") {
+    createDefeatCareerSummary();
+  }
   ensureBgmForGameState(true);
 }
 
@@ -5658,6 +5684,7 @@ function showCareerSummary() {
   if (!state.careerSummary) {
     state.careerSummary = buildLocalCareerSummary();
   }
+  if (!state.careerSummary.outcome) state.careerSummary.outcome = getCareerSummaryOutcome(state.careerSummary);
   state.infoMode = "career";
   saveGame();
   render();
@@ -5665,6 +5692,11 @@ function showCareerSummary() {
 
 function isCareerSummaryOpen() {
   return state.infoMode === "career";
+}
+
+function createDefeatCareerSummary() {
+  state.careerSummary = buildLocalCareerSummary("defeat");
+  state.infoMode = "career";
 }
 
 function normalizeTutorialState(tutorial) {
@@ -5749,11 +5781,41 @@ function enterTowerFromIntro() {
   render();
 }
 
-function buildLocalCareerSummary() {
-  const snapshot = buildCareerSnapshot();
+function getCareerSummaryOutcome(summary = state.careerSummary) {
+  if (summary?.outcome === "defeat" || summary?.snapshot?.outcome === "defeat") return "defeat";
+  if (!state.gameClear && isPlayerDefeated()) return "defeat";
+  return "clear";
+}
+
+function isDefeatCareerSummary(summary = state.careerSummary) {
+  return getCareerSummaryOutcome(summary) === "defeat";
+}
+
+function buildLocalCareerSummary(outcome = state.gameClear ? "clear" : isPlayerDefeated() ? "defeat" : "clear") {
+  const normalizedOutcome = outcome === "defeat" ? "defeat" : "clear";
+  const snapshot = buildCareerSnapshot(normalizedOutcome);
   const itemText = formatCareerTopItemNames(snapshot);
+  if (normalizedOutcome === "defeat") {
+    const floor = Math.max(introFloor, snapshot.defeatFloor || snapshot.floor || state.floor || introFloor);
+    const defeatLine = snapshot.defeatSummary
+      ? `最后一页战报写着：${snapshot.defeatSummary}`
+      : `最后一页停在第${floor}层，墨迹没有再向塔顶延伸。`;
+    return {
+      status: "local",
+      outcome: "defeat",
+      title: "止步旧塔",
+      text: [
+        `多年以后，塔底的旧账仍夹着一张未烧尽的胶片。${snapshot.formLabel}把照片装备带到第${floor}层，生命停在${snapshot.hp}，攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}也被一并记下。`,
+        `这次登塔击退了${snapshot.killCount}只怪物，${snapshot.bossKillCount}位Boss的名字曾被划去。${itemText}留在记录里，像几件从现实落进塔缝的遗物。`,
+        `${defeatLine}守塔人没有把它写成笑话，只在边角补了一句：倒下的那一刻，照片勇者仍握着下一次重开的影子。`,
+      ].join("\n\n"),
+      snapshot,
+      createdAt: Date.now(),
+    };
+  }
   return {
     status: "local",
+    outcome: "clear",
     title: "塔顶旧闻",
     text: [
       `多年以后，塔底的石碑仍记着一位${snapshot.formLabel}。他带着照片醒出的器物登上第${maxFloor}层，终局之力定格为生命${snapshot.stats.maxHp}、攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}。`,
@@ -5762,6 +5824,7 @@ function buildLocalCareerSummary() {
     ].join("\n\n"),
     snapshot,
     createdAt: Date.now(),
+    outcome: "clear",
   };
 }
 
@@ -5772,9 +5835,10 @@ function formatCareerTopItemNames(snapshot) {
   return `${names.slice(0, -1).join("、")}和${names[names.length - 1]}`;
 }
 
-function buildCareerSnapshot() {
+function buildCareerSnapshot(outcome = state.gameClear ? "clear" : isPlayerDefeated() ? "defeat" : "clear") {
   const stats = getPlayerStats();
   const reports = state.battleReports.filter((entry) => entry && entry.type !== "event");
+  const defeatReport = reports.find((entry) => entry.result === "defeat");
   const bossKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
   let killCount = 0;
   let bossKillCount = 0;
@@ -5804,7 +5868,9 @@ function buildCareerSnapshot() {
     }))
     .sort((a, b) => b.score - a.score);
   return {
+    outcome: outcome === "defeat" ? "defeat" : "clear",
     floor: state.floor,
+    reachedFloor: state.floor,
     formLabel: getHeroFormDisplayName(),
     stats,
     hp: state.player.hp,
@@ -5815,28 +5881,34 @@ function buildCareerSnapshot() {
     topItems: items.slice(0, 5),
     allItems: items,
     battleHighlights: reports.slice(0, 5).map((report) => report.summary).filter(Boolean),
+    defeatSummary: defeatReport?.summary || "",
+    defeatMonsterName: defeatReport?.monsterName || "",
+    defeatFloor: defeatReport?.floor || state.floor,
   };
 }
 
 async function requestCareerSummary(force = false) {
-  if (!state.gameClear || state.careerSummaryRequest) return;
+  if ((!state.gameClear && !isPlayerDefeated()) || state.careerSummaryRequest) return;
   if (!force && state.careerSummary?.status === "ai") return;
+  const outcome = getCareerSummaryOutcome();
   const config = getConfigFromInputs();
   if (!config.baseUrl || !config.apiKey || !config.model) {
-    if (!state.careerSummary) state.careerSummary = buildLocalCareerSummary();
+    if (!state.careerSummary) state.careerSummary = buildLocalCareerSummary(outcome);
     state.careerSummary.status = "local";
-    state.careerSummary.note = "配置图文模型后，可以重新生成更有个性的通关总结。";
+    state.careerSummary.outcome = outcome;
+    state.careerSummary.note = "配置图文模型后，可以重新生成更有个性的塔史。";
     saveGame();
     render();
     return;
   }
 
-  const snapshot = buildCareerSnapshot();
+  const snapshot = buildCareerSnapshot(outcome);
   state.careerSummary = {
-    ...(state.careerSummary || buildLocalCareerSummary()),
+    ...(state.careerSummary || buildLocalCareerSummary(outcome)),
     status: "loading",
+    outcome,
     snapshot,
-    note: "正在请大模型撰写通关总结。",
+    note: "正在请大模型誊写塔史。",
   };
   render();
 
@@ -5854,28 +5926,29 @@ async function requestCareerSummary(force = false) {
         temperature: 0.72,
         max_tokens: 520,
         messages: [
-          { role: "system", content: "你是魔塔旧史的书记官。请用第三人称写照片勇者的通关传说，像多年后塔内石碑和旧账册留下的记载。只输出成稿，不要Markdown、星号、列表、分析过程或标题标签。" },
-          { role: "user", content: buildCareerSummaryPrompt(snapshot) },
+          { role: "system", content: "你是魔塔旧史的书记官。请用第三人称写照片勇者的塔史记录，像多年后塔内石碑和旧账册留下的文字。只输出成稿，不要Markdown、星号、列表、分析过程或标题标签。" },
+          { role: "user", content: buildCareerSummaryPrompt(snapshot, outcome) },
         ],
       })),
-    }, 45000, "生涯总结");
+    }, 45000, "塔史总结");
     if (state.careerSummaryRequest !== request) return;
     const text = sanitizeCareerSummaryText(readModelText(response.payload));
-    if (!response.response.ok || !text) throw new Error("模型没有返回可用的通关总结。");
+    if (!response.response.ok || !text) throw new Error("模型没有返回可用的塔史。");
     state.careerSummary = {
       status: "ai",
-      title: extractCareerSummaryTitle(text) || "塔顶旧闻",
+      outcome,
+      title: extractCareerSummaryTitle(text) || (outcome === "defeat" ? "止步旧塔" : "塔顶旧闻"),
       text,
       snapshot,
       createdAt: Date.now(),
     };
   } catch (error) {
     if (state.careerSummaryRequest !== request) return;
-    const fallback = buildLocalCareerSummary();
+    const fallback = buildLocalCareerSummary(outcome);
     state.careerSummary = {
       ...fallback,
       status: "error",
-      note: `${error?.message || "生涯总结生成失败"} 当前显示本地总结。`,
+      note: `${error?.message || "塔史生成失败"} 当前显示本地塔史。`,
     };
   } finally {
     if (state.careerSummaryRequest === request) state.careerSummaryRequest = null;
@@ -5884,10 +5957,37 @@ async function requestCareerSummary(force = false) {
   }
 }
 
-function buildCareerSummaryPrompt(snapshot) {
+function buildCareerSummaryPrompt(snapshot, outcome = snapshot?.outcome || "clear") {
   const itemLines = snapshot.topItems.length
     ? snapshot.allItems.slice(0, 10).map((item, index) => `${index + 1}. ${item.quality} ${item.name}，分数${item.score}，属性${formatSnapshotStats(item.stats)}${item.effects.length ? `，词条${item.effects.join("、")}` : ""}`).join("\n")
     : "无照片装备";
+  if (outcome === "defeat") {
+    return [
+      "请基于以下战败数据，写一段更像魔塔旧账残页的中文结局。",
+      "要求：",
+      "1. 第一行写一个8-14字短标题，后面写3段短文，每段40-70字；不要列表编号。",
+      "2. 使用第三人称，像多年后塔中石碑、旧账册、守塔人口耳相传的记录；不要写“我”。",
+      "3. 风格要有历史感、魔塔感和止步后的余韵；不要嘲笑玩家，不要写成教程或失败提示。",
+      "4. 不要写通关、登顶、塔顶传说等已经完成通关的表达；可以写止步、残页、遗物、重开前的影子。",
+      "5. 突出照片装备，至少点名1-3件代表装备；装备少则如实写。写出它们像留在塔中的遗物，而不是普通数值道具。",
+      "6. 自然提及止步层数、击杀数、Boss击杀数、最终能力、剩余胶卷和最后战斗，不要堆砌成报表。",
+      "7. 不要解释规则，不要提API、模型、JSON、推理过程、开发者或截图分享。",
+      "8. 禁止使用Markdown格式，禁止星号、井号、项目符号、标题：、【战败】等包装。",
+      "9. 只输出最终成稿。",
+      "",
+      `勇者形态：${snapshot.formLabel}`,
+      `止步层数：第${snapshot.floor}层`,
+      `最终能力：生命${snapshot.stats.maxHp}，当前生命${snapshot.hp}，攻击${snapshot.stats.atk}，防御${snapshot.stats.def}，速度${snapshot.stats.speed}，护盾${snapshot.stats.shield}，回复${snapshot.stats.regen}，吸血${snapshot.stats.lifesteal}`,
+      `击败怪物：${snapshot.killCount}只`,
+      `击败Boss：${snapshot.bossKillCount}只`,
+      `剩余胶卷：${snapshot.film}`,
+      `装备数量：${snapshot.equipmentCount}`,
+      "代表装备：",
+      itemLines,
+      "最后战斗：",
+      snapshot.defeatSummary || snapshot.battleHighlights.join("\n") || "无",
+    ].join("\n");
+  }
   return [
     "请基于以下通关数据，写一段更像魔塔通关后流传多年的中文传说。",
     "要求：",
@@ -5940,7 +6040,7 @@ function sanitizeCareerSummaryText(text) {
     .slice(0, 900);
   return cleaned
     .split(/\n+/)
-    .map((line) => line.trim().replace(/^\s*[【\[]?通关[】\]]?\s*[:：!！-]?\s*/u, ""))
+    .map((line) => line.trim().replace(/^\s*[【\[]?(?:通关|战败|失败)[】\]]?\s*[:：!！-]?\s*/u, ""))
     .filter(Boolean)
     .join("\n\n")
     .slice(0, 900);
@@ -5953,11 +6053,15 @@ function extractCareerSummaryTitle(text) {
 }
 
 function getCareerSummaryParagraphs(summary) {
-  const title = extractCareerSummaryTitle(summary?.text || "") || cleanText(summary?.title, "塔顶旧闻", 18);
   const lines = sanitizeCareerSummaryText(summary?.text || "")
     .split(/\n+/)
     .map((line) => line.trim())
     .filter(Boolean);
+  const fallbackTitle = isDefeatCareerSummary(summary) ? "止步旧塔" : "塔顶旧闻";
+  const savedTitle = cleanText(summary?.title, fallbackTitle, 18);
+  const extractedTitle = extractCareerSummaryTitle(summary?.text || "");
+  const useExtractedTitle = Boolean(extractedTitle && (summary?.status === "ai" || !summary?.title));
+  const title = useExtractedTitle ? extractedTitle : savedTitle;
   const bodyLines = lines.length > 1 && lines[0] === title ? lines.slice(1) : lines.filter((line, index) => index || line !== title);
   const paragraphs = bodyLines.length ? bodyLines : lines.filter((line) => line !== title);
   return {
@@ -6097,8 +6201,8 @@ function canSelectEquipmentSlot(index) {
   const item = getInventoryItemAt(index);
   if (state.gameClear) return true;
   if (isIntroFloor()) return Boolean(item);
-  if (isCareerSummaryOpen() || hasPendingPhoto() || Boolean(state.bossReward)) return false;
   if (isPlayerDefeated()) return Boolean(item);
+  if (isCareerSummaryOpen() || hasPendingPhoto() || Boolean(state.bossReward)) return false;
   return !isEquipmentLocked();
 }
 
@@ -9021,7 +9125,9 @@ function render() {
   const canStartBattle = canStartSelectedBattle();
   els.attackBtn.hidden = false;
   els.attackBtn.textContent = state.gameClear
-    ? "生涯总结"
+    ? "塔史结局"
+    : defeated && state.careerSummary
+      ? "战败结局"
     : bossRewardPending
       ? "选择"
       : canStartBattle
@@ -9031,15 +9137,17 @@ function render() {
     ? defeated || !selectedBossReward
     : state.gameClear
       ? false
+      : defeated && state.careerSummary
+        ? false
       : defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer);
   if (isIntroFloor()) {
     els.attackBtn.textContent = "进入魔塔";
     els.attackBtn.disabled = !hasSelectedAllIntroRewards();
   }
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
-  els.attackBtn.setAttribute("aria-label", state.gameClear ? "查看生涯总结" : bossRewardPending ? "确认奖励牌" : "开始战斗");
+  els.attackBtn.setAttribute("aria-label", state.gameClear ? "查看塔史结局" : defeated && state.careerSummary ? "查看战败结局" : bossRewardPending ? "确认奖励牌" : "开始战斗");
   if (isIntroFloor()) els.attackBtn.setAttribute("aria-label", "进入魔塔第一层");
-  els.battleSpeedBtn.hidden = bossRewardPending || state.gameClear || isIntroFloor();
+  els.battleSpeedBtn.hidden = bossRewardPending || state.gameClear || defeated || isIntroFloor();
   els.battleSpeedBtn.textContent = bossRewardPending ? "" : `×${getBattleSpeed()}`;
   els.battleSpeedBtn.setAttribute("aria-label", bossRewardPending ? "Boss 奖励选择阶段" : `切换战斗倍速，当前 ${getBattleSpeed()} 倍`);
   els.battleSpeedBtn.disabled = defeated || state.gameClear || bossRewardPending;
@@ -9060,6 +9168,7 @@ function getFloorActionLabel(bossRewardPending = Boolean(state.bossReward)) {
   if (state.gameClear) return "已通关";
   if (isIntroFloor()) return `第 ${introFloor} / ${maxFloor} 层 · 塔门前`;
   const floor = bossRewardPending && state.bossReward?.floor ? state.bossReward.floor : state.floor;
+  if (isPlayerDefeated()) return `第 ${floor} / ${maxFloor} 层 · 战败`;
   if (bossRewardPending) return `第 ${floor} / ${maxFloor} 层 · 奖励`;
   return `第 ${floor} / ${maxFloor} 层${isBossFloor(floor) ? " · Boss" : isRewardBossFloor(floor) ? " · 奖励Boss" : ""}`;
 }
@@ -9559,6 +9668,7 @@ function renderEquipmentDetail() {
   renderPendingCropOverlay();
   els.loadingState.hidden = false;
   els.equipmentDetail.classList.remove("is-error", "is-actionable", "is-log", "career-summary-panel");
+  delete els.equipmentDetail.dataset.outcome;
   clearEquipmentDetailQuality();
   els.equipmentDetailStats.hidden = false;
 
@@ -9757,9 +9867,15 @@ function renderViewerCropOverlay() {
 
 function renderCareerSummaryPanel() {
   const summary = state.careerSummary || buildLocalCareerSummary();
-  const snapshot = summary.snapshot || buildCareerSnapshot();
+  const outcome = getCareerSummaryOutcome(summary);
+  const snapshot = summary.snapshot || buildCareerSnapshot(outcome);
+  els.equipmentDetail.dataset.outcome = outcome;
   els.equipmentDetail.classList.add("is-actionable", "career-summary-panel");
-  els.equipmentDetailName.textContent = summary.status === "loading" ? "正在生成塔史" : "照片勇者塔史";
+  els.equipmentDetailName.textContent = summary.status === "loading"
+    ? "正在生成塔史"
+    : outcome === "defeat"
+      ? "战败塔史"
+      : "塔顶塔史";
   els.equipmentDetailStats.innerHTML = "";
   els.equipmentDetailStats.hidden = true;
   els.equipmentDetailDesc.innerHTML = renderCareerSummaryCard(summary, snapshot);
@@ -9767,40 +9883,58 @@ function renderCareerSummaryPanel() {
   els.photoActionBtn.hidden = false;
   els.photoActionBtn.disabled = Boolean(state.careerSummaryRequest);
   els.photoActionBtn.textContent = state.careerSummaryRequest ? "生成中" : "重新生成";
-  els.photoActionBtn.setAttribute("aria-label", "重新生成生涯总结");
+  els.photoActionBtn.setAttribute("aria-label", "重新生成塔史");
   els.analyzePhotoBtn.hidden = false;
   els.analyzePhotoBtn.disabled = Boolean(state.careerSummaryRequest);
   els.analyzePhotoBtn.textContent = "保存图片";
-  els.analyzePhotoBtn.setAttribute("aria-label", "保存通关分享图片");
+  els.analyzePhotoBtn.setAttribute("aria-label", "保存塔史分享图片");
   els.discardItemBtn.hidden = true;
   els.battleLog.hidden = true;
   els.filmCountBadge.hidden = true;
 }
 
 function renderCareerSummaryCard(summary, snapshot) {
+  const outcome = getCareerSummaryOutcome(summary);
+  const isDefeat = outcome === "defeat";
   const statusText = getCareerSummaryStatusText(summary);
   const parsedSummary = getCareerSummaryParagraphs(summary);
+  const floor = snapshot.defeatFloor || snapshot.floor || state.floor;
   const topItems = renderCareerEquipmentGallery(snapshot);
   const paragraphs = parsedSummary.paragraphs
     .slice(0, 4)
     .map((line) => `<p>${escapeHtml(line)}</p>`)
     .join("");
   const note = summary.note ? `<small>${escapeHtml(summary.note)}</small>` : "";
+  const eyebrow = isDefeat
+    ? `${statusText} · 止步第${floor}层`
+    : `${statusText} · 第${maxFloor}层通关`;
+  const subline = isDefeat
+    ? `${snapshot.formLabel} · 倒在第${floor}层`
+    : `${snapshot.formLabel} · 剩余胶卷 ${snapshot.film}`;
+  const stats = isDefeat
+    ? [
+        ["层数", floor],
+        ["击败", snapshot.killCount],
+        ["装备", snapshot.equipmentCount],
+      ]
+    : [
+        ["怪物", snapshot.killCount],
+        ["Boss", snapshot.bossKillCount],
+        ["装备", snapshot.equipmentCount],
+      ];
   return `
-    <section class="career-card" aria-label="通关分享卡">
+    <section class="career-card is-${escapeHtml(outcome)}" aria-label="${isDefeat ? "战败结局卡" : "通关结局卡"}">
       <div class="career-card-head">
-        <span>${escapeHtml(statusText)} · 第${maxFloor}层通关</span>
+        <span>${escapeHtml(eyebrow)}</span>
         <strong>${escapeHtml(parsedSummary.title)}</strong>
-        <em>${escapeHtml(snapshot.formLabel)} · 剩余胶卷 ${escapeHtml(snapshot.film)}</em>
+        <em>${escapeHtml(subline)}</em>
       </div>
       <div class="career-card-stats">
-        <span>怪物 ${snapshot.killCount}</span>
-        <span>Boss ${snapshot.bossKillCount}</span>
-        <span>装备 ${snapshot.equipmentCount}</span>
+        ${stats.map(([label, value]) => `<span>${escapeHtml(label)} ${escapeHtml(value)}</span>`).join("")}
       </div>
       <div class="career-card-ability">${escapeHtml(formatCareerAbilityLine(snapshot))}</div>
-      <div class="career-card-body">${paragraphs || "<p>多年以后，塔中仍流传着照片勇者登顶的旧闻。</p>"}</div>
-      <h4>塔史记名装备</h4>
+      <div class="career-card-body">${paragraphs || (isDefeat ? "<p>旧账停在这一页，塔里仍记得照片勇者倒下前留下的影子。</p>" : "<p>多年以后，塔中仍流传着照片勇者登顶的旧闻。</p>")}</div>
+      <h4>${isDefeat ? "遗落在塔中的装备" : "塔史记名装备"}</h4>
       <ul class="career-card-items">${topItems}</ul>
       ${note}
     </section>
@@ -9809,7 +9943,10 @@ function renderCareerSummaryCard(summary, snapshot) {
 
 function renderCareerEquipmentGallery(snapshot) {
   const items = (snapshot.allItems || snapshot.topItems || []).slice(0, equipmentVisibleSlots);
-  if (!items.length) return `<li class="career-item-empty">没有照片装备记录</li>`;
+  if (!items.length) {
+    const emptyText = snapshot?.outcome === "defeat" ? "没有留下照片装备" : "没有照片装备记录";
+    return `<li class="career-item-empty">${escapeHtml(emptyText)}</li>`;
+  }
   return items.map((item) => {
     const qualityKey = item.qualityKey || getItemQuality(item.score || 0).key;
     const image = item.image || makePlaceholderImage();
@@ -9824,13 +9961,11 @@ function renderCareerEquipmentGallery(snapshot) {
 }
 
 function getCareerSummaryStatusText(summary) {
-  return summary?.status === "ai"
-    ? "AI 塔史"
-    : summary?.status === "loading"
-      ? "正在誊写塔史"
-      : summary?.status === "error"
-        ? "本地塔史 · 模型生成失败"
-        : "本地塔史";
+  const isDefeat = isDefeatCareerSummary(summary);
+  if (summary?.status === "ai") return isDefeat ? "AI 残页" : "AI 塔史";
+  if (summary?.status === "loading") return "正在誊写塔史";
+  if (summary?.status === "error") return isDefeat ? "本地残页 · 模型生成失败" : "本地塔史 · 模型生成失败";
+  return isDefeat ? "本地残页" : "本地塔史";
 }
 
 function formatCareerAbilityLine(snapshot) {
@@ -10295,6 +10430,7 @@ function renderGameTextOnly() {
     },
     careerSummary: state.careerSummary ? {
       status: state.careerSummary.status,
+      outcome: getCareerSummaryOutcome(state.careerSummary),
       title: state.careerSummary.title,
       text: state.careerSummary.text,
       note: state.careerSummary.note || "",
@@ -10569,6 +10705,7 @@ function normalizeCareerSummary(summary) {
   const status = ["local", "loading", "ai", "error"].includes(summary.status) ? summary.status : "local";
   return {
     status: status === "loading" ? "local" : status,
+    outcome: summary.outcome === "defeat" || summary.snapshot?.outcome === "defeat" ? "defeat" : "clear",
     title: cleanText(summary.title, "照片勇者生涯总结", 32),
     text: cleanText(summary.text, "", 1200),
     note: cleanText(summary.note, "", 160),
@@ -10799,16 +10936,24 @@ window.__photoHeroTestHooks = {
     addInventoryItem({ ...item, id: makeId("test-combo-special"), fullImage: input.fullImage || item.fullImage || "" }, "测试组合特装已加入。");
   },
   setCareerSummaryForTest(summary = {}) {
-    state.gameClear = true;
+    const outcome = summary.outcome === "defeat" ? "defeat" : "clear";
+    state.gameClear = outcome === "clear";
+    if (outcome === "defeat") {
+      state.player.hp = 0;
+    }
     state.careerSummary = {
-      ...buildLocalCareerSummary(),
+      ...buildLocalCareerSummary(outcome),
       ...summary,
-      snapshot: summary.snapshot || buildCareerSnapshot(),
+      outcome,
+      snapshot: summary.snapshot || buildCareerSnapshot(outcome),
       createdAt: Date.now(),
     };
     state.infoMode = "career";
     saveGame();
     render();
+  },
+  setDefeatSummaryForTest(summary = {}) {
+    this.setCareerSummaryForTest({ ...summary, outcome: "defeat" });
   },
   makeCareerSummaryImageForTest() {
     const summary = state.careerSummary || buildLocalCareerSummary();

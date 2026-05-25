@@ -62,6 +62,7 @@ async function collectScenario(page, name, action = async () => {}) {
       careerGallery: window.__reviewCareerGallery || null,
       bossCeremony: window.__reviewBossCeremony || null,
       defeatedEquipment: window.__reviewDefeatedEquipment || null,
+      defeatEnding: window.__reviewDefeatEnding || null,
       equipmentDetailPreview: window.__reviewEquipmentDetailPreview || null,
       introFlow: window.__reviewIntroFlow || null,
       itemStory: window.__reviewItemStory || null,
@@ -221,6 +222,19 @@ function assertScenario(name, metrics) {
     if (!result.photoDisabled) failures.push(`${name}: defeated hero should not be able to start photo appraisal from item detail, got ${JSON.stringify(result)}`);
     if (metrics.state.player.hp !== 0) failures.push(`${name}: scenario should remain defeated, got hp ${metrics.state.player.hp}`);
   }
+  if (name === "mobile-defeat-ending") {
+    const result = metrics.defeatEnding || {};
+    if (metrics.state.gameClear) failures.push(`${name}: defeat ending must not mark the run as clear`);
+    if (metrics.state.player.hp !== 0) failures.push(`${name}: defeat ending scenario should leave hero defeated, got hp ${metrics.state.player.hp}`);
+    if (metrics.state.careerSummary?.outcome !== "defeat") failures.push(`${name}: missing defeat career summary outcome, got ${JSON.stringify(metrics.state.careerSummary)}`);
+    if (!result.cardIsDefeat || result.panelOutcome !== "defeat") failures.push(`${name}: defeat ending card/panel should use defeat styling, got ${JSON.stringify(result)}`);
+    if (!result.attackButtonReturnsEnding) failures.push(`${name}: attack button should reopen defeat ending after viewing equipment, got ${JSON.stringify(result)}`);
+    if (!result.occupiedSlotEnabled || !result.selectedItemAfterEnding) failures.push(`${name}: defeated equipment should remain viewable from ending, got ${JSON.stringify(result)}`);
+    if (!result.emptySlotDisabled) failures.push(`${name}: empty slot should stay disabled after defeat ending, got ${JSON.stringify(result)}`);
+    if (result.textHasClearCopy) failures.push(`${name}: defeat ending should not read as a clear ending, got ${result.detailText}`);
+    if (!result.textHasDefeatCopy) failures.push(`${name}: defeat ending should mention stopping/falling, got ${result.detailText}`);
+    if (!result.canvasReady) failures.push(`${name}: defeat ending share image should render as PNG, got ${JSON.stringify(result)}`);
+  }
   if (name === "desktop-equipment-preview") {
     const result = metrics.equipmentDetailPreview || {};
     if (!result.visible || !result.loaded || result.width < 180 || result.height < 180) {
@@ -248,7 +262,7 @@ function assertScenario(name, metrics) {
     if (metrics.state.currentBattle) failures.push(`${name}: should remain pre-battle`);
   }
   if (name === "mobile-career") {
-    if (!metrics.visibleButtons.includes("生涯总结")) failures.push(`${name}: missing career summary button`);
+    if (!metrics.visibleButtons.includes("塔史结局")) failures.push(`${name}: missing tower ending button`);
     if (!metrics.equipmentGrid || metrics.equipmentGrid.height <= 0) failures.push(`${name}: equipment grid should stay usable after clear`);
     if (!metrics.visibleButtons.includes("保存")) failures.push(`${name}: cleared run should allow saving selected equipment image`);
     if (!/通关纪念杯/.test(metrics.detailText)) failures.push(`${name}: selected equipment detail should be visible after clear`);
@@ -800,6 +814,66 @@ function assertScenario(name, metrics) {
         photoDisabled: Boolean(document.querySelector("#photoActionBtn")?.disabled),
       };
       document.querySelector("#imageViewer")?.click();
+    });
+  });
+
+  scenarios.mobileDefeatEnding = await collectScenario(mobile, "mobile-defeat-ending", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.addRawItem({
+        itemName: "裂纹护符",
+        subjectName: "裂纹护符",
+        objectType: "桌面小物",
+        identityDescription: "一枚有裂纹的护符。",
+        image: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%231d2420'/%3E%3Cpath d='M60 14L100 50L88 104H32L20 50Z' fill='%23d65b4f'/%3E%3Cpath d='M58 24L50 58L70 62L58 98' stroke='%23f6dfb4' stroke-width='8' fill='none'/%3E%3C/svg%3E",
+        fullImage: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640'%3E%3Crect width='640' height='640' fill='%231d2420'/%3E%3Cpath d='M320 70L540 260L470 570H170L100 260Z' fill='%23d65b4f'/%3E%3Cpath d='M310 130L260 310L380 340L305 540' stroke='%23f6dfb4' stroke-width='42' fill='none'/%3E%3C/svg%3E",
+        stats: { shield: 2, defense: 1 },
+        value: 15,
+        description: "裂纹护符在塔里替勇者挡过最后一击。",
+        skipSpecialRoll: true,
+      });
+      hooks.setFloor(6);
+      hooks.setEnemies([{
+        id: "review-defeat-ending",
+        testEnemy: true,
+        typeKey: "skeleton",
+        typeName: "骷髅",
+        name: "裂骨骷髅",
+        maxHp: 60,
+        hp: 60,
+        atk: 99,
+        def: 0,
+        speed: 9,
+        traits: [],
+      }]);
+      hooks.selectEnemies(["review-defeat-ending"]);
+      hooks.setHeroStats({ hp: 1, shield: 0 });
+    });
+    await page.click("#attackBtn");
+    await page.waitForFunction(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      return state.player.hp === 0 && state.careerSummary?.outcome === "defeat";
+    }, null, { timeout: 5000 });
+    await page.locator(".equipment-slot.has-item").first().click();
+    await page.click("#attackBtn");
+    await page.waitForFunction(() => Boolean(document.querySelector(".career-card.is-defeat")), null, { timeout: 3000 });
+    await page.evaluate(async () => {
+      const hooks = window.__photoHeroTestHooks;
+      const slots = Array.from(document.querySelectorAll(".equipment-slot"));
+      const state = JSON.parse(window.render_game_to_text());
+      const image = await hooks.makeCareerSummaryImageForTest();
+      window.__reviewDefeatEnding = {
+        panelOutcome: document.querySelector("#equipmentDetail")?.dataset.outcome || "",
+        cardIsDefeat: Boolean(document.querySelector(".career-card.is-defeat")),
+        attackButtonReturnsEnding: Boolean(document.querySelector(".career-card.is-defeat")),
+        occupiedSlotEnabled: !slots[0]?.disabled,
+        emptySlotDisabled: Boolean(slots[1]?.disabled),
+        selectedItemAfterEnding: state.player.selectedEquipment === "裂纹护符",
+        textHasDefeatCopy: /战败|止步|倒在|遗落/.test(document.querySelector("#equipmentDetail")?.innerText || ""),
+        textHasClearCopy: /通关|塔顶传说|第40层通关/.test(document.querySelector("#equipmentDetail")?.innerText || ""),
+        canvasReady: typeof image === "string" && image.startsWith("data:image/png"),
+        detailText: document.querySelector("#equipmentDetail")?.innerText || "",
+      };
     });
   });
 
