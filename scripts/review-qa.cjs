@@ -62,6 +62,7 @@ async function collectScenario(page, name, action = async () => {}) {
       careerGallery: window.__reviewCareerGallery || null,
       bossCeremony: window.__reviewBossCeremony || null,
       itemStory: window.__reviewItemStory || null,
+      itemTypography: window.__reviewItemTypography || null,
       soundEffects: window.__reviewSoundEffects || null,
       audioControls: window.__reviewAudioControls || null,
       bgmPreload: window.__reviewBgmPreload || null,
@@ -238,6 +239,15 @@ function assertScenario(name, metrics) {
     const story = metrics.itemStory || {};
     if (!story.hasTowerMeaning) failures.push(`${name}: generated item descriptions should feel tower/story themed`);
     if (story.hasRawStatPromise) failures.push(`${name}: generated item descriptions should not expose raw stat promises`);
+  }
+  if (name === "item-typography") {
+    const item = metrics.itemTypography || {};
+    if (!item.slotNameBalanced) failures.push(`${name}: long equipment names should split into balanced two-line slot labels, got ${JSON.stringify(item)}`);
+    if (!item.detailNameBalanced) failures.push(`${name}: detail title should use the same balanced line break, got ${JSON.stringify(item)}`);
+    const refunds = item.refunds || {};
+    if (refunds.common !== 0.3 || refunds.rare !== 0.5 || refunds.epic !== 0.7 || refunds.legendary !== 0.9) {
+      failures.push(`${name}: quality dismantle refunds should be 0.3/0.5/0.7/0.9, got ${JSON.stringify(refunds)}`);
+    }
   }
   if (name === "mobile-save-fallback") {
     const result = metrics.mobileSaveFallback || {};
@@ -764,6 +774,47 @@ function assertScenario(name, metrics) {
       window.__reviewItemStory = {
         hasTowerMeaning: /塔|塔影|塔风|塔纹/.test(detailText),
         hasRawStatPromise: /攻击\\+|防御\\+|生命上限\\+|速度\\+|吸血\\+|回复\\+|护盾\\+/.test(detailText),
+      };
+    });
+  });
+
+  scenarios.itemTypography = await collectScenario(desktop, "item-typography", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.resetGameForTest();
+      const longName = "古铜色机械怀表碎片";
+      hooks.addRawItem({
+        itemName: longName,
+        subjectName: "怀表碎片",
+        objectType: "桌面小物",
+        identityDescription: "古铜色圆形机械怀表，表盖有细纹。",
+        image: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%231d2420'/%3E%3Ccircle cx='60' cy='64' r='34' fill='%23b7792d'/%3E%3C/svg%3E",
+        stats: { shield: 1 },
+        value: 13,
+        description: "古铜色机械怀表被塔影收进口袋。",
+        skipSpecialRoll: true,
+      });
+      const readLengths = (text) => String(text || "").split("\n").map((line) => Array.from(line).length);
+      const slotName = document.querySelector(".slot-name")?.textContent || "";
+      const detailName = document.querySelector("#equipmentDetail strong")?.textContent || "";
+      const balancedName = hooks.formatBalancedItemDisplayNameForTest?.({ itemName: longName }) || "";
+      const slotLengths = readLengths(slotName);
+      const detailLengths = readLengths(detailName);
+      const makeItem = (value) => ({ itemName: "测试装备", value, stats: { hp: 1 }, skipSpecialRoll: true });
+      window.__reviewItemTypography = {
+        balancedName,
+        slotName,
+        detailName,
+        slotLengths,
+        detailLengths,
+        slotNameBalanced: slotLengths.length === 2 && slotLengths[0] >= slotLengths[1] && slotLengths[0] - slotLengths[1] <= 1,
+        detailNameBalanced: detailLengths.length === 2 && detailLengths[0] >= detailLengths[1] && detailLengths[0] - detailLengths[1] <= 1,
+        refunds: {
+          common: hooks.getDismantleFilmReturnForTest(makeItem(8)),
+          rare: hooks.getDismantleFilmReturnForTest(makeItem(13)),
+          epic: hooks.getDismantleFilmReturnForTest(makeItem(17)),
+          legendary: hooks.getDismantleFilmReturnForTest(makeItem(21)),
+        },
       };
     });
   });

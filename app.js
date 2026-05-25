@@ -158,10 +158,10 @@ const statValueWeights = {
 };
 
 const itemQualityRefunds = {
-  common: 0.2,
-  rare: 0.4,
-  epic: 0.6,
-  legendary: 0.8,
+  common: 0.3,
+  rare: 0.5,
+  epic: 0.7,
+  legendary: 0.9,
 };
 
 const photoSpecialEffects = [
@@ -4243,6 +4243,35 @@ function syncShieldAfterEquipmentChange(oldMaxShield, newMaxShield, oldCurrentSh
 
 function formatItemDisplayName(item) {
   return item?.itemName || "装备";
+}
+
+function getTextVisualLength(text) {
+  return Array.from(String(text || "")).reduce((sum, char) => sum + (char.charCodeAt(0) <= 0x7f ? 0.55 : 1), 0);
+}
+
+function formatBalancedItemDisplayName(item, maxSingleLineLength = 6.5) {
+  const name = formatItemDisplayName(item).trim().replace(/\s+/g, " ");
+  const chars = Array.from(name);
+  if (chars.length <= 2 || getTextVisualLength(name) <= maxSingleLineLength) return name;
+
+  let bestIndex = 0;
+  let bestScore = Infinity;
+  for (let index = 1; index < chars.length; index += 1) {
+    const first = chars.slice(0, index).join("").trim();
+    const second = chars.slice(index).join("").trim();
+    const firstLength = getTextVisualLength(first);
+    const secondLength = getTextVisualLength(second);
+    if (!firstLength || !secondLength) continue;
+    if (secondLength < 2) continue;
+    const topShortPenalty = firstLength < secondLength ? 1.8 : 0;
+    const score = Math.abs(firstLength - secondLength) + topShortPenalty;
+    if (score < bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  }
+  if (!bestIndex) return name;
+  return `${chars.slice(0, bestIndex).join("").trim()}\n${chars.slice(bestIndex).join("").trim()}`;
 }
 
 function createEmptyInventorySlots() {
@@ -9155,7 +9184,7 @@ function renderEquipmentGrid() {
       const quality = getItemQuality(scoreItem(item));
       button.innerHTML = `
         <span class="slot-image"><img src="${item.image || makePlaceholderImage()}" alt=""></span>
-        <span class="slot-name" data-quality="${quality.key}">${escapeHtml(formatItemDisplayName(item))}</span>
+        <span class="slot-name" data-quality="${quality.key}">${escapeHtml(formatBalancedItemDisplayName(item))}</span>
       `;
     } else {
       button.innerHTML = state.gameClear
@@ -9319,7 +9348,7 @@ function renderEquipmentDetail() {
 
   const quality = getItemQuality(scoreItem(selected));
   setEquipmentDetailQuality(quality);
-  els.equipmentDetailName.textContent = formatItemDisplayName(selected);
+  els.equipmentDetailName.textContent = formatBalancedItemDisplayName(selected, 8);
   els.equipmentDetailName.dataset.quality = quality.label;
   els.equipmentDetailStats.innerHTML = renderItemDetailPills(selected);
   els.equipmentDetailStats.hidden = false;
@@ -9439,7 +9468,7 @@ function renderCareerEquipmentGallery(snapshot) {
     return `
       <li class="career-item-card quality-${escapeHtml(qualityKey)}">
         <span class="career-item-image"><img src="${escapeHtml(image)}" alt=""></span>
-        <span class="career-item-name">${escapeHtml(item.name)}</span>
+        <span class="career-item-name">${escapeHtml(formatBalancedItemDisplayName({ itemName: item.name }))}</span>
         <b>${escapeHtml(item.quality)} ${item.score || 0}</b>
       </li>
     `;
@@ -10629,6 +10658,9 @@ window.__photoHeroTestHooks = {
   },
   renderItemDescriptionForTest(item) {
     return renderItemDescription(item);
+  },
+  formatBalancedItemDisplayNameForTest(item, maxSingleLineLength) {
+    return formatBalancedItemDisplayName(item, maxSingleLineLength);
   },
   getAppraisalFailureReasonForTest(item) {
     return getAppraisalFailureReason(item);

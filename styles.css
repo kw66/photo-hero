@@ -1029,7 +1029,7 @@ dd {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  white-space: normal;
+  white-space: pre-line;
   overflow-wrap: anywhere;
   text-shadow: 0 0 6px color-mix(in srgb, var(--slot-glow, #fff) 58%, transparent);
 }
@@ -1338,6 +1338,8 @@ dd {
   overflow-wrap: anywhere;
   font-size: 0.9rem;
   line-height: 1.1;
+  white-space: pre-line;
+  text-wrap: balance;
 }
 
 .equipment-detail strong[data-quality]::after {
@@ -1752,6 +1754,8 @@ dd {
   font-weight: 950;
   line-height: 1.05;
   text-align: center;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .career-item-empty {
