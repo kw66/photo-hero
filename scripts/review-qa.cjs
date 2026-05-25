@@ -258,7 +258,9 @@ function assertScenario(name, metrics) {
     if (se.sweepBattleHits !== 3) failures.push(`${name}: sweep should fire one battle sound per animated hit card, got ${se.sweepBattleHits}`);
     if (se.sweepEnemyHitCount !== 3) failures.push(`${name}: sweep should animate all three physically hit cards, got ${se.sweepEnemyHitCount}`);
     if (se.heroHitActive !== true || se.enemyHitActive !== true) failures.push(`${name}: hit animation state should remain active after sound checks, got ${JSON.stringify({ hero: se.heroHitActive, enemy: se.enemyHitActive })}`);
-    if (se.bgmLoopEnabled !== true) failures.push(`${name}: BGM audio should loop, got ${JSON.stringify(se)}`);
+    if (se.bgmNativeLoopDisabled !== true) failures.push(`${name}: BGM should use manual delayed looping, got ${JSON.stringify(se)}`);
+    if (se.bgmSameTrackNoRefresh !== true) failures.push(`${name}: same-track BGM refreshes should not restart playback, got ${JSON.stringify(se)}`);
+    if (se.bgmDelayedLoopRestart !== true) failures.push(`${name}: BGM should restart only after delayed loop handoff, got ${JSON.stringify(se)}`);
     if (se.bgmRecoveredFromPause !== true) failures.push(`${name}: BGM should recover if paused unexpectedly, got ${JSON.stringify(se)}`);
     if (se.bgmWatchdogRecovered !== true) failures.push(`${name}: BGM watchdog should recover stalled playback, got ${JSON.stringify(se)}`);
     if (se.contextRecoveryAttempted !== true) failures.push(`${name}: audio context recovery should be attempted, got ${JSON.stringify(se)}`);
@@ -1514,6 +1516,16 @@ function assertScenario(name, metrics) {
       await new Promise((resolve) => setTimeout(resolve, 360));
       window.__reviewBgmPreload = hooks.getBgmPreloadStateForTest?.() || {};
       const initialBgmState = hooks.getBgmPlaybackStateForTest?.() || {};
+      hooks.ensureBgmForTest?.(true);
+      const sameTrackBaselineState = hooks.getBgmPlaybackStateForTest?.() || {};
+      hooks.ensureBgmForTest?.(true);
+      hooks.ensureBgmForTest?.(true);
+      const sameTrackRefreshState = hooks.getBgmPlaybackStateForTest?.() || {};
+      hooks.markCurrentBgmEndedForTest?.();
+      await new Promise((resolve) => setTimeout(resolve, 220));
+      const loopWaitState = hooks.getBgmPlaybackStateForTest?.() || {};
+      await new Promise((resolve) => setTimeout(resolve, 1050));
+      const loopRestartState = hooks.getBgmPlaybackStateForTest?.() || {};
       hooks.forceBgmPausedForTest?.();
       await new Promise((resolve) => setTimeout(resolve, 220));
       const recoveredBgmState = hooks.getBgmPlaybackStateForTest?.() || {};
@@ -1617,7 +1629,9 @@ function assertScenario(name, metrics) {
         sweepEnemyHitCount,
         heroHitActive,
         enemyHitActive,
-        bgmLoopEnabled: initialBgmState.loop === true,
+        bgmNativeLoopDisabled: initialBgmState.loop === false,
+        bgmSameTrackNoRefresh: sameTrackRefreshState.playAttemptToken === sameTrackBaselineState.playAttemptToken,
+        bgmDelayedLoopRestart: loopWaitState.playAttemptToken === sameTrackRefreshState.playAttemptToken && loopWaitState.loopRestartScheduled === true && loopRestartState.playAttemptToken > loopWaitState.playAttemptToken,
         bgmRecoveredFromPause: recoveredBgmState.hasAudio && recoveredBgmState.paused === false,
         bgmWatchdogRecovered: (recoveryAfterWatchdog.count || 0) > (recoveryBeforeWatchdog.count || 0),
         contextRecoveryAttempted: (recoveryAfterContext.count || 0) > (recoveryBeforeContext.count || 0),

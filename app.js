@@ -368,13 +368,18 @@ let gameAudioContext = null;
 const mediaAudioNodes = new WeakMap();
 const sfxAudioBaseVolumes = new WeakMap();
 const intentionalBgmPauseUntil = new WeakMap();
+const bgmLoopHoldUntil = new WeakMap();
 const bgmAudioCache = {};
 const activeSfxAudios = new Set();
 let bgmPreloadStarted = false;
 let bgmPlayAttemptToken = 0;
 let bgmFallbackStopTimer = 0;
+let bgmLoopRestartTimer = 0;
+let bgmLoopRestartKey = "";
+let bgmLoopRestartAudio = null;
 let audioRecoveryRetryTimer = 0;
 const audioRecoveryCooldownMs = 180;
+const bgmLoopDelayMs = 1000;
 
 const defaultTutorialState = {
   photoStarted: false,
@@ -744,6 +749,19 @@ function clearAudioRecoveryRetry() {
   audioRecoveryRetryTimer = 0;
 }
 
+function clearBgmLoopRestart(key = "", audio = null) {
+  if (key && bgmLoopRestartKey && key !== bgmLoopRestartKey) return;
+  if (audio && bgmLoopRestartAudio && audio !== bgmLoopRestartAudio) return;
+  if (bgmLoopRestartTimer) window.clearTimeout(bgmLoopRestartTimer);
+  bgmLoopRestartTimer = 0;
+  bgmLoopRestartKey = "";
+  bgmLoopRestartAudio = null;
+}
+
+function getBgmLoopHoldRemaining(audio = state.bgmAudio) {
+  return Math.max(0, (bgmLoopHoldUntil.get(audio) || 0) - Date.now());
+}
+
 function scheduleAudioRecovery(reason = "scheduled", delay = 360) {
   if (audioRecoveryRetryTimer) return;
   audioRecoveryRetryTimer = window.setTimeout(() => {
@@ -777,6 +795,7 @@ function recoverGameAudio(reason = "recover", options = {}) {
   if (!audio) return true;
 
   updateBgmAudioElementVolume(audio);
+  if (getBgmLoopHoldRemaining(audio) > 0) return true;
   if (audio.error) {
     state.lastBgmPlayError = formatAudioError(audio.error);
     try {
@@ -795,7 +814,7 @@ function recoverGameAudio(reason = "recover", options = {}) {
 
   const contextNeedsResume = Boolean(context && context.state !== "running" && context.state !== "closed");
   if (options.force || audio.paused || audio.ended || contextNeedsResume) {
-    playCurrentBgmAudio();
+    playCurrentBgmAudio({ force: audio.paused || audio.ended || contextNeedsResume });
   }
   return true;
 }
@@ -813,6 +832,10 @@ function resetBgmWatchProgress() {
   state.bgmWatchProgressAt = 0;
 }
 
+function isBgmPlaying(audio = state.bgmAudio) {
+  return Boolean(audio && !audio.paused && !audio.ended && !audio.error);
+}
+
 function checkBgmWatchdog() {
   if (!shouldBgmBeAudible()) return;
   if (state.lastBgmPlayError && Date.now() - state.audioLastRecoveryAt < 2500) return;
@@ -823,6 +846,7 @@ function checkBgmWatchdog() {
   }
 
   if (audio.paused || audio.ended || audio.error) {
+    if (!audio.error && getBgmLoopHoldRemaining(audio) > 0) return;
     recoverGameAudio(audio.error ? "watchdog-bgm-error" : "watchdog-bgm-paused", { force: true });
     return;
   }
@@ -984,25 +1008,41 @@ function getBgmAudio(key) {
   }
   const audio = document.createElement("audio");
   audio.preload = "auto";
-  audio.loop = true;
+  audio.loop = false;
   audio.src = `${musicAssetBase}${track.file}`;
   audio.addEventListener("ended", () => {
-    if (state.bgmKey !== key || state.bgmAudio !== audio) return;
-    audio.currentTime = 0;
-    playCurrentBgmAudio();
+    scheduleBgmLoopRestart(key, audio);
   });
   audio.addEventListener("pause", () => {
     if (state.bgmKey !== key || state.bgmAudio !== audio) return;
     if ((intentionalBgmPauseUntil.get(audio) || 0) > Date.now()) return;
+    if (getBgmLoopHoldRemaining(audio) > 0) return;
     if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0) return;
     window.setTimeout(() => {
       if ((intentionalBgmPauseUntil.get(audio) || 0) > Date.now()) return;
+      if (getBgmLoopHoldRemaining(audio) > 0) return;
       if (state.bgmKey === key && state.bgmAudio === audio && audio.paused) playCurrentBgmAudio();
     }, 160);
   });
   updateBgmAudioElementVolume(audio);
   bgmAudioCache[key] = audio;
   return audio;
+}
+
+function scheduleBgmLoopRestart(key, audio) {
+  if (state.bgmKey !== key || state.bgmAudio !== audio) return;
+  clearBgmLoopRestart(key, audio);
+  bgmLoopHoldUntil.set(audio, Date.now() + bgmLoopDelayMs + 180);
+  bgmLoopRestartKey = key;
+  bgmLoopRestartAudio = audio;
+  bgmLoopRestartTimer = window.setTimeout(() => {
+    bgmLoopRestartTimer = 0;
+    bgmLoopRestartKey = "";
+    bgmLoopRestartAudio = null;
+    if (state.bgmKey !== key || state.bgmAudio !== audio || !shouldBgmBeAudible()) return;
+    audio.currentTime = 0;
+    playCurrentBgmAudio({ force: true, reason: "loop" });
+  }, bgmLoopDelayMs);
 }
 
 function updateBgmAudioElementVolume(audio) {
@@ -1018,6 +1058,7 @@ function preloadBgmTracksInOrder() {
     .forEach((key, index) => {
       window.setTimeout(() => {
         const audio = getBgmAudio(key);
+        if (key === state.bgmKey && audio === state.bgmAudio) return;
         try {
           audio?.load?.();
         } catch {
@@ -1031,6 +1072,8 @@ function stopBgmAudioElement(audio) {
   if (!audio) return;
   try {
     intentionalBgmPauseUntil.set(audio, Date.now() + 320);
+    clearBgmLoopRestart("", audio);
+    bgmLoopHoldUntil.set(audio, 0);
     audio.pause();
     audio.currentTime = 0;
   } catch {
@@ -1047,12 +1090,15 @@ function stopOtherBgmAudioElements(activeAudio) {
 function playBgm(key, options = {}) {
   const track = bgmTracks[key];
   if (!track) return;
-  if (state.bgmKey === key && !options.restart) {
+  if (state.bgmKey === key) {
+    if (isBgmPlaying(state.bgmAudio)) return;
+    if (getBgmLoopHoldRemaining(state.bgmAudio) > 0) return;
     pauseOrResumeBgm();
     return;
   }
 
   const previousAudio = state.bgmAudio;
+  clearBgmLoopRestart();
   state.bgmKey = key;
   resetBgmWatchProgress();
   state.bgmEvents.push({ key, at: Date.now() });
@@ -1107,6 +1153,8 @@ function pauseOrResumeBgm() {
     resetBgmWatchProgress();
     return;
   }
+  if (isBgmPlaying(state.bgmAudio)) return;
+  if (getBgmLoopHoldRemaining(state.bgmAudio) > 0) return;
   if (state.bgmAudio.ended) state.bgmAudio.currentTime = 0;
   playCurrentBgmAudio();
 }
@@ -1114,6 +1162,10 @@ function pauseOrResumeBgm() {
 function playCurrentBgmAudio(options = {}) {
   const audio = state.bgmAudio;
   if (!audio) return;
+  if (isBgmPlaying(audio) && !options.force) return;
+  if (!options.force && getBgmLoopHoldRemaining(audio) > 0) return;
+  clearBgmLoopRestart("", audio);
+  bgmLoopHoldUntil.set(audio, 0);
   updateBgmAudioElementVolume(audio);
   if (audio.ended) audio.currentTime = 0;
   const attemptToken = ++bgmPlayAttemptToken;
@@ -1197,9 +1249,9 @@ function ensureBgmForGameState(force = false) {
     stopBgm();
     return;
   }
-  if (force || state.bgmKey !== key) {
+  if (state.bgmKey !== key) {
     playBgm(key, { restart: true });
-  } else {
+  } else if (!isBgmPlaying(state.bgmAudio) && getBgmLoopHoldRemaining(state.bgmAudio) <= 0) {
     pauseOrResumeBgm();
   }
   renderAudioSettings();
@@ -10401,6 +10453,10 @@ window.__photoHeroTestHooks = {
       loop: state.bgmAudio ? state.bgmAudio.loop : null,
       currentTime: state.bgmAudio ? state.bgmAudio.currentTime : null,
       readyState: state.bgmAudio ? state.bgmAudio.readyState : null,
+      playAttemptToken: bgmPlayAttemptToken,
+      loopDelayMs: bgmLoopDelayMs,
+      loopRestartScheduled: Boolean(bgmLoopRestartTimer),
+      loopHoldRemaining: getBgmLoopHoldRemaining(state.bgmAudio),
       src: state.bgmAudio ? state.bgmAudio.currentSrc || state.bgmAudio.src : "",
     };
   },
@@ -10416,7 +10472,14 @@ window.__photoHeroTestHooks = {
       ended: audio.ended,
       currentTime: audio.currentTime,
       readyState: audio.readyState,
+      playAttemptToken: bgmPlayAttemptToken,
     } : null;
+  },
+  markCurrentBgmEndedForTest() {
+    const audio = state.bgmAudio;
+    if (!audio) return false;
+    scheduleBgmLoopRestart(state.bgmKey, audio);
+    return true;
   },
   forceBgmPausedForTest() {
     if (!state.bgmAudio) return false;
