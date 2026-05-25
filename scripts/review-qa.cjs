@@ -76,11 +76,17 @@ async function collectScenario(page, name, action = async () => {}) {
       monsterSprites: Array.from(document.querySelectorAll(".monster-sprite")).map((node) => {
         const style = getComputedStyle(node);
         const fallback = node.querySelector("img");
+        const portrait = node.closest(".monster-portrait");
+        const portraitStyle = portrait ? getComputedStyle(portrait) : null;
         return {
           backgroundImage: style.backgroundImage,
           backgroundSize: style.backgroundSize,
           animationName: style.animationName,
           animationDuration: style.animationDuration,
+          width: parseFloat(style.width) || 0,
+          height: parseFloat(style.height) || 0,
+          portraitWidth: portraitStyle ? parseFloat(portraitStyle.width) || 0 : 0,
+          portraitHeight: portraitStyle ? parseFloat(portraitStyle.height) || 0 : 0,
           fallbackSrc: fallback?.getAttribute("src") || "",
           fallbackAlt: fallback?.getAttribute("alt") || "",
         };
@@ -148,7 +154,10 @@ function assertScenario(name, metrics) {
     for (const sprite of metrics.monsterSprites) {
       if (!sprite.backgroundImage.includes("assets/monster-animations/")) failures.push(`${name}: monster card should use animated sprite strip, got ${sprite.backgroundImage}`);
       if (sprite.animationName !== "monsterIdle") failures.push(`${name}: monster sprite should use idle animation, got ${sprite.animationName}`);
-      if (!sprite.backgroundSize.includes("172px") || !sprite.backgroundSize.includes("43px")) failures.push(`${name}: monster sprite should scale 4 frames to 172x43, got ${sprite.backgroundSize}`);
+      const expectedWidth = `${Math.round((sprite.width || 0) * 4)}px`;
+      const expectedHeight = `${Math.round(sprite.height || 0)}px`;
+      if (!sprite.backgroundSize.includes(expectedWidth) || !sprite.backgroundSize.includes(expectedHeight)) failures.push(`${name}: monster sprite should scale 4 frames to its visible size, got ${sprite.backgroundSize} for ${sprite.width}x${sprite.height}`);
+      if (sprite.portraitWidth && (sprite.width > sprite.portraitWidth + 0.5 || sprite.height > sprite.portraitHeight + 0.5)) failures.push(`${name}: monster sprite should fit inside portrait frame, got ${JSON.stringify(sprite)}`);
       if (!sprite.fallbackSrc.includes("assets/monsters/") || !sprite.fallbackAlt) failures.push(`${name}: monster sprite should keep static image fallback and alt text, got ${JSON.stringify(sprite)}`);
     }
   }
@@ -167,8 +176,8 @@ function assertScenario(name, metrics) {
   if (name === "onboarding") {
     const result = metrics.onboarding || {};
     if (!result.firstPhotoHint) failures.push(`${name}: missing first photo hint`);
-    if (!result.focusedEmptySlot) failures.push(`${name}: empty equipment slot should be highlighted`);
-    if (!result.apiHintAfterPhotoClick) failures.push(`${name}: missing appraisal bench hint after photo click without API`);
+    if (result.focusedEmptySlot) failures.push(`${name}: empty equipment slot should not use the old breathing highlight`);
+    if (!result.photoClickOpensPicker) failures.push(`${name}: photo button should open the picker before API config`);
     if (!result.battleHintAfterAttack) failures.push(`${name}: missing battle selection hint after attack click`);
     if (!result.postKillHint) failures.push(`${name}: missing post-kill film hint`);
   }
@@ -218,8 +227,10 @@ function assertScenario(name, metrics) {
     const boss = metrics.bossCeremony || {};
     if (!boss.gateNarrative) failures.push(`${name}: gate boss narrative should be ceremonial`);
     if (!boss.rewardNarrative) failures.push(`${name}: reward boss narrative should emphasize optional greed`);
-    if (!boss.gateBadge) failures.push(`${name}: gate boss card should show gate badge`);
-    if (!boss.rewardBadge) failures.push(`${name}: reward boss card should show reward badge`);
+    if (!boss.gateCardClass) failures.push(`${name}: gate boss card should keep gate boss styling class`);
+    if (!boss.rewardCardClass) failures.push(`${name}: reward boss card should keep reward boss styling class`);
+    if (!boss.gateBadgeHidden) failures.push(`${name}: gate boss card should not show abstract badge text`);
+    if (!boss.rewardBadgeHidden) failures.push(`${name}: reward boss card should not show abstract badge text`);
     if (!boss.gateSummary) failures.push(`${name}: gate boss victory summary should be dedicated`);
     if (!boss.rewardSummary) failures.push(`${name}: reward boss victory summary should be dedicated`);
   }
@@ -247,6 +258,8 @@ function assertScenario(name, metrics) {
     if (se.sweepBattleHits !== 3) failures.push(`${name}: sweep should fire one battle sound per animated hit card, got ${se.sweepBattleHits}`);
     if (se.sweepEnemyHitCount !== 3) failures.push(`${name}: sweep should animate all three physically hit cards, got ${se.sweepEnemyHitCount}`);
     if (se.heroHitActive !== true || se.enemyHitActive !== true) failures.push(`${name}: hit animation state should remain active after sound checks, got ${JSON.stringify({ hero: se.heroHitActive, enemy: se.enemyHitActive })}`);
+    if (se.bgmLoopEnabled !== true) failures.push(`${name}: BGM audio should loop, got ${JSON.stringify(se)}`);
+    if (se.bgmRecoveredFromPause !== true) failures.push(`${name}: BGM should recover if paused unexpectedly, got ${JSON.stringify(se)}`);
     if (controls.sfxFill !== "100%" || controls.bgmFill !== "100%") failures.push(`${name}: 100% sliders should fill to the end, got ${JSON.stringify(controls)}`);
     if (controls.sfxZeroFill !== "0%" || controls.bgmZeroFill !== "0%") failures.push(`${name}: 0% sliders should empty to the start, got ${JSON.stringify(controls)}`);
     if (controls.sliderPaddingLeft !== "0px" || controls.sliderPaddingRight !== "0px" || controls.sliderBorderLeft !== "0px" || controls.sliderBorderRight !== "0px") {
@@ -512,10 +525,11 @@ function assertScenario(name, metrics) {
         focusedEmptySlot: Boolean(document.querySelector(".equipment-slot.is-tutorial-focus")),
       };
     });
+    const fileChooserPromise = page.waitForEvent("filechooser", { timeout: 3000 });
     await page.click("#photoActionBtn");
-    await page.waitForFunction(() => /点亮鉴定/.test(document.querySelector("#equipmentDetail")?.innerText || ""), null, { timeout: 3000 });
+    await fileChooserPromise;
     await page.evaluate(() => {
-      window.__reviewOnboarding.apiHintAfterPhotoClick = /先点右上角鉴定，配置 API，点亮鉴定。/.test(document.querySelector("#equipmentDetail")?.innerText || "");
+      window.__reviewOnboarding.photoClickOpensPicker = true;
     });
     await page.evaluate(() => {
       const hooks = window.__photoHeroTestHooks;
@@ -692,7 +706,8 @@ function assertScenario(name, metrics) {
       const hooks = window.__photoHeroTestHooks;
       hooks.setFloor(10);
       const gateText = JSON.parse(window.render_game_to_text()).battleReports.map((entry) => entry.summary).join("\\n");
-      const gateBadge = /封门Boss/.test(document.querySelector("#enemyField")?.innerText || "");
+      const gateCard = document.querySelector(".enemy-card.is-gate-boss");
+      const gateBadgeHidden = !/封门Boss|奖励强敌/.test(document.querySelector("#enemyField")?.innerText || "");
       const gateSummary = hooks.makeBattleSummary("victory", {
         floor: 10,
         monsterName: "骷髅队长",
@@ -702,7 +717,8 @@ function assertScenario(name, metrics) {
       }, -6);
       hooks.setFloor(25);
       const rewardText = JSON.parse(window.render_game_to_text()).battleReports.map((entry) => entry.summary).join("\\n");
-      const rewardBadge = /奖励强敌/.test(document.querySelector("#enemyField")?.innerText || "");
+      const rewardCard = document.querySelector(".enemy-card.is-reward-boss");
+      const rewardBadgeHidden = !/封门Boss|奖励强敌/.test(document.querySelector("#enemyField")?.innerText || "");
       const rewardSummary = hooks.makeBattleSummary("victory", {
         floor: 25,
         monsterName: "章鱼",
@@ -713,8 +729,10 @@ function assertScenario(name, metrics) {
       window.__reviewBossCeremony = {
         gateNarrative: /封门|点名|登塔者/.test(gateText),
         rewardNarrative: /绕过去|伸手去拿|付价/.test(rewardText),
-        gateBadge,
-        rewardBadge,
+        gateCardClass: Boolean(gateCard),
+        rewardCardClass: Boolean(rewardCard),
+        gateBadgeHidden,
+        rewardBadgeHidden,
         gateSummary: /封门石锁崩开|塔顶封印碎裂/.test(gateSummary),
         rewardSummary: /贪心有了回响/.test(rewardSummary),
       };
@@ -1490,6 +1508,10 @@ function assertScenario(name, metrics) {
       document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 360));
       window.__reviewBgmPreload = hooks.getBgmPreloadStateForTest?.() || {};
+      const initialBgmState = hooks.getBgmPlaybackStateForTest?.() || {};
+      hooks.forceBgmPausedForTest?.();
+      await new Promise((resolve) => setTimeout(resolve, 220));
+      const recoveredBgmState = hooks.getBgmPlaybackStateForTest?.() || {};
 
       hooks.clearAudioEvents();
       hooks.addTestItem({
@@ -1570,6 +1592,8 @@ function assertScenario(name, metrics) {
         sweepEnemyHitCount,
         heroHitActive,
         enemyHitActive,
+        bgmLoopEnabled: initialBgmState.loop === true,
+        bgmRecoveredFromPause: recoveredBgmState.hasAudio && recoveredBgmState.paused === false,
       };
     });
   });

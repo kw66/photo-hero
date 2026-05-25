@@ -368,6 +368,7 @@ const bgmGainBoost = 1.8;
 let gameAudioContext = null;
 const mediaAudioNodes = new WeakMap();
 const bgmAudioCache = {};
+const activeSfxAudios = new Set();
 let bgmPreloadStarted = false;
 
 const defaultTutorialState = {
@@ -681,8 +682,7 @@ function getSoundEffectAudio(key) {
 function unlockGameAudio() {
   if (state.audioUnlocked) return;
   state.audioUnlocked = true;
-  const context = ensureGameAudioContext();
-  if (context?.state === "suspended") context.resume?.().catch(() => {});
+  resumeGameAudioContext();
   for (const key of Object.keys(soundEffects)) {
     const audio = getSoundEffectAudio(key);
     audio?.load?.();
@@ -703,14 +703,27 @@ function playSoundEffect(key, options = {}) {
   if (!state.audioUnlocked || !state.audioSettings.sfxEnabled || state.audioSettings.sfxVolume <= 0) return;
 
   try {
+    resumeGameAudioContext();
     const baseAudio = getSoundEffectAudio(key);
     if (!baseAudio) return;
     const audio = baseAudio.cloneNode();
+    audio.preload = "auto";
+    audio.currentTime = 0;
     audio.volume = getElementSafeSfxVolume(Number.isFinite(options.volume) ? options.volume : effect.volume);
     if (attachBoostedAudioNode(audio, getEffectiveSfxGain(Number.isFinite(options.volume) ? options.volume : effect.volume))) {
       audio.volume = 1;
     }
-    audio.play().catch(() => {});
+    activeSfxAudios.add(audio);
+    const cleanup = () => {
+      audio.removeEventListener("ended", cleanup);
+      audio.removeEventListener("error", cleanup);
+      detachBoostedAudioNode(audio);
+      activeSfxAudios.delete(audio);
+    };
+    audio.addEventListener("ended", cleanup, { once: true });
+    audio.addEventListener("error", cleanup, { once: true });
+    window.setTimeout(cleanup, 3000);
+    audio.play().catch(cleanup);
   } catch {
     // Audio is a cosmetic layer; never block combat or appraisal.
   }
@@ -744,6 +757,14 @@ function ensureGameAudioContext() {
   }
 }
 
+function resumeGameAudioContext() {
+  const context = ensureGameAudioContext();
+  if (context?.state === "suspended") {
+    context.resume?.().catch(() => {});
+  }
+  return context;
+}
+
 function attachBoostedAudioNode(audio, gainValue) {
   if (!audio) return false;
   const context = ensureGameAudioContext();
@@ -774,6 +795,18 @@ function setBoostedAudioGain(audio, gainValue) {
   return attachBoostedAudioNode(audio, gainValue);
 }
 
+function detachBoostedAudioNode(audio) {
+  const existing = mediaAudioNodes.get(audio);
+  if (!existing) return;
+  try {
+    existing.source.disconnect();
+    existing.gain.disconnect();
+  } catch {
+    // Ignore cleanup failures.
+  }
+  mediaAudioNodes.delete(audio);
+}
+
 function getBgmAudio(key) {
   const track = bgmTracks[key];
   if (!track) return null;
@@ -785,6 +818,18 @@ function getBgmAudio(key) {
   audio.preload = "auto";
   audio.loop = true;
   audio.src = `${musicAssetBase}${track.file}`;
+  audio.addEventListener("ended", () => {
+    if (state.bgmKey !== key || state.bgmAudio !== audio) return;
+    audio.currentTime = 0;
+    playCurrentBgmAudio();
+  });
+  audio.addEventListener("pause", () => {
+    if (state.bgmKey !== key || state.bgmAudio !== audio) return;
+    if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0) return;
+    window.setTimeout(() => {
+      if (state.bgmKey === key && state.bgmAudio === audio && audio.paused) playCurrentBgmAudio();
+    }, 160);
+  });
   updateBgmAudioElementVolume(audio);
   bgmAudioCache[key] = audio;
   return audio;
@@ -824,17 +869,17 @@ function playBgm(key, options = {}) {
     return;
   }
 
-  stopBgm();
+  stopBgm(false);
   state.bgmKey = key;
   state.bgmEvents.push({ key, at: Date.now() });
   if (state.bgmEvents.length > 24) state.bgmEvents = state.bgmEvents.slice(-24);
   if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0) return;
   state.bgmAudio = getBgmAudio(key);
   if (!state.bgmAudio) return;
-  state.bgmAudio.play().catch(() => {});
+  playCurrentBgmAudio();
 }
 
-function stopBgm() {
+function stopBgm(clearKey = true) {
   if (state.bgmAudio) {
     try {
       state.bgmAudio.pause();
@@ -844,7 +889,7 @@ function stopBgm() {
     }
   }
   state.bgmAudio = null;
-  state.bgmKey = "";
+  if (clearKey) state.bgmKey = "";
 }
 
 function updateBgmVolume() {
@@ -857,7 +902,7 @@ function pauseOrResumeBgm() {
   if (!state.bgmAudio) {
     if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0 || !state.bgmKey) return;
     state.bgmAudio = getBgmAudio(state.bgmKey);
-    state.bgmAudio?.play().catch(() => {});
+    playCurrentBgmAudio();
     return;
   }
   updateBgmVolume();
@@ -865,7 +910,17 @@ function pauseOrResumeBgm() {
     state.bgmAudio.pause();
     return;
   }
-  state.bgmAudio.play().catch(() => {});
+  if (state.bgmAudio.ended) state.bgmAudio.currentTime = 0;
+  playCurrentBgmAudio();
+}
+
+function playCurrentBgmAudio() {
+  const audio = state.bgmAudio;
+  if (!audio) return;
+  resumeGameAudioContext();
+  updateBgmAudioElementVolume(audio);
+  if (audio.ended) audio.currentTime = 0;
+  audio.play().catch(() => {});
 }
 
 function getBgmKeyForGameState() {
@@ -1095,13 +1150,6 @@ function openPhotoPickerForSelectedSlot() {
   }
   if (isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || state.bossReward) {
     showInputNotice(getPhotoInputBlockedMessage());
-    render();
-    return;
-  }
-  const apiHint = getPhotoApiConfigHint();
-  if (apiHint) {
-    state.infoMode = "item";
-    showInputNotice(apiHint);
     render();
     return;
   }
@@ -5005,11 +5053,11 @@ function buildBossRewardOptions(floor) {
 
 function getBossRewardCatalog() {
   return [
-    { type: "filmFlat", title: "胶卷 +1.0", desc: "立刻获得 1.0 胶卷。", icon: "boss-value-min.png" },
-    { type: "filmDrop", title: "胶卷掉落 +0.1", desc: "之后击败怪物永久 +0.1。", icon: "boss-film-drop.png" },
-    { type: "filmPercent", title: "当前胶卷 +50%", desc: "按当前数量 +50%，向上取整。", icon: "boss-film-percent.png" },
-    { type: "valueMin", title: "最低价值 +2", desc: "之后照片最低价值永久 +2。", icon: "boss-value-min-boost.png" },
-    { type: "valueMax", title: "最高价值 +3", desc: "之后照片最高价值永久 +3。", icon: "boss-value-max.png" },
+    { type: "filmFlat", title: "补给胶卷", effect: "+1.0 胶卷", desc: "立刻获得 1.0 胶卷。", icon: "boss-value-min.png" },
+    { type: "filmDrop", title: "寻影契约", effect: "掉落 +0.1", desc: "之后击败怪物永久 +0.1。", icon: "boss-film-drop.png" },
+    { type: "filmPercent", title: "冲印翻倍", effect: "当前 +50%", desc: "按当前数量 +50%，向上取整。", icon: "boss-film-percent.png" },
+    { type: "valueMin", title: "保底刻印", effect: "最低 +2", desc: "之后照片最低价值永久 +2。", icon: "boss-value-min-boost.png" },
+    { type: "valueMax", title: "上限刻印", effect: "最高 +3", desc: "之后照片最高价值永久 +3。", icon: "boss-value-max.png" },
   ];
 }
 
@@ -8476,11 +8524,9 @@ function renderEnemyField() {
     const isBossEnemyCard = isBossRewardFloor(state.floor) && !enemy.summoned && bossMonsterKeys.has(enemy.typeKey);
     if (isBossEnemyCard) {
       button.classList.add(isRewardBossFloor(state.floor) ? "is-reward-boss" : "is-gate-boss");
-      button.dataset.bossKind = isRewardBossFloor(state.floor) ? "奖励强敌" : "封门Boss";
     }
     button.innerHTML = `
       ${selectionOrder ? `<span class="selection-badge">${selectionOrder}</span>` : ""}
-      ${isBossEnemyCard ? `<span class="boss-kind-badge">${isRewardBossFloor(state.floor) ? "奖励强敌" : "封门Boss"}</span>` : ""}
       <div class="enemy-card-head">
         <div class="monster-portrait">
           <span class="monster-sprite" style="--monster-sprite:url('${animationUrl}'); --sprite-delay:${animationDelay};">
@@ -8542,9 +8588,10 @@ function renderBossRewardCards() {
         </div>
         <div class="enemy-name-block">
           <strong>${escapeHtml(option.title || "奖励")}</strong>
-          <span>${escapeHtml(option.desc || "选择后进入下一层。")}</span>
+          <em>${escapeHtml(option.effect || "")}</em>
         </div>
       </div>
+      <p class="reward-card-desc">${escapeHtml(option.desc || "选择后进入下一层。")}</p>
       ${footHtml}
     `;
     els.enemyField.append(button);
@@ -8782,8 +8829,7 @@ function renderEquipmentGrid() {
     const button = document.createElement("button");
     const isSelected = i === selectedSlotIndex;
     const qualityKey = item ? getItemQualityKey(item) : "empty";
-    const tutorialFocus = !item && isSelected && shouldShowFirstPhotoHint();
-    button.className = `equipment-slot quality-${qualityKey}${item ? " has-item" : ""}${isSelected ? " is-selected" : ""}${tutorialFocus ? " is-tutorial-focus" : ""}${selectionLocked ? " is-locked" : ""}`;
+    button.className = `equipment-slot quality-${qualityKey}${item ? " has-item" : ""}${isSelected ? " is-selected" : ""}${selectionLocked ? " is-locked" : ""}`;
     button.type = "button";
     button.disabled = selectionLocked;
     button.setAttribute("aria-label", item ? `选择${item.itemName}` : `选择空装备格${i + 1}`);
@@ -10093,6 +10139,26 @@ window.__photoHeroTestHooks = {
       order: [...bgmPreloadOrder],
       loadedCount: Object.keys(bgmAudioCache).length,
     };
+  },
+  getBgmPlaybackStateForTest() {
+    return {
+      key: state.bgmKey,
+      hasAudio: Boolean(state.bgmAudio),
+      paused: state.bgmAudio ? state.bgmAudio.paused : null,
+      ended: state.bgmAudio ? state.bgmAudio.ended : null,
+      loop: state.bgmAudio ? state.bgmAudio.loop : null,
+      src: state.bgmAudio ? state.bgmAudio.currentSrc || state.bgmAudio.src : "",
+    };
+  },
+  forceBgmPausedForTest() {
+    if (!state.bgmAudio) return false;
+    state.bgmAudio.pause();
+    window.setTimeout(() => pauseOrResumeBgm(), 0);
+    return true;
+  },
+  ensureBgmForTest(force = false) {
+    ensureBgmForGameState(force);
+    return this.getBgmPlaybackStateForTest();
   },
   clearAudioEvents() {
     state.audioEvents = [];
