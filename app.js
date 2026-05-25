@@ -1180,12 +1180,14 @@ function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
   ctx.strokeStyle = "#17130f";
   ctx.stroke();
 
+  const parsedSummary = getCareerSummaryParagraphs(summary);
+
   ctx.fillStyle = "#245f9a";
   ctx.font = "900 46px sans-serif";
-  ctx.fillText("照片勇者通关纪念", margin + 34, margin + 82);
+  ctx.fillText("照片勇者塔史残页", margin + 34, margin + 78);
   ctx.fillStyle = "#6f665c";
   ctx.font = "800 24px sans-serif";
-  ctx.fillText(getCareerSummaryStatusText(summary), margin + 36, margin + 122);
+  ctx.fillText(`${getCareerSummaryStatusText(summary)} · 第${maxFloor}层通关`, margin + 36, margin + 118);
 
   const statY = margin + 168;
   const statWidth = (width - margin * 2 - 88) / 3;
@@ -1208,26 +1210,29 @@ function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
     ctx.textAlign = "left";
   });
 
-  const ability = `生命${snapshot.stats.maxHp}  攻击${snapshot.stats.atk}  防御${snapshot.stats.def}  速度${snapshot.stats.speed}  护盾${snapshot.stats.shield}  回复${snapshot.stats.regen}  吸血${snapshot.stats.lifesteal}`;
+  const ability = `形态 ${snapshot.formLabel}  生命${snapshot.stats.maxHp}  攻击${snapshot.stats.atk}  防御${snapshot.stats.def}  速度${snapshot.stats.speed}  护盾${snapshot.stats.shield}  回复${snapshot.stats.regen}  吸血${snapshot.stats.lifesteal}`;
   ctx.fillStyle = "#17130f";
-  ctx.font = "900 24px sans-serif";
-  wrapCanvasText(ctx, `${snapshot.formLabel} · ${ability}`, margin + 36, statY + 126, width - margin * 2 - 72, 34, 2);
+  ctx.font = "900 23px sans-serif";
+  wrapCanvasText(ctx, ability, margin + 36, statY + 124, width - margin * 2 - 72, 32, 2);
 
   ctx.fillStyle = "#245f9a";
-  ctx.font = "900 28px sans-serif";
-  ctx.fillText("生涯总结", margin + 36, statY + 228);
+  ctx.font = "900 34px sans-serif";
+  ctx.fillText(parsedSummary.title, margin + 36, statY + 214);
+  ctx.fillStyle = "#c67b1e";
+  ctx.font = "900 20px sans-serif";
+  ctx.fillText("多年后仍在塔里流传", margin + 38, statY + 246);
+
   ctx.fillStyle = "#17130f";
-  ctx.font = "600 25px sans-serif";
-  const summaryText = sanitizeCareerSummaryText(summary.text || "").replace(/\n+/g, "\n");
-  let textY = statY + 270;
-  for (const paragraph of summaryText.split(/\n+/).filter(Boolean).slice(0, 4)) {
-    textY = wrapCanvasText(ctx, paragraph, margin + 36, textY, width - margin * 2 - 72, 38, 4) + 16;
-    if (textY > height - 300) break;
+  ctx.font = "700 24px sans-serif";
+  let textY = statY + 288;
+  for (const paragraph of parsedSummary.paragraphs.slice(0, 3)) {
+    textY = wrapCanvasText(ctx, paragraph, margin + 38, textY, width - margin * 2 - 76, 34, 3) + 18;
+    if (textY > height - 328) break;
   }
 
   ctx.fillStyle = "#245f9a";
   ctx.font = "900 28px sans-serif";
-  ctx.fillText("代表装备", margin + 36, height - 258);
+  ctx.fillText("塔史记名装备", margin + 36, height - 258);
   ctx.fillStyle = "#17130f";
   ctx.font = "800 24px sans-serif";
   const items = snapshot.topItems.length ? snapshot.topItems.slice(0, 4) : [{ quality: "空", name: "没有照片装备记录", score: 0 }];
@@ -1238,7 +1243,7 @@ function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
 
   ctx.fillStyle = "#6f665c";
   ctx.font = "700 22px sans-serif";
-  ctx.fillText("photo-hero · 现实物品生成的爬塔生涯", margin + 36, height - 84);
+  ctx.fillText("photo-hero · 现实物品写入魔塔旧史", margin + 36, height - 84);
 }
 
 function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 99) {
@@ -4615,11 +4620,11 @@ function buildLocalCareerSummary() {
   const itemText = formatCareerTopItemNames(snapshot);
   return {
     status: "local",
-    title: "照片勇者生涯总结",
+    title: "塔顶旧闻",
     text: [
-      `照片勇者以${snapshot.formLabel}登上塔顶，最终能力为生命${snapshot.stats.maxHp}、攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}、护盾${snapshot.stats.shield}、回复${snapshot.stats.regen}、吸血${snapshot.stats.lifesteal}。`,
-      `这趟旅程击败${snapshot.killCount}只怪物，其中Boss ${snapshot.bossKillCount}只。装备栏留下${snapshot.equipmentCount}件照片装备，${itemText}成了最有记忆点的战利品。`,
-      "这是一段由现实物品拼出的爬塔生涯：每张照片都曾给勇者一点方向，每次战斗都把这些奇怪装备变成了塔顶的证据。现在，这张结算卡就是勇者从塔里带回来的纪念照。",
+      `多年以后，塔底的石碑仍记着一位${snapshot.formLabel}。他带着照片醒出的器物登上第${maxFloor}层，终局之力定格为生命${snapshot.stats.maxHp}、攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}。`,
+      `旧塔账册记下了${snapshot.killCount}场怪物败退，其中${snapshot.bossKillCount}位Boss被刻进封门名录。${itemText}被列为代表装备，像从现实里带入塔中的奇物。`,
+      `后来的人说，照片勇者并非只靠一柄名剑通关，而是把手边万物都变成了登塔的台阶。胶卷耗尽之前，他把这段冒险留成了新的塔顶传说。`,
     ].join("\n\n"),
     snapshot,
     createdAt: Date.now(),
@@ -4709,10 +4714,10 @@ async function requestCareerSummary(force = false) {
       },
       body: JSON.stringify(withProviderRequestOptions(config, {
         model: config.model,
-        temperature: 0.8,
+        temperature: 0.72,
         max_tokens: 520,
         messages: [
-          { role: "system", content: "你是照片勇者的通关吟游诗人。写适合玩家截图发社交媒体的中文通关总结，语气有画面感，简洁但有荣誉感。" },
+          { role: "system", content: "你是魔塔旧史的书记官。请用第三人称写照片勇者的通关传说，像多年后塔内石碑和旧账册留下的记载。只输出成稿，不要Markdown、星号、列表、分析过程或标题标签。" },
           { role: "user", content: buildCareerSummaryPrompt(snapshot) },
         ],
       })),
@@ -4722,7 +4727,7 @@ async function requestCareerSummary(force = false) {
     if (!response.response.ok || !text) throw new Error("模型没有返回可用的通关总结。");
     state.careerSummary = {
       status: "ai",
-      title: "照片勇者生涯总结",
+      title: extractCareerSummaryTitle(text) || "塔顶旧闻",
       text,
       snapshot,
       createdAt: Date.now(),
@@ -4747,14 +4752,16 @@ function buildCareerSummaryPrompt(snapshot) {
     ? snapshot.topItems.map((item, index) => `${index + 1}. ${item.quality} ${item.name}，分数${item.score}，属性${formatSnapshotStats(item.stats)}${item.effects.length ? `，词条${item.effects.join("、")}` : ""}`).join("\n")
     : "无照片装备";
   return [
-    "请基于以下通关数据写一段中文生涯总结。",
+    "请基于以下通关数据，写一段更像魔塔通关后流传多年的中文传说。",
     "要求：",
-    "1. 适合截图分享，输出一个短标题和2-4段短文，不要列表编号。",
-    "2. 突出照片装备，至少点名2件代表装备；装备少则如实写。",
-    "3. 提及Boss击杀数、怪物击杀数和最终能力。",
-    "4. 可以有一点史诗感和幽默感，但不要夸张到像广告。",
-    "5. 不要解释规则，不要提API、模型、JSON、推理过程或开发者。",
-    "6. 只输出最终总结文本，不要输出分析过程。",
+    "1. 第一行写一个8-14字短标题，后面写3段短文，每段40-70字；不要列表编号。",
+    "2. 使用第三人称，像多年后塔中石碑、旧账册、守塔人口耳相传的记录；不要写“我”。",
+    "3. 风格要有历史感、魔塔感和通关后的余韵；可以克制地幽默，但不要像广告文案。",
+    "4. 突出照片装备，至少点名2件代表装备；装备少则如实写。",
+    "5. 自然提及Boss击杀数、怪物击杀数、最终能力和剩余胶卷，不要堆砌成报表。",
+    "6. 不要解释规则，不要提API、模型、JSON、推理过程、开发者或截图分享。",
+    "7. 禁止使用Markdown格式，禁止星号、井号、项目符号、标题：、【通关】等包装。",
+    "8. 只输出最终成稿。",
     "",
     `勇者形态：${snapshot.formLabel}`,
     `最终能力：生命${snapshot.stats.maxHp}，当前生命${snapshot.hp}，攻击${snapshot.stats.atk}，防御${snapshot.stats.def}，速度${snapshot.stats.speed}，护盾${snapshot.stats.shield}，回复${snapshot.stats.regen}，吸血${snapshot.stats.lifesteal}`,
@@ -4779,11 +4786,47 @@ function formatSnapshotStats(stats) {
 }
 
 function sanitizeCareerSummaryText(text) {
-  return String(text || "")
+  const cleaned = String(text || "")
     .replace(/```[\s\S]*?```/g, (block) => block.replace(/```(?:markdown|text|json)?/gi, "").replace(/```/g, ""))
     .replace(/^(?:分析|思考|推理|reasoning|thinking)[:：][\s\S]*?(?:最终回答|最终总结|final answer)[:：]/i, "")
+    .replace(/\r/g, "")
+    .replace(/\*\*([^*\n]+)\*\*/g, "$1")
+    .replace(/__([^_\n]+)__/g, "$1")
+    .replace(/`([^`\n]+)`/g, "$1")
+    .replace(/^\s*#{1,6}\s*/gm, "")
+    .replace(/^\s*(?:[-*•·]\s*)+/gm, "")
+    .replace(/^\s*\d+[.)、]\s*/gm, "")
+    .replace(/^\s*(?:标题|题目|短标题)\s*[:：]\s*/gmi, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim()
     .slice(0, 900);
+  return cleaned
+    .split(/\n+/)
+    .map((line) => line.trim().replace(/^\s*[【\[]?通关[】\]]?\s*[:：!！-]?\s*/u, ""))
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 900);
+}
+
+function extractCareerSummaryTitle(text) {
+  const first = sanitizeCareerSummaryText(text).split(/\n+/).map((line) => line.trim()).filter(Boolean)[0] || "";
+  if (!first) return "";
+  return cleanText(first.replace(/^《|》$/g, ""), "", 18);
+}
+
+function getCareerSummaryParagraphs(summary) {
+  const title = extractCareerSummaryTitle(summary?.text || "") || cleanText(summary?.title, "塔顶旧闻", 18);
+  const lines = sanitizeCareerSummaryText(summary?.text || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const bodyLines = lines.length > 1 && lines[0] === title ? lines.slice(1) : lines.filter((line, index) => index || line !== title);
+  const paragraphs = bodyLines.length ? bodyLines : lines.filter((line) => line !== title);
+  return {
+    title,
+    paragraphs: paragraphs.slice(0, 4),
+  };
 }
 
 function addFloorNarrative(floor = state.floor) {
@@ -8386,14 +8429,9 @@ function renderCareerSummaryPanel() {
   const summary = state.careerSummary || buildLocalCareerSummary();
   const snapshot = summary.snapshot || buildCareerSnapshot();
   els.equipmentDetail.classList.add("is-actionable", "career-summary-panel");
-  els.equipmentDetailName.textContent = summary.status === "loading" ? "正在生成生涯总结" : "照片勇者生涯总结";
-  els.equipmentDetailStats.innerHTML = [
-    `<span>怪物 ${snapshot.killCount}</span>`,
-    `<span>Boss ${snapshot.bossKillCount}</span>`,
-    `<span>装备 ${snapshot.equipmentCount}</span>`,
-    `<span>${escapeHtml(snapshot.formLabel)}</span>`,
-  ].join("");
-  els.equipmentDetailStats.hidden = false;
+  els.equipmentDetailName.textContent = summary.status === "loading" ? "正在生成塔史" : "照片勇者塔史";
+  els.equipmentDetailStats.innerHTML = "";
+  els.equipmentDetailStats.hidden = true;
   els.equipmentDetailDesc.innerHTML = renderCareerSummaryCard(summary, snapshot);
   els.equipmentActions.hidden = false;
   els.photoActionBtn.hidden = false;
@@ -8411,22 +8449,20 @@ function renderCareerSummaryPanel() {
 
 function renderCareerSummaryCard(summary, snapshot) {
   const statusText = getCareerSummaryStatusText(summary);
+  const parsedSummary = getCareerSummaryParagraphs(summary);
   const topItems = snapshot.topItems.length
     ? snapshot.topItems.slice(0, 4).map((item) => `<li><span>${escapeHtml(item.quality)} · ${escapeHtml(item.name)}</span><b>${item.score}</b></li>`).join("")
     : "<li>没有照片装备记录</li>";
-  const paragraphs = String(summary.text || "")
-    .split(/\n{1,}/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 5)
+  const paragraphs = parsedSummary.paragraphs
+    .slice(0, 4)
     .map((line) => `<p>${escapeHtml(line)}</p>`)
     .join("");
   const note = summary.note ? `<small>${escapeHtml(summary.note)}</small>` : "";
   return `
     <section class="career-card" aria-label="通关分享卡">
       <div class="career-card-head">
-        <span>${escapeHtml(statusText)}</span>
-        <strong>照片勇者通关纪念</strong>
+        <span>${escapeHtml(statusText)} · 第${maxFloor}层通关</span>
+        <strong>${escapeHtml(parsedSummary.title)}</strong>
         <em>${escapeHtml(snapshot.formLabel)} · 剩余胶卷 ${escapeHtml(snapshot.film)}</em>
       </div>
       <div class="career-card-stats">
@@ -8435,8 +8471,8 @@ function renderCareerSummaryCard(summary, snapshot) {
         <span>装备 ${snapshot.equipmentCount}</span>
       </div>
       <div class="career-card-ability">${escapeHtml(formatCareerAbilityLine(snapshot))}</div>
-      <div class="career-card-body">${paragraphs || "<p>照片勇者登上塔顶，留下了一段由现实物品拼出的冒险。</p>"}</div>
-      <h4>代表装备</h4>
+      <div class="career-card-body">${paragraphs || "<p>多年以后，塔中仍流传着照片勇者登顶的旧闻。</p>"}</div>
+      <h4>塔史记名装备</h4>
       <ul class="career-card-items">${topItems}</ul>
       ${note}
     </section>
@@ -8445,12 +8481,12 @@ function renderCareerSummaryCard(summary, snapshot) {
 
 function getCareerSummaryStatusText(summary) {
   return summary?.status === "ai"
-    ? "AI 生涯总结"
+    ? "AI 塔史"
     : summary?.status === "loading"
-      ? "正在请大模型润色"
+      ? "正在誊写塔史"
       : summary?.status === "error"
-        ? "本地总结 · 模型生成失败"
-        : "本地生涯总结";
+        ? "本地塔史 · 模型生成失败"
+        : "本地塔史";
 }
 
 function formatCareerAbilityLine(snapshot) {
@@ -9374,6 +9410,18 @@ window.__photoHeroTestHooks = {
       confidence: 1,
     }, input.image || makePlaceholderImage());
     addInventoryItem({ ...item, id: makeId("test-combo-special"), fullImage: input.fullImage || item.fullImage || "" }, "测试组合特装已加入。");
+  },
+  setCareerSummaryForTest(summary = {}) {
+    state.gameClear = true;
+    state.careerSummary = {
+      ...buildLocalCareerSummary(),
+      ...summary,
+      snapshot: summary.snapshot || buildCareerSnapshot(),
+      createdAt: Date.now(),
+    };
+    state.infoMode = "career";
+    saveGame();
+    render();
   },
   addRawItem(input) {
     const item = {

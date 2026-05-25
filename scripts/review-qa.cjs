@@ -142,6 +142,11 @@ function assertScenario(name, metrics) {
     if (!/通关纪念杯/.test(metrics.detailText)) failures.push(`${name}: selected equipment detail should be visible after clear`);
     if (!metrics.state.player.selectedHasOriginalImage) failures.push(`${name}: selected cleared equipment should retain fullImage for saving`);
   }
+  if (name === "mobile-career-markdown") {
+    if (/\*\*|标题[:：]|【通关】/.test(metrics.detailText)) failures.push(`${name}: career summary should strip markdown/title wrappers, got ${metrics.detailText}`);
+    if (!/黑伞旧闻/.test(metrics.detailText)) failures.push(`${name}: cleaned career title should remain visible`);
+    if (!/塔史记名装备/.test(metrics.detailText)) failures.push(`${name}: career card should use tower-history equipment copy`);
+  }
   if (name === "mobile-save-fallback") {
     const result = metrics.mobileSaveFallback || {};
     if (result.saveResult !== "viewer") failures.push(`${name}: mobile save should fall back to image viewer, got ${result.saveResult}`);
@@ -476,6 +481,26 @@ function assertScenario(name, metrics) {
       const state = JSON.parse(window.render_game_to_text());
       return state.player.selectedEquipment === "通关纪念杯" && state.player.selectedHasOriginalImage;
     }, null, { timeout: 3000 });
+  });
+
+  scenarios.mobileCareerMarkdown = await collectScenario(mobile, "mobile-career-markdown", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.addTestItem({
+        itemName: "黑伞",
+        image: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23f5ebd7'/%3E%3Cpath d='M20 60Q60 18 100 60Z' fill='%23245f9a'/%3E%3C/svg%3E",
+        fullImage: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640'%3E%3Crect width='640' height='640' fill='%23f5ebd7'/%3E%3Cpath d='M80 330Q320 80 560 330Z' fill='%23245f9a'/%3E%3C/svg%3E",
+        stats: { shield: 3 },
+        value: 21,
+        description: "塔顶旧伞。",
+        skipSpecialRoll: true,
+      });
+      hooks.setCareerSummaryForTest({
+        status: "ai",
+        title: "照片勇者生涯总结",
+        text: "**标题：黑伞旧闻**\n\n**多年后**，塔里仍有人记得那把黑伞。\n\n1. 【通关】照片勇者击败16只怪物与8位Boss，把黑伞和纪念杯写进旧账。",
+      });
+    });
   });
 
   scenarios.mobileBossSelection = await collectScenario(mobile, "mobile-boss-selection", async (page) => {
