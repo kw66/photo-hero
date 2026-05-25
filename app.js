@@ -127,8 +127,10 @@ const analysisImageQuality = 0.72;
 const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
-const gameSaveVersion = 22;
-const initialFilmRolls = 3;
+const introFloor = 0;
+const gameSaveVersion = 23;
+const initialFilmRolls = 0;
+const introFilmRewardCount = 3;
 const heroFormUpgradeKills = 10;
 const bossFloors = new Set([10, 20, 30, 40]);
 const rewardBossFloors = new Set([25, 35, 38]);
@@ -369,6 +371,8 @@ const mediaAudioNodes = new WeakMap();
 const sfxAudioBaseVolumes = new WeakMap();
 const intentionalBgmPauseUntil = new WeakMap();
 const bgmLoopHoldUntil = new WeakMap();
+const bgmFadeScales = new WeakMap();
+const bgmFadeTimers = new WeakMap();
 const bgmAudioCache = {};
 const activeSfxAudios = new Set();
 let bgmPreloadStarted = false;
@@ -380,11 +384,14 @@ let bgmLoopRestartAudio = null;
 let audioRecoveryRetryTimer = 0;
 const audioRecoveryCooldownMs = 180;
 const bgmLoopDelayMs = 1000;
+const bgmCrossfadeMs = 720;
+const bgmCrossfadeStepMs = 60;
 
 const defaultTutorialState = {
   photoStarted: false,
   battleHintSeen: false,
   postKillHintShown: false,
+  introEnteredTower: false,
 };
 
 const soundEffects = {
@@ -428,6 +435,12 @@ const bgmPreloadOrder = [
   "reward",
   "ending",
   "defeat",
+];
+
+const introRewardOptions = [
+  { id: "intro-film-1", title: "第一卷胶片", effect: "+1.0 胶卷", desc: "先把第一件身边小物叫醒。", icon: "boss-value-min.png" },
+  { id: "intro-film-2", title: "备用胶片", effect: "+1.0 胶卷", desc: "留给第二次尝试或换一个主体。", icon: "boss-film-percent.png" },
+  { id: "intro-film-3", title: "塔门胶片", effect: "+1.0 胶卷", desc: "入塔前最后一张底片。", icon: "boss-film-drop.png" },
 ];
 
 const monsterImages = {
@@ -609,10 +622,11 @@ const els = {
 const state = {
   player: createDefaultPlayer(),
   runSeed: makeRunSeed(),
-  floor: 1,
+  floor: introFloor,
   encounterId: "",
   enemies: [],
   selectedEnemyIds: [],
+  introRewardSelectedIds: [],
   activeEnemyIds: [],
   battleClock: null,
   battleReports: [],
@@ -921,6 +935,11 @@ function getElementSafeBgmVolume() {
   return clampNumber(state.audioSettings.bgmVolume, 0, 1);
 }
 
+function getBgmVolumeForAudio(audio) {
+  const scale = bgmFadeScales.has(audio) ? bgmFadeScales.get(audio) : 1;
+  return clampNumber(getElementSafeBgmVolume() * clampNumber(scale, 0, 1), 0, 1);
+}
+
 function getEffectiveSfxGain(baseVolume = 1) {
   return Math.max(0, (Number(baseVolume) || 0) * state.audioSettings.sfxVolume * sfxGainBoost);
 }
@@ -1049,7 +1068,48 @@ function scheduleBgmLoopRestart(key, audio) {
 
 function updateBgmAudioElementVolume(audio) {
   if (!audio) return;
-  audio.volume = getElementSafeBgmVolume();
+  audio.volume = getBgmVolumeForAudio(audio);
+}
+
+function clearBgmFade(audio) {
+  if (!audio) return;
+  const timer = bgmFadeTimers.get(audio);
+  if (timer) window.clearInterval(timer);
+  bgmFadeTimers.delete(audio);
+}
+
+function isBgmFading(audio) {
+  return Boolean(audio && bgmFadeTimers.has(audio));
+}
+
+function fadeBgmAudioTo(audio, targetScale, options = {}) {
+  if (!audio) return;
+  clearBgmFade(audio);
+  const duration = Math.max(0, Number(options.duration) || 0);
+  const startScale = bgmFadeScales.has(audio) ? bgmFadeScales.get(audio) : 1;
+  const endScale = clampNumber(targetScale, 0, 1);
+  if (duration <= 0 || Math.abs(startScale - endScale) < 0.001) {
+    bgmFadeScales.set(audio, endScale);
+    updateBgmAudioElementVolume(audio);
+    if (options.stopAfterFade) stopBgmAudioElement(audio);
+    return;
+  }
+  const startedAt = Date.now();
+  const tick = () => {
+    const progress = clampNumber((Date.now() - startedAt) / duration, 0, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const nextScale = startScale + (endScale - startScale) * eased;
+    bgmFadeScales.set(audio, nextScale);
+    updateBgmAudioElementVolume(audio);
+    if (progress >= 1) {
+      clearBgmFade(audio);
+      bgmFadeScales.set(audio, endScale);
+      updateBgmAudioElementVolume(audio);
+      if (options.stopAfterFade) stopBgmAudioElement(audio);
+    }
+  };
+  tick();
+  bgmFadeTimers.set(audio, window.setInterval(tick, bgmCrossfadeStepMs));
 }
 
 function preloadBgmTracksInOrder() {
@@ -1073,6 +1133,8 @@ function preloadBgmTracksInOrder() {
 function stopBgmAudioElement(audio) {
   if (!audio) return;
   try {
+    clearBgmFade(audio);
+    bgmFadeScales.set(audio, 1);
     intentionalBgmPauseUntil.set(audio, Date.now() + 320);
     clearBgmLoopRestart("", audio);
     bgmLoopHoldUntil.set(audio, 0);
@@ -1085,7 +1147,7 @@ function stopBgmAudioElement(audio) {
 
 function stopOtherBgmAudioElements(activeAudio) {
   Object.values(bgmAudioCache).forEach((audio) => {
-    if (audio && audio !== activeAudio) stopBgmAudioElement(audio);
+    if (audio && audio !== activeAudio && !bgmFadeTimers.has(audio)) stopBgmAudioElement(audio);
   });
 }
 
@@ -1137,9 +1199,7 @@ function stopBgm(clearKey = true) {
 }
 
 function updateBgmVolume() {
-  if (state.bgmAudio) {
-    updateBgmAudioElementVolume(state.bgmAudio);
-  }
+  Object.values(bgmAudioCache).forEach(updateBgmAudioElementVolume);
 }
 
 function pauseOrResumeBgm() {
@@ -1168,13 +1228,16 @@ function playCurrentBgmAudio(options = {}) {
   if (!options.force && getBgmLoopHoldRemaining(audio) > 0) return;
   clearBgmLoopRestart("", audio);
   bgmLoopHoldUntil.set(audio, 0);
+  const previousAudio = options.previousAudio && options.previousAudio !== audio ? options.previousAudio : null;
+  if (previousAudio && previousAudio !== audio) {
+    bgmFadeScales.set(audio, 0);
+  }
   updateBgmAudioElementVolume(audio);
   if (audio.ended) audio.currentTime = 0;
   const attemptToken = ++bgmPlayAttemptToken;
-  const previousAudio = options.previousAudio && options.previousAudio !== audio ? options.previousAudio : null;
   const stopPrevious = () => {
     if (!previousAudio) return;
-    stopBgmAudioElement(previousAudio);
+    fadeBgmAudioTo(previousAudio, 0, { duration: Math.min(320, bgmCrossfadeMs), stopAfterFade: true });
   };
   if (bgmFallbackStopTimer) {
     window.clearTimeout(bgmFallbackStopTimer);
@@ -1188,18 +1251,32 @@ function playCurrentBgmAudio(options = {}) {
         state.lastBgmPlayError = "";
         clearAudioRecoveryRetry();
         updateBgmWatchProgress(audio);
+        if (previousAudio) {
+          fadeBgmAudioTo(audio, 1, { duration: bgmCrossfadeMs });
+        } else {
+          bgmFadeScales.set(audio, 1);
+          updateBgmAudioElementVolume(audio);
+        }
         stopPrevious();
         stopOtherBgmAudioElements(audio);
       })
       .catch((error) => {
         if (attemptToken !== bgmPlayAttemptToken) return;
         state.lastBgmPlayError = formatAudioError(error);
-        if (previousAudio && shouldBgmBeAudible()) updateBgmAudioElementVolume(previousAudio);
+        if (previousAudio && shouldBgmBeAudible()) {
+          fadeBgmAudioTo(previousAudio, 1, { duration: 120 });
+        }
         scheduleAudioRecovery("bgm-play-failed", 900);
       });
   } else {
     state.lastBgmPlayError = "";
     clearAudioRecoveryRetry();
+    if (previousAudio) {
+      fadeBgmAudioTo(audio, 1, { duration: bgmCrossfadeMs });
+    } else {
+      bgmFadeScales.set(audio, 1);
+      updateBgmAudioElementVolume(audio);
+    }
     stopPrevious();
     stopOtherBgmAudioElements(audio);
     updateBgmWatchProgress(audio);
@@ -1218,15 +1295,12 @@ function getBgmKeyForGameState() {
   if (isPlayerDefeated()) return "defeat";
   if (state.gameClear) return "ending";
   if (state.bossReward) return "reward";
-  if (state.currentBattle || state.autoBattleTimer || state.battleStartTimer) {
-    const bossKey = getBattleBossMusicKey();
-    if (bossKey) return bossKey;
-  }
+  const floorKey = getFloorBgmKey(state.floor);
+  if (floorKey) return floorKey;
   return getAreaBgmKey(state.floor);
 }
 
-function getBattleBossMusicKey() {
-  const floor = state.currentBattle?.floor || state.floor;
+function getFloorBgmKey(floor = state.floor) {
   if (floor === 10) return "skeletonCaptain";
   if (floor === 20) return "vampire";
   if (floor === 25) return "octopus";
@@ -1238,7 +1312,7 @@ function getBattleBossMusicKey() {
 }
 
 function getAreaBgmKey(floor) {
-  if (floor <= 1) return "opening";
+  if (floor <= 0) return "opening";
   if (floor <= 10) return "area1";
   if (floor <= 20) return "area2";
   if (floor <= 30) return "area3";
@@ -4358,6 +4432,10 @@ function handlePrimaryAction() {
     showCareerSummary();
     return;
   }
+  if (isIntroFloor()) {
+    confirmIntroRewards();
+    return;
+  }
   if (state.bossReward) {
     confirmSelectedBossReward();
     return;
@@ -4377,6 +4455,7 @@ function fleeCurrentFloor() {
 }
 
 function canFleeCurrentFloor() {
+  if (isIntroFloor()) return false;
   return canBypassCurrentFloor() || canRetreatCurrentBattle();
 }
 
@@ -4384,6 +4463,7 @@ function canBypassCurrentFloor() {
   if (state.gameClear || state.bossReward || isCareerSummaryOpen()) return false;
   if (isPlayerDefeated() || state.currentBattle || state.autoBattleTimer || state.battleStartTimer || state.pendingFloorAdvance) return false;
   if (isEquipmentLocked() || hasPendingPhoto()) return false;
+  if (isIntroFloor()) return false;
   return !isBossFloor(state.floor);
 }
 
@@ -4675,7 +4755,7 @@ function restoreBattleSnapshot(snapshot) {
     return;
   }
 
-  state.floor = clampInt(snapshot.floor, 1, maxFloor);
+  state.floor = getPlayableFloor(snapshot.floor);
   state.encounterId = typeof snapshot.encounterId === "string" && snapshot.encounterId ? snapshot.encounterId : state.encounterId;
   state.player = normalizePlayer(snapshot.player || state.player);
   state.inventory = normalizeInventorySlots(snapshot.inventory);
@@ -4700,6 +4780,14 @@ function getBattleRoundLimit(count = state.activeEnemyIds.length || state.select
   if (isBossRewardFloor(floor)) return bossBattleRoundLimit;
   const enemyCount = clampInt(count, 1, 3);
   return battleRoundLimitsByEnemyCount[enemyCount] || battleRoundLimitsByEnemyCount[1];
+}
+
+function getSaveFloor(value) {
+  return clampInt(value, introFloor, maxFloor);
+}
+
+function getPlayableFloor(value) {
+  return clampInt(value, 1, maxFloor);
 }
 
 function resolveBattleAction() {
@@ -5572,7 +5660,79 @@ function normalizeTutorialState(tutorial) {
     photoStarted: Boolean(tutorial?.photoStarted),
     battleHintSeen: Boolean(tutorial?.battleHintSeen),
     postKillHintShown: Boolean(tutorial?.postKillHintShown),
+    introEnteredTower: Boolean(tutorial?.introEnteredTower),
   };
+}
+
+function isIntroFloor() {
+  return state.floor === introFloor && !state.gameClear;
+}
+
+function getIntroRewards() {
+  return introRewardOptions.map((option) => ({ ...option }));
+}
+
+function getIntroRewardSelection() {
+  const validIds = new Set(introRewardOptions.map((option) => option.id));
+  state.introRewardSelectedIds = Array.isArray(state.introRewardSelectedIds)
+    ? state.introRewardSelectedIds.filter((id, index, ids) => validIds.has(id) && ids.indexOf(id) === index)
+    : [];
+  return state.introRewardSelectedIds;
+}
+
+function hasSelectedAllIntroRewards() {
+  return getIntroRewardSelection().length === introRewardOptions.length;
+}
+
+function selectIntroReward(id) {
+  if (!isIntroFloor()) return;
+  const validIds = new Set(introRewardOptions.map((option) => option.id));
+  if (!validIds.has(id)) return;
+  const selected = getIntroRewardSelection();
+  if (!selected.includes(id)) selected.push(id);
+  state.infoMode = "log";
+  saveGame();
+  render();
+}
+
+function confirmIntroRewards() {
+  if (!isIntroFloor()) return;
+  if (!hasSelectedAllIntroRewards()) {
+    state.infoMode = "log";
+    addBattleEvent("先把三卷胶片都收进口袋，再推开魔塔的门。", "item");
+    saveGame();
+    render();
+    return;
+  }
+  enterTowerFromIntro();
+}
+
+function enterTowerFromIntro() {
+  stopAutoBattle();
+  stopBattleTimers();
+  clearEnemyCardMotion();
+  state.floor = 1;
+  state.tutorial.introEnteredTower = true;
+  state.introRewardSelectedIds = [];
+  state.filmRolls = Math.max(state.filmRolls, introFilmRewardCount);
+  state.filmShards = 0;
+  state.selectedEnemyIds = [];
+  state.activeEnemyIds = [];
+  state.currentBattle = null;
+  state.battleSnapshot = null;
+  state.battleClock = null;
+  state.bossReward = null;
+  state.enemies = buildFloorEncounter(state.floor);
+  state.encounterId = makeEncounterId();
+  state.enemyFlipEncounterId = state.encounterId;
+  applyFloorShield();
+  state.infoMode = "log";
+  addBattleEvent("三卷胶片压进口袋，塔门向内打开。照片勇者踏上第 1 层。", "item");
+  addFloorNarrative(state.floor);
+  playSoundEffect("nextFloor");
+  ensureBgmForGameState(true);
+  saveGame();
+  render();
 }
 
 function buildLocalCareerSummary() {
@@ -5813,7 +5973,10 @@ function hasRecentFloorNarrative(floor, text) {
 }
 
 function getFloorNarrative(floor) {
-  const safeFloor = clampInt(floor, 1, maxFloor);
+  if (floor <= introFloor) {
+    return "塔门还没有打开。三卷胶片压在石台上，全部收起后，就能带着第一批照片机会进入魔塔。";
+  }
+  const safeFloor = getPlayableFloor(floor);
   if (bossFloorNarratives[safeFloor]) return bossFloorNarratives[safeFloor];
   if (rewardBossFloorNarratives[safeFloor]) return rewardBossFloorNarratives[safeFloor];
   if (floorNarratives[safeFloor]) return floorNarratives[safeFloor];
@@ -5912,19 +6075,21 @@ function hasPendingPhoto() {
 
 function isEquipmentSelectionLocked() {
   if (state.gameClear) return false;
+  if (isIntroFloor()) return true;
   return isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || Boolean(state.bossReward) || isCareerSummaryOpen();
 }
 
 function canSelectEquipmentSlot(index) {
   const item = getInventoryItemAt(index);
   if (state.gameClear) return true;
+  if (isIntroFloor()) return Boolean(item);
   if (isCareerSummaryOpen() || hasPendingPhoto() || Boolean(state.bossReward)) return false;
   if (isPlayerDefeated()) return Boolean(item);
   return !isEquipmentLocked();
 }
 
 function isBattleActionLocked() {
-  return hasPendingPhoto() || Boolean(state.bossReward);
+  return hasPendingPhoto() || Boolean(state.bossReward) || (isIntroFloor() && !hasSelectedAllIntroRewards());
 }
 
 function makeBattleClock(stats, enemies) {
@@ -5981,6 +6146,10 @@ function handleBattleEndAdvance(mode = "instant") {
 function advanceFloor() {
   stopAutoBattle();
   if (isPlayerDefeated()) return;
+  if (isIntroFloor()) {
+    enterTowerFromIntro();
+    return;
+  }
   clearEnemyCardMotion();
   if (state.floor >= maxFloor) {
     completeGame();
@@ -6042,7 +6211,17 @@ function finishEnemyFlipDown(enemyId) {
 
 function ensureEncounter() {
   if (state.gameClear) return;
-  if (!Number.isFinite(state.floor) || state.floor < 1) state.floor = 1;
+  if (!Number.isFinite(state.floor) || state.floor < introFloor) state.floor = introFloor;
+  if (isIntroFloor()) {
+    state.enemies = [];
+    state.selectedEnemyIds = [];
+    state.activeEnemyIds = [];
+    state.currentBattle = null;
+    state.battleSnapshot = null;
+    state.battleClock = null;
+    state.encounterId = "intro";
+    return;
+  }
   if (!Array.isArray(state.enemies) || !state.enemies.length) {
     state.enemies = buildFloorEncounter(state.floor);
   }
@@ -6058,6 +6237,7 @@ function ensureEncounter() {
 }
 
 function buildFloorEncounter(floor) {
+  if (floor <= introFloor) return [];
   if (Array.isArray(state.testEnemyOverride)) {
     const override = state.testEnemyOverride;
     state.testEnemyOverride = null;
@@ -6770,6 +6950,7 @@ function hasSelectedAllAliveEnemies() {
 }
 
 function canStartSelectedBattle() {
+  if (isIntroFloor()) return false;
   if (isBossFloor(state.floor)) return hasSelectedAllAliveEnemies();
   return getSelectedEnemies().length > 0;
 }
@@ -7400,6 +7581,7 @@ function isPlayerDefeated() {
 }
 
 function makeEncounterId() {
+  if (isIntroFloor()) return "intro";
   return `${state.floor}:${state.enemies.map((enemy) => enemy.id).join("|")}`;
 }
 
@@ -7409,6 +7591,7 @@ function makeRunSeed() {
 }
 
 function applyFloorShield() {
+  if (isIntroFloor()) return;
   const stats = getPlayerStats();
   if (state.player.shieldMonsterId === state.encounterId) return;
   state.player.shield = stats.shield;
@@ -7460,11 +7643,12 @@ function resetGame() {
   localStorage.removeItem(STORAGE_KEYS.save);
   state.player = createDefaultPlayer();
   state.runSeed = makeRunSeed();
-  state.floor = 1;
+  state.floor = introFloor;
   state.gameClear = false;
-  state.enemies = buildFloorEncounter(1);
+  state.enemies = [];
   state.encounterId = makeEncounterId();
   state.selectedEnemyIds = [];
+  state.introRewardSelectedIds = [];
   state.activeEnemyIds = [];
   state.battleClock = null;
   state.battleReports = [];
@@ -7497,8 +7681,8 @@ function resetGame() {
   state.tutorial = { ...defaultTutorialState };
   resetBattleSpecial();
   clearEnemyCardMotion();
-  applyFloorShield();
-  addFloorNarrative(1);
+  ensureInitialFloorNarrative();
+  ensureBgmForGameState(true);
   saveGame();
   render();
 }
@@ -7751,7 +7935,8 @@ function getEquippedItems() {
 }
 
 function isEquipmentLocked() {
-  return Boolean(state.autoBattleTimer)
+  return isIntroFloor()
+    || Boolean(state.autoBattleTimer)
     || Boolean(state.currentBattle)
     || Boolean(state.battleStartTimer)
     || state.pendingFloorAdvance
@@ -8767,9 +8952,14 @@ function render() {
     : state.gameClear
       ? false
       : defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer);
+  if (isIntroFloor()) {
+    els.attackBtn.textContent = "进入魔塔";
+    els.attackBtn.disabled = !hasSelectedAllIntroRewards();
+  }
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
   els.attackBtn.setAttribute("aria-label", state.gameClear ? "查看生涯总结" : bossRewardPending ? "确认奖励牌" : "开始战斗");
-  els.battleSpeedBtn.hidden = bossRewardPending || state.gameClear;
+  if (isIntroFloor()) els.attackBtn.setAttribute("aria-label", "进入魔塔第一层");
+  els.battleSpeedBtn.hidden = bossRewardPending || state.gameClear || isIntroFloor();
   els.battleSpeedBtn.textContent = bossRewardPending ? "" : `×${getBattleSpeed()}`;
   els.battleSpeedBtn.setAttribute("aria-label", bossRewardPending ? "Boss 奖励选择阶段" : `切换战斗倍速，当前 ${getBattleSpeed()} 倍`);
   els.battleSpeedBtn.disabled = defeated || state.gameClear || bossRewardPending;
@@ -8788,6 +8978,7 @@ function render() {
 
 function getFloorActionLabel(bossRewardPending = Boolean(state.bossReward)) {
   if (state.gameClear) return "已通关";
+  if (isIntroFloor()) return `第 ${introFloor} / ${maxFloor} 层 · 塔门前`;
   const floor = bossRewardPending && state.bossReward?.floor ? state.bossReward.floor : state.floor;
   if (bossRewardPending) return `第 ${floor} / ${maxFloor} 层 · 奖励`;
   return `第 ${floor} / ${maxFloor} 层${isBossFloor(floor) ? " · Boss" : isRewardBossFloor(floor) ? " · 奖励Boss" : ""}`;
@@ -8830,6 +9021,11 @@ function renderEnemyField() {
 
   if (state.bossReward) {
     renderBossRewardCards();
+    return;
+  }
+
+  if (isIntroFloor()) {
+    renderIntroRewardCards();
     return;
   }
 
@@ -8910,6 +9106,36 @@ function renderEnemyField() {
     els.enemyField.append(button);
   });
   if (shouldFlipIn) state.enemyFlipEncounterId = "";
+}
+
+function renderIntroRewardCards() {
+  const selectedIds = new Set(getIntroRewardSelection());
+  const title = document.createElement("div");
+  title.className = "boss-reward-prompt";
+  title.textContent = hasSelectedAllIntroRewards() ? "三卷胶片已收好，点击进入魔塔" : "开局胶片 · 三卷都要收下";
+  els.enemyField.append(title);
+  for (const option of getIntroRewards()) {
+    const selected = selectedIds.has(option.id);
+    const button = document.createElement("button");
+    button.className = `enemy-card reward-card intro-reward-card${selected ? " is-selected" : ""}`;
+    button.type = "button";
+    button.setAttribute("aria-pressed", String(selected));
+    button.addEventListener("click", () => selectIntroReward(option.id));
+    button.innerHTML = `
+      <div class="reward-card-main">
+        <div class="monster-portrait reward-portrait">
+          <img src="${rewardIconBase}${escapeHtml(option.icon)}" alt="" aria-hidden="true">
+        </div>
+        <div class="enemy-name-block">
+          <strong>${escapeHtml(option.title)}</strong>
+          <em>${escapeHtml(option.effect)}</em>
+        </div>
+      </div>
+      <p class="reward-card-desc">${escapeHtml(option.desc)}</p>
+      ${selected ? `<div class="reward-card-foot"><span>已收起</span><strong>胶片</strong></div>` : ""}
+    `;
+    els.enemyField.append(button);
+  }
 }
 
 function renderBossRewardCards() {
@@ -9258,6 +9484,17 @@ function renderEquipmentDetail() {
 
   if (isCareerSummaryOpen()) {
     renderCareerSummaryPanel();
+    return;
+  }
+
+  if (isIntroFloor()) {
+    els.equipmentDetailName.textContent = "塔门前";
+    els.equipmentDetailStats.innerHTML = "";
+    els.equipmentDetailStats.hidden = true;
+    els.equipmentDetailDesc.textContent = hasSelectedAllIntroRewards()
+      ? "三卷胶片都已经收好。点击进入魔塔后，会从第 1 层开始正式选择怪物和拍照鉴定。"
+      : "先收下石台上的三卷胶片。它们会变成开局拍照机会，全部选中后再进入魔塔。";
+    els.filmCountBadge.hidden = false;
     return;
   }
 
@@ -9955,6 +10192,8 @@ function renderGameTextOnly() {
       active: state.activeEnemyIds.includes(enemy.id),
     })),
     selectedEnemyIds: [...state.selectedEnemyIds],
+    introRewardSelectedIds: [...getIntroRewardSelection()],
+    introRewardsReady: hasSelectedAllIntroRewards(),
     selectedEnemyCount: state.selectedEnemyIds.length,
     activeEnemyIds: [...state.activeEnemyIds],
     bossReward: state.bossReward ? {
@@ -10088,6 +10327,7 @@ function saveGame() {
     encounterId: state.encounterId,
     enemies: state.enemies,
     selectedEnemyIds: state.selectedEnemyIds,
+    introRewardSelectedIds: state.introRewardSelectedIds,
     activeEnemyIds: state.activeEnemyIds,
     gameClear: state.gameClear,
     bossReward: state.bossReward,
@@ -10127,7 +10367,7 @@ function loadSave() {
     return;
   }
 
-  state.floor = clampInt(save.floor, 1, maxFloor);
+  state.floor = getSaveFloor(save.floor);
   state.gameClear = Boolean(save.gameClear);
   state.bossReward = normalizeBossReward(save.bossReward);
   state.photoValueMin = clampInt(save.photoValueMin, defaultPhotoValueMin, 999);
@@ -10158,6 +10398,9 @@ function loadSave() {
   }
   state.selectedEnemyIds = Array.isArray(save.selectedEnemyIds)
     ? save.selectedEnemyIds.filter((id) => typeof id === "string" && state.enemies.some((enemy) => enemy.id === id))
+    : [];
+  state.introRewardSelectedIds = Array.isArray(save.introRewardSelectedIds)
+    ? save.introRewardSelectedIds.filter((id) => typeof id === "string")
     : [];
   state.activeEnemyIds = Array.isArray(save.activeEnemyIds)
     ? save.activeEnemyIds.filter((id) => typeof id === "string" && state.enemies.some((enemy) => enemy.id === id))
@@ -10198,7 +10441,7 @@ function normalizePlayer(player) {
 
 function normalizeBossReward(reward) {
   if (!reward || typeof reward !== "object") return null;
-  const floor = clampInt(reward.floor, 1, maxFloor);
+  const floor = getPlayableFloor(reward.floor);
   const options = Array.isArray(reward.options)
     ? reward.options
         .map((option, index) => normalizeBossRewardOption(option, floor, index))
@@ -10289,7 +10532,7 @@ function normalizeBattleSnapshot(snapshot) {
   if (!enemies.length) return null;
   const validIds = new Set(enemies.map((enemy) => enemy.id));
   return {
-    floor: clampInt(snapshot.floor, 1, maxFloor),
+    floor: getPlayableFloor(snapshot.floor),
     encounterId: typeof snapshot.encounterId === "string" && snapshot.encounterId ? snapshot.encounterId : state.encounterId,
     enemies,
     selectedEnemyIds: Array.isArray(snapshot.selectedEnemyIds)
@@ -10415,10 +10658,12 @@ window.__photoHeroTestHooks = {
   makeInventoryImage,
   loadImage,
   addTestItem(input) {
+    if (isIntroFloor()) this.enterTowerForTest({ silent: true });
     const item = balanceItem(input || {}, input?.image || makePlaceholderImage());
     addInventoryItem({ ...item, id: makeId("test-item"), fullImage: input?.fullImage || item.fullImage || "" }, "测试装备已加入。");
   },
   addSpecialItem(effectKey, input = {}) {
+    if (isIntroFloor()) this.enterTowerForTest({ silent: true });
     const effect = photoSpecialEffectMap.get(effectKey);
     const value = Math.max(effect?.value || 16, input.value || 16);
     const item = balanceItem({
@@ -10436,6 +10681,7 @@ window.__photoHeroTestHooks = {
     addInventoryItem({ ...item, id: makeId("test-special"), fullImage: input.fullImage || item.fullImage || "" }, "测试特殊装备已加入。");
   },
   addSpecialComboItem(effectKeys, input = {}) {
+    if (isIntroFloor()) this.enterTowerForTest({ silent: true });
     const keys = Array.isArray(effectKeys) ? effectKeys.filter((key) => photoSpecialEffectMap.has(key)) : [];
     const value = Math.max(
       input.value || 16,
@@ -10474,6 +10720,7 @@ window.__photoHeroTestHooks = {
   },
   makeBattleSummary,
   addRawItem(input) {
+    if (isIntroFloor()) this.enterTowerForTest({ silent: true });
     const item = {
       ...balanceItem({ ...(input || {}), photoKey: input?.photoKey || pendingDuplicatePhotoKey, skipSpecialRoll: input?.skipSpecialRoll ?? true }, input?.image || makePlaceholderImage()),
       stats: normalizeStats(input?.stats || {}, 999),
@@ -10513,6 +10760,8 @@ window.__photoHeroTestHooks = {
       loop: state.bgmAudio ? state.bgmAudio.loop : null,
       currentTime: state.bgmAudio ? state.bgmAudio.currentTime : null,
       readyState: state.bgmAudio ? state.bgmAudio.readyState : null,
+      volume: state.bgmAudio ? state.bgmAudio.volume : null,
+      fading: isBgmFading(state.bgmAudio),
       playAttemptToken: bgmPlayAttemptToken,
       loopDelayMs: bgmLoopDelayMs,
       loopRestartScheduled: Boolean(bgmLoopRestartTimer),
@@ -10532,6 +10781,8 @@ window.__photoHeroTestHooks = {
       ended: audio.ended,
       currentTime: audio.currentTime,
       readyState: audio.readyState,
+      volume: audio.volume,
+      fading: isBgmFading(audio),
       playAttemptToken: bgmPlayAttemptToken,
     } : null;
   },
@@ -10540,6 +10791,15 @@ window.__photoHeroTestHooks = {
     if (!audio) return false;
     scheduleBgmLoopRestart(state.bgmKey, audio);
     return true;
+  },
+  selectIntroRewardForTest(id) {
+    selectIntroReward(id);
+  },
+  confirmIntroRewardsForTest() {
+    confirmIntroRewards();
+  },
+  getIntroRewardsForTest() {
+    return getIntroRewards();
   },
   forceBgmPausedForTest() {
     if (!state.bgmAudio) return false;
@@ -10674,10 +10934,52 @@ window.__photoHeroTestHooks = {
       cropRect: item.cropRect || null,
     } : null));
   },
-  resetGameForTest() {
+  resetGameForTest(options = {}) {
     resetGame();
+    if (!options.keepIntro) {
+      this.enterTowerForTest({ silent: true });
+    }
   },
-  startBossRewardChoice,
+  enterTowerForTest(options = {}) {
+    if (isIntroFloor()) {
+      if (options.silent) {
+        stopAutoBattle();
+        stopBattleTimers();
+        clearEnemyCardMotion();
+        state.floor = 1;
+        state.tutorial.introEnteredTower = true;
+        state.introRewardSelectedIds = [];
+        state.filmRolls = Math.max(state.filmRolls, introFilmRewardCount);
+        state.filmShards = 0;
+        state.selectedEnemyIds = [];
+        state.activeEnemyIds = [];
+        state.currentBattle = null;
+        state.battleSnapshot = null;
+        state.battleClock = null;
+        state.bossReward = null;
+        state.enemies = buildFloorEncounter(state.floor);
+        state.encounterId = makeEncounterId();
+        state.enemyFlipEncounterId = state.encounterId;
+        applyFloorShield();
+        ensureBgmForGameState(true);
+      } else {
+        state.introRewardSelectedIds = introRewardOptions.map((option) => option.id);
+        enterTowerFromIntro();
+      }
+    }
+    state.infoMode = "item";
+    state.selectedSlotIndex = 0;
+    state.pendingPhotoSlotIndex = 0;
+    state.selectedItemId = state.inventory[0]?.id || "";
+    state.lootError = "";
+    saveGame();
+    render();
+  },
+  startBossRewardChoice(floor) {
+    if (isIntroFloor()) this.enterTowerForTest({ silent: true });
+    state.floor = getPlayableFloor(floor);
+    startBossRewardChoice(floor);
+  },
   chooseBossReward,
   balanceItem,
   async identifyImageForTest(config, image) {
@@ -10716,6 +11018,7 @@ window.__photoHeroTestHooks = {
     render();
   },
   setPendingPhotoForTest(image) {
+    if (isIntroFloor()) this.enterTowerForTest({ silent: true });
     state.lastPhoto = image || "";
     state.pendingCropRect = null;
     state.cropMode = false;
@@ -10730,7 +11033,10 @@ window.__photoHeroTestHooks = {
   getPhotoValueRange() {
     return { min: getPhotoValueMin(), max: getPhotoValueMax() };
   },
-  setHeroForm,
+  setHeroForm(formId) {
+    if (isIntroFloor()) this.enterTowerForTest({ silent: true });
+    setHeroForm(formId);
+  },
   getMonsterAttackForStrike,
   getMonsterDisplayStats,
   applyHeroDamageToEnemy,
@@ -10750,12 +11056,13 @@ window.__photoHeroTestHooks = {
   setFloor(floor) {
     stopAutoBattle();
     stopBattleTimers();
-    state.floor = clampInt(floor, 1, maxFloor);
+    state.floor = getSaveFloor(floor);
     state.gameClear = false;
     state.bossReward = null;
     state.enemies = buildFloorEncounter(state.floor);
     state.encounterId = makeEncounterId();
     state.selectedEnemyIds = [];
+    state.introRewardSelectedIds = [];
     state.activeEnemyIds = [];
     state.currentBattle = null;
     state.battleSnapshot = null;
@@ -10771,6 +11078,7 @@ window.__photoHeroTestHooks = {
   setEnemies(enemies) {
     stopAutoBattle();
     stopBattleTimers();
+    if (isIntroFloor()) this.enterTowerForTest({ silent: true });
     state.testEnemyOverride = Array.isArray(enemies) ? enemies : [];
     state.enemies = buildFloorEncounter(state.floor);
     state.encounterId = makeEncounterId();

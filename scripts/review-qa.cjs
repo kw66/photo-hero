@@ -63,6 +63,7 @@ async function collectScenario(page, name, action = async () => {}) {
       bossCeremony: window.__reviewBossCeremony || null,
       defeatedEquipment: window.__reviewDefeatedEquipment || null,
       equipmentDetailPreview: window.__reviewEquipmentDetailPreview || null,
+      introFlow: window.__reviewIntroFlow || null,
       itemStory: window.__reviewItemStory || null,
       itemTypography: window.__reviewItemTypography || null,
       soundEffects: window.__reviewSoundEffects || null,
@@ -171,10 +172,22 @@ function assertScenario(name, metrics) {
     if (metrics.hitEffects.enemy?.animationName !== "hitEffectFlash") failures.push(`${name}: enemy hit effect should use hitEffectFlash animation, got ${JSON.stringify(metrics.hitEffects.enemy)}`);
   }
   if (name === "mobile-fresh") {
-    if (!metrics.visibleButtons.includes("选择怪物")) failures.push(`${name}: missing disabled 选择怪物 state`);
-    if (!metrics.visibleButtons.includes("绕过")) failures.push(`${name}: missing non-boss bypass button`);
-    if (!/先拍一件身边的小物品/.test(metrics.detailText)) failures.push(`${name}: first empty slot should guide photo first`);
+    if (metrics.state.floor !== 0) failures.push(`${name}: fresh game should start at intro floor 0, got ${metrics.state.floor}`);
+    if (!metrics.visibleButtons.includes("进入魔塔")) failures.push(`${name}: missing intro enter-tower button`);
+    if (metrics.visibleButtons.includes("绕过")) failures.push(`${name}: intro floor should not show bypass`);
+    if (!/塔门前|三卷胶片/.test(metrics.detailText)) failures.push(`${name}: intro detail should explain three film rolls, got ${metrics.detailText}`);
+    if (!/开局胶片|第一卷胶片/.test(metrics.enemyText)) failures.push(`${name}: intro reward cards should be visible, got ${metrics.enemyText}`);
+    if (metrics.state.player.filmCount !== 0) failures.push(`${name}: intro film should be granted only after selection, got ${metrics.state.player.filmCount}`);
     if (/价值范围/.test(metrics.detailText)) failures.push(`${name}: exposes raw value range in empty state`);
+  }
+  if (name === "intro-flow") {
+    const result = metrics.introFlow || {};
+    if (result.initialFloor !== 0) failures.push(`${name}: should start on floor 0, got ${JSON.stringify(result)}`);
+    if (result.initialBgm !== "opening") failures.push(`${name}: intro should use opening BGM, got ${JSON.stringify(result)}`);
+    if (result.enterEnabledBeforeAll !== false) failures.push(`${name}: enter button should stay disabled before all three films are selected, got ${JSON.stringify(result)}`);
+    if (result.selectedCount !== 3 || result.enterEnabledAfterAll !== true) failures.push(`${name}: all three intro film cards should enable tower entry, got ${JSON.stringify(result)}`);
+    if (result.afterFloor !== 1 || result.afterFilmCount !== 3) failures.push(`${name}: entering tower should move to floor 1 with 3 films, got ${JSON.stringify(result)}`);
+    if (result.afterBgm !== "area1") failures.push(`${name}: floor 1 should switch to area1 BGM on entry, got ${JSON.stringify(result)}`);
   }
   if (name === "onboarding") {
     const result = metrics.onboarding || {};
@@ -304,6 +317,9 @@ function assertScenario(name, metrics) {
     if (se.contextRecoveryAttempted !== true) failures.push(`${name}: audio context recovery should be attempted, got ${JSON.stringify(se)}`);
     if (se.bgmSwitchStartedNewTrack !== true) failures.push(`${name}: BGM switching should start the requested new track, got ${JSON.stringify(se)}`);
     if (se.bgmSwitchStopsOldTrack !== true) failures.push(`${name}: BGM switching should keep the old track during handoff then stop it, got ${JSON.stringify(se)}`);
+    if (se.bossBgmOnFloorEntry !== true) failures.push(`${name}: boss BGM should switch on floor entry before battle starts, got ${JSON.stringify(se)}`);
+    if (se.bossBattleDoesNotRefreshBgm !== true) failures.push(`${name}: starting a boss battle should not refresh the already-selected floor BGM, got ${JSON.stringify(se)}`);
+    if (se.bgmCrossfadeHandoff !== true) failures.push(`${name}: BGM switch should crossfade by keeping the previous track during handoff, got ${JSON.stringify(se)}`);
     if (se.lastSfxPlayError) failures.push(`${name}: SFX playback should not leave an error after recovery, got ${se.lastSfxPlayError}`);
     if (controls.sfxFill !== "100%" || controls.bgmFill !== "100%") failures.push(`${name}: 100% sliders should fill to the end, got ${JSON.stringify(controls)}`);
     if (controls.sfxZeroFill !== "0%" || controls.bgmZeroFill !== "0%") failures.push(`${name}: 0% sliders should empty to the start, got ${JSON.stringify(controls)}`);
@@ -577,7 +593,54 @@ function assertScenario(name, metrics) {
   scenarios.mobileFresh = await collectScenario(mobile, "mobile-fresh");
   scenarios.desktopFresh = await collectScenario(desktop, "desktop-fresh");
 
+  scenarios.introFlow = await collectScenario(desktop, "intro-flow", async (page) => {
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewIntroFlow = {
+        initialFloor: state.floor,
+        initialBgm: state.audio?.bgmKey || "",
+        enterEnabledBeforeAll: !document.querySelector("#attackBtn")?.disabled,
+        selectedCount: state.introRewardSelectedIds?.length || 0,
+      };
+    });
+    await page.locator(".intro-reward-card").nth(0).click();
+    await page.locator(".intro-reward-card").nth(1).click();
+    await page.locator(".intro-reward-card").nth(2).click();
+    await page.waitForFunction(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      return (state.introRewardSelectedIds || []).length === 3 && !document.querySelector("#attackBtn")?.disabled;
+    }, null, { timeout: 3000 });
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewIntroFlow = {
+        ...window.__reviewIntroFlow,
+        selectedCount: state.introRewardSelectedIds?.length || 0,
+        enterEnabledAfterAll: !document.querySelector("#attackBtn")?.disabled,
+      };
+    });
+    await page.click("#attackBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).floor === 1, null, { timeout: 3000 });
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewIntroFlow = {
+        ...window.__reviewIntroFlow,
+        afterFloor: state.floor,
+        afterFilmCount: state.player?.filmCount,
+        afterBgm: state.audio?.bgmKey || "",
+      };
+    });
+  });
+
   scenarios.onboarding = await collectScenario(mobile, "onboarding", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.selectIntroRewardForTest("intro-film-1");
+      hooks.selectIntroRewardForTest("intro-film-2");
+      hooks.selectIntroRewardForTest("intro-film-3");
+      hooks.confirmIntroRewardsForTest();
+      hooks.state.infoMode = "item";
+      hooks.render();
+    });
     await page.evaluate(() => {
       window.__reviewOnboarding = {
         firstPhotoHint: /先拍一件身边的小物品/.test(document.querySelector("#equipmentDetail")?.innerText || ""),
@@ -633,6 +696,7 @@ function assertScenario(name, metrics) {
   });
 
   scenarios.mobileFlee = await collectScenario(mobile, "mobile-flee", async (page) => {
+    await page.evaluate(() => window.__photoHeroTestHooks.setFloor(1));
     await page.click("#fleeBtn");
     await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).floor === 2, null, { timeout: 3000 });
   });
@@ -1835,6 +1899,20 @@ function assertScenario(name, metrics) {
       document.querySelector("#fleeBtn").click();
       await new Promise((resolve) => setTimeout(resolve, 80));
       const nextFloor = count("nextFloor");
+      hooks.setFloor(10);
+      const floor10BgmState = hooks.ensureBgmForTest?.(true) || {};
+      hooks.clearAudioEvents();
+      hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));
+      hooks.startAutoBattle();
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      const floor10BattleBgmState = hooks.getBgmPlaybackStateForTest?.() || {};
+      hooks.setFloor(11);
+      hooks.ensureBgmForTest?.(true);
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      const area2BgmState = hooks.getBgmPlaybackStateForTest?.() || {};
+      const floor10CachedDuringSwitch = hooks.getCachedBgmPlaybackStateForTest?.("skeletonCaptain") || {};
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      const floor10CachedAfterSwitch = hooks.getCachedBgmPlaybackStateForTest?.("skeletonCaptain") || {};
 
       const setupBattle = (ids) => {
         hooks.clearAudioEvents();
@@ -1895,6 +1973,9 @@ function assertScenario(name, metrics) {
         contextRecoveryAttempted: (recoveryAfterContext.count || 0) > (recoveryBeforeContext.count || 0),
         bgmSwitchStartedNewTrack: area1BgmState.key === "area1" && bossBgmState.key === "skeletonCaptain" && bossBgmState.hasAudio,
         bgmSwitchStopsOldTrack: area1DuringSwitchState.paused === false && area1AfterSwitchState.paused === true,
+        bossBgmOnFloorEntry: floor10BgmState.key === "skeletonCaptain",
+        bossBattleDoesNotRefreshBgm: floor10BattleBgmState.playAttemptToken === floor10BgmState.playAttemptToken,
+        bgmCrossfadeHandoff: area2BgmState.key === "area2" && floor10CachedDuringSwitch.paused === false && floor10CachedDuringSwitch.fading === true && floor10CachedAfterSwitch.paused === true,
         contextState: recoveryAfterContext.contextState,
         lastSfxPlayError: finalRecoveryState.lastSfxPlayError || switchSfxRecovery.lastSfxPlayError || "",
       };
