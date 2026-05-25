@@ -154,7 +154,7 @@ const statValueWeights = {
   attack: 5,
   defense: 6,
   speed: 12,
-  shield: 2,
+  shield: 4,
   lifesteal: 6,
   regen: 8,
 };
@@ -8204,6 +8204,7 @@ function balanceItem(item, image = "") {
       ? normalizeStats({}, 20)
       : clampStatsToValue(allocateStatsForItem(semanticSchema || virtualPenalty.level === "ordinaryCap" ? {} : safe.stats || {}, statSemanticText, statBudget, statAffinityForAllocation), statBudget);
 
+  const actualScore = calculateItemScore(stats, specialEffects);
   const balanced = {
     itemName,
     subjectName,
@@ -8213,7 +8214,7 @@ function balanceItem(item, image = "") {
     isEquipable: safeIsEquipable !== false && !noEffect,
     rarity,
     value: targetValue,
-    quality: getItemQuality(targetValue),
+    quality: getItemQuality(actualScore),
     stats,
     specialEffects,
     specialState: normalizeSpecialState(safe.specialState, specialEffects),
@@ -8281,14 +8282,16 @@ function normalizeInventorySlots(inventory) {
 }
 
 function scoreItem(item) {
-  if (!item) return 0;
-  if (Number.isFinite(item.value)) return Math.max(0, item.value);
-  return calculateStatsValue(item.stats || {}) + calculateSpecialEffectsValue(getItemSpecialKeys(item));
+  return getItemEffectValue(item);
 }
 
 function getItemEffectValue(item) {
   if (!item || item.tooLarge) return 0;
-  return calculateStatsValue(item.stats || {}) + calculateSpecialEffectsValue(getItemSpecialKeys(item));
+  return calculateItemScore(item.stats || {}, getItemSpecialKeys(item));
+}
+
+function calculateItemScore(stats, effectKeys = []) {
+  return calculateStatsValue(stats || {}) + calculateSpecialEffectsValue(effectKeys);
 }
 
 function getItemQuality(value) {
@@ -10443,7 +10446,7 @@ function renderGameTextOnly() {
       slotIndex,
       name: formatItemDisplayName(item),
       score: scoreItem(item),
-      quality: item.quality?.label || getItemQuality(scoreItem(item)).label,
+      quality: getItemQuality(scoreItem(item)).label,
       appraisal: item.semanticAppraisal ? {
         subjectName: item.subjectName || "",
         objectType: item.objectType || "",
@@ -11174,6 +11177,9 @@ window.__photoHeroTestHooks = {
       value: item.value,
       stats: item.stats,
       specialEffects: item.specialEffects,
+      score: scoreItem(item),
+      quality: getItemQuality(scoreItem(item)).label,
+      qualityKey: getItemQuality(scoreItem(item)).key,
       photoKey: item.photoKey || "",
       sourcePhotoKey: item.sourcePhotoKey || "",
       cropRect: item.cropRect || null,
@@ -11236,6 +11242,12 @@ window.__photoHeroTestHooks = {
   },
   renderItemDescriptionForTest(item) {
     return renderItemDescription(item);
+  },
+  scoreItemForTest(item) {
+    return scoreItem(item);
+  },
+  getItemQualityForTest(value) {
+    return getItemQuality(value);
   },
   formatBalancedItemDisplayNameForTest(item, maxSingleLineLength) {
     return formatBalancedItemDisplayName(item, maxSingleLineLength);

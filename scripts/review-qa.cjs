@@ -303,6 +303,16 @@ function assertScenario(name, metrics) {
     if (refunds.common !== 0.3 || refunds.rare !== 0.5 || refunds.epic !== 0.7 || refunds.legendary !== 0.9) {
       failures.push(`${name}: quality dismantle refunds should be 0.3/0.5/0.7/0.9, got ${JSON.stringify(refunds)}`);
     }
+    const scoredItems = item.scoredItems || {};
+    if (scoredItems.shieldFourScore !== 16 || scoredItems.shieldFourQuality !== "rare") {
+      failures.push(`${name}: shield +4 should score as rare actual power, got ${JSON.stringify(scoredItems)}`);
+    }
+    if (scoredItems.shieldOnlyValue >= 21 && scoredItems.shieldOnlyScore < 21 && scoredItems.shieldOnlyQuality === "legendary") {
+      failures.push(`${name}: shield-only item quality should not use raw photo value, got ${JSON.stringify(scoredItems)}`);
+    }
+    if (scoredItems.shieldWithSpecialScore !== 22 || scoredItems.shieldWithSpecialQuality !== "legendary") {
+      failures.push(`${name}: meaningful special effects should still lift shield items to legendary, got ${JSON.stringify(scoredItems)}`);
+    }
   }
   if (name === "mobile-save-fallback") {
     const result = metrics.mobileSaveFallback || {};
@@ -1102,7 +1112,29 @@ function assertScenario(name, metrics) {
       const balancedName = hooks.formatBalancedItemDisplayNameForTest?.({ itemName: longName }) || "";
       const slotLengths = readLengths(slotName);
       const detailLengths = readLengths(detailName);
-      const makeItem = (value) => ({ itemName: "测试装备", value, stats: { hp: 1 }, skipSpecialRoll: true });
+      const makeItem = (stats, specialEffects = []) => ({ itemName: "测试装备", stats, specialEffects, skipSpecialRoll: true });
+      const shieldOnly = hooks.balanceItem({
+        itemName: "护盾盒",
+        subjectName: "护盾盒",
+        objectType: "防护盒",
+        description: "盒子外壳能遮挡保护，像护盾。",
+        reason: "主体=盒子；倾向=护盾",
+        tags: ["盒子", "外壳", "护盾"],
+        value: 21,
+        stats: { shield: 2 },
+        photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 2 },
+        statAffinity: [{ stat: "shield", score: 3 }],
+        skipSpecialRoll: true,
+      });
+      const scoredItems = {
+        shieldFourScore: hooks.scoreItemForTest?.({ stats: { shield: 4 }, skipSpecialRoll: true }),
+        shieldFourQuality: hooks.getItemQualityForTest?.(hooks.scoreItemForTest?.({ stats: { shield: 4 }, skipSpecialRoll: true }) || 0)?.key,
+        shieldOnlyValue: shieldOnly.value,
+        shieldOnlyScore: hooks.scoreItemForTest?.(shieldOnly),
+        shieldOnlyQuality: hooks.getItemQualityForTest?.(hooks.scoreItemForTest?.(shieldOnly) || 0)?.key,
+        shieldWithSpecialScore: hooks.scoreItemForTest?.({ stats: { shield: 2 }, specialEffects: ["killShield"], skipSpecialRoll: true }),
+        shieldWithSpecialQuality: hooks.getItemQualityForTest?.(hooks.scoreItemForTest?.({ stats: { shield: 2 }, specialEffects: ["killShield"], skipSpecialRoll: true }) || 0)?.key,
+      };
       window.__reviewItemTypography = {
         balancedName,
         slotName,
@@ -1111,11 +1143,12 @@ function assertScenario(name, metrics) {
         detailLengths,
         slotNameBalanced: slotLengths.length === 2 && slotLengths[0] >= slotLengths[1] && slotLengths[0] - slotLengths[1] <= 1,
         detailNameBalanced: detailLengths.length === 2 && detailLengths[0] >= detailLengths[1] && detailLengths[0] - detailLengths[1] <= 1,
+        scoredItems,
         refunds: {
-          common: hooks.getDismantleFilmReturnForTest(makeItem(8)),
-          rare: hooks.getDismantleFilmReturnForTest(makeItem(13)),
-          epic: hooks.getDismantleFilmReturnForTest(makeItem(17)),
-          legendary: hooks.getDismantleFilmReturnForTest(makeItem(21)),
+          common: hooks.getDismantleFilmReturnForTest(makeItem({ shield: 2 })),
+          rare: hooks.getDismantleFilmReturnForTest(makeItem({ shield: 4 })),
+          epic: hooks.getDismantleFilmReturnForTest(makeItem({ shield: 1 }, ["killShield"])),
+          legendary: hooks.getDismantleFilmReturnForTest(makeItem({ shield: 2 }, ["killShield"])),
         },
       };
     });
@@ -2018,6 +2051,7 @@ function assertScenario(name, metrics) {
       hooks.startAutoBattle();
       await new Promise((resolve) => setTimeout(resolve, 120));
       const floor10BattleBgmState = hooks.getBgmPlaybackStateForTest?.() || {};
+      const floor10BattleBgmEvents = hooks.getBgmEvents?.() || [];
       hooks.setFloor(11);
       hooks.ensureBgmForTest?.(true);
       await new Promise((resolve) => setTimeout(resolve, 120));
@@ -2086,7 +2120,7 @@ function assertScenario(name, metrics) {
         bgmSwitchStartedNewTrack: area1BgmState.key === "area1" && bossBgmState.key === "skeletonCaptain" && bossBgmState.hasAudio,
         bgmSwitchStopsOldTrack: area1DuringSwitchState.paused === false && area1AfterSwitchState.paused === true,
         bossBgmOnFloorEntry: floor10BgmState.key === "skeletonCaptain",
-        bossBattleDoesNotRefreshBgm: floor10BattleBgmState.playAttemptToken === floor10BgmState.playAttemptToken,
+        bossBattleDoesNotRefreshBgm: floor10BattleBgmState.key === floor10BgmState.key && floor10BattleBgmEvents.length === 0,
         bgmCrossfadeHandoff: area2BgmState.key === "area2" && floor10CachedDuringSwitch.paused === false && floor10CachedDuringSwitch.fading === true && floor10CachedAfterSwitch.paused === true,
         contextState: recoveryAfterContext.contextState,
         lastSfxPlayError: finalRecoveryState.lastSfxPlayError || switchSfxRecovery.lastSfxPlayError || "",

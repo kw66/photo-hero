@@ -316,12 +316,25 @@ const cases = [
     hooks.addTestItem({ itemName: "红苹果", subjectName: "苹果", objectType: "水果", value: 9, stats: { hp: 1 }, photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 }, statAffinity: [{ stat: "hp", score: 3 }] });
     const activeSpecial = hooks.getActiveSpecialForTest?.();
     const heroStats = hooks.getPlayerStats();
+    const score = (item) => hooks.scoreItemForTest?.(item) || 0;
+    const quality = (item) => hooks.getItemQualityForTest?.(score(item))?.key || "";
+    const rawValueShield = { itemName: "value only shield", value: 21, stats: { shield: 2 }, skipSpecialRoll: true };
+    const shieldWithSpecial = { itemName: "special shield", value: 21, stats: { shield: 2 }, specialEffects: ["killShield"], skipSpecialRoll: true };
+    const shieldEconomy = {
+      shieldFourScore: score({ stats: { shield: 4 }, skipSpecialRoll: true }),
+      shieldFourQuality: quality({ stats: { shield: 4 }, skipSpecialRoll: true }),
+      rawValueShieldScore: score(rawValueShield),
+      rawValueShieldQuality: quality(rawValueShield),
+      shieldWithSpecialScore: score(shieldWithSpecial),
+      shieldWithSpecialQuality: quality(shieldWithSpecial),
+    };
     return {
       activeSpecial: activeSpecial || null,
       hp: hooks.getHeroStateForTest?.()?.hp,
       maxHp: heroStats.maxHp,
       itemCount: hooks.getInventoryForTest?.()?.filter(Boolean).length || 0,
       valueMapping,
+      shieldEconomy,
     };
   });
   await browser.close();
@@ -342,6 +355,15 @@ const cases = [
   if (runtimeChecks.hp !== undefined && runtimeChecks.maxHp !== undefined && runtimeChecks.hp > runtimeChecks.maxHp) failures.push({ label: "hp overflow after hp item", runtimeChecks });
   if (runtimeChecks.valueMapping?.low?.mappedValue !== 8 || runtimeChecks.valueMapping?.mid?.mappedValue !== 17 || runtimeChecks.valueMapping?.high?.mappedValue !== 26) {
     failures.push({ label: "photo score should linearly map to current value range", valueMapping: runtimeChecks.valueMapping });
+  }
+  if (runtimeChecks.shieldEconomy?.shieldFourScore !== 16 || runtimeChecks.shieldEconomy?.shieldFourQuality !== "rare") {
+    failures.push({ label: "shield +4 should not be epic without extra power", shieldEconomy: runtimeChecks.shieldEconomy });
+  }
+  if (runtimeChecks.shieldEconomy?.rawValueShieldScore !== 8 || runtimeChecks.shieldEconomy?.rawValueShieldQuality !== "common") {
+    failures.push({ label: "raw value should not turn shield +2 into legendary", shieldEconomy: runtimeChecks.shieldEconomy });
+  }
+  if (runtimeChecks.shieldEconomy?.shieldWithSpecialScore !== 22 || runtimeChecks.shieldEconomy?.shieldWithSpecialQuality !== "legendary") {
+    failures.push({ label: "special effect value should still count toward shield item quality", shieldEconomy: runtimeChecks.shieldEconomy });
   }
   if (errors.length) failures.push({ label: "console errors", errors });
 
