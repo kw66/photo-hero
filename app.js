@@ -4,6 +4,9 @@ const STORAGE_KEYS = {
   statsVisitor: "photoHero.stats.visitor",
   statsLastUvDate: "photoHero.stats.lastUvDate",
   statsGameRuns: "photoHero.stats.gameRuns",
+  statsAppraisalId: "photoHero.stats.appraisalId",
+  statsAppraisalRecorded: "photoHero.stats.appraisalRecorded",
+  statsLastAppraisalDate: "photoHero.stats.lastAppraisalDate",
 };
 
 const pendingDuplicatePhotoKey = "pending";
@@ -14,17 +17,21 @@ const STATS_COUNTER_IDS = {
   totalUv: "photo_hero_uv_total",
   totalGames: "photo_hero_game_total",
   totalKills: "photo_hero_kills_total",
-  totalAppraisals: "photo_hero_appraisals_total",
+  totalAppraisals: "photo_hero_appraisal_players_total",
+  totalEquipment: "photo_hero_appraisals_total",
   totalFloors: "photo_hero_floors_total",
   totalClears: "photo_hero_clears_total",
   dailyPvPrefix: "photo_hero_pv_day",
   dailyUvPrefix: "photo_hero_uv_day",
   dailyGamesPrefix: "photo_hero_game_day",
   dailyKillsPrefix: "photo_hero_kills_day",
-  dailyAppraisalsPrefix: "photo_hero_appraisals_day",
+  dailyAppraisalsPrefix: "photo_hero_appraisal_players_day",
+  dailyEquipmentPrefix: "photo_hero_appraisals_day",
   dailyFloorsPrefix: "photo_hero_floors_day",
   dailyClearsPrefix: "photo_hero_clears_day",
 };
+
+let appraisalPlayerRecordPending = false;
 
 const SILICONFLOW_MODELS = [
   { value: "Qwen/Qwen3.6-35B-A3B" },
@@ -1239,11 +1246,22 @@ function playCurrentBgmAudio(options = {}) {
     if (!previousAudio) return;
     fadeBgmAudioTo(previousAudio, 0, { duration: Math.min(320, bgmCrossfadeMs), stopAfterFade: true });
   };
+  const startCurrentFadeIn = () => {
+    if (!previousAudio) {
+      bgmFadeScales.set(audio, 1);
+      updateBgmAudioElementVolume(audio);
+      return;
+    }
+    if (!isBgmFading(audio) && (bgmFadeScales.get(audio) || 0) < 0.999) {
+      fadeBgmAudioTo(audio, 1, { duration: bgmCrossfadeMs });
+    }
+  };
   if (bgmFallbackStopTimer) {
     window.clearTimeout(bgmFallbackStopTimer);
     bgmFallbackStopTimer = 0;
   }
   const playPromise = audio.play();
+  if (previousAudio) startCurrentFadeIn();
   if (playPromise?.then) {
     playPromise
       .then(() => {
@@ -1251,18 +1269,16 @@ function playCurrentBgmAudio(options = {}) {
         state.lastBgmPlayError = "";
         clearAudioRecoveryRetry();
         updateBgmWatchProgress(audio);
-        if (previousAudio) {
-          fadeBgmAudioTo(audio, 1, { duration: bgmCrossfadeMs });
-        } else {
-          bgmFadeScales.set(audio, 1);
-          updateBgmAudioElementVolume(audio);
-        }
+        startCurrentFadeIn();
         stopPrevious();
         stopOtherBgmAudioElements(audio);
       })
       .catch((error) => {
         if (attemptToken !== bgmPlayAttemptToken) return;
         state.lastBgmPlayError = formatAudioError(error);
+        clearBgmFade(audio);
+        bgmFadeScales.set(audio, 0);
+        updateBgmAudioElementVolume(audio);
         if (previousAudio && shouldBgmBeAudible()) {
           fadeBgmAudioTo(previousAudio, 1, { duration: 120 });
         }
@@ -1271,12 +1287,7 @@ function playCurrentBgmAudio(options = {}) {
   } else {
     state.lastBgmPlayError = "";
     clearAudioRecoveryRetry();
-    if (previousAudio) {
-      fadeBgmAudioTo(audio, 1, { duration: bgmCrossfadeMs });
-    } else {
-      bgmFadeScales.set(audio, 1);
-      updateBgmAudioElementVolume(audio);
-    }
+    startCurrentFadeIn();
     stopPrevious();
     stopOtherBgmAudioElements(audio);
     updateBgmWatchProgress(audio);
@@ -4098,7 +4109,10 @@ function receiveItem(item, message) {
     ? `${message} 记录 ${fullItem.itemName}，无法提供属性。`
     : `${message} 获得 ${fullItem.itemName}。`;
   if (addInventoryItem(fullItem, rewardText, targetSlot)) {
-    if (!fullItem.tooLarge) recordGlobalGameMetric("Appraisals", 1);
+    if (!fullItem.tooLarge) {
+      recordGlobalGameMetric("Equipment", 1);
+      recordGlobalAppraisalPlayer();
+    }
     state.tutorial.photoStarted = true;
     state.tutorial.battleHintSeen = false;
     saveGame();
@@ -6763,6 +6777,7 @@ function createDefaultGlobalStats() {
     totalGames: 0,
     totalKills: 0,
     totalAppraisals: 0,
+    totalEquipment: 0,
     totalFloors: 0,
     totalClears: 0,
     todayPv: 0,
@@ -6770,6 +6785,7 @@ function createDefaultGlobalStats() {
     todayGames: 0,
     todayKills: 0,
     todayAppraisals: 0,
+    todayEquipment: 0,
     todayFloors: 0,
     todayClears: 0,
   };
@@ -6783,6 +6799,7 @@ function normalizeGlobalStats(input) {
     totalGames: clampInt(source.totalGames, 0, 99999999),
     totalKills: clampInt(source.totalKills, 0, 99999999),
     totalAppraisals: clampInt(source.totalAppraisals, 0, 99999999),
+    totalEquipment: clampInt(source.totalEquipment, 0, 99999999),
     totalFloors: clampInt(source.totalFloors, 0, 99999999),
     totalClears: clampInt(source.totalClears, 0, 99999999),
     todayPv: clampInt(source.todayPv, 0, 99999999),
@@ -6790,6 +6807,7 @@ function normalizeGlobalStats(input) {
     todayGames: clampInt(source.todayGames, 0, 99999999),
     todayKills: clampInt(source.todayKills, 0, 99999999),
     todayAppraisals: clampInt(source.todayAppraisals, 0, 99999999),
+    todayEquipment: clampInt(source.todayEquipment, 0, 99999999),
     todayFloors: clampInt(source.todayFloors, 0, 99999999),
     todayClears: clampInt(source.todayClears, 0, 99999999),
   };
@@ -6851,10 +6869,14 @@ function recordGlobalGameStart() {
 
 function recordGlobalGameMetric(metric, amount = 1) {
   if (!shouldRecordGlobalStats()) return;
+  void recordGlobalGameMetricForTest(metric, amount, { refresh: true });
+}
+
+function recordGlobalGameMetricForTest(metric, amount = 1, options = {}) {
   const totalKey = STATS_COUNTER_IDS[`total${metric}`];
   const dailyPrefix = STATS_COUNTER_IDS[`daily${metric}Prefix`];
   const count = clampInt(amount, 0, 999);
-  if (!totalKey || !dailyPrefix || count <= 0) return;
+  if (!totalKey || !dailyPrefix || count <= 0) return Promise.resolve(false);
   const today = getLocalDateKey();
   const dailyKey = makeDailyCounterId(dailyPrefix, today);
   const updates = [];
@@ -6862,11 +6884,61 @@ function recordGlobalGameMetric(metric, amount = 1) {
     updates.push(incrementStatsCounter(totalKey));
     updates.push(incrementStatsCounter(dailyKey));
   }
-  void Promise.all(updates).then(refreshGlobalStats).catch((error) => {
+  return Promise.all(updates).then(() => {
+    if (options.refresh === false) return true;
+    return refreshGlobalStats().then(() => true);
+  }).catch((error) => {
     console.warn("记录全站游戏事件失败:", error);
     state.globalStatsStatus = "游戏统计同步失败。";
     renderGlobalStatsPanel();
+    return false;
   });
+}
+
+function recordGlobalAppraisalPlayer() {
+  if (!shouldRecordGlobalStats()) return;
+  void recordGlobalAppraisalPlayerForTest({ refresh: true });
+}
+
+function recordGlobalAppraisalPlayerForTest(options = {}) {
+  const today = getLocalDateKey();
+  const alreadyRecorded = localStorage.getItem(STORAGE_KEYS.statsAppraisalRecorded) === "true";
+  const lastRecordedDate = localStorage.getItem(STORAGE_KEYS.statsLastAppraisalDate);
+  if (alreadyRecorded && lastRecordedDate === today) return Promise.resolve({ totalRecorded: false, dailyRecorded: false, skipped: true });
+  if (appraisalPlayerRecordPending) return Promise.resolve({ totalRecorded: false, dailyRecorded: false, skipped: true, pending: true });
+  appraisalPlayerRecordPending = true;
+  ensureStatsAppraisalId();
+  const updates = [];
+  const totalRecorded = !alreadyRecorded;
+  const dailyRecorded = lastRecordedDate !== today;
+  if (!alreadyRecorded) {
+    updates.push(incrementStatsCounter(STATS_COUNTER_IDS.totalAppraisals));
+  }
+  if (lastRecordedDate !== today) {
+    updates.push(incrementStatsCounter(makeDailyCounterId(STATS_COUNTER_IDS.dailyAppraisalsPrefix, today)));
+  }
+  return Promise.all(updates).then(() => {
+    localStorage.setItem(STORAGE_KEYS.statsAppraisalRecorded, "true");
+    localStorage.setItem(STORAGE_KEYS.statsLastAppraisalDate, today);
+    appraisalPlayerRecordPending = false;
+    if (options.refresh === false) return { totalRecorded, dailyRecorded, skipped: false };
+    return refreshGlobalStats().then(() => ({ totalRecorded, dailyRecorded, skipped: false }));
+  }).catch((error) => {
+    appraisalPlayerRecordPending = false;
+    console.warn("Failed to record global appraisal player:", error);
+    state.globalStatsStatus = "Appraisal stats sync failed.";
+    renderGlobalStatsPanel();
+    return { totalRecorded: false, dailyRecorded: false, skipped: false, error: true };
+  });
+}
+
+function ensureStatsAppraisalId() {
+  let id = localStorage.getItem(STORAGE_KEYS.statsAppraisalId);
+  if (!id) {
+    id = makeRunSeed();
+    localStorage.setItem(STORAGE_KEYS.statsAppraisalId, id);
+  }
+  return id;
 }
 
 function shouldRecordGlobalStats() {
@@ -6883,6 +6955,7 @@ async function refreshGlobalStats() {
   const dailyGames = makeDailyCounterId(STATS_COUNTER_IDS.dailyGamesPrefix, today);
   const dailyKills = makeDailyCounterId(STATS_COUNTER_IDS.dailyKillsPrefix, today);
   const dailyAppraisals = makeDailyCounterId(STATS_COUNTER_IDS.dailyAppraisalsPrefix, today);
+  const dailyEquipment = makeDailyCounterId(STATS_COUNTER_IDS.dailyEquipmentPrefix, today);
   const dailyFloors = makeDailyCounterId(STATS_COUNTER_IDS.dailyFloorsPrefix, today);
   const dailyClears = makeDailyCounterId(STATS_COUNTER_IDS.dailyClearsPrefix, today);
   const counters = await fetchStatsCounters([
@@ -6891,6 +6964,7 @@ async function refreshGlobalStats() {
     STATS_COUNTER_IDS.totalGames,
     STATS_COUNTER_IDS.totalKills,
     STATS_COUNTER_IDS.totalAppraisals,
+    STATS_COUNTER_IDS.totalEquipment,
     STATS_COUNTER_IDS.totalFloors,
     STATS_COUNTER_IDS.totalClears,
     dailyPv,
@@ -6898,6 +6972,7 @@ async function refreshGlobalStats() {
     dailyGames,
     dailyKills,
     dailyAppraisals,
+    dailyEquipment,
     dailyFloors,
     dailyClears,
   ]);
@@ -6907,6 +6982,7 @@ async function refreshGlobalStats() {
     totalGames: counters[STATS_COUNTER_IDS.totalGames],
     totalKills: counters[STATS_COUNTER_IDS.totalKills],
     totalAppraisals: counters[STATS_COUNTER_IDS.totalAppraisals],
+    totalEquipment: counters[STATS_COUNTER_IDS.totalEquipment],
     totalFloors: counters[STATS_COUNTER_IDS.totalFloors],
     totalClears: counters[STATS_COUNTER_IDS.totalClears],
     todayPv: counters[dailyPv],
@@ -6914,6 +6990,7 @@ async function refreshGlobalStats() {
     todayGames: counters[dailyGames],
     todayKills: counters[dailyKills],
     todayAppraisals: counters[dailyAppraisals],
+    todayEquipment: counters[dailyEquipment],
     todayFloors: counters[dailyFloors],
     todayClears: counters[dailyClears],
   });
@@ -6984,6 +7061,7 @@ function renderGlobalStatsPanel() {
       items: [
         ["击杀", stats.totalKills, stats.todayKills],
         ["鉴定", stats.totalAppraisals, stats.todayAppraisals],
+        ["装备", stats.totalEquipment, stats.todayEquipment],
         ["爬塔层数", stats.totalFloors, stats.todayFloors],
       ],
     },
@@ -11030,6 +11108,21 @@ window.__photoHeroTestHooks = {
       fading: isBgmFading(audio),
       playAttemptToken: bgmPlayAttemptToken,
     } : null;
+  },
+  getStatsCounterIdsForTest() {
+    return { ...STATS_COUNTER_IDS };
+  },
+  async recordStatsMetricForTest(metric, amount = 1) {
+    return recordGlobalGameMetricForTest(metric, amount, { refresh: false });
+  },
+  async recordAppraisalPlayerForTest() {
+    return recordGlobalAppraisalPlayerForTest({ refresh: false });
+  },
+  resetAppraisalPlayerStatsForTest() {
+    appraisalPlayerRecordPending = false;
+    localStorage.removeItem(STORAGE_KEYS.statsAppraisalId);
+    localStorage.removeItem(STORAGE_KEYS.statsAppraisalRecorded);
+    localStorage.removeItem(STORAGE_KEYS.statsLastAppraisalDate);
   },
   markCurrentBgmEndedForTest() {
     const audio = state.bgmAudio;

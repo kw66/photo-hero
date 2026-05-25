@@ -5,6 +5,21 @@ const targetUrl = process.env.PHOTO_HERO_URL || "http://127.0.0.1:3000/";
 const screenshotDir = process.env.PHOTO_HERO_QA_OUTPUT || "output";
 fs.mkdirSync(screenshotDir, { recursive: true });
 
+async function stubStatsApi(page) {
+  await page.route("https://ypefmpeekfucmarbbdov.supabase.co/rest/v1/rpc/**", async (route) => {
+    const url = route.request().url();
+    if (url.includes("/rpc/get_counters")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+      return;
+    }
+    if (url.includes("/rpc/increment_counter")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "null" });
+      return;
+    }
+    await route.fallback();
+  });
+}
+
 async function collectScenario(page, name, action = async () => {}) {
   const errors = [];
   page.removeAllListeners("console");
@@ -69,6 +84,7 @@ async function collectScenario(page, name, action = async () => {}) {
       itemTypography: window.__reviewItemTypography || null,
       soundEffects: window.__reviewSoundEffects || null,
       audioControls: window.__reviewAudioControls || null,
+      globalStats: window.__reviewGlobalStats || null,
       bgmPreload: window.__reviewBgmPreload || null,
       monsterDistribution: window.__reviewMonsterDistribution || null,
       bossFilmDrops: window.__reviewBossFilmDrops || null,
@@ -544,7 +560,7 @@ function assertScenario(name, metrics) {
     if (!metrics.visibleButtons.includes("战斗")) failures.push(`${name}: missing battle tab`);
     if (!/全站统计/.test(metrics.infoText)) failures.push(`${name}: missing global stats title`);
     if (!/作者其他游戏/.test(metrics.infoText)) failures.push(`${name}: missing other games block`);
-    for (const label of ["访问", "访客", "游玩", "通关", "击杀", "鉴定", "爬塔层数"]) {
+    for (const label of ["访问", "访客", "游玩", "通关", "击杀", "鉴定", "装备", "爬塔层数"]) {
       if (!metrics.statLabels.includes(label)) failures.push(`${name}: missing stat label ${label}`);
     }
     if (!metrics.groupQr.loaded || !metrics.groupQr.src.includes("xiaohongshu-group-qr.jpg")) failures.push(`${name}: Xiaohongshu QR image did not load`);
@@ -556,8 +572,27 @@ function assertScenario(name, metrics) {
     if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "项目地址（求个star⭐）" && link.href.includes("github.com/kw66/photo-hero"))) failures.push(`${name}: project label should link to GitHub`);
     if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "小红书交流帖（求点赞❤️）" && link.href.includes("xhslink.com/o/17XFWimxM94"))) failures.push(`${name}: Xiaohongshu label should link to post`);
     if (!metrics.groupQr.rightSide) failures.push(`${name}: Xiaohongshu QR should sit on the right side of author block`);
-    if (metrics.statCardCount !== 7) failures.push(`${name}: expected 7 global stat cards, got ${metrics.statCardCount}`);
-    if (metrics.todayStatCount !== 7) failures.push(`${name}: expected 7 today stat labels, got ${metrics.todayStatCount}`);
+    if (metrics.statCardCount !== 8) failures.push(`${name}: expected 8 global stat cards, got ${metrics.statCardCount}`);
+    if (metrics.todayStatCount !== 8) failures.push(`${name}: expected 8 today stat labels, got ${metrics.todayStatCount}`);
+    const globalStats = metrics.globalStats || {};
+    if (globalStats.equipmentTotalKey !== "photo_hero_appraisals_total" || globalStats.equipmentDailyPrefix !== "photo_hero_appraisals_day") {
+      failures.push(`${name}: equipment stat should preserve old appraisal counters, got ${JSON.stringify(globalStats)}`);
+    }
+    if (globalStats.appraisalTotalKey !== "photo_hero_appraisal_players_total" || globalStats.appraisalDailyPrefix !== "photo_hero_appraisal_players_day") {
+      failures.push(`${name}: appraisal stat should use unique player counters, got ${JSON.stringify(globalStats)}`);
+    }
+    if (!globalStats.equipmentMetricOk || globalStats.equipmentIncrementCount !== 6) {
+      failures.push(`${name}: equipment metric should increment total and daily once per successful equipment, got ${JSON.stringify(globalStats)}`);
+    }
+    if (!globalStats.firstAppraisal?.totalRecorded || !globalStats.firstAppraisal?.dailyRecorded || globalStats.firstAppraisal?.skipped) {
+      failures.push(`${name}: first successful appraisal should count this browser, got ${JSON.stringify(globalStats.firstAppraisal)}`);
+    }
+    if (!globalStats.secondAppraisal?.skipped || globalStats.secondAppraisal?.totalRecorded || globalStats.secondAppraisal?.dailyRecorded) {
+      failures.push(`${name}: repeated successful appraisal in the same browser should not count again, got ${JSON.stringify(globalStats.secondAppraisal)}`);
+    }
+    if (globalStats.appraisalIncrementCount !== 2) {
+      failures.push(`${name}: unique appraisal should increment only total and daily once, got ${JSON.stringify(globalStats)}`);
+    }
   }
   if (name === "mobile-form-economy") {
     const formChecks = metrics.formEconomy || {};
@@ -627,6 +662,8 @@ function assertScenario(name, metrics) {
   const browser = await chromium.launch({ headless: true });
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
   const desktop = await browser.newPage({ viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 });
+  await stubStatsApi(mobile);
+  await stubStatsApi(desktop);
 
   const scenarios = {};
   scenarios.mobileFresh = await collectScenario(mobile, "mobile-fresh");
@@ -945,6 +982,41 @@ function assertScenario(name, metrics) {
   });
 
   scenarios.mobileInfo = await collectScenario(mobile, "mobile-info", async (page) => {
+    await page.evaluate(async () => {
+      const hooks = window.__photoHeroTestHooks;
+      const counterIds = hooks.getStatsCounterIdsForTest();
+      const increments = [];
+      const originalFetch = window.fetch;
+      window.fetch = async (url, options = {}) => {
+        if (String(url).includes("/rpc/increment_counter")) {
+          const body = JSON.parse(options.body || "{}");
+          increments.push(body.counter_id);
+          return new Response("null", { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+        return originalFetch(url, options);
+      };
+      hooks.resetAppraisalPlayerStatsForTest();
+      const equipmentMetricOk = await hooks.recordStatsMetricForTest("Equipment", 3);
+      const equipmentIncrements = increments.slice();
+      increments.length = 0;
+      const firstAppraisal = await hooks.recordAppraisalPlayerForTest();
+      const secondAppraisal = await hooks.recordAppraisalPlayerForTest();
+      const appraisalIncrements = increments.slice();
+      window.fetch = originalFetch;
+      window.__reviewGlobalStats = {
+        equipmentTotalKey: counterIds.totalEquipment,
+        equipmentDailyPrefix: counterIds.dailyEquipmentPrefix,
+        appraisalTotalKey: counterIds.totalAppraisals,
+        appraisalDailyPrefix: counterIds.dailyAppraisalsPrefix,
+        equipmentMetricOk,
+        equipmentIncrementCount: equipmentIncrements.length,
+        equipmentIncrements,
+        firstAppraisal,
+        secondAppraisal,
+        appraisalIncrementCount: appraisalIncrements.length,
+        appraisalIncrements,
+      };
+    });
     await page.click("#infoToggleBtn");
   });
 
