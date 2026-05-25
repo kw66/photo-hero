@@ -352,6 +352,14 @@ const defaultHeroFormId = heroForms[0].id;
 const heroFormImageBase = "./assets/heroes/";
 const monsterImageBase = "./assets/monsters/";
 const rewardIconBase = "./assets/rewards/";
+const audioAssetBase = "./assets/audio/";
+
+const soundEffects = {
+  appraisalSuccess: { file: "appraisal-success.mp3", volume: 0.74, cooldown: 260 },
+  battleHit: { file: "battle-hit.mp3", volume: 0.58, cooldown: 90 },
+  dismantle: { file: "dismantle.mp3", volume: 0.7, cooldown: 260 },
+  nextFloor: { file: "next-floor.mp3", volume: 0.66, cooldown: 220 },
+};
 
 const monsterImages = {
   slime: "slime.png",
@@ -552,6 +560,9 @@ const state = {
   bossRewardDeck: null,
   globalStats: createDefaultGlobalStats(),
   globalStatsStatus: "统计加载中...",
+  audioUnlocked: false,
+  audioLastPlayedAt: {},
+  audioEvents: [],
 };
 
 loadConfig();
@@ -562,7 +573,52 @@ ensureInitialFloorNarrative();
 bindEvents();
 render();
 
+function getSoundEffectAudio(key) {
+  const effect = soundEffects[key];
+  if (!effect) return null;
+  if (!effect.audio) {
+    effect.audio = new Audio(`${audioAssetBase}${effect.file}`);
+    effect.audio.preload = "auto";
+    effect.audio.volume = effect.volume;
+  }
+  return effect.audio;
+}
+
+function unlockGameAudio() {
+  if (state.audioUnlocked) return;
+  state.audioUnlocked = true;
+  for (const key of Object.keys(soundEffects)) {
+    const audio = getSoundEffectAudio(key);
+    audio?.load?.();
+  }
+}
+
+function playSoundEffect(key, options = {}) {
+  const effect = soundEffects[key];
+  if (!effect) return;
+  const now = Date.now();
+  const cooldown = Number.isFinite(options.cooldown) ? options.cooldown : effect.cooldown || 0;
+  if (!options.force && now - (state.audioLastPlayedAt[key] || 0) < cooldown) return;
+  state.audioLastPlayedAt[key] = now;
+  state.audioEvents.push({ key, at: now });
+  if (state.audioEvents.length > 24) state.audioEvents = state.audioEvents.slice(-24);
+  if (!state.audioUnlocked) return;
+
+  try {
+    const baseAudio = getSoundEffectAudio(key);
+    if (!baseAudio) return;
+    const audio = baseAudio.cloneNode();
+    audio.volume = Number.isFinite(options.volume) ? options.volume : effect.volume;
+    audio.play().catch(() => {});
+  } catch {
+    // Audio is a cosmetic layer; never block combat or appraisal.
+  }
+}
+
 function bindEvents() {
+  document.addEventListener("pointerdown", unlockGameAudio, { once: true, passive: true });
+  document.addEventListener("keydown", unlockGameAudio, { once: true });
+
   document.querySelectorAll("[data-panel-target]").forEach((button) => {
     button.addEventListener("click", () => toggleSecondaryPanel(button.dataset.panelTarget || "none"));
   });
@@ -3350,6 +3406,7 @@ function addInventoryItem(item, message, preferredSlotIndex = getSelectedSlotInd
   syncShieldAfterEquipmentChange(oldStats.shield, newStats.shield, oldShield);
   addLog(message);
   addBattleEvent(message, "item");
+  playSoundEffect("appraisalSuccess");
   saveGame();
   render();
   return true;
@@ -4240,6 +4297,7 @@ function applyFormKillEffects() {
 
 function markEnemyHit(enemyId) {
   if (state.enemyHitEffectUntilById[enemyId]) return;
+  playSoundEffect("battleHit");
   const token = state.hitEffectToken + 1;
   state.hitEffectToken = token;
   state.enemyHitEffectUntilById[enemyId] = token;
@@ -4252,6 +4310,7 @@ function markEnemyHit(enemyId) {
 
 function markHeroHit() {
   if (state.heroHitEffectUntil) return;
+  playSoundEffect("battleHit");
   const token = state.hitEffectToken + 1;
   state.hitEffectToken = token;
   state.heroHitEffectUntil = token;
@@ -5006,6 +5065,7 @@ function advanceFloor() {
     completeGame();
     return;
   }
+  playSoundEffect("nextFloor");
   state.floor += 1;
   state.selectedEnemyIds = [];
   state.currentBattle = null;
@@ -6808,6 +6868,7 @@ function dismantleSelectedItem() {
   state.lootError = "";
   setBusy("");
   addBattleEvent(`分解 ${formatItemDisplayName(removed)}，返还胶卷 +${formatFilmAmount(returnedFilm)}。`, "item");
+  playSoundEffect("dismantle");
   saveGame();
   render();
   return true;
@@ -9439,6 +9500,13 @@ window.__photoHeroTestHooks = {
     state.lastPhoto = image || "";
     if (state.lastPhoto) state.infoMode = "item";
     render();
+  },
+  getAudioEvents() {
+    return state.audioEvents.slice();
+  },
+  clearAudioEvents() {
+    state.audioEvents = [];
+    state.audioLastPlayedAt = {};
   },
   setHeroStats(next) {
     Object.assign(state.player, next || {});
