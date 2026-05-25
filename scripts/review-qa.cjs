@@ -61,6 +61,7 @@ async function collectScenario(page, name, action = async () => {}) {
       onboarding: window.__reviewOnboarding || null,
       careerGallery: window.__reviewCareerGallery || null,
       bossCeremony: window.__reviewBossCeremony || null,
+      defeatedEquipment: window.__reviewDefeatedEquipment || null,
       itemStory: window.__reviewItemStory || null,
       itemTypography: window.__reviewItemTypography || null,
       soundEffects: window.__reviewSoundEffects || null,
@@ -195,6 +196,16 @@ function assertScenario(name, metrics) {
     if (!metrics.visibleButtons.includes("绕过")) failures.push(`${name}: retreat should return to pre-battle bypass state`);
     const damaged = metrics.state.enemies.some((enemy) => enemy.hp !== enemy.maxHp);
     if (damaged) failures.push(`${name}: retreat should restore enemy HP`);
+  }
+  if (name === "mobile-defeated-equipment") {
+    const result = metrics.defeatedEquipment || {};
+    if (!result.secondSlotEnabled) failures.push(`${name}: defeated hero should still be able to click occupied equipment slots, got ${JSON.stringify(result)}`);
+    if (!result.emptySlotDisabled) failures.push(`${name}: defeated hero should not be able to select empty slots for photo work, got ${JSON.stringify(result)}`);
+    if (!result.selectedSecondItem || !/护身/.test(result.detailText || "")) failures.push(`${name}: clicking equipment after defeat should update detail text, got ${JSON.stringify(result)}`);
+    if (!result.viewerOpenedOnRepeat) failures.push(`${name}: repeat-clicking selected equipment after defeat should still open the large image, got ${JSON.stringify(result)}`);
+    if (!result.discardDisabled) failures.push(`${name}: defeated hero should not be able to dismantle equipment, got ${JSON.stringify(result)}`);
+    if (!result.photoDisabled) failures.push(`${name}: defeated hero should not be able to start photo appraisal from item detail, got ${JSON.stringify(result)}`);
+    if (metrics.state.player.hp !== 0) failures.push(`${name}: scenario should remain defeated, got hp ${metrics.state.player.hp}`);
   }
   if (name === "mobile-reward") {
     if (!metrics.visibleButtons.includes("选择")) failures.push(`${name}: missing reward confirm button`);
@@ -644,6 +655,56 @@ function assertScenario(name, metrics) {
         && state.player.hp === before.player.hp
         && state.player.shield === before.player.shield;
     }, null, { timeout: 3000 });
+  });
+
+  scenarios.mobileDefeatedEquipment = await collectScenario(mobile, "mobile-defeated-equipment", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.addRawItem({
+        itemName: "旧铜短剑",
+        subjectName: "旧铜短剑",
+        objectType: "桌面小物",
+        identityDescription: "一把旧铜色短剑摆件。",
+        image: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%231d2420'/%3E%3Cpath d='M36 86L84 30' stroke='%23d09b3e' stroke-width='12'/%3E%3C/svg%3E",
+        fullImage: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640'%3E%3Crect width='640' height='640' fill='%231d2420'/%3E%3Cpath d='M170 500L470 120' stroke='%23d09b3e' stroke-width='64'/%3E%3C/svg%3E",
+        stats: { attack: 1 },
+        value: 12,
+        description: "旧铜短剑被塔影磨亮。",
+        skipSpecialRoll: true,
+      });
+      hooks.addRawItem({
+        itemName: "护身银牌",
+        subjectName: "护身银牌",
+        objectType: "桌面小物",
+        identityDescription: "一枚银色护身牌。",
+        image: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%231d2420'/%3E%3Ccircle cx='60' cy='60' r='35' fill='%23cfd8dc'/%3E%3C/svg%3E",
+        fullImage: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640'%3E%3Crect width='640' height='640' fill='%231d2420'/%3E%3Ccircle cx='320' cy='320' r='220' fill='%23cfd8dc'/%3E%3C/svg%3E",
+        stats: { shield: 2 },
+        value: 14,
+        description: "护身银牌替倒下的勇者留住最后的光。",
+        skipSpecialRoll: true,
+      });
+      hooks.state.selectedSlotIndex = 0;
+      hooks.state.selectedItemId = hooks.state.inventory[0]?.id || "";
+      hooks.render();
+      hooks.setHeroStats({ hp: 0 });
+    });
+    await page.locator(".equipment-slot.has-item").nth(1).click();
+    await page.locator(".equipment-slot.has-item").nth(1).click();
+    await page.evaluate(() => {
+      const slots = Array.from(document.querySelectorAll(".equipment-slot"));
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewDefeatedEquipment = {
+        secondSlotEnabled: !slots[1]?.disabled,
+        emptySlotDisabled: Boolean(slots[2]?.disabled),
+        selectedSecondItem: /护身/.test(state.player.selectedEquipment || ""),
+        detailText: document.querySelector("#equipmentDetail")?.innerText || "",
+        viewerOpenedOnRepeat: !document.querySelector("#imageViewer")?.hidden,
+        discardDisabled: Boolean(document.querySelector("#discardItemBtn")?.disabled),
+        photoDisabled: Boolean(document.querySelector("#photoActionBtn")?.disabled),
+      };
+      document.querySelector("#imageViewer")?.click();
+    });
   });
 
   scenarios.mobileInfo = await collectScenario(mobile, "mobile-info", async (page) => {

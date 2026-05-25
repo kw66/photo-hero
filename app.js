@@ -5903,6 +5903,14 @@ function isEquipmentSelectionLocked() {
   return isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || Boolean(state.bossReward) || isCareerSummaryOpen();
 }
 
+function canSelectEquipmentSlot(index) {
+  const item = getInventoryItemAt(index);
+  if (state.gameClear) return true;
+  if (isCareerSummaryOpen() || hasPendingPhoto() || Boolean(state.bossReward)) return false;
+  if (isPlayerDefeated()) return Boolean(item);
+  return !isEquipmentLocked();
+}
+
 function isBattleActionLocked() {
   return hasPendingPhoto() || Boolean(state.bossReward);
 }
@@ -9151,8 +9159,6 @@ function getEnemyHpDisplayPercent(enemy) {
 
 function renderEquipmentGrid() {
   ensureInventorySlots();
-  const locked = isEquipmentLocked();
-  const selectionLocked = isEquipmentSelectionLocked();
   const selectedSlotIndex = getSelectedSlotIndex();
 
   els.equipmentGrid.innerHTML = "";
@@ -9161,12 +9167,13 @@ function renderEquipmentGrid() {
     const button = document.createElement("button");
     const isSelected = i === selectedSlotIndex;
     const qualityKey = item ? getItemQualityKey(item) : "empty";
-    button.className = `equipment-slot quality-${qualityKey}${item ? " has-item" : ""}${isSelected ? " is-selected" : ""}${selectionLocked ? " is-locked" : ""}`;
+    const slotLocked = !canSelectEquipmentSlot(i);
+    button.className = `equipment-slot quality-${qualityKey}${item ? " has-item" : ""}${isSelected ? " is-selected" : ""}${slotLocked ? " is-locked" : ""}`;
     button.type = "button";
-    button.disabled = selectionLocked;
+    button.disabled = slotLocked;
     button.setAttribute("aria-label", item ? `选择${item.itemName}` : `选择空装备格${i + 1}`);
     button.addEventListener("click", () => {
-      if (selectionLocked) return;
+      if (!canSelectEquipmentSlot(i)) return;
       const wasSelected = i === getSelectedSlotIndex();
       const wasItemMode = state.infoMode === "item";
       const isRepeatClick = wasSelected && wasItemMode;
