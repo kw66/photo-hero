@@ -260,12 +260,17 @@ function assertScenario(name, metrics) {
     if (se.heroHitActive !== true || se.enemyHitActive !== true) failures.push(`${name}: hit animation state should remain active after sound checks, got ${JSON.stringify({ hero: se.heroHitActive, enemy: se.enemyHitActive })}`);
     if (se.bgmLoopEnabled !== true) failures.push(`${name}: BGM audio should loop, got ${JSON.stringify(se)}`);
     if (se.bgmRecoveredFromPause !== true) failures.push(`${name}: BGM should recover if paused unexpectedly, got ${JSON.stringify(se)}`);
+    if (se.bgmWatchdogRecovered !== true) failures.push(`${name}: BGM watchdog should recover stalled playback, got ${JSON.stringify(se)}`);
+    if (se.contextRecoveryAttempted !== true) failures.push(`${name}: audio context recovery should be attempted, got ${JSON.stringify(se)}`);
+    if (se.bgmSwitchStartedNewTrack !== true) failures.push(`${name}: BGM switching should start the requested new track, got ${JSON.stringify(se)}`);
+    if (se.bgmSwitchStopsOldTrack !== true) failures.push(`${name}: BGM switching should keep the old track during handoff then stop it, got ${JSON.stringify(se)}`);
+    if (se.lastSfxPlayError) failures.push(`${name}: SFX playback should not leave an error after recovery, got ${se.lastSfxPlayError}`);
     if (controls.sfxFill !== "100%" || controls.bgmFill !== "100%") failures.push(`${name}: 100% sliders should fill to the end, got ${JSON.stringify(controls)}`);
     if (controls.sfxZeroFill !== "0%" || controls.bgmZeroFill !== "0%") failures.push(`${name}: 0% sliders should empty to the start, got ${JSON.stringify(controls)}`);
     if (controls.sliderPaddingLeft !== "0px" || controls.sliderPaddingRight !== "0px" || controls.sliderBorderLeft !== "0px" || controls.sliderBorderRight !== "0px") {
       failures.push(`${name}: volume range inputs should not inherit global input padding/border, got ${JSON.stringify(controls)}`);
     }
-    if (!controls.battleGainBoosted || !controls.bgmGainBoosted) failures.push(`${name}: audio gain should exceed old capped volume at 100%, got ${JSON.stringify(controls)}`);
+    if (!controls.battleGainBoosted) failures.push(`${name}: SFX gain should exceed old capped volume at 100%, got ${JSON.stringify(controls)}`);
     if (!preload.started || (preload.loadedCount || 0) < 3) failures.push(`${name}: BGM should preload in order after audio unlock, got ${JSON.stringify(preload)}`);
     if ((preload.keys || [])[0] !== "opening") failures.push(`${name}: BGM preload should start from opening track, got ${JSON.stringify(preload.keys)}`);
   }
@@ -1503,7 +1508,7 @@ function assertScenario(name, metrics) {
         battleGain,
         bgmGain,
         battleGainBoosted: battleGain > 0.58,
-        bgmGainBoosted: bgmGain > 1,
+        bgmNativeVolume: bgmGain <= 1,
       };
       document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 360));
@@ -1512,6 +1517,25 @@ function assertScenario(name, metrics) {
       hooks.forceBgmPausedForTest?.();
       await new Promise((resolve) => setTimeout(resolve, 220));
       const recoveredBgmState = hooks.getBgmPlaybackStateForTest?.() || {};
+      const recoveryBeforeWatchdog = hooks.getAudioRecoveryStateForTest?.() || {};
+      hooks.forceBgmStalledForTest?.();
+      hooks.checkBgmWatchdogForTest?.();
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      const recoveryAfterWatchdog = hooks.getAudioRecoveryStateForTest?.() || {};
+      await hooks.suspendAudioContextForTest?.();
+      const recoveryBeforeContext = hooks.getAudioRecoveryStateForTest?.() || {};
+      hooks.recoverGameAudioForTest?.("review-context");
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      const recoveryAfterContext = hooks.getAudioRecoveryStateForTest?.() || {};
+      hooks.playBgmKeyForTest?.("area1");
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      const area1BgmState = hooks.getBgmPlaybackStateForTest?.() || {};
+      hooks.playBgmKeyForTest?.("skeletonCaptain");
+      const area1DuringSwitchState = hooks.getCachedBgmPlaybackStateForTest?.("area1") || {};
+      await new Promise((resolve) => setTimeout(resolve, 1900));
+      const bossBgmState = hooks.getBgmPlaybackStateForTest?.() || {};
+      const area1AfterSwitchState = hooks.getCachedBgmPlaybackStateForTest?.("area1") || {};
+      const switchSfxRecovery = hooks.recoverGameAudioForTest?.("review-before-sfx") || {};
 
       hooks.clearAudioEvents();
       hooks.addTestItem({
@@ -1581,6 +1605,7 @@ function assertScenario(name, metrics) {
       hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
       const sweepBattleHits = count("battleHit");
       const sweepEnemyHitCount = Object.keys(hooks.state.enemyHitEffectUntilById || {}).length;
+      const finalRecoveryState = hooks.getAudioRecoveryStateForTest?.() || {};
 
       window.__reviewSoundEffects = {
         appraisalSuccess,
@@ -1594,6 +1619,12 @@ function assertScenario(name, metrics) {
         enemyHitActive,
         bgmLoopEnabled: initialBgmState.loop === true,
         bgmRecoveredFromPause: recoveredBgmState.hasAudio && recoveredBgmState.paused === false,
+        bgmWatchdogRecovered: (recoveryAfterWatchdog.count || 0) > (recoveryBeforeWatchdog.count || 0),
+        contextRecoveryAttempted: (recoveryAfterContext.count || 0) > (recoveryBeforeContext.count || 0),
+        bgmSwitchStartedNewTrack: area1BgmState.key === "area1" && bossBgmState.key === "skeletonCaptain" && bossBgmState.hasAudio,
+        bgmSwitchStopsOldTrack: area1DuringSwitchState.paused === false && area1AfterSwitchState.paused === true,
+        contextState: recoveryAfterContext.contextState,
+        lastSfxPlayError: finalRecoveryState.lastSfxPlayError || switchSfxRecovery.lastSfxPlayError || "",
       };
     });
   });

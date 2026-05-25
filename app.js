@@ -364,12 +364,17 @@ const defaultAudioSettings = {
 };
 
 const sfxGainBoost = 2.1;
-const bgmGainBoost = 1.8;
 let gameAudioContext = null;
 const mediaAudioNodes = new WeakMap();
+const sfxAudioBaseVolumes = new WeakMap();
+const intentionalBgmPauseUntil = new WeakMap();
 const bgmAudioCache = {};
 const activeSfxAudios = new Set();
 let bgmPreloadStarted = false;
+let bgmPlayAttemptToken = 0;
+let bgmFallbackStopTimer = 0;
+let audioRecoveryRetryTimer = 0;
+const audioRecoveryCooldownMs = 180;
 
 const defaultTutorialState = {
   photoStarted: false,
@@ -656,6 +661,16 @@ const state = {
   bgmAudio: null,
   bgmKey: "",
   bgmEvents: [],
+  audioLastRecoveryAt: 0,
+  audioRecoveryCount: 0,
+  audioLastRecoveryReason: "",
+  audioLastContextState: "",
+  lastAudioResumeError: "",
+  lastBgmPlayError: "",
+  lastSfxPlayError: "",
+  bgmWatchKey: "",
+  bgmWatchCurrentTime: 0,
+  bgmWatchProgressAt: 0,
   tutorial: { ...defaultTutorialState },
 };
 
@@ -680,7 +695,10 @@ function getSoundEffectAudio(key) {
 }
 
 function unlockGameAudio() {
-  if (state.audioUnlocked) return;
+  if (state.audioUnlocked) {
+    recoverGameAudio("unlock-repeat");
+    return;
+  }
   state.audioUnlocked = true;
   resumeGameAudioContext();
   for (const key of Object.keys(soundEffects)) {
@@ -689,6 +707,139 @@ function unlockGameAudio() {
   }
   preloadBgmTracksInOrder();
   ensureBgmForGameState(true);
+  recoverGameAudio("unlock", { force: true });
+}
+
+function formatAudioError(error) {
+  if (!error) return "";
+  const name = error.name ? `${error.name}: ` : "";
+  const message = error.message || String(error);
+  return `${name}${message}`.slice(0, 180);
+}
+
+function shouldBgmBeAudible() {
+  return Boolean(
+    state.audioUnlocked &&
+    state.audioSettings.bgmEnabled &&
+    state.audioSettings.bgmVolume > 0 &&
+    state.bgmKey,
+  );
+}
+
+function updateActiveSfxAudioVolumes() {
+  const context = gameAudioContext;
+  for (const audio of activeSfxAudios) {
+    const baseVolume = sfxAudioBaseVolumes.get(audio) ?? 1;
+    if (context?.state === "running" && setBoostedAudioGain(audio, getEffectiveSfxGain(baseVolume))) {
+      audio.volume = 1;
+    } else {
+      audio.volume = getElementSafeSfxVolume(baseVolume);
+    }
+  }
+}
+
+function clearAudioRecoveryRetry() {
+  if (!audioRecoveryRetryTimer) return;
+  window.clearTimeout(audioRecoveryRetryTimer);
+  audioRecoveryRetryTimer = 0;
+}
+
+function scheduleAudioRecovery(reason = "scheduled", delay = 360) {
+  if (audioRecoveryRetryTimer) return;
+  audioRecoveryRetryTimer = window.setTimeout(() => {
+    audioRecoveryRetryTimer = 0;
+    recoverGameAudio(reason, { force: true });
+  }, delay);
+}
+
+function recoverGameAudio(reason = "recover", options = {}) {
+  if (!state.audioUnlocked) return false;
+  const now = Date.now();
+  if (!options.force && now - state.audioLastRecoveryAt < audioRecoveryCooldownMs) return false;
+  state.audioLastRecoveryAt = now;
+  state.audioRecoveryCount += 1;
+  state.audioLastRecoveryReason = reason;
+
+  const context = resumeGameAudioContext();
+  state.audioLastContextState = context?.state || "";
+  updateActiveSfxAudioVolumes();
+
+  if (!shouldBgmBeAudible()) return true;
+
+  const expectedKey = getBgmKeyForGameState();
+  if (expectedKey && expectedKey !== state.bgmKey) {
+    playBgm(expectedKey, { restart: true });
+    return true;
+  }
+
+  if (!state.bgmAudio) state.bgmAudio = getBgmAudio(state.bgmKey);
+  const audio = state.bgmAudio;
+  if (!audio) return true;
+
+  updateBgmAudioElementVolume(audio);
+  if (audio.error) {
+    state.lastBgmPlayError = formatAudioError(audio.error);
+    try {
+      audio.load();
+    } catch {
+      // Loading recovery is best-effort.
+    }
+  } else if (audio.readyState === 0) {
+    try {
+      audio.load();
+    } catch {
+      // Loading recovery is best-effort.
+    }
+  }
+  if (audio.ended) audio.currentTime = 0;
+
+  const contextNeedsResume = Boolean(context && context.state !== "running" && context.state !== "closed");
+  if (options.force || audio.paused || audio.ended || contextNeedsResume) {
+    playCurrentBgmAudio();
+  }
+  return true;
+}
+
+function updateBgmWatchProgress(audio) {
+  if (!audio || audio.paused || audio.ended) return;
+  state.bgmWatchKey = state.bgmKey;
+  state.bgmWatchCurrentTime = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+  state.bgmWatchProgressAt = Date.now();
+}
+
+function resetBgmWatchProgress() {
+  state.bgmWatchKey = "";
+  state.bgmWatchCurrentTime = 0;
+  state.bgmWatchProgressAt = 0;
+}
+
+function checkBgmWatchdog() {
+  if (!shouldBgmBeAudible()) return;
+  if (state.lastBgmPlayError && Date.now() - state.audioLastRecoveryAt < 2500) return;
+  const audio = state.bgmAudio;
+  if (!audio) {
+    recoverGameAudio("watchdog-missing-bgm", { force: true });
+    return;
+  }
+
+  if (audio.paused || audio.ended || audio.error) {
+    recoverGameAudio(audio.error ? "watchdog-bgm-error" : "watchdog-bgm-paused", { force: true });
+    return;
+  }
+
+  const now = Date.now();
+  const currentTime = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+  const sameTrack = state.bgmWatchKey === state.bgmKey;
+  const progressed = !sameTrack || Math.abs(currentTime - state.bgmWatchCurrentTime) > 0.08;
+  if (progressed) {
+    updateBgmWatchProgress(audio);
+    return;
+  }
+
+  if (now - state.bgmWatchProgressAt > 2600) {
+    recoverGameAudio("watchdog-bgm-stalled", { force: true });
+    state.bgmWatchProgressAt = now;
+  }
 }
 
 function playSoundEffect(key, options = {}) {
@@ -703,14 +854,17 @@ function playSoundEffect(key, options = {}) {
   if (!state.audioUnlocked || !state.audioSettings.sfxEnabled || state.audioSettings.sfxVolume <= 0) return;
 
   try {
-    resumeGameAudioContext();
+    recoverGameAudio(`sfx:${key}`);
     const baseAudio = getSoundEffectAudio(key);
     if (!baseAudio) return;
     const audio = baseAudio.cloneNode();
     audio.preload = "auto";
     audio.currentTime = 0;
-    audio.volume = getElementSafeSfxVolume(Number.isFinite(options.volume) ? options.volume : effect.volume);
-    if (attachBoostedAudioNode(audio, getEffectiveSfxGain(Number.isFinite(options.volume) ? options.volume : effect.volume))) {
+    const baseVolume = Number.isFinite(options.volume) ? options.volume : effect.volume;
+    sfxAudioBaseVolumes.set(audio, baseVolume);
+    audio.volume = getElementSafeSfxVolume(baseVolume);
+    const context = gameAudioContext;
+    if (context?.state === "running" && attachBoostedAudioNode(audio, getEffectiveSfxGain(baseVolume))) {
       audio.volume = 1;
     }
     activeSfxAudios.add(audio);
@@ -723,8 +877,12 @@ function playSoundEffect(key, options = {}) {
     audio.addEventListener("ended", cleanup, { once: true });
     audio.addEventListener("error", cleanup, { once: true });
     window.setTimeout(cleanup, 3000);
-    audio.play().catch(cleanup);
-  } catch {
+    audio.play().catch((error) => {
+      state.lastSfxPlayError = formatAudioError(error);
+      cleanup();
+    });
+  } catch (error) {
+    state.lastSfxPlayError = formatAudioError(error);
     // Audio is a cosmetic layer; never block combat or appraisal.
   }
 }
@@ -742,7 +900,7 @@ function getEffectiveSfxGain(baseVolume = 1) {
 }
 
 function getEffectiveBgmGain() {
-  return Math.max(0, state.audioSettings.bgmVolume * bgmGainBoost);
+  return getElementSafeBgmVolume();
 }
 
 function ensureGameAudioContext() {
@@ -760,15 +918,25 @@ function ensureGameAudioContext() {
 function resumeGameAudioContext() {
   const context = ensureGameAudioContext();
   if (context?.state === "suspended") {
-    context.resume?.().catch(() => {});
+    context.resume?.()
+      .then(() => {
+        state.audioLastContextState = context.state || "";
+        state.lastAudioResumeError = "";
+        updateActiveSfxAudioVolumes();
+      })
+      .catch((error) => {
+        state.lastAudioResumeError = formatAudioError(error);
+        scheduleAudioRecovery("context-resume-failed", 800);
+      });
   }
+  state.audioLastContextState = context?.state || "";
   return context;
 }
 
 function attachBoostedAudioNode(audio, gainValue) {
   if (!audio) return false;
   const context = ensureGameAudioContext();
-  if (!context) return false;
+  if (!context || context.state !== "running") return false;
   try {
     const existing = mediaAudioNodes.get(audio);
     if (existing) {
@@ -825,8 +993,10 @@ function getBgmAudio(key) {
   });
   audio.addEventListener("pause", () => {
     if (state.bgmKey !== key || state.bgmAudio !== audio) return;
+    if ((intentionalBgmPauseUntil.get(audio) || 0) > Date.now()) return;
     if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0) return;
     window.setTimeout(() => {
+      if ((intentionalBgmPauseUntil.get(audio) || 0) > Date.now()) return;
       if (state.bgmKey === key && state.bgmAudio === audio && audio.paused) playCurrentBgmAudio();
     }, 160);
   });
@@ -837,11 +1007,7 @@ function getBgmAudio(key) {
 
 function updateBgmAudioElementVolume(audio) {
   if (!audio) return;
-  if (attachBoostedAudioNode(audio, getEffectiveBgmGain())) {
-    audio.volume = 1;
-  } else {
-    audio.volume = getElementSafeBgmVolume();
-  }
+  audio.volume = getElementSafeBgmVolume();
 }
 
 function preloadBgmTracksInOrder() {
@@ -861,6 +1027,23 @@ function preloadBgmTracksInOrder() {
     });
 }
 
+function stopBgmAudioElement(audio) {
+  if (!audio) return;
+  try {
+    intentionalBgmPauseUntil.set(audio, Date.now() + 320);
+    audio.pause();
+    audio.currentTime = 0;
+  } catch {
+    // Ignore audio cleanup failures.
+  }
+}
+
+function stopOtherBgmAudioElements(activeAudio) {
+  Object.values(bgmAudioCache).forEach((audio) => {
+    if (audio && audio !== activeAudio) stopBgmAudioElement(audio);
+  });
+}
+
 function playBgm(key, options = {}) {
   const track = bgmTracks[key];
   if (!track) return;
@@ -869,26 +1052,39 @@ function playBgm(key, options = {}) {
     return;
   }
 
-  stopBgm(false);
+  const previousAudio = state.bgmAudio;
   state.bgmKey = key;
+  resetBgmWatchProgress();
   state.bgmEvents.push({ key, at: Date.now() });
   if (state.bgmEvents.length > 24) state.bgmEvents = state.bgmEvents.slice(-24);
-  if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0) return;
+  if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0) {
+    if (previousAudio) stopBgmAudioElement(previousAudio);
+    state.bgmAudio = null;
+    return;
+  }
   state.bgmAudio = getBgmAudio(key);
-  if (!state.bgmAudio) return;
-  playCurrentBgmAudio();
+  if (!state.bgmAudio) {
+    if (previousAudio) stopBgmAudioElement(previousAudio);
+    return;
+  }
+  try {
+    state.bgmAudio.load?.();
+  } catch {
+    // Loading is best-effort; play() will retry through the recovery layer.
+  }
+  playCurrentBgmAudio({ previousAudio });
 }
 
 function stopBgm(clearKey = true) {
-  if (state.bgmAudio) {
-    try {
-      state.bgmAudio.pause();
-      state.bgmAudio.currentTime = 0;
-    } catch {
-      // Ignore audio cleanup failures.
-    }
+  clearAudioRecoveryRetry();
+  if (bgmFallbackStopTimer) {
+    window.clearTimeout(bgmFallbackStopTimer);
+    bgmFallbackStopTimer = 0;
   }
+  if (state.bgmAudio) stopBgmAudioElement(state.bgmAudio);
+  stopOtherBgmAudioElements(state.bgmAudio);
   state.bgmAudio = null;
+  resetBgmWatchProgress();
   if (clearKey) state.bgmKey = "";
 }
 
@@ -907,20 +1103,61 @@ function pauseOrResumeBgm() {
   }
   updateBgmVolume();
   if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0) {
-    state.bgmAudio.pause();
+    stopBgmAudioElement(state.bgmAudio);
+    resetBgmWatchProgress();
     return;
   }
   if (state.bgmAudio.ended) state.bgmAudio.currentTime = 0;
   playCurrentBgmAudio();
 }
 
-function playCurrentBgmAudio() {
+function playCurrentBgmAudio(options = {}) {
   const audio = state.bgmAudio;
   if (!audio) return;
-  resumeGameAudioContext();
   updateBgmAudioElementVolume(audio);
   if (audio.ended) audio.currentTime = 0;
-  audio.play().catch(() => {});
+  const attemptToken = ++bgmPlayAttemptToken;
+  const previousAudio = options.previousAudio && options.previousAudio !== audio ? options.previousAudio : null;
+  const stopPrevious = () => {
+    if (!previousAudio) return;
+    stopBgmAudioElement(previousAudio);
+  };
+  if (bgmFallbackStopTimer) {
+    window.clearTimeout(bgmFallbackStopTimer);
+    bgmFallbackStopTimer = 0;
+  }
+  const playPromise = audio.play();
+  if (playPromise?.then) {
+    playPromise
+      .then(() => {
+        if (attemptToken !== bgmPlayAttemptToken) return;
+        state.lastBgmPlayError = "";
+        clearAudioRecoveryRetry();
+        updateBgmWatchProgress(audio);
+        stopPrevious();
+        stopOtherBgmAudioElements(audio);
+      })
+      .catch((error) => {
+        if (attemptToken !== bgmPlayAttemptToken) return;
+        state.lastBgmPlayError = formatAudioError(error);
+        if (previousAudio && shouldBgmBeAudible()) updateBgmAudioElementVolume(previousAudio);
+        scheduleAudioRecovery("bgm-play-failed", 900);
+      });
+  } else {
+    state.lastBgmPlayError = "";
+    clearAudioRecoveryRetry();
+    stopPrevious();
+    stopOtherBgmAudioElements(audio);
+    updateBgmWatchProgress(audio);
+  }
+  if (previousAudio) {
+    bgmFallbackStopTimer = window.setTimeout(() => {
+      if (previousAudio !== state.bgmAudio && state.bgmAudio === audio && !audio.paused && !audio.ended && !state.lastBgmPlayError) {
+        stopBgmAudioElement(previousAudio);
+      }
+      bgmFallbackStopTimer = 0;
+    }, 1600);
+  }
 }
 
 function getBgmKeyForGameState() {
@@ -992,6 +1229,7 @@ function applyAudioSettingsFromInputs(persist = true) {
   for (const effect of Object.values(soundEffects)) {
     if (effect.audio) effect.audio.volume = getElementSafeSfxVolume(effect.volume);
   }
+  updateActiveSfxAudioVolumes();
   updateBgmVolume();
   pauseOrResumeBgm();
   renderAudioSettings();
@@ -1031,6 +1269,15 @@ function updateVolumeSliderFill(input) {
 function bindEvents() {
   document.addEventListener("pointerdown", unlockGameAudio, { once: true, passive: true });
   document.addEventListener("keydown", unlockGameAudio, { once: true });
+  document.addEventListener("pointerdown", () => recoverGameAudio("gesture"), { passive: true });
+  document.addEventListener("touchstart", () => recoverGameAudio("touch"), { passive: true });
+  document.addEventListener("keydown", () => recoverGameAudio("keydown"));
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) recoverGameAudio("visible", { force: true });
+  });
+  window.addEventListener("focus", () => recoverGameAudio("focus", { force: true }));
+  window.addEventListener("pageshow", () => recoverGameAudio("pageshow", { force: true }));
+  window.setInterval(checkBgmWatchdog, 1200);
 
   document.querySelectorAll("[data-panel-target]").forEach((button) => {
     button.addEventListener("click", () => toggleSecondaryPanel(button.dataset.panelTarget || "none"));
@@ -9608,6 +9855,11 @@ function renderGameTextOnly() {
       bgmTitle: bgmTracks[state.bgmKey]?.title || "",
       settings: { ...state.audioSettings },
       unlocked: state.audioUnlocked,
+      recoveryCount: state.audioRecoveryCount,
+      recoveryReason: state.audioLastRecoveryReason,
+      contextState: state.audioLastContextState,
+      lastBgmPlayError: state.lastBgmPlayError,
+      lastSfxPlayError: state.lastSfxPlayError,
     },
     careerSummary: state.careerSummary ? {
       status: state.careerSummary.status,
@@ -10147,23 +10399,76 @@ window.__photoHeroTestHooks = {
       paused: state.bgmAudio ? state.bgmAudio.paused : null,
       ended: state.bgmAudio ? state.bgmAudio.ended : null,
       loop: state.bgmAudio ? state.bgmAudio.loop : null,
+      currentTime: state.bgmAudio ? state.bgmAudio.currentTime : null,
+      readyState: state.bgmAudio ? state.bgmAudio.readyState : null,
       src: state.bgmAudio ? state.bgmAudio.currentSrc || state.bgmAudio.src : "",
     };
   },
+  playBgmKeyForTest(key) {
+    playBgm(key, { restart: true });
+    return this.getBgmPlaybackStateForTest();
+  },
+  getCachedBgmPlaybackStateForTest(key) {
+    const audio = bgmAudioCache[key];
+    return audio ? {
+      key,
+      paused: audio.paused,
+      ended: audio.ended,
+      currentTime: audio.currentTime,
+      readyState: audio.readyState,
+    } : null;
+  },
   forceBgmPausedForTest() {
     if (!state.bgmAudio) return false;
+    intentionalBgmPauseUntil.set(state.bgmAudio, 0);
     state.bgmAudio.pause();
     window.setTimeout(() => pauseOrResumeBgm(), 0);
     return true;
+  },
+  forceBgmStalledForTest() {
+    if (!state.bgmAudio) return false;
+    state.bgmWatchKey = state.bgmKey;
+    state.bgmWatchCurrentTime = state.bgmAudio.currentTime;
+    state.bgmWatchProgressAt = Date.now() - 4000;
+    return true;
+  },
+  checkBgmWatchdogForTest() {
+    checkBgmWatchdog();
+    return this.getAudioRecoveryStateForTest();
   },
   ensureBgmForTest(force = false) {
     ensureBgmForGameState(force);
     return this.getBgmPlaybackStateForTest();
   },
+  recoverGameAudioForTest(reason = "test") {
+    recoverGameAudio(reason, { force: true });
+    return this.getAudioRecoveryStateForTest();
+  },
+  suspendAudioContextForTest() {
+    const context = ensureGameAudioContext();
+    if (!context?.suspend) return Promise.resolve(this.getAudioRecoveryStateForTest());
+    return context.suspend().then(() => this.getAudioRecoveryStateForTest());
+  },
+  getAudioRecoveryStateForTest() {
+    return {
+      count: state.audioRecoveryCount,
+      reason: state.audioLastRecoveryReason,
+      contextState: gameAudioContext?.state || "",
+      lastAudioResumeError: state.lastAudioResumeError,
+      lastBgmPlayError: state.lastBgmPlayError,
+      lastSfxPlayError: state.lastSfxPlayError,
+      activeSfxCount: activeSfxAudios.size,
+      bgmWatchKey: state.bgmWatchKey,
+      bgmWatchProgressAt: state.bgmWatchProgressAt,
+    };
+  },
   clearAudioEvents() {
     state.audioEvents = [];
     state.bgmEvents = [];
     state.audioLastPlayedAt = {};
+    state.lastSfxPlayError = "";
+    state.lastBgmPlayError = "";
+    state.lastAudioResumeError = "";
   },
   setAudioSettings(next = {}) {
     state.audioSettings = normalizeAudioSettings({ ...state.audioSettings, ...next });
