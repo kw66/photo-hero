@@ -250,6 +250,9 @@ function assertScenario(name, metrics) {
     if (traits.octopusDisplayAtk !== 41 || !/生命上限差/.test(traits.octopusTraitText || "")) {
       failures.push(`${name}: octopus card should show effective attack and max-HP-gap copy, got ${JSON.stringify({ atk: traits.octopusDisplayAtk, trait: traits.octopusTraitText })}`);
     }
+    if (traits.octopusEqualDefenseEstimate !== "损失 -0" || traits.octopusEqualDefenseEstimateState !== "safe") {
+      failures.push(`${name}: octopus estimate should use real max HP, not theoretical buffer HP, got ${JSON.stringify(traits.octopusEqualDefenseEstimateStateInfo)}`);
+    }
     if (traits.octopusSpeed !== 2) failures.push(`${name}: octopus speed should be 2, got ${traits.octopusSpeed}`);
     if (traits.demonPromotionAtk !== 19 || traits.demonPromotionDef !== 9 || traits.dragonSpeedAfterAttack !== 4) {
       failures.push(`${name}: demon should promote and dragon should speed up on attack, got ${JSON.stringify(traits.bossGrowthState)}`);
@@ -1030,6 +1033,9 @@ function assertScenario(name, metrics) {
       const octopusDisplayAtk = octopusState.displayAtk;
       const octopusSpeed = octopusState.displayStats?.speed;
       const octopusTraitText = (octopusState.traits || []).join(" / ");
+      hooks.setFloor(25);
+      hooks.setHeroStats({ hp: 110, baseHp: 80, baseAtk: 9, baseDef: 11, baseSpeed: 3, baseRegen: 1, baseShield: 4, baseLifesteal: 1, shield: 4 });
+      const octopusEqualDefenseState = JSON.parse(window.render_game_to_text()).enemies[0] || {};
 
       enemies = begin([baseEnemy("dm1", "demon")]);
       hooks.applyHeroDamageToEnemy(enemies[0], { atk: 20, def: 1, speed: 1, maxHp: 80, shield: 0, regen: 0, lifesteal: 0 });
@@ -1103,6 +1109,13 @@ function assertScenario(name, metrics) {
         octopusDisplayAtk,
         octopusSpeed,
         octopusTraitText,
+        octopusEqualDefenseEstimate: octopusEqualDefenseState.damageEstimate,
+        octopusEqualDefenseEstimateState: octopusEqualDefenseState.damageEstimateState,
+        octopusEqualDefenseEstimateStateInfo: {
+          text: octopusEqualDefenseState.damageEstimate,
+          state: octopusEqualDefenseState.damageEstimateState,
+          displayAtk: octopusEqualDefenseState.displayAtk,
+        },
         bossGrowthState: { demonPromotionState, dragonSpeedAfterAttack },
         demonPromotionState,
         demonPromotionAtk: demonPromotionState.atk,

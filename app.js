@@ -5934,7 +5934,7 @@ function getSimActiveEnemies(sim, enemies) {
 
 function getSimBattleStats(sim, enemies) {
   const stats = getBattleStatsForEnemiesWithSpecial(getSimActiveEnemies(sim, enemies), sim.battleSpecial);
-  stats.realMaxHp = getSimActualMaxHp(stats, sim);
+  stats.realMaxHp = stats.maxHp;
   stats.maxHp += getSimMaxHpBonus(sim);
   return stats;
 }
