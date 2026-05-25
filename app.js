@@ -4580,6 +4580,8 @@ function createDefaultBattleSpecial() {
     defense: 0,
     peerlessAttack: 0,
     peerlessDefense: 0,
+    defenseBreakBase: 0,
+    defenseBreakSourceCount: 0,
     defenseBreakRatio: 0,
     damageImmuneUsed: 0,
     preBattleStruck: false,
@@ -4595,6 +4597,8 @@ function normalizeBattleSpecial(value) {
     defense: clampInt(source.defense, 0, defenseCap || 0),
     peerlessAttack: clampInt(source.peerlessAttack, 0, 999),
     peerlessDefense: clampInt(source.peerlessDefense, 0, 999),
+    defenseBreakBase: clampInt(source.defenseBreakBase, 0, 999),
+    defenseBreakSourceCount: clampInt(source.defenseBreakSourceCount, 0, 99),
     defenseBreakRatio: clampNumber(source.defenseBreakRatio, 0, 1),
     damageImmuneUsed: clampInt(source.damageImmuneUsed, 0, 999),
     preBattleStruck: Boolean(source.preBattleStruck),
@@ -4617,12 +4621,22 @@ function beginBattle(enemies) {
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
     .filter(Boolean);
   applyBattleStartEnemyAuras(activeEnemies);
+  lockBattleStartDefenseBreak(activeEnemies, state.battleSpecial);
   const stats = getBattleStats(activeIds);
   state.player.shield = stats.shield;
   state.player.shieldMonsterId = state.encounterId;
   applyBattleStartHeroEffects(activeEnemies);
   applyPreBattleFormEffects();
   state.battleClock = makeBattleClock(getBattleStats(state.activeEnemyIds), getActiveBattleEnemies());
+}
+
+function lockBattleStartDefenseBreak(enemies = getActiveBattleEnemies(), battleSpecial = state.battleSpecial) {
+  if (!battleSpecial) return;
+  const breakCount = getAliveTraitEnemies(enemies).filter((enemy) => hasTrait(enemy, "defenseBreakAura")).length;
+  battleSpecial.defenseBreakSourceCount = breakCount;
+  battleSpecial.defenseBreakBase = breakCount > 0
+    ? Math.max(0, getPlayerBattleStats(battleSpecial).def || 0)
+    : 0;
 }
 
 function expandEnemiesForBattle(enemies) {
@@ -4912,7 +4926,7 @@ function resolveHeroStrikeAgainstEnemy(initialEnemy = getHeroTargetEnemy(), sour
     const sweepResults = triggerSweepDamage(enemy, totalDamage, source);
     let healed = 0;
     const lifesteal = currentStats.lifesteal || 0;
-    if (!hasAnyActiveTrait("noLifesteal") && lifesteal > 0) {
+    if (lifesteal > 0) {
       const beforeHp = state.player.hp;
       state.player.hp = Math.min(currentStats.maxHp, state.player.hp + lifesteal);
       healed = state.player.hp - beforeHp;
@@ -5095,7 +5109,7 @@ function resolveMonsterStrike(enemy, stats, round) {
     triggerDefendedActionSpecial();
 
     const currentStats = getBattleStats(state.activeEnemyIds);
-    if (state.player.hp > 0 && !hasAnyActiveTrait("noRegen") && currentStats.regen > 0) {
+    if (state.player.hp > 0 && currentStats.regen > 0) {
       const regenResult = applyHeroRegenAfterHit(currentStats);
       totalRegen += regenResult.hp;
       totalShieldLoss -= regenResult.shield;
@@ -6956,7 +6970,7 @@ function canStartSelectedBattle() {
 }
 
 function getBattleStats(activeIds = state.activeEnemyIds) {
-  const stats = getPlayerStats();
+  const stats = getPlayerBattleStats();
   const activeEnemies = activeIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
     .filter((enemy) => enemy && enemy.hp > 0);
@@ -6964,35 +6978,25 @@ function getBattleStats(activeIds = state.activeEnemyIds) {
 }
 
 function getBattleStatsForEnemies(enemies) {
-  const stats = getPlayerStats();
+  const stats = getPlayerBattleStats(createDefaultBattleSpecial());
   return applyEnemyBattleModifiers(stats, enemies, createDefaultBattleSpecial());
 }
 
 function getBattleStatsForEnemiesWithSpecial(enemies, battleSpecial) {
-  const stats = getPlayerStatsWithBattleSpecial(battleSpecial);
+  const stats = getPlayerBattleStats(battleSpecial);
   return applyEnemyBattleModifiers(stats, enemies, battleSpecial);
 }
 
 function applyEnemyBattleModifiers(stats, enemies, battleSpecial = createDefaultBattleSpecial()) {
-  applyBattleSpecialPassives(stats);
   const aliveEnemies = getAliveTraitEnemies(enemies);
   Object.defineProperty(stats, "activeEnemies", {
     value: aliveEnemies,
     configurable: true,
   });
-  const defenseBreakRatio = Math.max(
-    getEnemyDefenseBreakRatio(aliveEnemies),
-    0,
-  );
-  if (defenseBreakRatio > 0) {
-    stats.def = stats.def > 0
-      ? Math.floor(stats.def * Math.max(0, 1 - defenseBreakRatio))
-      : stats.def;
-  }
-  return stats;
-}
-
-function applyBattleSpecialPassives(stats) {
+  const defenseBreakPenalty = getEnemyDefenseBreakPenalty(aliveEnemies, battleSpecial, stats.def);
+  if (defenseBreakPenalty > 0) stats.def -= defenseBreakPenalty;
+  if (aliveEnemies.some((enemy) => hasTrait(enemy, "noRegen")) && stats.regen > 0) stats.regen = 0;
+  if (aliveEnemies.some((enemy) => hasTrait(enemy, "noLifesteal")) && stats.lifesteal > 0) stats.lifesteal = 0;
   return stats;
 }
 
@@ -7066,6 +7070,7 @@ function createBattleSimulation(enemies) {
     formMaxHpGain: 0,
   };
   applySimBattleStartEnemyAuras(sim, enemies);
+  lockBattleStartDefenseBreak(enemies, sim.battleSpecial);
   const stats = getBattleStatsForEnemiesWithSpecial(enemies, sim.battleSpecial);
   sim.shield = stats.shield;
   applySimBattleStartHeroEffects(sim, enemies);
@@ -7193,7 +7198,7 @@ function simulateHeroStrikeTarget(sim, enemies, initialEnemy = null) {
       sim.battleSpecial.attack = Math.min(cap, (sim.battleSpecial.attack || 0) + dealDamageGain);
     }
 
-    if (!enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noLifesteal")) && currentStats.lifesteal > 0) {
+    if (currentStats.lifesteal > 0) {
       healSimHero(sim, currentStats, currentStats.lifesteal);
     }
 
@@ -7243,7 +7248,7 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
     }
 
     const currentStats = getSimBattleStats(sim, enemies);
-    if (sim.actualHp > 0 && !enemies.some((item) => sim.activeIds.includes(item.id) && hasTrait(item, "noRegen")) && currentStats.regen > 0) {
+    if (sim.actualHp > 0 && currentStats.regen > 0) {
       regenSimHeroAfterHit(sim, currentStats);
     }
 
@@ -7477,10 +7482,30 @@ function getEnemyWarcryBonus(enemies = []) {
   }, { atk: 0, def: 0, speed: 0 });
 }
 
-function getEnemyDefenseBreakRatio(enemies = []) {
-  const breakCount = getAliveTraitEnemies(enemies).filter((enemy) => hasTrait(enemy, "defenseBreakAura")).length;
+function getEnemyDefenseBreakSourceCount(enemies = []) {
+  return getAliveTraitEnemies(enemies).filter((enemy) => hasTrait(enemy, "defenseBreakAura")).length;
+}
+
+function getEnemyDefenseBreakRatioForCount(breakCount) {
   if (breakCount <= 0) return 0;
   return Math.min(1, breakCount * 0.5);
+}
+
+function getEnemyDefenseBreakRatio(enemies = []) {
+  return getEnemyDefenseBreakRatioForCount(getEnemyDefenseBreakSourceCount(enemies));
+}
+
+function getEnemyDefenseBreakPenalty(enemies = [], battleSpecial = createDefaultBattleSpecial(), fallbackBase = 0) {
+  const liveCount = getEnemyDefenseBreakSourceCount(enemies);
+  const lockedCount = clampInt(battleSpecial?.defenseBreakSourceCount, 0, 99);
+  const breakCount = lockedCount > 0 ? Math.min(liveCount, lockedCount) : liveCount;
+  const ratio = getEnemyDefenseBreakRatioForCount(breakCount);
+  if (ratio <= 0) return 0;
+  const lockedBase = Number.isFinite(battleSpecial?.defenseBreakBase) && battleSpecial.defenseBreakBase > 0;
+  const base = Math.max(0, lockedBase
+    ? battleSpecial.defenseBreakBase
+    : fallbackBase);
+  return Math.max(0, base - Math.floor(base * Math.max(0, 1 - ratio)));
 }
 
 function cloneTraits(traits = []) {
@@ -7697,14 +7722,14 @@ function hashIndex(seed, length) {
 }
 
 function getPlayerStats() {
-  return getPlayerStatsWithBattleSpecial(state.battleSpecial);
+  return getPlayerBaseStats();
 }
 
 function getPlayerStatsWithBattleSpecial(battleSpecial = createDefaultBattleSpecial()) {
-  return getPlayerStatsForForm(getHeroForm(), battleSpecial);
+  return getPlayerBattleStats(battleSpecial);
 }
 
-function getPlayerStatsForForm(form = getHeroForm(), battleSpecial = createDefaultBattleSpecial()) {
+function getPlayerBaseStats(form = getHeroForm()) {
   const bonus = { ...getHeroFormStatsFor(form) };
   const inventoryBonus = getInventoryStatBonus();
   for (const key of statOrder) {
@@ -7730,13 +7755,38 @@ function getPlayerStatsForForm(form = getHeroForm(), battleSpecial = createDefau
 
   return {
     maxHp: state.player.baseHp + (bonus.hp || 0),
-    atk: state.player.baseAtk + (bonus.attack || 0) + (battleSpecial?.attack || 0) + (battleSpecial?.peerlessAttack || 0) - passiveAttackPenalty,
-    def: state.player.baseDef + (bonus.defense || 0) + (battleSpecial?.defense || 0) + (battleSpecial?.peerlessDefense || 0),
+    atk: state.player.baseAtk + (bonus.attack || 0) - passiveAttackPenalty,
+    def: state.player.baseDef + (bonus.defense || 0),
     speed: state.player.baseSpeed + (bonus.speed || 0) - passiveSpeedPenalty,
     regen: regen * regenMultiplier,
     shield: state.player.baseShield + (bonus.shield || 0),
     lifesteal: lifesteal * lifestealMultiplier,
   };
+}
+
+function getPlayerStatsForForm(form = getHeroForm()) {
+  return getPlayerBaseStats(form);
+}
+
+function getPlayerBattleStatDelta(battleSpecial = state.battleSpecial) {
+  return {
+    atk: (battleSpecial?.attack || 0) + (battleSpecial?.peerlessAttack || 0),
+    def: (battleSpecial?.defense || 0) + (battleSpecial?.peerlessDefense || 0),
+    speed: 0,
+    regen: 0,
+    lifesteal: 0,
+  };
+}
+
+function getPlayerBattleStats(battleSpecial = state.battleSpecial) {
+  const stats = getPlayerBaseStats();
+  const delta = getPlayerBattleStatDelta(battleSpecial);
+  stats.atk += delta.atk;
+  stats.def += delta.def;
+  stats.speed += delta.speed;
+  stats.regen += delta.regen;
+  stats.lifesteal += delta.lifesteal;
+  return stats;
 }
 
 function getEffectiveEnemyDefense(enemy, stats = getBattleStats(state.activeEnemyIds)) {
@@ -8901,11 +8951,41 @@ function loadImage(src) {
   });
 }
 
+function formatSignedDelta(value) {
+  const amount = Math.trunc(Number(value) || 0);
+  if (amount === 0) return "";
+  return amount > 0 ? `+${amount}` : String(amount);
+}
+
+function setStatReadout(element, baseValue, delta = 0) {
+  if (!element) return;
+  element.textContent = "";
+  const base = document.createElement("span");
+  base.className = "stat-base";
+  base.textContent = String(Math.trunc(Number(baseValue) || 0));
+  element.append(base);
+  const deltaText = formatSignedDelta(delta);
+  if (!deltaText) return;
+  const deltaEl = document.createElement("span");
+  deltaEl.className = "stat-delta";
+  deltaEl.dataset.delta = delta > 0 ? "positive" : "negative";
+  deltaEl.textContent = deltaText;
+  element.append(deltaEl);
+}
+
 function render() {
   ensureEncounter();
   ensureInventorySlots();
   ensureBgmForGameState();
   const stats = getPlayerStats();
+  const battleStats = getBattleStats(state.activeEnemyIds);
+  const battleDelta = {
+    atk: battleStats.atk - stats.atk,
+    def: battleStats.def - stats.def,
+    speed: battleStats.speed - stats.speed,
+    regen: battleStats.regen - stats.regen,
+    lifesteal: battleStats.lifesteal - stats.lifesteal,
+  };
   const defeated = isPlayerDefeated();
   const bossRewardPending = Boolean(state.bossReward);
   const selectedBossReward = getSelectedBossRewardOption();
@@ -8924,11 +9004,11 @@ function render() {
   els.playerHpText.textContent = `${state.player.hp}/${stats.maxHp}`;
   els.playerHpBar.style.width = `${percent(state.player.hp, stats.maxHp)}%`;
   els.playerHpBar.parentElement.classList.toggle("is-low", percent(state.player.hp, stats.maxHp) <= 30);
-  els.playerAtk.textContent = stats.atk;
-  els.playerDef.textContent = stats.def;
-  els.playerSpeed.textContent = stats.speed;
-  els.playerRegen.textContent = stats.regen;
-  els.playerLifesteal.textContent = stats.lifesteal;
+  setStatReadout(els.playerAtk, stats.atk, battleDelta.atk);
+  setStatReadout(els.playerDef, stats.def, battleDelta.def);
+  setStatReadout(els.playerSpeed, stats.speed, battleDelta.speed);
+  setStatReadout(els.playerRegen, stats.regen, battleDelta.regen);
+  setStatReadout(els.playerLifesteal, stats.lifesteal, battleDelta.lifesteal);
   els.playerShield.textContent = `${state.player.shield}/${stats.shield}`;
 
   els.floorText.textContent = getFloorActionLabel(bossRewardPending);
@@ -10156,6 +10236,7 @@ function renderGameTextOnly() {
     enemyHitIds: Object.keys(state.enemyHitEffectUntilById || {}),
     battleSpecial: { ...(state.battleSpecial || {}) },
     battleStats: state.activeEnemyIds.length ? getBattleStats(state.activeEnemyIds) : null,
+    statReadouts: readHeroStatReadouts(),
       selectedEquipment: selectedEquipment ? formatItemDisplayName(selectedEquipment) : null,
       selectedSlotIndex: getSelectedSlotIndex(),
       selectedHasOriginalImage: Boolean(selectedEquipment?.fullImage),
@@ -10264,6 +10345,22 @@ function renderGameTextOnly() {
       details: entry.expanded ? entry.details : [],
     })),
   };
+}
+
+function readHeroStatReadouts() {
+  const entries = [
+    ["atk", els.playerAtk],
+    ["def", els.playerDef],
+    ["speed", els.playerSpeed],
+    ["regen", els.playerRegen],
+    ["lifesteal", els.playerLifesteal],
+  ];
+  return Object.fromEntries(entries.map(([key, node]) => [key, {
+    text: node?.textContent?.trim() || "",
+    base: node?.querySelector?.(".stat-base")?.textContent?.trim() || "",
+    delta: node?.querySelector?.(".stat-delta")?.textContent?.trim() || "",
+    deltaKind: node?.querySelector?.(".stat-delta")?.dataset.delta || "",
+  }]));
 }
 
 function addLog(message) {
@@ -10905,6 +11002,9 @@ window.__photoHeroTestHooks = {
     return JSON.parse(JSON.stringify(state.formProgress));
   },
   getPlayerStats,
+  getPlayerBattleStatsForTest(ids = state.activeEnemyIds) {
+    return getBattleStats(ids);
+  },
   getActiveSpecialForTest() {
     const active = getActiveEquippedPhotoSpecialInstance();
     return active ? { key: active.key, itemName: active.item?.itemName || "", value: active.effect?.value || 0 } : null;

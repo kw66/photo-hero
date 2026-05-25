@@ -371,8 +371,8 @@ function assertScenario(name, metrics) {
     if (visualSweepState["visual-left"] !== 2 || visualSweepState["visual-center"] !== 0 || visualSweepState["visual-right"] !== 2 || visualSweepState["visual-far"] !== 4) {
       failures.push(`${name}: sweep should use visual card position, not selected attack order, got ${JSON.stringify(visualSweepState)}`);
     }
-    if (specials.peerlessAtk !== 7 || specials.peerlessDef !== 4) {
-      failures.push(`${name}: peerless should add attack/defense +3 after kill, got ${JSON.stringify(specials)}`);
+    if (specials.peerlessBaseAtk !== 4 || specials.peerlessBaseDef !== 1 || specials.peerlessAtk !== 7 || specials.peerlessDef !== 4) {
+      failures.push(`${name}: peerless should add attack/defense +3 only to battle stats, got ${JSON.stringify(specials)}`);
     }
     if (specials.peerlessAfterResetAtk !== 4 || specials.peerlessAfterResetDef !== 1) {
       failures.push(`${name}: peerless bonus should reset outside battle, got ${JSON.stringify(specials)}`);
@@ -386,6 +386,9 @@ function assertScenario(name, metrics) {
     }
     if (specials.comboStrikeCount !== 2 || specials.comboShieldDamage !== 10 || specials.comboAttackAfterHit !== 2 || specials.comboDefenseAfterHit !== 1) {
       failures.push(`${name}: combo passives should interact in one battle, got ${JSON.stringify(specials)}`);
+    }
+    if (specials.comboBaseAtk !== -1 || specials.comboBattleAtk !== 1 || specials.comboAtkReadout?.base !== "-1" || specials.comboAtkReadout?.delta !== "+2" || specials.comboAtkReadout?.deltaKind !== "positive") {
+      failures.push(`${name}: temporary attack should render as base plus green delta without changing base stats, got ${JSON.stringify({ base: specials.comboBaseAtk, battle: specials.comboBattleAtk, readout: specials.comboAtkReadout })}`);
     }
     if (specials.zeroHeroDamage !== 0 || specials.zeroAttackAfterHit !== 1 || specials.zeroHpAfterHeroStrike !== 62 || specials.zeroDefenseAfterMonster !== 1 || specials.zeroHpAfterMonster !== 64) {
       failures.push(`${name}: attack/defense/regen/lifesteal should trigger from actions even at zero damage, got ${JSON.stringify(specials)}`);
@@ -409,8 +412,12 @@ function assertScenario(name, metrics) {
     if (!traits.warcryApplied || !traits.warcryRemoved || traits.warcryClockAfterDeath !== 0.5) {
       failures.push(`${name}: warrior warcry should be a live aura only, got ${JSON.stringify({ base: traits.warriorBaseState, live: traits.warriorLiveState, after: traits.warriorAfterDeathState, clock: traits.warcryClockAfterDeath })}`);
     }
-    if (traits.wizardSingleDef !== 5 || traits.wizardTempDefAfterHit !== 5) {
-      failures.push(`${name}: one wizard should halve positive defense and also suppress temporary defense, got ${JSON.stringify({ single: traits.wizardSingleDef, afterHit: traits.wizardTempDefAfterHit })}`);
+    if (traits.wizardSingleDef !== 5 || traits.wizardTempDefAfterHit !== 6 || traits.wizardBaseDefAfterHit !== 10) {
+      failures.push(`${name}: one wizard should lock the opening defense penalty and preserve later temp defense as a delta, got ${JSON.stringify({ single: traits.wizardSingleDef, afterHit: traits.wizardTempDefAfterHit, base: traits.wizardBaseDefAfterHit })}`);
+    }
+    const wizardReadout = traits.wizardStatReadout || {};
+    if (wizardReadout.base !== "10" || wizardReadout.delta !== "-4" || wizardReadout.deltaKind !== "negative") {
+      failures.push(`${name}: wizard defense break should render as base plus red delta, got ${JSON.stringify(wizardReadout)}`);
     }
     if (traits.wizardDef !== 0) failures.push(`${name}: two wizards should reduce hero defense to 0, got ${traits.wizardDef}`);
     if (traits.wizardAfterDeathDef !== 10) {
@@ -423,8 +430,16 @@ function assertScenario(name, metrics) {
     if (traits.noLifestealBefore !== 0 || traits.noLifestealAfter !== 2) {
       failures.push(`${name}: skeleton no-lifesteal should disappear after skeleton death, got ${JSON.stringify({ before: traits.noLifestealBefore, after: traits.noLifestealAfter })}`);
     }
+    const lifestealReadout = traits.noLifestealReadoutBefore || {};
+    if (lifestealReadout.base !== "2" || lifestealReadout.delta !== "-2" || lifestealReadout.deltaKind !== "negative") {
+      failures.push(`${name}: skeleton no-lifesteal should render lifesteal as base plus red delta, got ${JSON.stringify(lifestealReadout)}`);
+    }
     if (traits.noRegenBefore !== 0 || traits.noRegenAfter !== 4) {
       failures.push(`${name}: knight no-regen should disappear after knight death, got ${JSON.stringify({ before: traits.noRegenBefore, after: traits.noRegenAfter })}`);
+    }
+    const regenReadout = traits.noRegenReadoutBefore || {};
+    if (regenReadout.base !== "4" || regenReadout.delta !== "-4" || regenReadout.deltaKind !== "negative") {
+      failures.push(`${name}: knight no-regen should render regen as base plus red delta, got ${JSON.stringify(regenReadout)}`);
     }
     if (traits.golemHp !== 7) failures.push(`${name}: golem sturdy should limit normal hero damage to 1, got hp ${traits.golemHp}`);
     if (traits.octopusDamage !== 41) failures.push(`${name}: octopus giant should add max-HP gap damage, got ${traits.octopusDamage}`);
@@ -1417,7 +1432,8 @@ function assertScenario(name, metrics) {
       hooks.selectEnemies(["peerless-kill", "peerless-next"]);
       hooks.beginBattle(hooks.state.enemies);
       hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
-      const peerlessStats = hooks.getPlayerStats();
+      const peerlessBaseStats = hooks.getPlayerStats();
+      const peerlessStats = hooks.getBattleStatsForTest();
       hooks.resetGameForTest();
       const resetStats = hooks.getPlayerStats();
 
@@ -1442,6 +1458,10 @@ function assertScenario(name, metrics) {
       const comboShieldDamage = comboResults[0]?.shieldCrashDamage || 0;
       const comboAttackAfterHit = hooks.state.battleSpecial.attack;
       const comboDefenseAfterHit = hooks.state.battleSpecial.defense;
+      const comboBaseAtk = hooks.getPlayerStats().atk;
+      const comboBattleAtk = hooks.getBattleStatsForTest().atk;
+      hooks.render();
+      const comboAtkReadout = JSON.parse(window.render_game_to_text()).player.statReadouts?.atk || {};
 
       hooks.resetGameForTest();
       hooks.addSpecialComboItem(["dealDamageAttack", "takeDamageDefense"], {
@@ -1496,6 +1516,8 @@ function assertScenario(name, metrics) {
         sweepCenterHp,
         sweepRightHp,
         visualSweepState,
+        peerlessBaseAtk: peerlessBaseStats.atk,
+        peerlessBaseDef: peerlessBaseStats.def,
         peerlessAtk: peerlessStats.atk,
         peerlessDef: peerlessStats.def,
         peerlessAfterResetAtk: resetStats.atk,
@@ -1505,6 +1527,9 @@ function assertScenario(name, metrics) {
         comboShieldDamage,
         comboAttackAfterHit,
         comboDefenseAfterHit,
+        comboBaseAtk,
+        comboBattleAtk,
+        comboAtkReadout,
         zeroHeroDamage: zeroHeroResults[0]?.totalDamage || 0,
         zeroAttackAfterHit,
         zeroHpAfterHeroStrike,
@@ -1601,6 +1626,9 @@ function assertScenario(name, metrics) {
       hooks.addSpecialItem("takeDamageDefense", { itemName: "阻击护壳测试", description: "shield shell protect", value: 15, stats: {}, specialAffinity: ["takeDamageDefense"] });
       hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["z0"]), 1);
       const wizardTempDefAfterHit = hooks.getBattleStatsForTest(["z0"]).def;
+      const wizardBaseDefAfterHit = hooks.getPlayerStats().def;
+      hooks.render();
+      const wizardStatReadout = JSON.parse(window.render_game_to_text()).player.statReadouts?.def || {};
 
       hooks.setHeroStats({ hp: 80, shield: 3, baseDef: 10, baseShield: 3 });
       enemies = begin([baseEnemy("z1", "wizard"), baseEnemy("z2", "wizard")]);
@@ -1624,18 +1652,24 @@ function assertScenario(name, metrics) {
       hooks.resetGameForTest();
       hooks.setHeroStats({ hp: 50, shield: 0, baseAtk: 0, baseDef: 999, baseLifesteal: 2 });
       enemies = begin([baseEnemy("sk1", "skeleton"), baseEnemy("sl1", "slime", { hp: 20, def: 0, traits: [] })]);
+      hooks.render();
+      const noLifestealReadoutBefore = JSON.parse(window.render_game_to_text()).player.statReadouts?.lifesteal || {};
       hooks.resolveHeroStrikeAgainstEnemy(enemies[1]);
       const noLifestealBefore = hooks.state.player.hp - 50;
       enemies[0].hp = 0;
+      hooks.defeatEnemy(enemies[0]);
       hooks.resolveHeroStrikeAgainstEnemy(enemies[1]);
       const noLifestealAfter = hooks.state.player.hp - 50;
 
       hooks.resetGameForTest();
       hooks.setHeroStats({ hp: 40, shield: 0, baseDef: 999, baseRegen: 4 });
       enemies = begin([baseEnemy("kn1", "knight"), baseEnemy("sl2", "slime", { atk: 0, traits: [] })]);
+      hooks.render();
+      const noRegenReadoutBefore = JSON.parse(window.render_game_to_text()).player.statReadouts?.regen || {};
       hooks.resolveMonsterStrike(enemies[1], hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)), 1);
       const noRegenBefore = hooks.state.player.hp - 40;
       enemies[0].hp = 0;
+      hooks.defeatEnemy(enemies[0]);
       hooks.resolveMonsterStrike(enemies[1], hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)), 1);
       const noRegenAfter = hooks.state.player.hp - 40;
 
@@ -1708,6 +1742,8 @@ function assertScenario(name, metrics) {
         warcryClockAfterDeath,
         wizardSingleDef,
         wizardTempDefAfterHit,
+        wizardBaseDefAfterHit,
+        wizardStatReadout,
         wizardDef,
         wizardAfterDeathDef,
         wizardNegativeDef,
@@ -1718,8 +1754,10 @@ function assertScenario(name, metrics) {
         patrolAfterDeathShield: patrolState.afterDeathShield,
         noLifestealBefore,
         noLifestealAfter,
+        noLifestealReadoutBefore,
         noRegenBefore,
         noRegenAfter,
+        noRegenReadoutBefore,
         golemHp,
         octopusDamage,
         octopusDisplayAtk,

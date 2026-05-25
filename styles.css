@@ -762,6 +762,23 @@ h3 {
   font-weight: 950;
 }
 
+.hero-stat-strip .stat-delta {
+  margin-left: 4px;
+  font-size: 0.74em;
+  font-weight: 950;
+  vertical-align: 0.05em;
+}
+
+.hero-stat-strip .stat-delta[data-delta="positive"] {
+  color: #69e094;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+}
+
+.hero-stat-strip .stat-delta[data-delta="negative"] {
+  color: #ff7468;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+}
+
 .stat-list {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
