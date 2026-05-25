@@ -353,12 +353,38 @@ const heroFormImageBase = "./assets/heroes/";
 const monsterImageBase = "./assets/monsters/";
 const rewardIconBase = "./assets/rewards/";
 const audioAssetBase = "./assets/audio/";
+const musicAssetBase = "./assets/music/";
+
+const defaultAudioSettings = {
+  sfxEnabled: true,
+  bgmEnabled: true,
+  sfxVolume: 0.45,
+  bgmVolume: 0.22,
+};
 
 const soundEffects = {
   appraisalSuccess: { file: "appraisal-success.mp3", volume: 0.74, cooldown: 260 },
   battleHit: { file: "battle-hit.mp3", volume: 0.58, cooldown: 90 },
   dismantle: { file: "dismantle.mp3", volume: 0.7, cooldown: 260 },
   nextFloor: { file: "next-floor.mp3", volume: 0.66, cooldown: 220 },
+};
+
+const bgmTracks = {
+  opening: { file: "opening-nightmare.mp3", title: "噩梦" },
+  area1: { file: "area-01-bloody-labyrinth.mp3", title: "血之迷宫" },
+  area2: { file: "area-02-immortal-corps.mp3", title: "不朽军团" },
+  area3: { file: "area-03-killer-trap.mp3", title: "杀人陷阱" },
+  area4: { file: "area-04-rock-n-roll.mp3", title: "忠于摇滚" },
+  skeletonCaptain: { file: "boss-skeleton-captain.mp3", title: "骷髅队长" },
+  vampire: { file: "boss-vampire.mp3", title: "吸血鬼" },
+  knightCaptain: { file: "boss-knight-captain.mp3", title: "黄金骑士" },
+  octopus: { file: "boss-octopus.mp3", title: "梦想未来" },
+  dragon: { file: "boss-dragon.mp3", title: "魔王芝诺" },
+  archmage: { file: "boss-archmage.mp3", title: "大法师" },
+  demon: { file: "boss-final-demon.mp3", title: "最终决战" },
+  reward: { file: "reward-lucky-gold.mp3", title: "幸运金币" },
+  ending: { file: "ending.mp3", title: "终曲" },
+  defeat: { file: "defeat-conversation.mp3", title: "Conversation" },
 };
 
 const monsterImages = {
@@ -461,6 +487,14 @@ const els = {
   fleeBtn: byId("fleeBtn"),
   attackBtn: byId("attackBtn"),
   resetGameBtn: byId("resetGameBtn"),
+  musicToggleBtn: byId("musicToggleBtn"),
+  sfxEnabledInput: byId("sfxEnabledInput"),
+  sfxVolumeInput: byId("sfxVolumeInput"),
+  sfxVolumeText: byId("sfxVolumeText"),
+  bgmEnabledInput: byId("bgmEnabledInput"),
+  bgmVolumeInput: byId("bgmVolumeInput"),
+  bgmVolumeText: byId("bgmVolumeText"),
+  nowPlayingText: byId("nowPlayingText"),
   fileInput: byId("fileInput"),
   filmCountBadge: byId("filmCountBadge"),
   configToggleBtn: byId("configToggleBtn"),
@@ -563,6 +597,10 @@ const state = {
   audioUnlocked: false,
   audioLastPlayedAt: {},
   audioEvents: [],
+  audioSettings: { ...defaultAudioSettings },
+  bgmAudio: null,
+  bgmKey: "",
+  bgmEvents: [],
 };
 
 loadConfig();
@@ -571,6 +609,7 @@ initGlobalStats();
 ensureEncounter();
 ensureInitialFloorNarrative();
 bindEvents();
+ensureBgmForGameState(true);
 render();
 
 function getSoundEffectAudio(key) {
@@ -579,7 +618,7 @@ function getSoundEffectAudio(key) {
   if (!effect.audio) {
     effect.audio = new Audio(`${audioAssetBase}${effect.file}`);
     effect.audio.preload = "auto";
-    effect.audio.volume = effect.volume;
+    effect.audio.volume = getEffectiveSfxVolume(effect.volume);
   }
   return effect.audio;
 }
@@ -591,6 +630,7 @@ function unlockGameAudio() {
     const audio = getSoundEffectAudio(key);
     audio?.load?.();
   }
+  ensureBgmForGameState(true);
 }
 
 function playSoundEffect(key, options = {}) {
@@ -602,16 +642,179 @@ function playSoundEffect(key, options = {}) {
   state.audioLastPlayedAt[key] = now;
   state.audioEvents.push({ key, at: now });
   if (state.audioEvents.length > 24) state.audioEvents = state.audioEvents.slice(-24);
-  if (!state.audioUnlocked) return;
+  if (!state.audioUnlocked || !state.audioSettings.sfxEnabled || state.audioSettings.sfxVolume <= 0) return;
 
   try {
     const baseAudio = getSoundEffectAudio(key);
     if (!baseAudio) return;
     const audio = baseAudio.cloneNode();
-    audio.volume = Number.isFinite(options.volume) ? options.volume : effect.volume;
+    audio.volume = getEffectiveSfxVolume(Number.isFinite(options.volume) ? options.volume : effect.volume);
     audio.play().catch(() => {});
   } catch {
     // Audio is a cosmetic layer; never block combat or appraisal.
+  }
+}
+
+function getEffectiveSfxVolume(baseVolume = 1) {
+  return clampNumber((Number(baseVolume) || 0) * state.audioSettings.sfxVolume, 0, 1);
+}
+
+function getEffectiveBgmVolume() {
+  return clampNumber(state.audioSettings.bgmVolume, 0, 1);
+}
+
+function getBgmAudio(key) {
+  const track = bgmTracks[key];
+  if (!track) return null;
+  const audio = document.createElement("audio");
+  audio.preload = "none";
+  audio.loop = true;
+  audio.volume = getEffectiveBgmVolume();
+  audio.src = `${musicAssetBase}${track.file}`;
+  return audio;
+}
+
+function playBgm(key, options = {}) {
+  const track = bgmTracks[key];
+  if (!track) return;
+  if (state.bgmKey === key && !options.restart) {
+    pauseOrResumeBgm();
+    return;
+  }
+
+  stopBgm();
+  state.bgmKey = key;
+  state.bgmEvents.push({ key, at: Date.now() });
+  if (state.bgmEvents.length > 24) state.bgmEvents = state.bgmEvents.slice(-24);
+  if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0) return;
+  state.bgmAudio = getBgmAudio(key);
+  if (!state.bgmAudio) return;
+  state.bgmAudio.play().catch(() => {});
+}
+
+function stopBgm() {
+  if (state.bgmAudio) {
+    try {
+      state.bgmAudio.pause();
+      state.bgmAudio.currentTime = 0;
+    } catch {
+      // Ignore audio cleanup failures.
+    }
+  }
+  state.bgmAudio = null;
+  state.bgmKey = "";
+}
+
+function updateBgmVolume() {
+  if (state.bgmAudio) state.bgmAudio.volume = getEffectiveBgmVolume();
+}
+
+function pauseOrResumeBgm() {
+  if (!state.bgmAudio) {
+    if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0 || !state.bgmKey) return;
+    state.bgmAudio = getBgmAudio(state.bgmKey);
+    state.bgmAudio?.play().catch(() => {});
+    return;
+  }
+  updateBgmVolume();
+  if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0) {
+    state.bgmAudio.pause();
+    return;
+  }
+  state.bgmAudio.play().catch(() => {});
+}
+
+function getBgmKeyForGameState() {
+  if (isPlayerDefeated()) return "defeat";
+  if (state.gameClear) return "ending";
+  if (state.bossReward) return "reward";
+  if (state.currentBattle || state.autoBattleTimer || state.battleStartTimer) {
+    const bossKey = getBattleBossMusicKey();
+    if (bossKey) return bossKey;
+  }
+  return getAreaBgmKey(state.floor);
+}
+
+function getBattleBossMusicKey() {
+  const floor = state.currentBattle?.floor || state.floor;
+  if (floor === 10) return "skeletonCaptain";
+  if (floor === 20) return "vampire";
+  if (floor === 25) return "octopus";
+  if (floor === 30) return "knightCaptain";
+  if (floor === 35) return "dragon";
+  if (floor === 38) return "archmage";
+  if (floor === 40) return "demon";
+  return "";
+}
+
+function getAreaBgmKey(floor) {
+  if (floor <= 1) return "opening";
+  if (floor <= 10) return "area1";
+  if (floor <= 20) return "area2";
+  if (floor <= 30) return "area3";
+  return "area4";
+}
+
+function ensureBgmForGameState(force = false) {
+  const key = getBgmKeyForGameState();
+  if (!key) {
+    stopBgm();
+    return;
+  }
+  if (force || state.bgmKey !== key) {
+    playBgm(key, { restart: true });
+  } else {
+    pauseOrResumeBgm();
+  }
+  renderAudioSettings();
+}
+
+function normalizeAudioSettings(input) {
+  const source = input && typeof input === "object" ? input : {};
+  return {
+    sfxEnabled: source.sfxEnabled !== false,
+    bgmEnabled: source.bgmEnabled !== false,
+    sfxVolume: clampNumber(Number.isFinite(source.sfxVolume) ? source.sfxVolume : defaultAudioSettings.sfxVolume, 0, 1),
+    bgmVolume: clampNumber(Number.isFinite(source.bgmVolume) ? source.bgmVolume : defaultAudioSettings.bgmVolume, 0, 1),
+  };
+}
+
+function readAudioSettingsFromInputs() {
+  return {
+    sfxEnabled: els.sfxEnabledInput?.checked !== false,
+    bgmEnabled: els.bgmEnabledInput?.checked !== false,
+    sfxVolume: clampNumber((Number(els.sfxVolumeInput?.value) || 0) / 100, 0, 1),
+    bgmVolume: clampNumber((Number(els.bgmVolumeInput?.value) || 0) / 100, 0, 1),
+  };
+}
+
+function applyAudioSettingsFromInputs(persist = true) {
+  state.audioSettings = normalizeAudioSettings(readAudioSettingsFromInputs());
+  for (const effect of Object.values(soundEffects)) {
+    if (effect.audio) effect.audio.volume = getEffectiveSfxVolume(effect.volume);
+  }
+  updateBgmVolume();
+  pauseOrResumeBgm();
+  renderAudioSettings();
+  if (persist) saveConfig(false);
+}
+
+function renderAudioSettings() {
+  if (!els.sfxEnabledInput) return;
+  const settings = state.audioSettings;
+  els.sfxEnabledInput.checked = settings.sfxEnabled;
+  els.bgmEnabledInput.checked = settings.bgmEnabled;
+  els.sfxVolumeInput.value = String(Math.round(settings.sfxVolume * 100));
+  els.bgmVolumeInput.value = String(Math.round(settings.bgmVolume * 100));
+  els.sfxVolumeText.textContent = `${Math.round(settings.sfxVolume * 100)}%`;
+  els.bgmVolumeText.textContent = `${Math.round(settings.bgmVolume * 100)}%`;
+  const track = bgmTracks[state.bgmKey || getBgmKeyForGameState()];
+  els.nowPlayingText.textContent = track
+    ? `正在播放：${track.title}`
+    : "正在播放：塔内回声";
+  els.musicToggleBtn?.setAttribute("data-muted", String(!settings.sfxEnabled && !settings.bgmEnabled));
+  if (els.musicToggleBtn) {
+    els.musicToggleBtn.title = track ? `当前音乐：${track.title}` : "音乐设置";
   }
 }
 
@@ -621,6 +824,11 @@ function bindEvents() {
 
   document.querySelectorAll("[data-panel-target]").forEach((button) => {
     button.addEventListener("click", () => toggleSecondaryPanel(button.dataset.panelTarget || "none"));
+  });
+
+  [els.sfxEnabledInput, els.bgmEnabledInput, els.sfxVolumeInput, els.bgmVolumeInput].forEach((input) => {
+    input?.addEventListener("input", () => applyAudioSettingsFromInputs(true));
+    input?.addEventListener("change", () => applyAudioSettingsFromInputs(true));
   });
 
   document.querySelectorAll(".preset-button").forEach((button) => {
@@ -1354,9 +1562,10 @@ function toggleApiKeyVisibility() {
 }
 
 function setSecondaryPanel(panelId) {
-  const target = ["config", "forms", "info"].includes(panelId) ? panelId : "";
+  const target = ["config", "forms", "info", "music"].includes(panelId) ? panelId : "";
   els.secondaryArea.classList.toggle("is-collapsed", !target);
   if (target === "info") setInfoTab(getActiveInfoTab());
+  if (target === "music") renderAudioSettings();
 
   document.querySelectorAll(".secondary-content").forEach((panel) => {
     panel.hidden = panel.dataset.secondaryPanel !== target;
@@ -1368,7 +1577,7 @@ function setSecondaryPanel(panelId) {
 }
 
 function toggleSecondaryPanel(panelId) {
-  const target = ["config", "forms", "info"].includes(panelId) ? panelId : "";
+  const target = ["config", "forms", "info", "music"].includes(panelId) ? panelId : "";
   const activeTarget = els.secondaryArea.classList.contains("is-collapsed")
     ? ""
     : document.querySelector(".secondary-content:not([hidden])")?.dataset.secondaryPanel || "";
@@ -1685,8 +1894,8 @@ function getMissingConfigFields(config) {
 function getPhotoApiConfigHint() {
   const missing = getMissingConfigFields(getConfigFromInputs());
   if (!missing.length) return "";
-  if (missing.includes("API Key")) return "先点右上角 API配置，填入图文模型的 API Key。";
-  return `先点右上角 API配置，补全 ${missing.join("、")}。`;
+  if (missing.includes("API Key")) return "先点右上角鉴定台，填入图文模型的 API Key。";
+  return `先点右上角鉴定台，补全 ${missing.join("、")}。`;
 }
 
 async function analyzePhoto() {
@@ -4393,6 +4602,7 @@ function ensureCurrentBattle(activeIds, stats = getBattleStats(activeIds)) {
     defeatedTypes: [],
     createdAt: Date.now(),
   };
+  ensureBgmForGameState(true);
   return state.currentBattle;
 }
 
@@ -4449,6 +4659,7 @@ function finishCurrentBattle(result) {
   state.activeEnemyIds = [];
   state.battleClock = null;
   resetBattleSpecial();
+  ensureBgmForGameState(true);
 }
 
 function recordBattleKillStats(result, battle) {
@@ -4481,6 +4692,7 @@ function startBossRewardChoice(floor) {
   state.pendingFloorAdvance = true;
   state.infoMode = "log";
   addBattleEvent(`第${floor}层的封印松开，三张奖励牌从门缝里翻了出来。`, "item");
+  ensureBgmForGameState(true);
   saveGame();
   render();
 }
@@ -5078,6 +5290,7 @@ function advanceFloor() {
   state.enemyFlipEncounterId = state.encounterId;
   applyFloorShield();
   addFloorNarrative(state.floor);
+  ensureBgmForGameState(true);
 }
 
 function completeGame() {
@@ -5099,6 +5312,7 @@ function completeGame() {
   state.infoMode = "career";
   addBattleEvent("塔顶的门被推开，照片勇者带着一包奇怪装备通关了40层。", "hero");
   if (!wasClear) recordGlobalGameMetric("Clears", 1);
+  ensureBgmForGameState(true);
   requestCareerSummary();
 }
 
@@ -7794,6 +8008,7 @@ function loadImage(src) {
 function render() {
   ensureEncounter();
   ensureInventorySlots();
+  ensureBgmForGameState();
   const stats = getPlayerStats();
   const defeated = isPlayerDefeated();
   const bossRewardPending = Boolean(state.bossReward);
@@ -8995,6 +9210,12 @@ function renderGameTextOnly() {
       options: state.bossReward.options,
       selectedIndex: getSelectedBossRewardIndex(),
     } : null,
+    audio: {
+      bgmKey: state.bgmKey,
+      bgmTitle: bgmTracks[state.bgmKey]?.title || "",
+      settings: { ...state.audioSettings },
+      unlocked: state.audioUnlocked,
+    },
     careerSummary: state.careerSummary ? {
       status: state.careerSummary.status,
       title: state.careerSummary.title,
@@ -9062,12 +9283,14 @@ function setBusy(message) {
 function saveConfig(showLog = true) {
   rememberCurrentApiKey();
   localStorage.setItem(STORAGE_KEYS.config, JSON.stringify(getConfigFromInputs()));
-  if (showLog) addLog("API 配置已保存到当前浏览器。");
+  if (showLog) addLog("鉴定台配置已保存到当前浏览器。");
   render();
 }
 
 function loadConfig() {
   const config = readJson(STORAGE_KEYS.config, {});
+  state.audioSettings = normalizeAudioSettings(config.audioSettings);
+  renderAudioSettings();
   const presetId = API_PRESETS[config.presetId] ? config.presetId : "siliconflow";
   customDraft.baseUrl = presetId === "custom" ? config.baseUrl || "" : config.customBaseUrl || "";
   customDraft.model = presetId === "custom" ? config.model || "" : config.customModel || "";
@@ -9095,6 +9318,7 @@ function getConfigFromInputs() {
     model,
     customBaseUrl: activePreset === "custom" ? baseUrl : customDraft.baseUrl.trim(),
     customModel: activePreset === "custom" ? model : customDraft.model.trim(),
+    audioSettings: { ...state.audioSettings },
   };
 }
 
@@ -9504,9 +9728,19 @@ window.__photoHeroTestHooks = {
   getAudioEvents() {
     return state.audioEvents.slice();
   },
+  getBgmEvents() {
+    return state.bgmEvents.slice();
+  },
   clearAudioEvents() {
     state.audioEvents = [];
+    state.bgmEvents = [];
     state.audioLastPlayedAt = {};
+  },
+  setAudioSettings(next = {}) {
+    state.audioSettings = normalizeAudioSettings({ ...state.audioSettings, ...next });
+    renderAudioSettings();
+    pauseOrResumeBgm();
+    saveConfig(false);
   },
   setHeroStats(next) {
     Object.assign(state.player, next || {});
@@ -9652,6 +9886,7 @@ window.__photoHeroTestHooks = {
     stopBattleTimers();
     state.floor = clampInt(floor, 1, maxFloor);
     state.gameClear = false;
+    state.bossReward = null;
     state.enemies = buildFloorEncounter(state.floor);
     state.encounterId = makeEncounterId();
     state.selectedEnemyIds = [];

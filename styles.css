@@ -306,6 +306,11 @@ h3 {
   color: var(--green);
 }
 
+.music-button[data-muted="true"] {
+  border-color: color-mix(in srgb, var(--line-strong) 72%, var(--muted));
+  color: var(--muted);
+}
+
 .primary-button {
   border-color: color-mix(in srgb, var(--ink) 78%, var(--line-strong));
   background:
@@ -2285,6 +2290,7 @@ dd {
 
 .secondary-area:has([data-secondary-panel="forms"]:not([hidden])),
 .secondary-area:has([data-secondary-panel="config"]:not([hidden])),
+.secondary-area:has([data-secondary-panel="music"]:not([hidden])),
 .secondary-area:has([data-secondary-panel="info"]:not([hidden])) {
   bottom: auto;
 }
@@ -2295,13 +2301,15 @@ dd {
 }
 
 .secondary-area:has([data-secondary-panel="config"]:not([hidden])),
+.secondary-area:has([data-secondary-panel="music"]:not([hidden])),
 .secondary-area:has([data-secondary-panel="info"]:not([hidden])) {
   max-height: calc(100% - 52px);
 }
 
 @media (min-width: 981px) {
   .secondary-area:has([data-secondary-panel="forms"]:not([hidden])),
-  .secondary-area:has([data-secondary-panel="config"]:not([hidden])) {
+  .secondary-area:has([data-secondary-panel="config"]:not([hidden])),
+  .secondary-area:has([data-secondary-panel="music"]:not([hidden])) {
     right: auto;
     max-width: min(720px, calc(100% - 16px));
   }
@@ -2310,7 +2318,8 @@ dd {
     width: min(720px, calc(100% - 16px));
   }
 
-  .secondary-area:has([data-secondary-panel="config"]:not([hidden])) {
+  .secondary-area:has([data-secondary-panel="config"]:not([hidden])),
+  .secondary-area:has([data-secondary-panel="music"]:not([hidden])) {
     width: max-content;
   }
 
@@ -2353,8 +2362,72 @@ dd {
 }
 
 .config-panel,
+.music-panel,
 .info-panel {
   align-self: start;
+}
+
+.music-panel {
+  width: min(430px, 100%);
+}
+
+.sound-control-grid {
+  display: grid;
+  gap: 10px;
+  min-width: min(390px, calc(100vw - 42px));
+}
+
+.sound-toggle-row,
+.sound-slider-row {
+  display: grid;
+  align-items: center;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 44%, var(--line));
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgb(255 253 248 / 88%), rgb(245 235 215 / 72%));
+}
+
+.sound-toggle-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.sound-slider-row {
+  grid-template-columns: 72px minmax(120px, 1fr) 44px;
+}
+
+.sound-toggle-row span,
+.sound-slider-row span,
+.sound-slider-row strong {
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.sound-toggle-row input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--hero);
+}
+
+.sound-slider-row input {
+  width: 100%;
+  accent-color: var(--hero);
+}
+
+.sound-slider-row strong {
+  text-align: right;
+  color: var(--hero);
+}
+
+.sound-now-playing {
+  margin-top: 9px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--hero-soft) 66%, white 34%);
+  color: color-mix(in srgb, var(--hero) 70%, var(--ink));
+  font-size: 0.78rem;
+  font-weight: 850;
 }
 
 .info-panel {
@@ -2988,6 +3061,14 @@ textarea {
 @media (max-width: 620px) {
   .app-shell {
     padding: 6px;
+  }
+
+  .sound-control-grid {
+    min-width: 0;
+  }
+
+  .sound-slider-row {
+    grid-template-columns: 64px minmax(0, 1fr) 40px;
   }
 
   .game-panel {

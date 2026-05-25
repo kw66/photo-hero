@@ -15,7 +15,8 @@
               <h2>照片勇者</h2>
               <div class="panel-tools" aria-label="面板工具">
                 <button class="tool-button info-button" id="infoToggleBtn" type="button" data-panel-target="info" aria-pressed="false">游戏信息</button>
-                <button class="tool-button api-config-button" id="configToggleBtn" type="button" data-panel-target="config" data-state="missing" aria-pressed="false">API配置 <span class="api-state-icon" aria-hidden="true"></span></button>
+                <button class="tool-button music-button" id="musicToggleBtn" type="button" data-panel-target="music" aria-pressed="false">音乐</button>
+                <button class="tool-button api-config-button" id="configToggleBtn" type="button" data-panel-target="config" data-state="missing" aria-pressed="false">鉴定台 <span class="api-state-icon" aria-hidden="true"></span></button>
                 <button class="ghost-button" id="resetGameBtn" type="button">重开</button>
               </div>
             </div>
@@ -188,10 +189,40 @@
                 <div class="form-grid" id="formGrid"></div>
               </section>
 
-              <section class="config-panel secondary-content" data-secondary-panel="config" aria-label="API 配置">
+              <section class="music-panel secondary-content" data-secondary-panel="music" aria-label="音乐设置" hidden>
                 <div class="secondary-head">
                   <div>
-                    <h2>API 设置</h2>
+                    <h2>音乐设置</h2>
+                  </div>
+                  <button class="ghost-button" type="button" data-panel-target="none">收起</button>
+                </div>
+                <div class="sound-control-grid">
+                  <label class="sound-toggle-row">
+                    <span>音效</span>
+                    <input id="sfxEnabledInput" type="checkbox" checked>
+                  </label>
+                  <label class="sound-slider-row">
+                    <span>音效音量</span>
+                    <input id="sfxVolumeInput" type="range" min="0" max="100" value="45">
+                    <strong id="sfxVolumeText">45%</strong>
+                  </label>
+                  <label class="sound-toggle-row">
+                    <span>背景音乐</span>
+                    <input id="bgmEnabledInput" type="checkbox" checked>
+                  </label>
+                  <label class="sound-slider-row">
+                    <span>音乐音量</span>
+                    <input id="bgmVolumeInput" type="range" min="0" max="100" value="22">
+                    <strong id="bgmVolumeText">22%</strong>
+                  </label>
+                </div>
+                <p class="sound-now-playing" id="nowPlayingText">正在播放：塔内回声</p>
+              </section>
+
+              <section class="config-panel secondary-content" data-secondary-panel="config" aria-label="鉴定台配置">
+                <div class="secondary-head">
+                  <div>
+                    <h2>鉴定台</h2>
                   </div>
                   <button class="ghost-button" type="button" data-panel-target="none">收起</button>
                 </div>
@@ -273,6 +304,6 @@
       <span id="imageViewerCaption"></span>
     </div>
 
-    <script defer src="./app.js?v=20260525-audio"></script>
+    <script defer src="./app.js?v=20260525-music"></script>
   </body>
 </html>

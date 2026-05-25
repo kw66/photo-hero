@@ -108,7 +108,7 @@ function assertScenario(name, metrics) {
   if (name === "mobile-fresh") {
     if (!metrics.visibleButtons.includes("选择怪物")) failures.push(`${name}: missing disabled 选择怪物 state`);
     if (!metrics.visibleButtons.includes("绕过")) failures.push(`${name}: missing non-boss bypass button`);
-    if (!/API配置/.test(metrics.detailText)) failures.push(`${name}: empty appraisal panel should prompt API configuration`);
+    if (!/鉴定台/.test(metrics.detailText)) failures.push(`${name}: empty appraisal panel should prompt appraisal bench configuration`);
     if (/价值范围/.test(metrics.detailText)) failures.push(`${name}: exposes raw value range in empty state`);
   }
   if (name === "mobile-flee") {
