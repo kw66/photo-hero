@@ -362,6 +362,19 @@ const defaultAudioSettings = {
   bgmVolume: 0.22,
 };
 
+const sfxGainBoost = 2.1;
+const bgmGainBoost = 1.8;
+let gameAudioContext = null;
+const mediaAudioNodes = new WeakMap();
+const bgmAudioCache = {};
+let bgmPreloadStarted = false;
+
+const defaultTutorialState = {
+  photoStarted: false,
+  battleHintSeen: false,
+  postKillHintShown: false,
+};
+
 const soundEffects = {
   appraisalSuccess: { file: "appraisal-success.mp3", volume: 0.74, cooldown: 260 },
   battleHit: { file: "battle-hit.mp3", volume: 0.58, cooldown: 90 },
@@ -386,6 +399,24 @@ const bgmTracks = {
   ending: { file: "ending.mp3", title: "终曲" },
   defeat: { file: "defeat-conversation.mp3", title: "Conversation" },
 };
+
+const bgmPreloadOrder = [
+  "opening",
+  "area1",
+  "skeletonCaptain",
+  "area2",
+  "vampire",
+  "octopus",
+  "area3",
+  "knightCaptain",
+  "dragon",
+  "archmage",
+  "area4",
+  "demon",
+  "reward",
+  "ending",
+  "defeat",
+];
 
 const monsterImages = {
   slime: "slime.png",
@@ -458,16 +489,16 @@ const floorNarratives = {
 };
 
 const bossFloorNarratives = {
-  10: "第十层的门自行合拢。骷髅队长抬起锈剑，第一道封门战开始了。",
-  20: "烛火染成暗红色，吸血鬼从阴影里欠身致意。它等的不是勇者，是一口松懈的生命。",
-  30: "骑士队长带着两名卫兵列阵，盾面拼成一堵冷墙。要上楼，就得亲手拆开它。",
-  40: "塔顶只剩魔王的影子。一路拍下的装备、攒下的胶卷和每一次选择，都会在这里结算。",
+  10: "第十层的封门骨锁咔哒落下。骷髅队长举起锈剑，像在点名第一位真正的登塔者。",
+  20: "暗红烛火沿墙面倒流，吸血鬼在门前欠身。它守的不是楼梯，是勇者每一次松懈。",
+  30: "骑士队长把长枪钉进石缝，卫兵影子从两侧合拢。封门者已经列阵，只等勇者选定顺序。",
+  40: "塔顶风声忽然停了。魔王立在最后一扇门前，所有照片装备的来历，都将在这里写成结局。",
 };
 
 const rewardBossFloorNarratives = {
-  25: "水声从楼梯缝里漫上来，章鱼把奖励牌按在湿滑的台阶上。想拿，就得靠近它。",
-  35: "龙翼扫过墙面，灰尘像雨一样落下。魔龙守着一份会改变后续鉴定的奖赏。",
-  38: "大法师把通往塔顶的路照得发白。越过这道光，魔王的门就只隔一层。",
+  25: "水声从楼梯缝里漫上来，章鱼把奖励牌压在湿滑台阶上。绕过去很稳，伸手去拿就要付价。",
+  35: "龙翼扫过墙面，灰尘像雨一样落下。魔龙并不封路，只守着一份足以改变后续鉴定的贪念。",
+  38: "大法师把通往塔顶的路照得发白。这不是必经的门，却可能是登顶前最后一次豪赌。",
 };
 
 const els = {
@@ -601,6 +632,7 @@ const state = {
   bgmAudio: null,
   bgmKey: "",
   bgmEvents: [],
+  tutorial: { ...defaultTutorialState },
 };
 
 loadConfig();
@@ -618,7 +650,7 @@ function getSoundEffectAudio(key) {
   if (!effect.audio) {
     effect.audio = new Audio(`${audioAssetBase}${effect.file}`);
     effect.audio.preload = "auto";
-    effect.audio.volume = getEffectiveSfxVolume(effect.volume);
+    effect.audio.volume = getElementSafeSfxVolume(effect.volume);
   }
   return effect.audio;
 }
@@ -626,10 +658,13 @@ function getSoundEffectAudio(key) {
 function unlockGameAudio() {
   if (state.audioUnlocked) return;
   state.audioUnlocked = true;
+  const context = ensureGameAudioContext();
+  if (context?.state === "suspended") context.resume?.().catch(() => {});
   for (const key of Object.keys(soundEffects)) {
     const audio = getSoundEffectAudio(key);
     audio?.load?.();
   }
+  preloadBgmTracksInOrder();
   ensureBgmForGameState(true);
 }
 
@@ -648,30 +683,114 @@ function playSoundEffect(key, options = {}) {
     const baseAudio = getSoundEffectAudio(key);
     if (!baseAudio) return;
     const audio = baseAudio.cloneNode();
-    audio.volume = getEffectiveSfxVolume(Number.isFinite(options.volume) ? options.volume : effect.volume);
+    audio.volume = getElementSafeSfxVolume(Number.isFinite(options.volume) ? options.volume : effect.volume);
+    if (attachBoostedAudioNode(audio, getEffectiveSfxGain(Number.isFinite(options.volume) ? options.volume : effect.volume))) {
+      audio.volume = 1;
+    }
     audio.play().catch(() => {});
   } catch {
     // Audio is a cosmetic layer; never block combat or appraisal.
   }
 }
 
-function getEffectiveSfxVolume(baseVolume = 1) {
+function getElementSafeSfxVolume(baseVolume = 1) {
   return clampNumber((Number(baseVolume) || 0) * state.audioSettings.sfxVolume, 0, 1);
 }
 
-function getEffectiveBgmVolume() {
+function getElementSafeBgmVolume() {
   return clampNumber(state.audioSettings.bgmVolume, 0, 1);
+}
+
+function getEffectiveSfxGain(baseVolume = 1) {
+  return Math.max(0, (Number(baseVolume) || 0) * state.audioSettings.sfxVolume * sfxGainBoost);
+}
+
+function getEffectiveBgmGain() {
+  return Math.max(0, state.audioSettings.bgmVolume * bgmGainBoost);
+}
+
+function ensureGameAudioContext() {
+  if (gameAudioContext) return gameAudioContext;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  try {
+    gameAudioContext = new AudioContextClass();
+    return gameAudioContext;
+  } catch {
+    return null;
+  }
+}
+
+function attachBoostedAudioNode(audio, gainValue) {
+  if (!audio) return false;
+  const context = ensureGameAudioContext();
+  if (!context) return false;
+  try {
+    const existing = mediaAudioNodes.get(audio);
+    if (existing) {
+      existing.gain.gain.value = Math.max(0, gainValue);
+      return true;
+    }
+    const source = context.createMediaElementSource(audio);
+    const gain = context.createGain();
+    gain.gain.value = Math.max(0, gainValue);
+    source.connect(gain).connect(context.destination);
+    mediaAudioNodes.set(audio, { source, gain });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function setBoostedAudioGain(audio, gainValue) {
+  const existing = mediaAudioNodes.get(audio);
+  if (existing) {
+    existing.gain.gain.value = Math.max(0, gainValue);
+    return true;
+  }
+  return attachBoostedAudioNode(audio, gainValue);
 }
 
 function getBgmAudio(key) {
   const track = bgmTracks[key];
   if (!track) return null;
+  if (bgmAudioCache[key]) {
+    updateBgmAudioElementVolume(bgmAudioCache[key]);
+    return bgmAudioCache[key];
+  }
   const audio = document.createElement("audio");
-  audio.preload = "none";
+  audio.preload = "auto";
   audio.loop = true;
-  audio.volume = getEffectiveBgmVolume();
   audio.src = `${musicAssetBase}${track.file}`;
+  updateBgmAudioElementVolume(audio);
+  bgmAudioCache[key] = audio;
   return audio;
+}
+
+function updateBgmAudioElementVolume(audio) {
+  if (!audio) return;
+  if (attachBoostedAudioNode(audio, getEffectiveBgmGain())) {
+    audio.volume = 1;
+  } else {
+    audio.volume = getElementSafeBgmVolume();
+  }
+}
+
+function preloadBgmTracksInOrder() {
+  if (bgmPreloadStarted) return;
+  bgmPreloadStarted = true;
+  bgmPreloadOrder
+    .filter((key) => bgmTracks[key])
+    .forEach((key, index) => {
+      window.setTimeout(() => {
+        const audio = getBgmAudio(key);
+        try {
+          audio?.load?.();
+        } catch {
+          // Preloading is best-effort; playback still falls back to normal loading.
+        }
+      }, index * 90);
+    });
 }
 
 function playBgm(key, options = {}) {
@@ -706,7 +825,9 @@ function stopBgm() {
 }
 
 function updateBgmVolume() {
-  if (state.bgmAudio) state.bgmAudio.volume = getEffectiveBgmVolume();
+  if (state.bgmAudio) {
+    updateBgmAudioElementVolume(state.bgmAudio);
+  }
 }
 
 function pauseOrResumeBgm() {
@@ -791,7 +912,7 @@ function readAudioSettingsFromInputs() {
 function applyAudioSettingsFromInputs(persist = true) {
   state.audioSettings = normalizeAudioSettings(readAudioSettingsFromInputs());
   for (const effect of Object.values(soundEffects)) {
-    if (effect.audio) effect.audio.volume = getEffectiveSfxVolume(effect.volume);
+    if (effect.audio) effect.audio.volume = getElementSafeSfxVolume(effect.volume);
   }
   updateBgmVolume();
   pauseOrResumeBgm();
@@ -808,6 +929,8 @@ function renderAudioSettings() {
   els.bgmVolumeInput.value = String(Math.round(settings.bgmVolume * 100));
   els.sfxVolumeText.textContent = `${Math.round(settings.sfxVolume * 100)}%`;
   els.bgmVolumeText.textContent = `${Math.round(settings.bgmVolume * 100)}%`;
+  updateVolumeSliderFill(els.sfxVolumeInput);
+  updateVolumeSliderFill(els.bgmVolumeInput);
   const track = bgmTracks[state.bgmKey || getBgmKeyForGameState()];
   els.nowPlayingText.textContent = track
     ? `正在播放：${track.title}`
@@ -816,6 +939,15 @@ function renderAudioSettings() {
   if (els.musicToggleBtn) {
     els.musicToggleBtn.title = track ? `当前音乐：${track.title}` : "音乐设置";
   }
+}
+
+function updateVolumeSliderFill(input) {
+  if (!input) return;
+  const min = Number(input.min || 0);
+  const max = Number(input.max || 100);
+  const value = Number(input.value || min);
+  const percent = max > min ? ((value - min) / (max - min)) * 100 : 0;
+  input.style.setProperty("--slider-fill", `${clampNumber(percent, 0, 100)}%`);
 }
 
 function bindEvents() {
@@ -938,9 +1070,25 @@ function openPhotoPickerForSelectedSlot() {
     requestCareerSummary(true);
     return;
   }
-  if (isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || state.bossReward) return;
+  if (isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || state.bossReward) {
+    showInputNotice(getPhotoInputBlockedMessage());
+    render();
+    return;
+  }
+  const apiHint = getPhotoApiConfigHint();
+  if (apiHint) {
+    state.infoMode = "item";
+    showInputNotice(apiHint);
+    render();
+    return;
+  }
   const index = getSelectedSlotIndex();
-  if (getInventoryItemAt(index)) return;
+  if (getInventoryItemAt(index)) {
+    showInputNotice(getPhotoInputBlockedMessage());
+    render();
+    return;
+  }
+  state.tutorial.photoStarted = true;
   state.pendingPhotoSlotIndex = index;
   state.infoMode = "item";
   openPhotoPicker();
@@ -1425,11 +1573,11 @@ async function makeCareerSummaryImage(summary, snapshot) {
   canvas.height = height * scale;
   const ctx = canvas.getContext("2d");
   ctx.scale(scale, scale);
-  drawCareerSummaryCanvas(ctx, width, height, summary, snapshot);
+  await drawCareerSummaryCanvas(ctx, width, height, summary, snapshot);
   return canvas.toDataURL("image/png");
 }
 
-function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
+async function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
   ctx.fillStyle = "#fffaf0";
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = "#edf4e8";
@@ -1496,18 +1644,93 @@ function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
 
   ctx.fillStyle = "#245f9a";
   ctx.font = "900 28px sans-serif";
-  ctx.fillText("塔史记名装备", margin + 36, height - 258);
-  ctx.fillStyle = "#17130f";
-  ctx.font = "800 24px sans-serif";
-  const items = snapshot.topItems.length ? snapshot.topItems.slice(0, 4) : [{ quality: "空", name: "没有照片装备记录", score: 0 }];
-  items.forEach((item, index) => {
-    const y = height - 218 + index * 38;
-    ctx.fillText(`${item.quality} · ${item.name}${item.score ? `  ${item.score}` : ""}`, margin + 42, y);
-  });
+  ctx.fillText("塔史记名装备", margin + 36, height - 298);
+  await drawCareerEquipmentCanvas(ctx, snapshot, margin + 36, height - 268, width - margin * 2 - 72, 176);
 
   ctx.fillStyle = "#6f665c";
   ctx.font = "700 22px sans-serif";
   ctx.fillText("photo-hero · 现实物品写入魔塔旧史", margin + 36, height - 84);
+}
+
+async function drawCareerEquipmentCanvas(ctx, snapshot, x, y, width, height) {
+  const items = (snapshot.allItems || snapshot.topItems || []).slice(0, equipmentVisibleSlots);
+  const columns = 5;
+  const gap = 10;
+  const cellWidth = (width - gap * (columns - 1)) / columns;
+  const cellHeight = (height - gap) / 2;
+  if (!items.length) {
+    ctx.fillStyle = "#6f665c";
+    ctx.font = "800 24px sans-serif";
+    ctx.fillText("没有照片装备记录", x, y + 62);
+    return;
+  }
+  const loaded = await Promise.all(items.map(async (item) => {
+    try {
+      return item.image ? await loadImage(item.image) : null;
+    } catch {
+      return null;
+    }
+  }));
+  items.forEach((item, index) => {
+    const col = index % columns;
+    const row = Math.floor(index / columns);
+    const cellX = x + col * (cellWidth + gap);
+    const cellY = y + row * (cellHeight + gap);
+    const quality = getItemQuality(item.score || 0);
+    const color = getQualityCanvasColor(quality.key);
+    roundRect(ctx, cellX, cellY, cellWidth, cellHeight, 10);
+    ctx.fillStyle = color.bg;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = color.border;
+    ctx.stroke();
+
+    const image = loaded[index];
+    const imageX = cellX + 6;
+    const imageY = cellY + 6;
+    const imageW = cellWidth - 12;
+    const imageH = Math.max(44, cellHeight - 34);
+    ctx.save();
+    roundRect(ctx, imageX, imageY, imageW, imageH, 7);
+    ctx.clip();
+    if (image) {
+      drawImageCover(ctx, image, imageX, imageY, imageW, imageH);
+    } else {
+      ctx.fillStyle = "#fffdf8";
+      ctx.fillRect(imageX, imageY, imageW, imageH);
+      ctx.fillStyle = "#cdbb9a";
+      ctx.font = "900 18px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("PHOTO", imageX + imageW / 2, imageY + imageH / 2 + 6);
+      ctx.textAlign = "left";
+    }
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(23, 19, 15, 0.78)";
+    ctx.fillRect(cellX + 6, cellY + cellHeight - 28, cellWidth - 12, 22);
+    ctx.fillStyle = color.text;
+    ctx.font = "900 15px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(shortenText(item.name || "装备", 7), cellX + cellWidth / 2, cellY + cellHeight - 12);
+    ctx.textAlign = "left";
+  });
+}
+
+function drawImageCover(ctx, image, x, y, width, height) {
+  const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+  const drawWidth = image.naturalWidth * scale;
+  const drawHeight = image.naturalHeight * scale;
+  ctx.drawImage(image, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
+}
+
+function getQualityCanvasColor(key) {
+  const colors = {
+    common: { border: "#b8b4aa", bg: "#fffefa", text: "#ddd8cc" },
+    rare: { border: "#4f8fd6", bg: "#eff8ff", text: "#75b8ff" },
+    epic: { border: "#8b5fce", bg: "#f8f1ff", text: "#caa7ff" },
+    legendary: { border: "#d98520", bg: "#fff6df", text: "#ffc35a" },
+  };
+  return colors[key] || colors.common;
 }
 
 function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 99) {
@@ -1716,6 +1939,7 @@ async function preparePhotoFromFile(file, successMessage, errorPrefix) {
     } else {
       setBusy("");
     }
+    state.tutorial.photoStarted = true;
     render();
   } catch (error) {
     showInputNotice(`${errorPrefix}：${error.message || "无法处理该图片"}`);
@@ -1894,8 +2118,7 @@ function getMissingConfigFields(config) {
 function getPhotoApiConfigHint() {
   const missing = getMissingConfigFields(getConfigFromInputs());
   if (!missing.length) return "";
-  if (missing.includes("API Key")) return "先点右上角鉴定台，填入图文模型的 API Key。";
-  return `先点右上角鉴定台，补全 ${missing.join("、")}。`;
+  return "先点右上角鉴定，配置 API，点亮鉴定。";
 }
 
 async function analyzePhoto() {
@@ -1925,7 +2148,9 @@ async function analyzePhoto() {
 
   const config = getConfigFromInputs();
   if (!config.baseUrl || !config.apiKey || !config.model) {
-    addLog("先填写并保存 API 地址、Key 和模型名。");
+    const message = getPhotoApiConfigHint();
+    showLootError(message);
+    addLog(message);
     render();
     return;
   }
@@ -3399,6 +3624,8 @@ function receiveItem(item, message) {
     : `${message} 获得 ${fullItem.itemName}。`;
   if (addInventoryItem(fullItem, rewardText, targetSlot)) {
     if (!fullItem.tooLarge) recordGlobalGameMetric("Appraisals", 1);
+    state.tutorial.photoStarted = true;
+    state.tutorial.battleHintSeen = false;
     saveGame();
     render();
   }
@@ -3683,6 +3910,16 @@ function getInventoryItemAt(index) {
   return state.inventory[clampSlotIndex(index)] || null;
 }
 
+function shouldShowFirstPhotoHint() {
+  return !state.tutorial.photoStarted
+    && !state.lastPhoto
+    && !state.gameClear
+    && !state.bossReward
+    && !isPlayerDefeated()
+    && state.filmRolls >= 1
+    && !getInventoryItemAt(getSelectedSlotIndex());
+}
+
 function findFirstEmptyInventorySlot() {
   ensureInventorySlots();
   return state.inventory.findIndex((item) => !item);
@@ -3691,6 +3928,16 @@ function findFirstEmptyInventorySlot() {
 function toggleAutoBattle() {
   if (isBattleActionLocked()) return;
   if (state.autoBattleTimer || state.gameClear || isPlayerDefeated()) return;
+  if (!canStartSelectedBattle()) {
+    state.infoMode = "log";
+    if (!state.tutorial.battleHintSeen) {
+      state.tutorial.battleHintSeen = true;
+      addBattleEvent("点一只怪，再点战斗。", "info");
+    }
+    saveGame();
+    render();
+    return;
+  }
   state.infoMode = "log";
   startAutoBattle();
 }
@@ -4276,8 +4523,7 @@ function applyFixedHeroDamageToEnemy(enemy, damage, source = "sweep") {
   const hpDamage = Math.max(0, modifiedDamage - shieldLoss);
   enemy.hp = Math.max(0, enemy.hp - hpDamage);
   const totalDamage = shieldLoss + hpDamage;
-  if (totalDamage > 0) markEnemyHit(enemy.id);
-  if (fixedDamage > 0) markEnemyHit(enemy.id);
+  if (totalDamage > 0 || fixedDamage > 0) markEnemyHit(enemy.id);
   const traitChanges = fixedDamage > 0 ? triggerEnemyDamagedTraits(enemy) : [];
   return {
     rawDamage: fixedDamage,
@@ -4505,11 +4751,12 @@ function applyFormKillEffects() {
 }
 
 function markEnemyHit(enemyId) {
-  if (state.enemyHitEffectUntilById[enemyId]) return;
-  playSoundEffect("battleHit");
+  if (!enemyId) return;
+  playSoundEffect("battleHit", { force: true });
   const token = state.hitEffectToken + 1;
   state.hitEffectToken = token;
   state.enemyHitEffectUntilById[enemyId] = token;
+  restartHitAnimation(getEnemyCardElement(enemyId));
   window.setTimeout(() => {
     if (state.enemyHitEffectUntilById[enemyId] !== token) return;
     delete state.enemyHitEffectUntilById[enemyId];
@@ -4518,16 +4765,29 @@ function markEnemyHit(enemyId) {
 }
 
 function markHeroHit() {
-  if (state.heroHitEffectUntil) return;
-  playSoundEffect("battleHit");
+  playSoundEffect("battleHit", { force: true });
   const token = state.hitEffectToken + 1;
   state.hitEffectToken = token;
   state.heroHitEffectUntil = token;
+  restartHitAnimation(els.heroAvatarImage.closest(".hero-form-card"));
   window.setTimeout(() => {
     if (state.heroHitEffectUntil !== token) return;
     state.heroHitEffectUntil = 0;
     render();
   }, battleHitEffectMs);
+}
+
+function getEnemyCardElement(enemyId) {
+  if (!els.enemyField) return null;
+  return Array.from(els.enemyField.querySelectorAll(".enemy-card"))
+    .find((card) => card.dataset.enemyId === enemyId) || null;
+}
+
+function restartHitAnimation(element) {
+  if (!element) return;
+  element.classList.remove("is-hit");
+  void element.offsetWidth;
+  element.classList.add("is-hit");
 }
 
 function removeEnemiesByIds(ids, reward = true) {
@@ -4634,6 +4894,10 @@ function addLootNamesToCurrentBattle(drops) {
 function finishCurrentBattle(result) {
   if (!state.currentBattle) return;
   const battle = state.currentBattle;
+  const showPostKillHint = !state.tutorial.postKillHintShown
+    && result !== "defeat"
+    && Array.isArray(battle.defeatedIds)
+    && battle.defeatedIds.length > 0;
   applyFormBattleEndEffects(result, battle);
   settleFormProgressAfterBattle(result, battle);
   recordBattleKillStats(result, battle);
@@ -4659,6 +4923,10 @@ function finishCurrentBattle(result) {
   state.activeEnemyIds = [];
   state.battleClock = null;
   resetBattleSpecial();
+  if (showPostKillHint) {
+    state.tutorial.postKillHintShown = true;
+    addBattleEvent("胶卷攒够后，可以继续拍新装备。", "info");
+  }
   ensureBgmForGameState(true);
 }
 
@@ -4886,6 +5154,16 @@ function isCareerSummaryOpen() {
   return state.infoMode === "career";
 }
 
+function normalizeTutorialState(tutorial) {
+  return {
+    ...defaultTutorialState,
+    ...(tutorial && typeof tutorial === "object" ? tutorial : {}),
+    photoStarted: Boolean(tutorial?.photoStarted),
+    battleHintSeen: Boolean(tutorial?.battleHintSeen),
+    postKillHintShown: Boolean(tutorial?.postKillHintShown),
+  };
+}
+
 function buildLocalCareerSummary() {
   const snapshot = buildCareerSnapshot();
   const itemText = formatCareerTopItemNames(snapshot);
@@ -4929,10 +5207,13 @@ function buildCareerSnapshot() {
   }
   const items = state.inventory
     .filter(Boolean)
-    .map((item) => ({
+    .map((item, slotIndex) => ({
       name: formatItemDisplayName(item),
       score: scoreItem(item),
       quality: getItemQuality(scoreItem(item)).label,
+      qualityKey: getItemQuality(scoreItem(item)).key,
+      image: item.image || item.fullImage || "",
+      slotIndex,
       stats: normalizeStats(item.stats || {}, 999),
       effects: getItemSpecialKeys(item).map((key) => photoSpecialEffectMap.get(key)?.label || key),
     }))
@@ -5020,7 +5301,7 @@ async function requestCareerSummary(force = false) {
 
 function buildCareerSummaryPrompt(snapshot) {
   const itemLines = snapshot.topItems.length
-    ? snapshot.topItems.map((item, index) => `${index + 1}. ${item.quality} ${item.name}，分数${item.score}，属性${formatSnapshotStats(item.stats)}${item.effects.length ? `，词条${item.effects.join("、")}` : ""}`).join("\n")
+    ? snapshot.allItems.slice(0, 10).map((item, index) => `${index + 1}. ${item.quality} ${item.name}，分数${item.score}，属性${formatSnapshotStats(item.stats)}${item.effects.length ? `，词条${item.effects.join("、")}` : ""}`).join("\n")
     : "无照片装备";
   return [
     "请基于以下通关数据，写一段更像魔塔通关后流传多年的中文传说。",
@@ -5028,7 +5309,7 @@ function buildCareerSummaryPrompt(snapshot) {
     "1. 第一行写一个8-14字短标题，后面写3段短文，每段40-70字；不要列表编号。",
     "2. 使用第三人称，像多年后塔中石碑、旧账册、守塔人口耳相传的记录；不要写“我”。",
     "3. 风格要有历史感、魔塔感和通关后的余韵；可以克制地幽默，但不要像广告文案。",
-    "4. 突出照片装备，至少点名2件代表装备；装备少则如实写。",
+    "4. 突出照片装备，至少点名3件代表装备；装备少则如实写。写出它们像被塔赋予了意义，而不是普通数值道具。",
     "5. 自然提及Boss击杀数、怪物击杀数、最终能力和剩余胶卷，不要堆砌成报表。",
     "6. 不要解释规则，不要提API、模型、JSON、推理过程、开发者或截图分享。",
     "7. 禁止使用Markdown格式，禁止星号、井号、项目符号、标题：、【通关】等包装。",
@@ -5152,6 +5433,15 @@ function makeBattleSummary(result, battle, hpDelta) {
           ? "小胜"
           : "胜";
     const remainText = label === "险胜" ? `，剩余生命 ${endHp}/${endMaxHp}` : "";
+    if (isBossFloor(floor)) {
+      const bossText = floor === maxFloor
+        ? "塔顶封印碎裂，魔王的名字被刻进最后一页"
+        : "封门石锁崩开，楼梯重新露出向上的缝隙";
+      return `${bossText} · 击败${monsterName}，${lifeText}${remainText}，获得：${lootText}。`;
+    }
+    if (isRewardBossFloor(floor)) {
+      return `贪心有了回响 · 击败${monsterName}，${lifeText}${remainText}，获得：${lootText}。`;
+    }
     return `${label} · 第${floor}层击败${monsterName}，${lifeText}${remainText}，获得：${lootText}。`;
   }
   if (result === "defeat") {
@@ -5692,7 +5982,7 @@ function getHeroFormProgressText(form = getHeroForm()) {
 }
 
 function getHeroFormDisplayName(form = getHeroForm()) {
-  return getHeroFormLevel(form) >= 2 ? `mega${form.label}` : `${form.label}形态`;
+  return getHeroFormLevel(form) >= 2 ? `超级${form.label}` : `${form.label}形态`;
 }
 
 function adjustHeroResourcesAfterStatChange(oldStats, newStats, oldShield = state.player.shield) {
@@ -6031,6 +6321,7 @@ function normalizeFilmAmount(value) {
 }
 
 function toggleEnemySelection(enemyId) {
+  state.tutorial.battleHintSeen = true;
   const index = state.selectedEnemyIds.indexOf(enemyId);
   if (index >= 0) {
     state.selectedEnemyIds.splice(index, 1);
@@ -6784,6 +7075,7 @@ function resetGame() {
   state.log = ["已重开。"];
   state.careerSummary = null;
   state.careerSummaryRequest = null;
+  state.tutorial = { ...defaultTutorialState };
   resetBattleSpecial();
   clearEnemyCardMotion();
   applyFloorShield();
@@ -8051,7 +8343,7 @@ function render() {
     ? defeated || !selectedBossReward
     : state.gameClear
       ? false
-      : defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer) || !canStartBattle;
+      : defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer);
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
   els.attackBtn.setAttribute("aria-label", state.gameClear ? "查看生涯总结" : bossRewardPending ? "确认奖励牌" : "开始战斗");
   els.battleSpeedBtn.hidden = bossRewardPending || state.gameClear;
@@ -8135,6 +8427,7 @@ function renderEnemyField() {
     const isSingleBossCard = isBossRewardFloor(state.floor) && state.enemies.length === 1;
     button.className = `enemy-card enemy-select-card${isSingleBossCard ? " is-single-boss" : ""}${isSelected ? " is-selected" : ""}${state.activeEnemyIds?.includes(enemy.id) ? " is-active" : ""}${isLocked ? " is-locked" : ""}${isDefeated ? " is-defeated" : ""}${shouldFlipIn ? " is-entering" : ""}${isFaceDown ? " is-face-down" : ""}${isFlippingDown ? " is-flipping-down" : ""}${isHit ? " is-hit" : ""}`;
     button.type = "button";
+    button.dataset.enemyId = enemy.id;
     if (shouldFlipIn) {
       button.style.setProperty("--flip-delay", `${Math.min(2, index) * 80}ms`);
       button.addEventListener("animationend", () => button.classList.remove("is-entering"), { once: true });
@@ -8155,8 +8448,14 @@ function renderEnemyField() {
     const imageUrl = getMonsterImageUrl(enemy.typeKey);
     const dropText = formatEnemyFilmDrop(enemy);
     const displayStats = getMonsterDisplayStats(enemy, state.activeEnemyIds.includes(enemy.id) ? state.activeEnemyIds : [enemy.id]);
+    const isBossEnemyCard = isBossRewardFloor(state.floor) && !enemy.summoned && bossMonsterKeys.has(enemy.typeKey);
+    if (isBossEnemyCard) {
+      button.classList.add(isRewardBossFloor(state.floor) ? "is-reward-boss" : "is-gate-boss");
+      button.dataset.bossKind = isRewardBossFloor(state.floor) ? "奖励强敌" : "封门Boss";
+    }
     button.innerHTML = `
       ${selectionOrder ? `<span class="selection-badge">${selectionOrder}</span>` : ""}
+      ${isBossEnemyCard ? `<span class="boss-kind-badge">${isRewardBossFloor(state.floor) ? "奖励强敌" : "封门Boss"}</span>` : ""}
       <div class="enemy-card-head">
         <div class="monster-portrait">
           <img src="${imageUrl}" alt="${escapeHtml(enemy.typeName)}">
@@ -8452,7 +8751,8 @@ function renderEquipmentGrid() {
     const button = document.createElement("button");
     const isSelected = i === selectedSlotIndex;
     const qualityKey = item ? getItemQualityKey(item) : "empty";
-    button.className = `equipment-slot quality-${qualityKey}${item ? " has-item" : ""}${isSelected ? " is-selected" : ""}${selectionLocked ? " is-locked" : ""}`;
+    const tutorialFocus = !item && isSelected && shouldShowFirstPhotoHint();
+    button.className = `equipment-slot quality-${qualityKey}${item ? " has-item" : ""}${isSelected ? " is-selected" : ""}${tutorialFocus ? " is-tutorial-focus" : ""}${selectionLocked ? " is-locked" : ""}`;
     button.type = "button";
     button.disabled = selectionLocked;
     button.setAttribute("aria-label", item ? `选择${item.itemName}` : `选择空装备格${i + 1}`);
@@ -8579,7 +8879,7 @@ function renderEquipmentDetail() {
     els.analyzePhotoBtn.textContent = analyzing ? "取消鉴定" : "鉴定";
     els.analyzePhotoBtn.setAttribute("aria-label", analyzing ? "取消鉴定" : "鉴定照片");
     els.analyzePhotoBtn.classList.toggle("is-cancel", analyzing);
-    els.analyzePhotoBtn.disabled = analyzing ? false : state.cropMode || locked || Boolean(els.loadingState.textContent) || state.filmRolls < 1 || Boolean(apiHint);
+    els.analyzePhotoBtn.disabled = analyzing ? false : state.cropMode || locked || Boolean(els.loadingState.textContent) || state.filmRolls < 1;
     if (!analyzing && (state.cropMode || state.pendingCropRect)) {
       els.savePhotoBtn.hidden = false;
       els.savePhotoBtn.disabled = false;
@@ -8615,6 +8915,7 @@ function renderEquipmentDetail() {
 
   if (!selected) {
     const apiHint = getPhotoApiConfigHint();
+    const firstPhotoHint = !state.tutorial.photoStarted && state.filmRolls >= 1 && !locked && !state.gameClear;
     els.equipmentDetailName.textContent = "空装备格";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
@@ -8626,8 +8927,8 @@ function renderEquipmentDetail() {
         : state.bossReward
           ? "先确认一张 Boss 奖励牌。"
           : "战斗中不能拍照鉴定。"
-      : apiHint
-        ? apiHint
+      : firstPhotoHint
+        ? "先拍一件身边的小物品。"
       : state.filmRolls >= 1
         ? "拍下身边物品，鉴定成照片装备。"
         : "胶卷不足，先击败怪物攒到新的拍照机会。";
@@ -8726,9 +9027,7 @@ function renderCareerSummaryPanel() {
 function renderCareerSummaryCard(summary, snapshot) {
   const statusText = getCareerSummaryStatusText(summary);
   const parsedSummary = getCareerSummaryParagraphs(summary);
-  const topItems = snapshot.topItems.length
-    ? snapshot.topItems.slice(0, 4).map((item) => `<li><span>${escapeHtml(item.quality)} · ${escapeHtml(item.name)}</span><b>${item.score}</b></li>`).join("")
-    : "<li>没有照片装备记录</li>";
+  const topItems = renderCareerEquipmentGallery(snapshot);
   const paragraphs = parsedSummary.paragraphs
     .slice(0, 4)
     .map((line) => `<p>${escapeHtml(line)}</p>`)
@@ -8753,6 +9052,22 @@ function renderCareerSummaryCard(summary, snapshot) {
       ${note}
     </section>
   `;
+}
+
+function renderCareerEquipmentGallery(snapshot) {
+  const items = (snapshot.allItems || snapshot.topItems || []).slice(0, equipmentVisibleSlots);
+  if (!items.length) return `<li class="career-item-empty">没有照片装备记录</li>`;
+  return items.map((item) => {
+    const qualityKey = item.qualityKey || getItemQuality(item.score || 0).key;
+    const image = item.image || makePlaceholderImage();
+    return `
+      <li class="career-item-card quality-${escapeHtml(qualityKey)}">
+        <span class="career-item-image"><img src="${escapeHtml(image)}" alt=""></span>
+        <span class="career-item-name">${escapeHtml(item.name)}</span>
+        <b>${escapeHtml(item.quality)} ${item.score || 0}</b>
+      </li>
+    `;
+  }).join("");
 }
 
 function getCareerSummaryStatusText(summary) {
@@ -8928,32 +9243,32 @@ function makeSettledItemDescription(item) {
   const effects = getItemSpecialKeys(item || {});
   const identityText = `${item?.itemName || ""} ${item?.subjectName || ""} ${item?.objectType || ""} ${item?.identityDescription || ""} ${normalizeStringList(item?.tags).join(" ")}`;
   if (isLowRealityToyOrMascotImageText(identityText, item?.photoQuality || {}) || isToyMascotSemanticText(identityText)) {
-    if (stats.defense > 0 || stats.shield > 0) return `${name}在照片里显得结实可靠，适合撑住一点攻势。`;
-    if (stats.hp > 0 || stats.regen > 0) return `${name}带着轻松的玩具感，适合给勇者添一点耐久和缓冲。`;
-    if (stats.attack > 0) return `${name}有醒目的轮廓和施力感，能把照片里的棱角带进战斗。`;
-    return `${name}被收进装备格，只留下轻微助力。`;
+    if (stats.defense > 0 || stats.shield > 0) return `塔把${name}记成一枚守门小印，外表轻巧，却能替勇者稳住最先落下的攻势。`;
+    if (stats.hp > 0 || stats.regen > 0) return `${name}被塔灯照出柔和余温，像一只随身护符，把疲惫慢慢收回掌心。`;
+    if (stats.attack > 0) return `${name}的轮廓被塔影磨亮，原本玩笑般的棱角也能在战斗里划开空隙。`;
+    return `${name}被塔收作一件小小纪念，力量不张扬，却仍愿意跟着勇者上楼。`;
   }
-  if (effects.includes("doubleStrikeSpeedDown")) return `${name}让动作变重，却能把每次进攻拆成更密的连击。`;
-  if (effects.includes("shieldCrashAttackDown")) return `${name}把护盾压到锋线上，出手时顺带撞出一段额外伤害。`;
-  if (effects.includes("sweep")) return `${name}适合横着扫开战线，主目标受创时会把余劲甩向旁边。`;
-  if (effects.includes("peerless")) return `${name}越战越勇，击败敌人后会在本场战斗里抬高攻防。`;
-  if (effects.includes("dealDamageAttack")) return `${name}越打越顺手，每次进攻都会临时磨出更高攻击。`;
-  if (effects.includes("takeDamageDefense")) return `${name}挨打后更稳，每次受击都会临时堆起防御。`;
-  if (effects.includes("killMaxHp")) return `${name}会把击败的余温存进生命上限。`;
-  if (effects.includes("killHpBoost")) return `${name}适合边打边补，每次击败怪物都会回复生命。`;
-  if (stats.attack > 0 && stats.lifesteal > 0) return `${name}又利又贪，既能破开敌人，也能从进攻里追回生命。`;
-  if (stats.attack > 0 && stats.speed > 0) return `${name}拿在手里很顺，出手更快，也更容易打出伤害。`;
-  if (stats.defense > 0 && stats.shield > 0) return `${name}像一块临时护板，先挡住冲击，再稳住防线。`;
-  if (stats.hp > 0 && stats.regen > 0) return `${name}带着补给感，会让上限更厚，也让挨打后更容易缓过来。`;
-  if (stats.speed > 0) return `${name}带着风和惯性，适合抢在怪物前面行动。`;
-  if (stats.attack > 0) return `${name}有明显的施力感，适合把照片里的棱角变成攻击。`;
-  if (stats.defense > 0) return `${name}结实可靠，可以把一部分伤害硬接下来。`;
-  if (stats.shield > 0) return `${name}像临时举起的遮挡物，每场战斗开始时先撑起护盾。`;
-  if (stats.lifesteal > 0) return `${name}带一点尖锐的掠夺感，进攻时能吸回生命。`;
-  if (stats.regen > 0) return `${name}有补能和修复的味道，被打后能慢慢把生命拉回来。`;
-  if (stats.hp > 0) return `${name}让勇者更耐打，也会把生命上限撑得更高。`;
+  if (effects.includes("doubleStrikeSpeedDown")) return `塔把${name}压得沉重，却也把每一次进攻折成连续回声，慢一步，换来更密的出手。`;
+  if (effects.includes("shieldCrashAttackDown")) return `${name}把护盾推到锋线前端，勇者出手时，盾面的旧光也会一起撞向敌人。`;
+  if (effects.includes("sweep")) return `${name}被塔赋予横扫的名义，主目标被击中时，余劲会沿着阵列甩向左右。`;
+  if (effects.includes("peerless")) return `${name}像一枚胜利刻痕，敌人倒下时，它会把本场战斗的攻防再往上推。`;
+  if (effects.includes("dealDamageAttack")) return `${name}越用越顺，塔纹会在每次进攻后加深，让下一次出手更狠。`;
+  if (effects.includes("takeDamageDefense")) return `${name}挨过撞击后会变得更硬，像把每次受击都铆进了临时甲片。`;
+  if (effects.includes("killMaxHp")) return `${name}会收起倒下怪物留下的热气，把它们一点点写进生命上限。`;
+  if (effects.includes("killHpBoost")) return `${name}懂得在胜利后回收余温，敌人倒下时，会替勇者补上一口气。`;
+  if (stats.attack > 0 && stats.lifesteal > 0) return `塔把${name}认作一件贪利兵器，既能撕开敌人的影子，也能从进攻里追回生命。`;
+  if (stats.attack > 0 && stats.speed > 0) return `${name}在掌心里变得顺手，塔风绕着它走，让勇者更快把力量送出去。`;
+  if (stats.defense > 0 && stats.shield > 0) return `${name}被塔影镀成临时护板，先挡住冲击，再替勇者稳住防线。`;
+  if (stats.hp > 0 && stats.regen > 0) return `${name}像从现实带进塔里的补给符，能扩宽生命，也能把挨打后的余痛慢慢压下。`;
+  if (stats.speed > 0) return `${name}沾上了楼梯间的风声，带着勇者抢在怪物节拍之前行动。`;
+  if (stats.attack > 0) return `塔把${name}的棱角磨成可用的锋面，原本普通的物件也能在出手时留下伤口。`;
+  if (stats.defense > 0) return `${name}被塔墙承认了硬度，贴身带着时，落下来的伤害会先被它挡去一截。`;
+  if (stats.shield > 0) return `${name}像被塔临时封成一面小盾，每场战斗开始时都会先亮起一层护光。`;
+  if (stats.lifesteal > 0) return `${name}带着一点不讲理的夺回感，勇者进攻后，会从攻势里抽回生命。`;
+  if (stats.regen > 0) return `${name}藏着修补的意味，被攻击后，塔会借它把生命缓缓拉回。`;
+  if (stats.hp > 0) return `${name}被塔写成一枚耐久符，把勇者能承受的极限往上垫高。`;
   if (item?.tooLarge) return "主体太大，照片只能留下回忆，不能塞进装备格。";
-  return `${name}被收进装备格，等待下一次战斗证明它的用处。`;
+  return `${name}被塔收进装备格，像一件刚醒来的奇物，等待下一场战斗给它命名。`;
 }
 
 function isGenericItemDescription(text) {
@@ -9037,7 +9352,7 @@ function renderLog() {
     entries.push({
       id: "current",
       type: "current",
-    summary: `正在对战${state.currentBattle.monsterName}`,
+      summary: `正在对战${state.currentBattle.monsterName}`,
       details: state.currentBattle.details,
       expanded: true,
     });
@@ -9178,6 +9493,7 @@ function renderGameTextOnly() {
     floor: state.floor,
     maxFloor,
     gameClear: Boolean(state.gameClear),
+    tutorial: { ...state.tutorial },
     enemies: state.enemies.map((enemy, index) => ({
       index,
       id: enemy.id,
@@ -9351,6 +9667,7 @@ function saveGame() {
     battleSpecial: state.battleSpecial,
     careerSummary: state.careerSummary,
     inventory: state.inventory,
+    tutorial: state.tutorial,
     selectedSlotIndex: state.selectedSlotIndex,
     pendingPhotoSlotIndex: state.pendingPhotoSlotIndex,
     selectedItemId: state.selectedItemId,
@@ -9411,6 +9728,7 @@ function loadSave() {
   state.currentBattle = normalizeCurrentBattle(save.currentBattle);
   state.battleSnapshot = state.currentBattle ? normalizeBattleSnapshot(save.battleSnapshot) : null;
   state.careerSummary = normalizeCareerSummary(save.careerSummary);
+  state.tutorial = normalizeTutorialState(save.tutorial);
   state.infoMode = save.infoMode === "career" && state.careerSummary ? "career" : save.infoMode === "log" ? "log" : "item";
   state.battleClock = normalizeBattleClock(save.battleClock);
   state.battleSpecial = state.currentBattle ? normalizeBattleSpecial(save.battleSpecial) : createDefaultBattleSpecial();
@@ -9708,6 +10026,12 @@ window.__photoHeroTestHooks = {
     saveGame();
     render();
   },
+  makeCareerSummaryImageForTest() {
+    const summary = state.careerSummary || buildLocalCareerSummary();
+    const snapshot = summary.snapshot || buildCareerSnapshot();
+    return makeCareerSummaryImage(summary, snapshot);
+  },
+  makeBattleSummary,
   addRawItem(input) {
     const item = {
       ...balanceItem({ ...(input || {}), photoKey: input?.photoKey || pendingDuplicatePhotoKey, skipSpecialRoll: input?.skipSpecialRoll ?? true }, input?.image || makePlaceholderImage()),
@@ -9731,6 +10055,14 @@ window.__photoHeroTestHooks = {
   getBgmEvents() {
     return state.bgmEvents.slice();
   },
+  getBgmPreloadStateForTest() {
+    return {
+      started: bgmPreloadStarted,
+      keys: Object.keys(bgmAudioCache),
+      order: [...bgmPreloadOrder],
+      loadedCount: Object.keys(bgmAudioCache).length,
+    };
+  },
   clearAudioEvents() {
     state.audioEvents = [];
     state.bgmEvents = [];
@@ -9741,6 +10073,11 @@ window.__photoHeroTestHooks = {
     renderAudioSettings();
     pauseOrResumeBgm();
     saveConfig(false);
+  },
+  getEffectiveAudioGainForTest(key = "", kind = "sfx") {
+    if (kind === "bgm") return getEffectiveBgmGain();
+    const effect = soundEffects[key] || { volume: 1 };
+    return getEffectiveSfxGain(effect.volume);
   },
   setHeroStats(next) {
     Object.assign(state.player, next || {});
@@ -9876,6 +10213,7 @@ window.__photoHeroTestHooks = {
   beginBattle,
   monsterTypes,
   state,
+  render,
   selectEnemies(ids) {
     state.selectedEnemyIds = Array.isArray(ids) ? ids : [];
     saveGame();

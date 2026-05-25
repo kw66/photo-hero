@@ -311,6 +311,25 @@ h3 {
   color: var(--muted);
 }
 
+.music-button {
+  min-width: 40px;
+  padding-inline: 0;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.config-intro {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--hero) 24%, var(--line));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--hero-soft) 66%, white 34%);
+  color: color-mix(in srgb, var(--ink) 84%, var(--hero));
+  font-size: 0.8rem;
+  font-weight: 760;
+  line-height: 1.5;
+}
+
 .primary-button {
   border-color: color-mix(in srgb, var(--ink) 78%, var(--line-strong));
   background:
@@ -851,6 +870,25 @@ dd {
     0 0 0 3px color-mix(in srgb, var(--slot-glow, var(--hero)) 54%, transparent),
     0 0 14px color-mix(in srgb, var(--slot-glow, var(--hero)) 50%, transparent),
     inset 0 0 0 1px white;
+}
+
+.equipment-slot.is-tutorial-focus {
+  animation: slotGuidePulse 1.35s ease-in-out infinite;
+}
+
+@keyframes slotGuidePulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 3px rgb(255 250 240 / 86%),
+      0 0 12px rgb(198 123 30 / 26%),
+      inset 0 0 0 1px white;
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgb(246 178 59 / 78%),
+      0 0 20px rgb(198 123 30 / 42%),
+      inset 0 0 0 1px white;
+  }
 }
 
 .equipment-slot.is-locked {
@@ -1532,7 +1570,8 @@ dd {
 
 .career-card-items {
   display: grid;
-  gap: 4px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1540,15 +1579,18 @@ dd {
 
 .career-card-items li {
   min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 7px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--slot-border, color-mix(in srgb, var(--hero) 26%, var(--line)));
   border-radius: 6px;
-  background: color-mix(in srgb, var(--amber-soft) 42%, white 58%);
+  background: var(--slot-bg, color-mix(in srgb, var(--amber-soft) 42%, white 58%));
   font-size: 0.68rem;
   font-weight: 900;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 64%),
+    0 1px 0 rgb(23 19 15 / 10%);
 }
 
 .career-card-items li span {
@@ -1559,7 +1601,64 @@ dd {
 }
 
 .career-card-items li b {
-  flex: 0 0 auto;
+  color: var(--slot-border, var(--hero));
+  font-size: 0.58rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.career-item-card.quality-common {
+  --slot-border: #b8b4aa;
+  --slot-bg: linear-gradient(180deg, #fffefa, #ebe7de);
+  --quality-text: #ddd8cc;
+}
+
+.career-item-card.quality-rare {
+  --slot-border: #4f8fd6;
+  --slot-bg: linear-gradient(180deg, #eff8ff, #d7eafe);
+  --quality-text: #75b8ff;
+}
+
+.career-item-card.quality-epic {
+  --slot-border: #8b5fce;
+  --slot-bg: linear-gradient(180deg, #f8f1ff, #e8d9ff);
+  --quality-text: #caa7ff;
+}
+
+.career-item-card.quality-legendary {
+  --slot-border: #d98520;
+  --slot-bg: linear-gradient(180deg, #fff6df, #f7cf82);
+  --quality-text: #ffc35a;
+}
+
+.career-item-image {
+  aspect-ratio: 1 / 0.78;
+  display: block;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #fffdf8;
+}
+
+.career-item-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.career-item-name {
+  color: var(--quality-text, var(--ink));
+  font-size: 0.58rem;
+  font-weight: 950;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.career-item-empty {
+  grid-column: 1 / -1;
+  display: block;
+  padding: 8px;
+  text-align: center;
 }
 
 .career-card small {
@@ -1810,6 +1909,49 @@ dd {
   grid-column: 1 / -1;
   justify-self: stretch;
   width: 100%;
+}
+
+.enemy-card.is-gate-boss,
+.enemy-card.is-reward-boss {
+  --boss-accent: var(--enemy);
+  border-color: color-mix(in srgb, var(--boss-accent) 64%, var(--ink));
+  background:
+    linear-gradient(180deg, rgb(255 253 248 / 90%), color-mix(in srgb, var(--boss-accent) 12%, #fff0dc 88%)),
+    var(--paper);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 78%),
+    0 0 0 2px color-mix(in srgb, var(--boss-accent) 18%, transparent),
+    0 8px 18px color-mix(in srgb, var(--boss-accent) 16%, transparent);
+}
+
+.enemy-card.is-reward-boss {
+  --boss-accent: var(--amber);
+}
+
+.boss-kind-badge {
+  position: absolute;
+  left: 7px;
+  top: 7px;
+  z-index: 2;
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--boss-accent, var(--enemy)) 58%, var(--ink));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--boss-accent, var(--enemy)) 84%, #fffaf0 16%);
+  color: #fffaf0;
+  font-size: 0.58rem;
+  font-weight: 950;
+  line-height: 1;
+  box-shadow: 0 1px 0 rgb(23 19 15 / 22%);
+}
+
+.enemy-card.is-gate-boss .enemy-card-head,
+.enemy-card.is-reward-boss .enemy-card-head {
+  padding-top: 15px;
+}
+
+.enemy-card.is-gate-boss .selection-badge,
+.enemy-card.is-reward-boss .selection-badge {
+  z-index: 3;
 }
 
 .clear-card {
@@ -2411,8 +2553,60 @@ dd {
 }
 
 .sound-slider-row input {
+  --slider-fill: 0%;
   width: 100%;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  box-sizing: border-box;
   accent-color: var(--hero);
+  appearance: none;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, var(--hero) 0 var(--slider-fill), color-mix(in srgb, var(--paper-2) 72%, white 28%) var(--slider-fill) 100%);
+  box-shadow:
+    inset 0 1px 2px rgb(23 19 15 / 18%),
+    0 1px 0 rgb(255 255 255 / 72%);
+  cursor: pointer;
+}
+
+.sound-slider-row input::-webkit-slider-runnable-track {
+  height: 20px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.sound-slider-row input::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -1px;
+  border: 2px solid color-mix(in srgb, var(--hero) 70%, black 30%);
+  border-radius: 50%;
+  background: #fffaf0;
+  box-shadow: 0 2px 0 rgb(23 19 15 / 22%);
+}
+
+.sound-slider-row input::-moz-range-track {
+  height: 20px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.sound-slider-row input::-moz-range-progress {
+  height: 20px;
+  border-radius: 999px;
+  background: var(--hero);
+}
+
+.sound-slider-row input::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid color-mix(in srgb, var(--hero) 70%, black 30%);
+  border-radius: 50%;
+  background: #fffaf0;
+  box-shadow: 0 2px 0 rgb(23 19 15 / 22%);
 }
 
 .sound-slider-row strong {
@@ -3166,13 +3360,16 @@ textarea {
   }
 
   .career-card-items li {
-    padding: 3px 6px;
+    padding: 2px;
     font-size: 0.62rem;
   }
 
-  .career-card-items li {
-    padding: 3px 5px;
-    font-size: 0.62rem;
+  .career-item-name {
+    font-size: 0.52rem;
+  }
+
+  .career-card-items li b {
+    font-size: 0.5rem;
   }
 
   .detail-stats span {
@@ -3512,6 +3709,18 @@ textarea {
     gap: 4px;
     padding: 6px;
     border-width: 1px;
+  }
+
+  .boss-kind-badge {
+    left: 5px;
+    top: 5px;
+    padding: 1px 4px;
+    font-size: 0.5rem;
+  }
+
+  .enemy-card.is-gate-boss .enemy-card-head,
+  .enemy-card.is-reward-boss .enemy-card-head {
+    padding-top: 12px;
   }
 
   .clear-card {

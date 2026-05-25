@@ -15,8 +15,8 @@
               <h2>照片勇者</h2>
               <div class="panel-tools" aria-label="面板工具">
                 <button class="tool-button info-button" id="infoToggleBtn" type="button" data-panel-target="info" aria-pressed="false">游戏信息</button>
-                <button class="tool-button music-button" id="musicToggleBtn" type="button" data-panel-target="music" aria-pressed="false">音乐</button>
-                <button class="tool-button api-config-button" id="configToggleBtn" type="button" data-panel-target="config" data-state="missing" aria-pressed="false">鉴定台 <span class="api-state-icon" aria-hidden="true"></span></button>
+                <button class="tool-button music-button" id="musicToggleBtn" type="button" data-panel-target="music" aria-pressed="false" aria-label="音乐设置" title="音乐设置">♪</button>
+                <button class="tool-button api-config-button" id="configToggleBtn" type="button" data-panel-target="config" data-state="missing" aria-pressed="false">鉴定 <span class="api-state-icon" aria-hidden="true"></span></button>
                 <button class="ghost-button" id="resetGameBtn" type="button">重开</button>
               </div>
             </div>
@@ -103,7 +103,7 @@
                           </div>
                           <div class="project-social-card">
                             <p><a href="https://github.com/kw66/photo-hero" target="_blank" rel="noreferrer"><span>项目地址</span><em>（求个star⭐）</em></a></p>
-                            <p><a href="http://xhslink.com/o/CZFSiD3gdh" target="_blank" rel="noreferrer"><span>小红书交流帖</span><em>（求点赞❤️）</em></a></p>
+                            <p><a href="http://xhslink.com/o/17XFWimxM94" target="_blank" rel="noreferrer"><span>小红书交流帖</span><em>（求点赞❤️）</em></a></p>
                           </div>
                         </div>
                         <div class="group-qr" aria-label="小红书交流群二维码">
@@ -138,8 +138,8 @@
                         <p>影像工坊更相信真实镜头：桌面道具、手边物品、奇怪摆件都会被认真鉴定。屏幕里的图、远处风景和巨大场景只会留下很弱的影子；卡片、屏幕和贴纸会按它们本身唤醒。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>点亮鉴定台</h3>
-                        <p>API Key、地址和模型名只保存在你的浏览器。照片会先压缩，再交给你选择的图文模型鉴定；接口能在网页里直接工作，鉴定台才会亮起。</p>
+                        <h3>点亮鉴定</h3>
+                        <p>API Key、地址和模型名只保存在你的浏览器。照片会先压缩，再交给你选择的图文模型鉴定；接口能在网页里直接工作，鉴定才会亮起。</p>
                       </article>
                     </div>
                   </div>
@@ -219,13 +219,15 @@
                 <p class="sound-now-playing" id="nowPlayingText">正在播放：塔内回声</p>
               </section>
 
-              <section class="config-panel secondary-content" data-secondary-panel="config" aria-label="鉴定台配置">
+              <section class="config-panel secondary-content" data-secondary-panel="config" aria-label="鉴定配置">
                 <div class="secondary-head">
                   <div>
-                    <h2>鉴定台</h2>
+                    <h2>鉴定</h2>
                   </div>
                   <button class="ghost-button" type="button" data-panel-target="none">收起</button>
                 </div>
+
+                <p class="config-intro">照片装备需要图文大模型 API 才能鉴定。填写服务商的 API Base URL、API Key 和模型名后，游戏会把压缩后的照片交给模型识别；Key 只保存在你的本地浏览器。</p>
 
                 <div class="preset-row" aria-label="模型预设">
                   <button class="preset-button" type="button" data-preset="siliconflow">硅基流动</button>

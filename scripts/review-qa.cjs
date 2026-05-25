@@ -58,6 +58,13 @@ async function collectScenario(page, name, action = async () => {}) {
       statLabels: Array.from(document.querySelectorAll(".global-stat span")).map((node) => node.textContent.trim()),
       formEconomy: window.__reviewFormEconomy || null,
       mobileSaveFallback: window.__reviewMobileSaveFallback || null,
+      onboarding: window.__reviewOnboarding || null,
+      careerGallery: window.__reviewCareerGallery || null,
+      bossCeremony: window.__reviewBossCeremony || null,
+      itemStory: window.__reviewItemStory || null,
+      soundEffects: window.__reviewSoundEffects || null,
+      audioControls: window.__reviewAudioControls || null,
+      bgmPreload: window.__reviewBgmPreload || null,
       monsterDistribution: window.__reviewMonsterDistribution || null,
       bossFilmDrops: window.__reviewBossFilmDrops || null,
       cropAppraisal: window.__reviewCropAppraisal || null,
@@ -108,8 +115,16 @@ function assertScenario(name, metrics) {
   if (name === "mobile-fresh") {
     if (!metrics.visibleButtons.includes("选择怪物")) failures.push(`${name}: missing disabled 选择怪物 state`);
     if (!metrics.visibleButtons.includes("绕过")) failures.push(`${name}: missing non-boss bypass button`);
-    if (!/鉴定台/.test(metrics.detailText)) failures.push(`${name}: empty appraisal panel should prompt appraisal bench configuration`);
+    if (!/先拍一件身边的小物品/.test(metrics.detailText)) failures.push(`${name}: first empty slot should guide photo first`);
     if (/价值范围/.test(metrics.detailText)) failures.push(`${name}: exposes raw value range in empty state`);
+  }
+  if (name === "onboarding") {
+    const result = metrics.onboarding || {};
+    if (!result.firstPhotoHint) failures.push(`${name}: missing first photo hint`);
+    if (!result.focusedEmptySlot) failures.push(`${name}: empty equipment slot should be highlighted`);
+    if (!result.apiHintAfterPhotoClick) failures.push(`${name}: missing appraisal bench hint after photo click without API`);
+    if (!result.battleHintAfterAttack) failures.push(`${name}: missing battle selection hint after attack click`);
+    if (!result.postKillHint) failures.push(`${name}: missing post-kill film hint`);
   }
   if (name === "mobile-flee") {
     if (metrics.state.floor !== 2) failures.push(`${name}: bypass should advance to floor 2`);
@@ -147,12 +162,53 @@ function assertScenario(name, metrics) {
     if (!/黑伞旧闻/.test(metrics.detailText)) failures.push(`${name}: cleaned career title should remain visible`);
     if (!/塔史记名装备/.test(metrics.detailText)) failures.push(`${name}: career card should use tower-history equipment copy`);
   }
+  if (name === "career-gallery") {
+    const gallery = metrics.careerGallery || {};
+    if (gallery.itemCards !== 10) failures.push(`${name}: career summary should show 10 equipment cards, got ${gallery.itemCards}`);
+    if (gallery.imageCards !== 10) failures.push(`${name}: career summary equipment cards should show images, got ${gallery.imageCards}`);
+    if (gallery.canvasReady !== true) failures.push(`${name}: career share image should render with equipment gallery`);
+  }
+  if (name === "boss-ceremony") {
+    const boss = metrics.bossCeremony || {};
+    if (!boss.gateNarrative) failures.push(`${name}: gate boss narrative should be ceremonial`);
+    if (!boss.rewardNarrative) failures.push(`${name}: reward boss narrative should emphasize optional greed`);
+    if (!boss.gateBadge) failures.push(`${name}: gate boss card should show gate badge`);
+    if (!boss.rewardBadge) failures.push(`${name}: reward boss card should show reward badge`);
+    if (!boss.gateSummary) failures.push(`${name}: gate boss victory summary should be dedicated`);
+    if (!boss.rewardSummary) failures.push(`${name}: reward boss victory summary should be dedicated`);
+  }
+  if (name === "item-story") {
+    const story = metrics.itemStory || {};
+    if (!story.hasTowerMeaning) failures.push(`${name}: generated item descriptions should feel tower/story themed`);
+    if (story.hasRawStatPromise) failures.push(`${name}: generated item descriptions should not expose raw stat promises`);
+  }
   if (name === "mobile-save-fallback") {
     const result = metrics.mobileSaveFallback || {};
     if (result.saveResult !== "viewer") failures.push(`${name}: mobile save should fall back to image viewer, got ${result.saveResult}`);
     if (!result.viewerOpen) failures.push(`${name}: save fallback should open image viewer`);
     if (!result.captionHasHint) failures.push(`${name}: save fallback should show long-press hint`);
     if (!result.viewerKeepsImageOnTap) failures.push(`${name}: tapping the image should not close the save fallback viewer`);
+  }
+  if (name === "sound-effects") {
+    const se = metrics.soundEffects || {};
+    const controls = metrics.audioControls || {};
+    const preload = metrics.bgmPreload || {};
+    if (se.appraisalSuccess !== 1) failures.push(`${name}: appraisal should fire one success sound, got ${se.appraisalSuccess}`);
+    if (se.dismantle !== 1) failures.push(`${name}: dismantle should fire one sound, got ${se.dismantle}`);
+    if (se.nextFloor !== 1) failures.push(`${name}: floor advance should fire one sound, got ${se.nextFloor}`);
+    if (se.repeatedEnemyHits !== 2) failures.push(`${name}: repeated enemy hits during animation should fire two battle sounds, got ${se.repeatedEnemyHits}`);
+    if (se.repeatedHeroHits !== 2) failures.push(`${name}: repeated hero hits during animation should fire two battle sounds, got ${se.repeatedHeroHits}`);
+    if (se.sweepBattleHits !== 3) failures.push(`${name}: sweep should fire one battle sound per animated hit card, got ${se.sweepBattleHits}`);
+    if (se.sweepEnemyHitCount !== 3) failures.push(`${name}: sweep should animate all three physically hit cards, got ${se.sweepEnemyHitCount}`);
+    if (se.heroHitActive !== true || se.enemyHitActive !== true) failures.push(`${name}: hit animation state should remain active after sound checks, got ${JSON.stringify({ hero: se.heroHitActive, enemy: se.enemyHitActive })}`);
+    if (controls.sfxFill !== "100%" || controls.bgmFill !== "100%") failures.push(`${name}: 100% sliders should fill to the end, got ${JSON.stringify(controls)}`);
+    if (controls.sfxZeroFill !== "0%" || controls.bgmZeroFill !== "0%") failures.push(`${name}: 0% sliders should empty to the start, got ${JSON.stringify(controls)}`);
+    if (controls.sliderPaddingLeft !== "0px" || controls.sliderPaddingRight !== "0px" || controls.sliderBorderLeft !== "0px" || controls.sliderBorderRight !== "0px") {
+      failures.push(`${name}: volume range inputs should not inherit global input padding/border, got ${JSON.stringify(controls)}`);
+    }
+    if (!controls.battleGainBoosted || !controls.bgmGainBoosted) failures.push(`${name}: audio gain should exceed old capped volume at 100%, got ${JSON.stringify(controls)}`);
+    if (!preload.started || (preload.loadedCount || 0) < 3) failures.push(`${name}: BGM should preload in order after audio unlock, got ${JSON.stringify(preload)}`);
+    if ((preload.keys || [])[0] !== "opening") failures.push(`${name}: BGM preload should start from opening track, got ${JSON.stringify(preload.keys)}`);
   }
   if (name === "monster-distribution") {
     const distribution = metrics.monsterDistribution || {};
@@ -339,7 +395,7 @@ function assertScenario(name, metrics) {
     if (!/小红书交流帖（求点赞❤️）/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing compact Xiaohongshu post copy`);
     if (/github\.com\/kw66\/photo-hero|打开帖子|小红书帖子（求点赞）/.test(metrics.groupQr.linksText || "")) failures.push(`${name}: author block still exposes old link text`);
     if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "项目地址（求个star⭐）" && link.href.includes("github.com/kw66/photo-hero"))) failures.push(`${name}: project label should link to GitHub`);
-    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "小红书交流帖（求点赞❤️）" && link.href.includes("xhslink.com/o/CZFSiD3gdh"))) failures.push(`${name}: Xiaohongshu label should link to post`);
+    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "小红书交流帖（求点赞❤️）" && link.href.includes("xhslink.com/o/17XFWimxM94"))) failures.push(`${name}: Xiaohongshu label should link to post`);
     if (!metrics.groupQr.rightSide) failures.push(`${name}: Xiaohongshu QR should sit on the right side of author block`);
     if (metrics.statCardCount !== 7) failures.push(`${name}: expected 7 global stat cards, got ${metrics.statCardCount}`);
     if (metrics.todayStatCount !== 7) failures.push(`${name}: expected 7 today stat labels, got ${metrics.todayStatCount}`);
@@ -366,6 +422,17 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: mega speed pre-strike should trigger double strike/action effects before clock setup, got ${JSON.stringify(formChecks.speedPreStrike)}`);
     }
     if (formChecks.greedyDropBonus !== 0.1) failures.push(`${name}: mega greedy should keep film drop +0.1`);
+    const visibleLabels = formChecks.visibleFormLabels || {};
+    const visibleLabelList = [visibleLabels.header || "", ...(visibleLabels.cards || [])];
+    if (visibleLabels.header !== "\u8d85\u7ea7\u8d22\u8ff7") {
+      failures.push(`${name}: evolved hero label should use 超级 instead of mega, got ${visibleLabels.header}`);
+    }
+    if (!visibleLabelList.includes("\u8d85\u7ea7\u8d22\u8ff7")) {
+      failures.push(`${name}: form chooser should show 超级财迷 for evolved greedy form, got ${JSON.stringify(visibleLabelList)}`);
+    }
+    if (visibleLabelList.some((label) => /mega/i.test(label))) {
+      failures.push(`${name}: visible form labels should not contain mega, got ${JSON.stringify(visibleLabelList)}`);
+    }
     const expected = {
       "0.9": { atk: 4, def: 1, speed: 2 },
       "1.0": { atk: 5, def: 1, speed: 2 },
@@ -391,6 +458,52 @@ function assertScenario(name, metrics) {
   const scenarios = {};
   scenarios.mobileFresh = await collectScenario(mobile, "mobile-fresh");
   scenarios.desktopFresh = await collectScenario(desktop, "desktop-fresh");
+
+  scenarios.onboarding = await collectScenario(mobile, "onboarding", async (page) => {
+    await page.evaluate(() => {
+      window.__reviewOnboarding = {
+        firstPhotoHint: /先拍一件身边的小物品/.test(document.querySelector("#equipmentDetail")?.innerText || ""),
+        focusedEmptySlot: Boolean(document.querySelector(".equipment-slot.is-tutorial-focus")),
+      };
+    });
+    await page.click("#photoActionBtn");
+    await page.waitForFunction(() => /点亮鉴定/.test(document.querySelector("#equipmentDetail")?.innerText || ""), null, { timeout: 3000 });
+    await page.evaluate(() => {
+      window.__reviewOnboarding.apiHintAfterPhotoClick = /先点右上角鉴定，配置 API，点亮鉴定。/.test(document.querySelector("#equipmentDetail")?.innerText || "");
+    });
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.state.tutorial.photoStarted = true;
+      hooks.state.tutorial.battleHintSeen = false;
+      hooks.state.infoMode = "log";
+      hooks.render();
+    });
+    await page.click("#attackBtn");
+    await page.waitForFunction(() => /点一只怪，再点战斗/.test(document.querySelector("#equipmentDetail")?.innerText || ""), null, { timeout: 3000 });
+    await page.evaluate(() => {
+      window.__reviewOnboarding.battleHintAfterAttack = /点一只怪，再点战斗/.test(document.querySelector("#equipmentDetail")?.innerText || "");
+      const hooks = window.__photoHeroTestHooks;
+      hooks.setEnemies([{
+        id: "review-first-kill",
+        testEnemy: true,
+        typeKey: "slime",
+        typeName: "史莱姆",
+        name: "史莱姆",
+        maxHp: 1,
+        hp: 1,
+        atk: 0,
+        def: 0,
+        speed: 1,
+        traits: [],
+      }]);
+      hooks.selectEnemies(["review-first-kill"]);
+    });
+    await page.click("#attackBtn");
+    await page.waitForFunction(() => /胶卷攒够后，可以继续拍新装备/.test(document.querySelector("#equipmentDetail")?.innerText || ""), null, { timeout: 3000 });
+    await page.evaluate(() => {
+      window.__reviewOnboarding.postKillHint = /胶卷攒够后，可以继续拍新装备/.test(document.querySelector("#equipmentDetail")?.innerText || "");
+    });
+  });
 
   scenarios.mobileReward = await collectScenario(mobile, "mobile-reward", async (page) => {
     await page.evaluate(() => window.__photoHeroTestHooks.startBossRewardChoice(10));
@@ -500,6 +613,87 @@ function assertScenario(name, metrics) {
         title: "照片勇者生涯总结",
         text: "**标题：黑伞旧闻**\n\n**多年后**，塔里仍有人记得那把黑伞。\n\n1. 【通关】照片勇者击败16只怪物与8位Boss，把黑伞和纪念杯写进旧账。",
       });
+    });
+  });
+
+  scenarios.careerGallery = await collectScenario(desktop, "career-gallery", async (page) => {
+    await page.evaluate(async () => {
+      const hooks = window.__photoHeroTestHooks;
+      const makeImage = (index) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' fill='hsl(${index * 30},70%,84%)'/><circle cx='60' cy='56' r='30' fill='#245f9a'/><text x='60' y='104' text-anchor='middle' font-size='15' font-family='Arial' font-weight='700' fill='#17130f'>${index}</text></svg>`)}`;
+      for (let index = 0; index < 10; index += 1) {
+        hooks.addTestItem({
+          itemName: `旧物${index + 1}`,
+          image: makeImage(index + 1),
+          fullImage: makeImage(index + 1),
+          stats: { hp: index + 1 },
+          value: 5 + index,
+          description: `塔里记下的旧物${index + 1}。`,
+          skipSpecialRoll: true,
+        });
+      }
+      hooks.setCareerSummaryForTest({ status: "local" });
+      const image = await hooks.makeCareerSummaryImageForTest();
+      window.__reviewCareerGallery = {
+        itemCards: document.querySelectorAll(".career-item-card").length,
+        imageCards: document.querySelectorAll(".career-item-card img").length,
+        canvasReady: typeof image === "string" && image.startsWith("data:image/png"),
+      };
+    });
+  });
+
+  scenarios.bossCeremony = await collectScenario(desktop, "boss-ceremony", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.setFloor(10);
+      const gateText = JSON.parse(window.render_game_to_text()).battleReports.map((entry) => entry.summary).join("\\n");
+      const gateBadge = /封门Boss/.test(document.querySelector("#enemyField")?.innerText || "");
+      const gateSummary = hooks.makeBattleSummary("victory", {
+        floor: 10,
+        monsterName: "骷髅队长",
+        lootNames: ["胶卷 +0.3"],
+        endHp: 42,
+        endMaxHp: 80,
+      }, -6);
+      hooks.setFloor(25);
+      const rewardText = JSON.parse(window.render_game_to_text()).battleReports.map((entry) => entry.summary).join("\\n");
+      const rewardBadge = /奖励强敌/.test(document.querySelector("#enemyField")?.innerText || "");
+      const rewardSummary = hooks.makeBattleSummary("victory", {
+        floor: 25,
+        monsterName: "章鱼",
+        lootNames: ["胶卷 +0.3"],
+        endHp: 64,
+        endMaxHp: 90,
+      }, -3);
+      window.__reviewBossCeremony = {
+        gateNarrative: /封门|点名|登塔者/.test(gateText),
+        rewardNarrative: /绕过去|伸手去拿|付价/.test(rewardText),
+        gateBadge,
+        rewardBadge,
+        gateSummary: /封门石锁崩开|塔顶封印碎裂/.test(gateSummary),
+        rewardSummary: /贪心有了回响/.test(rewardSummary),
+      };
+    });
+  });
+
+  scenarios.itemStory = await collectScenario(desktop, "item-story", async (page) => {
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.addRawItem({
+        itemName: "旧剪刀",
+        subjectName: "旧剪刀",
+        objectType: "剪刀",
+        identityDescription: "银色金属旧剪刀，桌面实拍。",
+        image: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23f5ebd7'/%3E%3Cpath d='M34 30L92 88M92 30L34 88' stroke='%23245f9a' stroke-width='10'/%3E%3C/svg%3E",
+        stats: { attack: 2, lifesteal: 1 },
+        value: 18,
+        description: "物品。",
+        skipSpecialRoll: true,
+      });
+      const detailText = document.querySelector("#equipmentDetail")?.innerText || "";
+      window.__reviewItemStory = {
+        hasTowerMeaning: /塔|塔影|塔风|塔纹/.test(detailText),
+        hasRawStatPromise: /攻击\\+|防御\\+|生命上限\\+|速度\\+|吸血\\+|回复\\+|护盾\\+/.test(detailText),
+      };
     });
   });
 
@@ -723,7 +917,11 @@ function assertScenario(name, metrics) {
         const stats = hooks.getPlayerStats();
         greedyStatsByFilm[film.toFixed(1)] = { atk: stats.atk, def: stats.def, speed: stats.speed };
       }
-      window.__reviewFormEconomy = { shield, lifesteal, regenShield, hpKill, hpShared, hpSwitch, speedPreStrike, greedyDropBonus, greedyStatsByFilm };
+      const visibleFormLabels = {
+        header: document.querySelector("[data-form-label]")?.textContent.trim() || "",
+        cards: Array.from(document.querySelectorAll(".form-card-meta strong")).map((node) => node.textContent.trim()),
+      };
+      window.__reviewFormEconomy = { shield, lifesteal, regenShield, hpKill, hpShared, hpSwitch, speedPreStrike, greedyDropBonus, greedyStatsByFilm, visibleFormLabels };
     });
   });
 
@@ -1211,6 +1409,121 @@ function assertScenario(name, metrics) {
         viewerOpen: Boolean(viewer && !viewer.hidden),
         captionHasHint: /长按图片保存/.test(caption),
         viewerKeepsImageOnTap: Boolean(viewer && !viewer.hidden),
+      };
+    });
+  });
+
+  scenarios.soundEffects = await collectScenario(desktop, "sound-effects", async (page) => {
+    await page.evaluate(async () => {
+      const hooks = window.__photoHeroTestHooks;
+      const count = (key) => hooks.getAudioEvents().filter((event) => event.key === key).length;
+      hooks.setAudioSettings({ sfxEnabled: true, sfxVolume: 1, bgmEnabled: true, bgmVolume: 1 });
+      const sfxFill = document.querySelector("#sfxVolumeInput")?.style.getPropertyValue("--slider-fill") || "";
+      const bgmFill = document.querySelector("#bgmVolumeInput")?.style.getPropertyValue("--slider-fill") || "";
+      hooks.setAudioSettings({ sfxVolume: 0, bgmVolume: 0 });
+      const sfxZeroFill = document.querySelector("#sfxVolumeInput")?.style.getPropertyValue("--slider-fill") || "";
+      const bgmZeroFill = document.querySelector("#bgmVolumeInput")?.style.getPropertyValue("--slider-fill") || "";
+      const sliderStyle = getComputedStyle(document.querySelector("#sfxVolumeInput"));
+      hooks.setAudioSettings({ sfxEnabled: true, sfxVolume: 1, bgmEnabled: true, bgmVolume: 1 });
+      const battleGain = hooks.getEffectiveAudioGainForTest?.("battleHit", "sfx") || 0;
+      const bgmGain = hooks.getEffectiveAudioGainForTest?.("", "bgm") || 0;
+      window.__reviewAudioControls = {
+        sfxFill,
+        bgmFill,
+        sfxZeroFill,
+        bgmZeroFill,
+        sliderPaddingLeft: sliderStyle.paddingLeft,
+        sliderPaddingRight: sliderStyle.paddingRight,
+        sliderBorderLeft: sliderStyle.borderLeftWidth,
+        sliderBorderRight: sliderStyle.borderRightWidth,
+        battleGain,
+        bgmGain,
+        battleGainBoosted: battleGain > 0.58,
+        bgmGainBoosted: bgmGain > 1,
+      };
+      document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 360));
+      window.__reviewBgmPreload = hooks.getBgmPreloadStateForTest?.() || {};
+
+      hooks.clearAudioEvents();
+      hooks.addTestItem({
+        itemName: "音效测试石",
+        image: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23f5ebd7'/%3E%3Ccircle cx='60' cy='60' r='34' fill='%23245f9a'/%3E%3C/svg%3E",
+        stats: { hp: 2 },
+        value: 8,
+        description: "用于检查鉴定成功音效。",
+        skipSpecialRoll: true,
+      });
+      const appraisalSuccess = count("appraisalSuccess");
+
+      hooks.clearAudioEvents();
+      hooks.dismantleSelectedItemForTest();
+      const dismantle = count("dismantle");
+
+      hooks.clearAudioEvents();
+      hooks.setHeroStats({ hp: 80, shield: 3 });
+      hooks.setFloor(1);
+      hooks.state.selectedEnemyIds = [];
+      hooks.state.currentBattle = null;
+      hooks.state.activeEnemyIds = [];
+      hooks.state.battleClock = null;
+      hooks.state.autoBattleTimer = 0;
+      hooks.state.battleStartTimer = 0;
+      hooks.state.pendingFloorAdvance = false;
+      document.querySelector("#fleeBtn").click();
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      const nextFloor = count("nextFloor");
+
+      const setupBattle = (ids) => {
+        hooks.clearAudioEvents();
+        hooks.setHeroStats({ baseAtk: 30, baseDef: 0, baseSpeed: 2, hp: 80, shield: 3 });
+        hooks.setEnemies(ids.map((id, index) => ({
+          id,
+          testEnemy: true,
+          typeKey: "slime",
+          typeName: "史莱姆",
+          name: `史莱姆${index + 1}`,
+          maxHp: 200,
+          hp: 200,
+          atk: 4,
+          def: 0,
+          speed: 1,
+          traits: [],
+        })));
+        hooks.selectEnemies(ids);
+        hooks.beginBattle(hooks.state.enemies);
+      };
+
+      setupBattle(["se-target"]);
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
+      const repeatedEnemyHits = count("battleHit");
+      const enemyHitActive = Boolean(hooks.state.enemyHitEffectUntilById?.["se-target"]);
+
+      hooks.clearAudioEvents();
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(hooks.state.activeEnemyIds), 1);
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(hooks.state.activeEnemyIds), 2);
+      const repeatedHeroHits = count("battleHit");
+      const heroHitActive = Boolean(hooks.state.heroHitEffectUntil);
+
+      hooks.addSpecialItem("sweep", { itemName: "横扫音叉", value: 20, stats: { attack: 0 } });
+      setupBattle(["se-left", "se-center", "se-right"]);
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
+      const sweepBattleHits = count("battleHit");
+      const sweepEnemyHitCount = Object.keys(hooks.state.enemyHitEffectUntilById || {}).length;
+
+      window.__reviewSoundEffects = {
+        appraisalSuccess,
+        dismantle,
+        nextFloor,
+        repeatedEnemyHits,
+        repeatedHeroHits,
+        sweepBattleHits,
+        sweepEnemyHitCount,
+        heroHitActive,
+        enemyHitActive,
       };
     });
   });
