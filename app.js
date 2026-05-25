@@ -351,6 +351,7 @@ const heroFormMap = new Map(heroForms.map((form) => [form.id, form]));
 const defaultHeroFormId = heroForms[0].id;
 const heroFormImageBase = "./assets/heroes/";
 const monsterImageBase = "./assets/monsters/";
+const monsterAnimationBase = "./assets/monster-animations/";
 const rewardIconBase = "./assets/rewards/";
 const audioAssetBase = "./assets/audio/";
 const musicAssetBase = "./assets/music/";
@@ -419,6 +420,28 @@ const bgmPreloadOrder = [
 ];
 
 const monsterImages = {
+  slime: "slime.png",
+  skeleton: "skeleton.png",
+  bat: "bat.png",
+  mage: "mage.png",
+  wizard: "wizard.png",
+  guard: "guard.png",
+  knight: "knight.png",
+  golem: "golem.png",
+  patrol: "patrol.png",
+  octopus: "octopus.png",
+  dragon: "dragon.png",
+  vampire: "vampire.png",
+  demon: "demon.png",
+  orc: "orc.png",
+  swordsman: "swordsman.png",
+  warrior: "warrior.png",
+  archmage: "archmage.png",
+  skeletonCaptain: "skeleton-captain.png",
+  knightCaptain: "knight-captain.png",
+};
+
+const monsterAnimations = {
   slime: "slime.png",
   skeleton: "skeleton.png",
   bat: "bat.png",
@@ -8446,6 +8469,8 @@ function renderEnemyField() {
 
     const traitText = enemy.traits?.map((trait) => trait.text).filter(Boolean).join(" / ") || "";
     const imageUrl = getMonsterImageUrl(enemy.typeKey);
+    const animationUrl = getMonsterAnimationUrl(enemy.typeKey);
+    const animationDelay = `-${((index % 4) * 0.18).toFixed(2)}s`;
     const dropText = formatEnemyFilmDrop(enemy);
     const displayStats = getMonsterDisplayStats(enemy, state.activeEnemyIds.includes(enemy.id) ? state.activeEnemyIds : [enemy.id]);
     const isBossEnemyCard = isBossRewardFloor(state.floor) && !enemy.summoned && bossMonsterKeys.has(enemy.typeKey);
@@ -8458,7 +8483,9 @@ function renderEnemyField() {
       ${isBossEnemyCard ? `<span class="boss-kind-badge">${isRewardBossFloor(state.floor) ? "奖励强敌" : "封门Boss"}</span>` : ""}
       <div class="enemy-card-head">
         <div class="monster-portrait">
-          <img src="${imageUrl}" alt="${escapeHtml(enemy.typeName)}">
+          <span class="monster-sprite" style="--monster-sprite:url('${animationUrl}'); --sprite-delay:${animationDelay};">
+            <img src="${imageUrl}" alt="${escapeHtml(enemy.typeName)}">
+          </span>
         </div>
         <div class="enemy-name-block">
           <strong>${escapeHtml(enemy.name)}</strong>
@@ -8721,6 +8748,10 @@ function getEstimatedHeroDamageToEnemy(enemy, stats) {
 
 function getMonsterImageUrl(typeKey) {
   return `${monsterImageBase}${monsterImages[typeKey] || monsterImages.slime}`;
+}
+
+function getMonsterAnimationUrl(typeKey) {
+  return `${monsterAnimationBase}${monsterAnimations[typeKey] || monsterAnimations.slime}`;
 }
 
 function getEnemyMaxShield(enemy) {

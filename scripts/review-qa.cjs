@@ -73,6 +73,38 @@ async function collectScenario(page, name, action = async () => {}) {
       bossRetreat: window.__reviewBossRetreat || null,
       knightCaptainSummon: window.__reviewKnightCaptainSummon || null,
       panelToggle: window.__reviewPanelToggle || null,
+      monsterSprites: Array.from(document.querySelectorAll(".monster-sprite")).map((node) => {
+        const style = getComputedStyle(node);
+        const fallback = node.querySelector("img");
+        return {
+          backgroundImage: style.backgroundImage,
+          backgroundSize: style.backgroundSize,
+          animationName: style.animationName,
+          animationDuration: style.animationDuration,
+          fallbackSrc: fallback?.getAttribute("src") || "",
+          fallbackAlt: fallback?.getAttribute("alt") || "",
+        };
+      }),
+      hitEffects: (() => {
+        const readProbe = (className) => {
+          const probe = document.createElement("div");
+          probe.className = className;
+          probe.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:120px;height:120px;pointer-events:none;";
+          document.body.append(probe);
+          const style = getComputedStyle(probe, "::after");
+          const result = {
+            backgroundImage: style.backgroundImage,
+            animationName: style.animationName,
+            backgroundSize: style.backgroundSize,
+          };
+          probe.remove();
+          return result;
+        };
+        return {
+          hero: readProbe("hero-form-card is-hit"),
+          enemy: readProbe("enemy-card is-hit"),
+        };
+      })(),
       groupQr: (() => {
         const card = document.querySelector(".author-qr-card");
         const group = document.querySelector(".group-qr");
@@ -112,6 +144,20 @@ function assertScenario(name, metrics) {
   const failures = [];
   if (metrics.errors.length) failures.push(`${name}: console/page errors: ${metrics.errors.join(" | ")}`);
   if (metrics.horizontalOverflow > 0) failures.push(`${name}: horizontal overflow ${metrics.horizontalOverflow}`);
+  if ((metrics.monsterSprites || []).length) {
+    for (const sprite of metrics.monsterSprites) {
+      if (!sprite.backgroundImage.includes("assets/monster-animations/")) failures.push(`${name}: monster card should use animated sprite strip, got ${sprite.backgroundImage}`);
+      if (sprite.animationName !== "monsterIdle") failures.push(`${name}: monster sprite should use idle animation, got ${sprite.animationName}`);
+      if (!sprite.backgroundSize.includes("172px") || !sprite.backgroundSize.includes("43px")) failures.push(`${name}: monster sprite should scale 4 frames to 172x43, got ${sprite.backgroundSize}`);
+      if (!sprite.fallbackSrc.includes("assets/monsters/") || !sprite.fallbackAlt) failures.push(`${name}: monster sprite should keep static image fallback and alt text, got ${JSON.stringify(sprite)}`);
+    }
+  }
+  if (metrics.hitEffects) {
+    if (!metrics.hitEffects.hero?.backgroundImage.includes("assets/effects/hit-hero-impact.png")) failures.push(`${name}: hero hit effect should use impact strip, got ${JSON.stringify(metrics.hitEffects.hero)}`);
+    if (metrics.hitEffects.hero?.animationName !== "hitEffectFlash") failures.push(`${name}: hero hit effect should use hitEffectFlash animation, got ${JSON.stringify(metrics.hitEffects.hero)}`);
+    if (!metrics.hitEffects.enemy?.backgroundImage.includes("assets/effects/hit-enemy-slash.png")) failures.push(`${name}: enemy hit effect should use slash strip, got ${JSON.stringify(metrics.hitEffects.enemy)}`);
+    if (metrics.hitEffects.enemy?.animationName !== "hitEffectFlash") failures.push(`${name}: enemy hit effect should use hitEffectFlash animation, got ${JSON.stringify(metrics.hitEffects.enemy)}`);
+  }
   if (name === "mobile-fresh") {
     if (!metrics.visibleButtons.includes("选择怪物")) failures.push(`${name}: missing disabled 选择怪物 state`);
     if (!metrics.visibleButtons.includes("绕过")) failures.push(`${name}: missing non-boss bypass button`);
