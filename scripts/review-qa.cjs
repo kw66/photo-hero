@@ -62,6 +62,7 @@ async function collectScenario(page, name, action = async () => {}) {
       careerGallery: window.__reviewCareerGallery || null,
       bossCeremony: window.__reviewBossCeremony || null,
       defeatedEquipment: window.__reviewDefeatedEquipment || null,
+      equipmentDetailPreview: window.__reviewEquipmentDetailPreview || null,
       itemStory: window.__reviewItemStory || null,
       itemTypography: window.__reviewItemTypography || null,
       soundEffects: window.__reviewSoundEffects || null,
@@ -206,6 +207,22 @@ function assertScenario(name, metrics) {
     if (!result.discardDisabled) failures.push(`${name}: defeated hero should not be able to dismantle equipment, got ${JSON.stringify(result)}`);
     if (!result.photoDisabled) failures.push(`${name}: defeated hero should not be able to start photo appraisal from item detail, got ${JSON.stringify(result)}`);
     if (metrics.state.player.hp !== 0) failures.push(`${name}: scenario should remain defeated, got hp ${metrics.state.player.hp}`);
+  }
+  if (name === "desktop-equipment-preview") {
+    const result = metrics.equipmentDetailPreview || {};
+    if (!result.visible || !result.loaded || result.width < 180 || result.height < 180) {
+      failures.push(`${name}: desktop equipment detail should show a loaded large preview, got ${JSON.stringify(result)}`);
+    }
+    if (!result.detailHasTwoColumns) failures.push(`${name}: desktop detail body should reserve a second column for the preview, got ${JSON.stringify(result)}`);
+    if (!result.viewerOpened) failures.push(`${name}: clicking the desktop detail preview should open the large image viewer, got ${JSON.stringify(result)}`);
+    if (!/桌面预览护符/.test(metrics.detailText)) failures.push(`${name}: selected equipment detail should stay visible beside preview, got ${metrics.detailText}`);
+  }
+  if (name === "mobile-equipment-preview") {
+    const result = metrics.equipmentDetailPreview || {};
+    if (result.visible || result.display !== "none") {
+      failures.push(`${name}: mobile equipment detail should not show the desktop large preview, got ${JSON.stringify(result)}`);
+    }
+    if (!/移动预览护符/.test(metrics.detailText)) failures.push(`${name}: mobile selected equipment detail should remain visible without preview, got ${metrics.detailText}`);
   }
   if (name === "mobile-reward") {
     if (!metrics.visibleButtons.includes("选择")) failures.push(`${name}: missing reward confirm button`);
@@ -704,6 +721,63 @@ function assertScenario(name, metrics) {
         photoDisabled: Boolean(document.querySelector("#photoActionBtn")?.disabled),
       };
       document.querySelector("#imageViewer")?.click();
+    });
+  });
+
+  const addPreviewItem = async (page, itemName) => {
+    await page.evaluate((name) => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.resetGameForTest();
+      hooks.addRawItem({
+        itemName: name,
+        subjectName: name,
+        objectType: "桌面小物",
+        identityDescription: "一枚带有暖色光泽的护符。",
+        image: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%231d2420'/%3E%3Cpath d='M60 18L96 48L84 100H36L24 48Z' fill='%23d09b3e'/%3E%3Ccircle cx='60' cy='58' r='18' fill='%234f8fd6'/%3E%3C/svg%3E",
+        fullImage: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640'%3E%3Crect width='640' height='640' fill='%231d2420'/%3E%3Cpath d='M320 80L520 230L455 560H185L120 230Z' fill='%23d09b3e'/%3E%3Ccircle cx='320' cy='310' r='112' fill='%234f8fd6'/%3E%3C/svg%3E",
+        stats: { shield: 2, defense: 1 },
+        value: 15,
+        description: `${name}挂在塔墙边，光泽能挡下一截冷风。`,
+        skipSpecialRoll: true,
+      });
+    }, itemName);
+  };
+
+  scenarios.desktopEquipmentPreview = await collectScenario(desktop, "desktop-equipment-preview", async (page) => {
+    await addPreviewItem(page, "桌面预览护符");
+    await page.click("#equipmentDetailImageBtn");
+    await page.evaluate(() => {
+      const preview = document.querySelector("#equipmentDetailImageBtn");
+      const image = document.querySelector("#equipmentDetailImage");
+      const body = document.querySelector("#equipmentDetailBody");
+      const rect = preview?.getBoundingClientRect();
+      const bodyStyle = body ? getComputedStyle(body) : null;
+      window.__reviewEquipmentDetailPreview = {
+        display: preview ? getComputedStyle(preview).display : "",
+        visible: Boolean(preview && !preview.hidden && rect && rect.width > 0 && rect.height > 0),
+        loaded: Boolean(image?.complete && image.naturalWidth > 0),
+        width: rect?.width || 0,
+        height: rect?.height || 0,
+        detailHasTwoColumns: Boolean(bodyStyle && bodyStyle.gridTemplateColumns.split(" ").length >= 2),
+        viewerOpened: !document.querySelector("#imageViewer")?.hidden,
+      };
+      document.querySelector("#imageViewer")?.click();
+    });
+  });
+
+  scenarios.mobileEquipmentPreview = await collectScenario(mobile, "mobile-equipment-preview", async (page) => {
+    await addPreviewItem(page, "移动预览护符");
+    await page.evaluate(() => {
+      const preview = document.querySelector("#equipmentDetailImageBtn");
+      const image = document.querySelector("#equipmentDetailImage");
+      const rect = preview?.getBoundingClientRect();
+      window.__reviewEquipmentDetailPreview = {
+        display: preview ? getComputedStyle(preview).display : "",
+        visible: Boolean(preview && !preview.hidden && rect && rect.width > 0 && rect.height > 0),
+        loaded: Boolean(image?.complete && image.naturalWidth > 0),
+        width: rect?.width || 0,
+        height: rect?.height || 0,
+      };
     });
   });
 

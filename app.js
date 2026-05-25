@@ -587,6 +587,8 @@ const els = {
   photoActionBtn: byId("photoActionBtn"),
   analyzePhotoBtn: byId("analyzePhotoBtn"),
   savePhotoBtn: byId("savePhotoBtn"),
+  equipmentDetailImageBtn: byId("equipmentDetailImageBtn"),
+  equipmentDetailImage: byId("equipmentDetailImage"),
   pendingPhotoPreview: byId("pendingPhotoPreview"),
   pendingPhotoImage: byId("pendingPhotoImage"),
   pendingCropOverlay: byId("pendingCropOverlay"),
@@ -1413,6 +1415,7 @@ function bindEvents() {
   });
   els.pendingPhotoPreview.addEventListener("click", handlePendingPhotoPreviewClick);
   els.pendingPhotoImage.addEventListener("load", renderPendingCropOverlay);
+  els.equipmentDetailImageBtn.addEventListener("click", handleEquipmentDetailImageClick);
   els.discardItemBtn.addEventListener("click", handleDiscardAction);
   els.imageViewer.addEventListener("click", (event) => {
     if (event.target.closest(".viewer-crop-actions")) return;
@@ -1492,6 +1495,15 @@ function handlePendingPhotoPreviewClick(event) {
   if (!state.lastPhoto || state.cropMode) return;
   event.stopPropagation();
   openImageViewer(state.lastPhoto, "待鉴定照片");
+}
+
+function handleEquipmentDetailImageClick(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  const item = getSelectedInventoryItem();
+  const image = item?.fullImage || item?.image || "";
+  if (!image) return;
+  openImageViewer(image, formatItemDisplayName(item), getItemQuality(scoreItem(item)));
 }
 
 function togglePendingCropMode() {
@@ -9236,6 +9248,8 @@ function renderEquipmentDetail() {
   els.pendingPhotoPreview.hidden = true;
   els.pendingPhotoPreview.classList.remove("is-crop-mode", "has-crop");
   els.pendingPhotoImage.removeAttribute("src");
+  els.equipmentDetailImageBtn.hidden = true;
+  els.equipmentDetailImage.removeAttribute("src");
   renderPendingCropOverlay();
   els.loadingState.hidden = false;
   els.equipmentDetail.classList.remove("is-error", "is-actionable", "is-log", "career-summary-panel");
@@ -9364,6 +9378,12 @@ function renderEquipmentDetail() {
   els.equipmentDetailStats.innerHTML = renderItemDetailPills(selected);
   els.equipmentDetailStats.hidden = false;
   els.equipmentDetailDesc.textContent = renderItemDescription(selected);
+  const selectedImage = selected.fullImage || selected.image || "";
+  if (selectedImage) {
+    els.equipmentDetailImage.src = selectedImage;
+    els.equipmentDetailImage.alt = `${formatItemDisplayName(selected)}大图`;
+    els.equipmentDetailImageBtn.hidden = false;
+  }
   els.equipmentActions.hidden = false;
   els.savePhotoBtn.hidden = false;
   els.savePhotoBtn.disabled = locked || !(selected.fullImage || selected.image);
