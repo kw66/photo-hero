@@ -119,6 +119,37 @@ const cases = [
     expect: ({ item, renderedDescription }) => item.stats.hp > 0 && !/生命\+/.test(renderedDescription),
   },
   {
+    label: "pure hp plus twenty is not common quality",
+    input: {
+      itemName: "生命护符",
+      subjectName: "护符",
+      objectType: "治愈护符",
+      description: "生命护符被塔写成一枚耐久符。",
+      reason: "主体=护符；倾向=生命上限",
+      tags: ["护符", "生命"],
+      value: 20,
+      stats: { hp: 20 },
+      skipSpecialRoll: true,
+    },
+    expect: ({ item, score, quality }) => item.stats.hp === 20 && score === 20 && quality.key === "epic",
+  },
+  {
+    label: "tableware should not become pure max hp",
+    input: {
+      itemName: "不锈钢汤勺",
+      subjectName: "汤勺",
+      objectType: "餐具",
+      description: "不锈钢汤勺是桌面餐具，金属材质，可敲击也可挡住小冲击。",
+      reason: "主体=汤勺；餐具；金属物品",
+      tags: ["汤勺", "餐具", "金属"],
+      value: 20,
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "hp", score: 3 }],
+      skipSpecialRoll: true,
+    },
+    expect: ({ item }) => item.stats.hp === 0 && (item.stats.attack > 0 || item.stats.defense > 0 || item.stats.shield > 0),
+  },
+  {
     label: "fan keeps speed",
     input: {
       itemName: "白色小风扇",
@@ -296,9 +327,12 @@ const cases = [
     window.__photoHeroTestHooks.setRunRewards?.({ photoValueMin: 5, photoValueMax: 22 });
   });
   const results = await page.evaluate((inputs) => inputs.map((input) => {
+    const hooks = window.__photoHeroTestHooks;
     const item = window.__photoHeroTestHooks.balanceItem(input, "");
-    const renderedDescription = window.__photoHeroTestHooks.renderItemDescriptionForTest(item);
-    return { item, renderedDescription };
+    const renderedDescription = hooks.renderItemDescriptionForTest(item);
+    const score = hooks.scoreItemForTest(item);
+    const quality = hooks.getItemQualityForTest(score);
+    return { item, renderedDescription, score, quality };
   }), cases.map((item) => item.input));
 
   const runtimeChecks = await page.evaluate(() => {
@@ -345,11 +379,13 @@ const cases = [
       failures.push({
         label: cases[index].label,
         itemName: result.item.itemName,
-        value: result.item.value,
-        stats: result.item.stats,
-        description: result.renderedDescription,
-      });
-    }
+          value: result.item.value,
+          stats: result.item.stats,
+          score: result.score,
+          quality: result.quality,
+          description: result.renderedDescription,
+        });
+      }
   });
   if (runtimeChecks.activeSpecial?.key && runtimeChecks.activeSpecial.key !== "doubleStrikeSpeedDown") failures.push({ label: "active special should prefer strongest", activeSpecial: runtimeChecks.activeSpecial });
   if (runtimeChecks.hp !== undefined && runtimeChecks.maxHp !== undefined && runtimeChecks.hp > runtimeChecks.maxHp) failures.push({ label: "hp overflow after hp item", runtimeChecks });
@@ -374,6 +410,8 @@ const cases = [
       itemName: result.item.itemName,
       value: result.item.value,
       stats: result.item.stats,
+      score: result.score,
+      quality: result.quality,
       description: result.renderedDescription,
     })),
     failures,

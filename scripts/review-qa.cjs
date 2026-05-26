@@ -205,12 +205,18 @@ function assertScenario(name, metrics) {
     if (result.selectedCount !== 3 || result.enterEnabledAfterAll !== true) failures.push(`${name}: all three intro film cards should enable tower entry, got ${JSON.stringify(result)}`);
     if (result.afterFloor !== 1 || result.afterFilmCount !== 3) failures.push(`${name}: entering tower should move to floor 1 with 3 films, got ${JSON.stringify(result)}`);
     if (result.afterBgm !== "area1") failures.push(`${name}: floor 1 should switch to area1 BGM on entry, got ${JSON.stringify(result)}`);
+    if (result.afterSelectedSlotIndex !== 0 || result.afterPendingPhotoSlotIndex !== 0 || result.afterInfoMode !== "item") failures.push(`${name}: entering tower should focus the first empty equipment slot, got ${JSON.stringify(result)}`);
+    if (!result.afterFirstSlotSelected) failures.push(`${name}: first equipment slot should be visually selected after entering tower, got ${JSON.stringify(result)}`);
+    if (!result.afterPhotoCallout) failures.push(`${name}: photo button should show first-photo callout after entering tower, got ${JSON.stringify(result)}`);
+    if (result.photoCalloutAfterClick) failures.push(`${name}: photo callout should disappear immediately after clicking photo, got ${JSON.stringify(result)}`);
+    if (result.photoStartedAfterClick !== true) failures.push(`${name}: clicking photo should mark first-photo tutorial as started, got ${JSON.stringify(result)}`);
   }
   if (name === "onboarding") {
     const result = metrics.onboarding || {};
     if (!result.firstPhotoHint) failures.push(`${name}: missing first photo hint`);
     if (result.focusedEmptySlot) failures.push(`${name}: empty equipment slot should not use the old breathing highlight`);
-    if (!result.photoClickOpensPicker) failures.push(`${name}: photo button should open the picker before API config`);
+    if (!result.photoClickStartsTutorial) failures.push(`${name}: photo button should start the first-photo tutorial state`);
+    if (result.photoCalloutAfterClick) failures.push(`${name}: photo button callout should disappear after click`);
     if (!result.battleHintAfterAttack) failures.push(`${name}: missing battle selection hint after attack click`);
     if (!result.postKillHint) failures.push(`${name}: missing post-kill film hint`);
   }
@@ -703,6 +709,21 @@ function assertScenario(name, metrics) {
         afterFloor: state.floor,
         afterFilmCount: state.player?.filmCount,
         afterBgm: state.audio?.bgmKey || "",
+        afterInfoMode: state.infoMode || "",
+        afterSelectedSlotIndex: state.player?.selectedSlotIndex,
+        afterPendingPhotoSlotIndex: state.pendingPhotoSlotIndex,
+        afterFirstSlotSelected: Boolean(document.querySelector(".equipment-slot:nth-child(1)")?.classList.contains("is-selected")),
+        afterPhotoCallout: Boolean(document.querySelector("#photoActionBtn")?.classList.contains("is-photo-callout")),
+      };
+    });
+    await page.evaluate(() => document.querySelector("#photoActionBtn")?.click());
+    await page.waitForFunction(() => !document.querySelector("#photoActionBtn")?.classList.contains("is-photo-callout"), null, { timeout: 3000 });
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewIntroFlow = {
+        ...window.__reviewIntroFlow,
+        photoCalloutAfterClick: Boolean(document.querySelector("#photoActionBtn")?.classList.contains("is-photo-callout")),
+        photoStartedAfterClick: Boolean(state.tutorial?.photoStarted),
       };
     });
   });
@@ -723,11 +744,11 @@ function assertScenario(name, metrics) {
         focusedEmptySlot: Boolean(document.querySelector(".equipment-slot.is-tutorial-focus")),
       };
     });
-    const fileChooserPromise = page.waitForEvent("filechooser", { timeout: 3000 });
-    await page.click("#photoActionBtn");
-    await fileChooserPromise;
+    await page.evaluate(() => document.querySelector("#photoActionBtn")?.click());
     await page.evaluate(() => {
-      window.__reviewOnboarding.photoClickOpensPicker = true;
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewOnboarding.photoClickStartsTutorial = Boolean(state.tutorial?.photoStarted);
+      window.__reviewOnboarding.photoCalloutAfterClick = Boolean(document.querySelector("#photoActionBtn")?.classList.contains("is-photo-callout"));
     });
     await page.evaluate(() => {
       const hooks = window.__photoHeroTestHooks;
