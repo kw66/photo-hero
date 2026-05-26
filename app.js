@@ -445,9 +445,9 @@ const bgmPreloadOrder = [
 ];
 
 const introRewardOptions = [
-  { id: "intro-film-1", title: "第一卷胶片", effect: "+1.0 胶卷", desc: "先把第一件身边小物叫醒。", icon: "boss-value-min.png" },
-  { id: "intro-film-2", title: "备用胶片", effect: "+1.0 胶卷", desc: "留给第二次尝试或换一个主体。", icon: "boss-film-percent.png" },
-  { id: "intro-film-3", title: "塔门胶片", effect: "+1.0 胶卷", desc: "入塔前最后一张底片。", icon: "boss-film-drop.png" },
+  { id: "intro-film-1", title: "胶卷", effect: "+1.0 胶卷", desc: "开局的第一次拍照机会，用来把身边小物鉴定成装备。", icon: "boss-film-drop.png" },
+  { id: "intro-film-2", title: "胶卷", effect: "+1.0 胶卷", desc: "备用的一次拍照机会，拍错或想换主体时更从容。", icon: "boss-film-drop.png" },
+  { id: "intro-film-3", title: "胶卷", effect: "+1.0 胶卷", desc: "收下最后一卷胶卷，三卷齐了就能进入魔塔。", icon: "boss-film-drop.png" },
 ];
 
 const monsterImages = {
@@ -5536,10 +5536,10 @@ function buildBossRewardOptions(floor) {
 function getBossRewardCatalog() {
   return [
     { type: "filmFlat", title: "补给胶卷", effect: "+1.0 胶卷", desc: "立刻获得 1.0 胶卷。", icon: "boss-value-min.png" },
-    { type: "filmDrop", title: "寻影契约", effect: "掉落 +0.1", desc: "之后击败怪物永久 +0.1。", icon: "boss-film-drop.png" },
-    { type: "filmPercent", title: "冲印翻倍", effect: "当前 +50%", desc: "按当前数量 +50%，向上取整。", icon: "boss-film-percent.png" },
-    { type: "valueMin", title: "保底刻印", effect: "最低 +2", desc: "之后照片最低价值永久 +2。", icon: "boss-value-min-boost.png" },
-    { type: "valueMax", title: "上限刻印", effect: "最高 +3", desc: "之后照片最高价值永久 +3。", icon: "boss-value-max.png" },
+    { type: "filmDrop", title: "胶卷磁石", effect: "掉落 +0.1", desc: "之后击败怪物永久 +0.1。", icon: "boss-film-drop.png" },
+    { type: "filmPercent", title: "胶卷倍增", effect: "当前 +50%", desc: "按当前数量 +50%，向上取整。", icon: "boss-film-percent.png" },
+    { type: "valueMin", title: "泛用胶卷", effect: "最低 +2", desc: "之后照片最低价值永久 +2。", icon: "boss-value-min-boost.png" },
+    { type: "valueMax", title: "高级胶卷", effect: "最高 +3", desc: "之后照片最高价值永久 +3。", icon: "boss-value-max.png" },
   ];
 }
 
@@ -5759,7 +5759,7 @@ function confirmIntroRewards() {
   if (!isIntroFloor()) return;
   if (!hasSelectedAllIntroRewards()) {
     state.infoMode = "log";
-    addBattleEvent("先把三卷胶片都收进口袋，再推开魔塔的门。", "item");
+    addBattleEvent("先把三卷胶卷都收进口袋，再推开魔塔的门。", "item");
     saveGame();
     render();
     return;
@@ -5787,7 +5787,7 @@ function enterTowerFromIntro() {
   state.enemyFlipEncounterId = state.encounterId;
   applyFloorShield();
   state.infoMode = "log";
-  addBattleEvent("三卷胶片压进口袋，塔门向内打开。照片勇者踏上第 1 层。", "item");
+  addBattleEvent("三卷胶卷压进口袋，塔门向内打开。照片勇者踏上第 1 层。", "item");
   addFloorNarrative(state.floor);
   playSoundEffect("nextFloor");
   ensureBgmForGameState(true);
@@ -6106,7 +6106,7 @@ function hasRecentFloorNarrative(floor, text) {
 
 function getFloorNarrative(floor) {
   if (floor <= introFloor) {
-    return "塔门还没有打开。三卷胶片压在石台上，全部收起后，就能带着第一批照片机会进入魔塔。";
+    return "塔门还没有打开。先收下三卷胶卷，它们就是开局的三次拍照机会。";
   }
   const safeFloor = getPlayableFloor(floor);
   if (bossFloorNarratives[safeFloor]) return bossFloorNarratives[safeFloor];
@@ -9382,7 +9382,7 @@ function renderIntroRewardCards() {
   const selectedIds = new Set(getIntroRewardSelection());
   const title = document.createElement("div");
   title.className = "boss-reward-prompt";
-  title.textContent = hasSelectedAllIntroRewards() ? "三卷胶片已收好，点击进入魔塔" : "开局胶片 · 三卷都要收下";
+  title.textContent = hasSelectedAllIntroRewards() ? "三卷胶卷已收好，点击进入魔塔" : "开局胶卷 · 三卷都要收下";
   els.enemyField.append(title);
   for (const option of getIntroRewards()) {
     const selected = selectedIds.has(option.id);
@@ -9402,7 +9402,7 @@ function renderIntroRewardCards() {
         </div>
       </div>
       <p class="reward-card-desc">${escapeHtml(option.desc)}</p>
-      ${selected ? `<div class="reward-card-foot"><span>已收起</span><strong>胶片</strong></div>` : ""}
+      ${selected ? `<div class="reward-card-foot"><span>已收起</span><strong>胶卷</strong></div>` : ""}
     `;
     els.enemyField.append(button);
   }
@@ -9763,8 +9763,8 @@ function renderEquipmentDetail() {
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
     els.equipmentDetailDesc.textContent = hasSelectedAllIntroRewards()
-      ? "三卷胶片都已经收好。点击进入魔塔后，会从第 1 层开始正式选择怪物和拍照鉴定。"
-      : "先收下石台上的三卷胶片。它们会变成开局拍照机会，全部选中后再进入魔塔。";
+      ? "三卷胶卷都已经收好。点击进入魔塔后，会从第 1 层开始选择怪物和拍照鉴定。"
+      : "先收下石台上的三卷胶卷。它们会变成开局的三次拍照机会，全部选中后再进入魔塔。";
     els.filmCountBadge.hidden = false;
     return;
   }

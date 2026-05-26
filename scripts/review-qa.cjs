@@ -192,8 +192,8 @@ function assertScenario(name, metrics) {
     if (metrics.state.floor !== 0) failures.push(`${name}: fresh game should start at intro floor 0, got ${metrics.state.floor}`);
     if (!metrics.visibleButtons.includes("进入魔塔")) failures.push(`${name}: missing intro enter-tower button`);
     if (metrics.visibleButtons.includes("绕过")) failures.push(`${name}: intro floor should not show bypass`);
-    if (!/塔门前|三卷胶片/.test(metrics.detailText)) failures.push(`${name}: intro detail should explain three film rolls, got ${metrics.detailText}`);
-    if (!/开局胶片|第一卷胶片/.test(metrics.enemyText)) failures.push(`${name}: intro reward cards should be visible, got ${metrics.enemyText}`);
+    if (!/塔门前|三卷胶卷/.test(metrics.detailText)) failures.push(`${name}: intro detail should explain three film rolls, got ${metrics.detailText}`);
+    if (!/开局胶卷|胶卷/.test(metrics.enemyText)) failures.push(`${name}: intro reward cards should be visible, got ${metrics.enemyText}`);
     if (metrics.state.player.filmCount !== 0) failures.push(`${name}: intro film should be granted only after selection, got ${metrics.state.player.filmCount}`);
     if (/价值范围/.test(metrics.detailText)) failures.push(`${name}: exposes raw value range in empty state`);
   }
