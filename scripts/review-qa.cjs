@@ -80,6 +80,8 @@ async function collectScenario(page, name, action = async () => {}) {
       defeatEnding: window.__reviewDefeatEnding || null,
       equipmentDetailPreview: window.__reviewEquipmentDetailPreview || null,
       introFlow: window.__reviewIntroFlow || null,
+      drawingMode: window.__reviewDrawingMode || null,
+      modeSwitchEquivalence: window.__reviewModeSwitchEquivalence || null,
       itemStory: window.__reviewItemStory || null,
       itemTypography: window.__reviewItemTypography || null,
       soundEffects: window.__reviewSoundEffects || null,
@@ -94,6 +96,7 @@ async function collectScenario(page, name, action = async () => {}) {
       bossRetreat: window.__reviewBossRetreat || null,
       knightCaptainSummon: window.__reviewKnightCaptainSummon || null,
       panelToggle: window.__reviewPanelToggle || null,
+      apiConfig: window.__reviewApiConfig || null,
       monsterSprites: Array.from(document.querySelectorAll(".monster-sprite")).map((node) => {
         const style = getComputedStyle(node);
         const fallback = node.querySelector("img");
@@ -192,8 +195,9 @@ function assertScenario(name, metrics) {
     if (metrics.state.floor !== 0) failures.push(`${name}: fresh game should start at intro floor 0, got ${metrics.state.floor}`);
     if (!metrics.visibleButtons.includes("进入魔塔")) failures.push(`${name}: missing intro enter-tower button`);
     if (metrics.visibleButtons.includes("绕过")) failures.push(`${name}: intro floor should not show bypass`);
-    if (!/塔门前|三卷胶卷/.test(metrics.detailText)) failures.push(`${name}: intro detail should explain three film rolls, got ${metrics.detailText}`);
-    if (!/开局胶卷|胶卷/.test(metrics.enemyText)) failures.push(`${name}: intro reward cards should be visible, got ${metrics.enemyText}`);
+    if (!/塔门前|石台|三卷胶卷/.test(metrics.detailText)) failures.push(`${name}: intro detail should explain the tower-door film rolls, got ${metrics.detailText}`);
+    if (!/塔门前的三卷胶卷|拍照|鉴定台|战斗/.test(metrics.enemyText)) failures.push(`${name}: intro reward cards should show in-world onboarding copy, got ${metrics.enemyText}`);
+    if (/开局胶卷|三卷都要收下|第一次|备用|最后一卷/.test(metrics.enemyText)) failures.push(`${name}: intro copy still contains blunt placeholder wording, got ${metrics.enemyText}`);
     if (metrics.state.player.filmCount !== 0) failures.push(`${name}: intro film should be granted only after selection, got ${metrics.state.player.filmCount}`);
     if (/价值范围/.test(metrics.detailText)) failures.push(`${name}: exposes raw value range in empty state`);
   }
@@ -202,7 +206,11 @@ function assertScenario(name, metrics) {
     if (result.initialFloor !== 0) failures.push(`${name}: should start on floor 0, got ${JSON.stringify(result)}`);
     if (result.initialBgm !== "opening") failures.push(`${name}: intro should use opening BGM, got ${JSON.stringify(result)}`);
     if (result.enterEnabledBeforeAll !== false) failures.push(`${name}: enter button should stay disabled before all three films are selected, got ${JSON.stringify(result)}`);
+    if (result.afterCancelCount !== 2 || result.enterEnabledAfterCancel !== false) failures.push(`${name}: intro cards should allow canceling a selected film, got ${JSON.stringify(result)}`);
+    if (result.reorderedBadges?.join(",") !== "1,2") failures.push(`${name}: intro card badges should re-number after cancel, got ${JSON.stringify(result)}`);
     if (result.selectedCount !== 3 || result.enterEnabledAfterAll !== true) failures.push(`${name}: all three intro film cards should enable tower entry, got ${JSON.stringify(result)}`);
+    if (result.finalBadges?.join(",") !== "1,3,2") failures.push(`${name}: intro card badges should preserve click order after reselecting, got ${JSON.stringify(result)}`);
+    if (!result.equalCardHeights) failures.push(`${name}: intro cards should keep stable equal heights, got ${JSON.stringify(result)}`);
     if (result.afterFloor !== 1 || result.afterFilmCount !== 3) failures.push(`${name}: entering tower should move to floor 1 with 3 films, got ${JSON.stringify(result)}`);
     if (result.afterBgm !== "area1") failures.push(`${name}: floor 1 should switch to area1 BGM on entry, got ${JSON.stringify(result)}`);
     if (result.afterSelectedSlotIndex !== 0 || result.afterPendingPhotoSlotIndex !== 0 || result.afterInfoMode !== "item") failures.push(`${name}: entering tower should focus the first empty equipment slot, got ${JSON.stringify(result)}`);
@@ -210,6 +218,34 @@ function assertScenario(name, metrics) {
     if (!result.afterPhotoCallout) failures.push(`${name}: photo button should show first-photo callout after entering tower, got ${JSON.stringify(result)}`);
     if (result.photoCalloutAfterClick) failures.push(`${name}: photo callout should disappear immediately after clicking photo, got ${JSON.stringify(result)}`);
     if (result.photoStartedAfterClick !== true) failures.push(`${name}: clicking photo should mark first-photo tutorial as started, got ${JSON.stringify(result)}`);
+  }
+  if (name === "drawing-mode") {
+    const result = metrics.drawingMode || {};
+    if (result.initialTitle !== "照片勇者" || result.afterTitle !== "画图勇者") failures.push(`${name}: title button should toggle from photo to drawing mode, got ${JSON.stringify(result)}`);
+    if (result.playMode !== "drawing" || result.resourceName !== "画布") failures.push(`${name}: state should expose drawing mode and canvas resource, got ${JSON.stringify(result)}`);
+    if (!/画布/.test(result.introText || "") || /胶卷/.test(result.introText || "")) failures.push(`${name}: intro copy should switch from film to canvas wording, got ${result.introText}`);
+    if (!result.drawingEmptyIconCount) failures.push(`${name}: empty equipment slots should switch to drawing icons, got ${JSON.stringify(result)}`);
+    if (!/打开画布/.test(result.desktopHint || "") || /拖|粘贴|Ctrl\+V|图片/.test(result.desktopHint || "")) failures.push(`${name}: desktop input hint should switch to drawing copy, got ${result.desktopHint}`);
+    if (result.afterFloor !== 1 || result.afterResourceCount !== 3) failures.push(`${name}: drawing intro should still enter tower with 3 canvas uses, got ${JSON.stringify(result)}`);
+    if (result.photoButtonText !== "画图") failures.push(`${name}: empty-slot action should become 画图, got ${JSON.stringify(result)}`);
+    if (!result.modalOpened || !result.canvasVisible) failures.push(`${name}: clicking 画图 should open a visible drawing modal, got ${JSON.stringify(result)}`);
+    if (!result.eraserActive || !result.brushRestored || result.activeSize !== "24") failures.push(`${name}: drawing toolbar should support eraser, color restore, and size selection, got ${JSON.stringify(result)}`);
+    if (!result.pendingAfterUse || result.pendingSourceMode !== "drawing") failures.push(`${name}: drawn canvas should become pending drawing input, got ${JSON.stringify(result)}`);
+    if (!/待鉴定画作/.test(result.detailAfterUse || "")) failures.push(`${name}: detail panel should show pending drawing copy, got ${result.detailAfterUse}`);
+  }
+  if (name === "mode-switch-equivalence") {
+    const result = metrics.modeSwitchEquivalence || {};
+    if (!/胶卷/.test(result.introPhotoText || "") || /画布/.test(result.introPhotoText || "")) failures.push(`${name}: intro should start with photo resource wording, got ${JSON.stringify(result)}`);
+    if (!/画布/.test(result.introDrawingText || "") || /胶卷/.test(result.introDrawingText || "")) failures.push(`${name}: selected intro cards should live-switch to drawing wording, got ${JSON.stringify(result)}`);
+    if (result.introDrawingBadges?.join(",") !== "1,2") failures.push(`${name}: intro selection order should survive mode switch, got ${JSON.stringify(result)}`);
+    if (!result.drawingEmptyIcons || result.cameraEmptyIconsAfterDrawing) failures.push(`${name}: empty slots should live-switch from camera icons to drawing icons, got ${JSON.stringify(result)}`);
+    if (!/胶卷 0\.1/.test(result.monsterPhotoText || "") || /画布/.test(result.monsterPhotoText || "")) failures.push(`${name}: monster cards should show photo resource wording before switch, got ${JSON.stringify(result)}`);
+    if (!/画布 0\.1/.test(result.monsterDrawingText || "") || /胶卷/.test(result.monsterDrawingText || "")) failures.push(`${name}: monster cards should live-switch to drawing resource wording, got ${JSON.stringify(result)}`);
+    if (result.actionAfterDrawing !== "画图" || result.actionAfterPhoto !== "拍照") failures.push(`${name}: input action should live-switch between 画图 and 拍照, got ${JSON.stringify(result)}`);
+    if (!/补给胶卷|胶卷磁石|胶卷倍增|泛用胶卷|高级胶卷/.test(result.bossPhotoText || "") || /画布/.test(result.bossPhotoText || "")) failures.push(`${name}: boss rewards should show photo wording before switch, got ${JSON.stringify(result)}`);
+    if (!/补给画布|画布磁石|画布倍增|泛用画布|高级画布/.test(result.bossDrawingText || "") || /胶卷/.test(result.bossDrawingText || "")) failures.push(`${name}: boss rewards should live-switch to drawing wording, got ${JSON.stringify(result)}`);
+    if (result.itemNamesBeforeSwitch?.join("|") !== result.itemNamesAfterSwitch?.join("|")) failures.push(`${name}: generated equipment names should not switch with mode, got ${JSON.stringify(result)}`);
+    if (!result.analyzingSwitchAllowed || result.modeAfterAnalyzingSwitch !== "photo") failures.push(`${name}: mode should be switchable even while an appraisal is marked analyzing, got ${JSON.stringify(result)}`);
   }
   if (name === "onboarding") {
     const result = metrics.onboarding || {};
@@ -515,6 +551,25 @@ function assertScenario(name, metrics) {
     if (!panel.infoOpened || !panel.infoClosed) failures.push(`${name}: info button should open then close the info panel`);
     if (!panel.configOpened || !panel.configClosed) failures.push(`${name}: API button should open then close the config panel`);
   }
+  if (name === "api-config") {
+    const api = metrics.apiConfig || {};
+    if (api.visiblePresets?.includes("experience")) failures.push(`${name}: hidden experience preset should not be visible, got ${JSON.stringify(api)}`);
+    if (api.visiblePresets?.join(",") !== "siliconflow,xiaomi,zhipu,micu,custom") failures.push(`${name}: visible preset order should be SiliconFlow, Xiaomi, Zhipu, Micu, Custom, got ${JSON.stringify(api)}`);
+    if (api.visiblePresetLabels?.join(",") !== "硅基流动,小米,智谱,米醋,自定义") failures.push(`${name}: visible preset labels changed unexpectedly, got ${JSON.stringify(api)}`);
+    if (api.defaultPreset !== "siliconflow") failures.push(`${name}: default preset should stay siliconflow while experience is hidden, got ${JSON.stringify(api)}`);
+    if (api.defaultModel !== "Qwen/Qwen3.6-35B-A3B") failures.push(`${name}: default SiliconFlow model changed unexpectedly, got ${JSON.stringify(api)}`);
+    if (api.defaultBaseUrl !== "https://api.siliconflow.cn/v1") failures.push(`${name}: default base URL should stay SiliconFlow direct API, got ${JSON.stringify(api)}`);
+    if (api.defaultKeyLocked || api.defaultToggleHidden || api.defaultModelDisabled) failures.push(`${name}: visible default preset should remain editable/key-viewable, got ${JSON.stringify(api)}`);
+    if (api.defaultReady) failures.push(`${name}: default direct API should still require the player's own key, got ${JSON.stringify(api)}`);
+    if (api.afterToggleType !== "text" || api.afterToggleValue !== api.defaultKeyValue) failures.push(`${name}: eye toggle should work for the visible default preset, got ${JSON.stringify(api)}`);
+    if (api.xiaomiPreset !== "xiaomi" || api.xiaomiBaseUrl !== "https://api.xiaomimimo.com/v1") failures.push(`${name}: Xiaomi preset should use the requested base URL, got ${JSON.stringify(api)}`);
+    if (api.xiaomiModel !== "mimo-v2.5") failures.push(`${name}: Xiaomi preset should default to mimo-v2.5, got ${JSON.stringify(api)}`);
+    if (api.xiaomiModelOptions?.join(",") !== "mimo-v2.5,mimo-v2.5-pro") failures.push(`${name}: Xiaomi model dropdown should contain the requested models, got ${JSON.stringify(api)}`);
+    if (!api.xiaomiLinksText?.includes("小米邀请链接") || !api.xiaomiLinksText?.includes("小米文档")) failures.push(`${name}: Xiaomi preset should show invite and docs links, got ${JSON.stringify(api)}`);
+    if (!api.afterCustomEditable || api.customToggleVisible === false) failures.push(`${name}: custom mode should restore editable key controls, got ${JSON.stringify(api)}`);
+    if (api.customKeyType !== "text" || api.customKeyValue !== "sk-test-visible") failures.push(`${name}: custom key should remain viewable when user asks to show it, got ${JSON.stringify(api)}`);
+    if (api.customStoredKey !== "sk-test-visible") failures.push(`${name}: custom key should still persist normally, got ${JSON.stringify(api)}`);
+  }
   if (name === "mobile-boss-selection") {
     if (metrics.visibleButtons.includes("逃跑")) failures.push(`${name}: boss floor still shows 逃跑`);
     if (!metrics.visibleButtons.includes("选择怪物")) failures.push(`${name}: boss floor should require selecting all monsters`);
@@ -688,6 +743,25 @@ function assertScenario(name, metrics) {
     await page.locator(".intro-reward-card").nth(0).click();
     await page.locator(".intro-reward-card").nth(1).click();
     await page.locator(".intro-reward-card").nth(2).click();
+    await page.locator(".intro-reward-card").nth(1).click();
+    await page.waitForFunction(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      return (state.introRewardSelectedIds || []).length === 2 && document.querySelector("#attackBtn")?.disabled;
+    }, null, { timeout: 3000 });
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      const cards = Array.from(document.querySelectorAll(".intro-reward-card"));
+      const heights = cards.map((card) => Math.round(card.getBoundingClientRect().height));
+      window.__reviewIntroFlow = {
+        ...window.__reviewIntroFlow,
+        afterCancelCount: state.introRewardSelectedIds?.length || 0,
+        enterEnabledAfterCancel: !document.querySelector("#attackBtn")?.disabled,
+        reorderedBadges: cards.map((card) => card.querySelector(".selection-badge")?.textContent?.trim() || "").filter(Boolean),
+        equalCardHeights: new Set(heights).size === 1,
+        cardHeights: heights,
+      };
+    });
+    await page.locator(".intro-reward-card").nth(1).click();
     await page.waitForFunction(() => {
       const state = JSON.parse(window.render_game_to_text());
       return (state.introRewardSelectedIds || []).length === 3 && !document.querySelector("#attackBtn")?.disabled;
@@ -698,6 +772,7 @@ function assertScenario(name, metrics) {
         ...window.__reviewIntroFlow,
         selectedCount: state.introRewardSelectedIds?.length || 0,
         enterEnabledAfterAll: !document.querySelector("#attackBtn")?.disabled,
+        finalBadges: Array.from(document.querySelectorAll(".intro-reward-card .selection-badge")).map((badge) => badge.textContent?.trim() || ""),
       };
     });
     await page.click("#attackBtn");
@@ -724,6 +799,186 @@ function assertScenario(name, metrics) {
         ...window.__reviewIntroFlow,
         photoCalloutAfterClick: Boolean(document.querySelector("#photoActionBtn")?.classList.contains("is-photo-callout")),
         photoStartedAfterClick: Boolean(state.tutorial?.photoStarted),
+      };
+    });
+  });
+
+  scenarios.drawingMode = await collectScenario(desktop, "drawing-mode", async (page) => {
+    await page.evaluate(() => {
+      window.__reviewDrawingMode = {
+        initialTitle: document.querySelector("#gameModeBtn")?.textContent?.trim() || "",
+      };
+    });
+    await page.click("#gameModeBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).playMode === "drawing", null, { timeout: 3000 });
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewDrawingMode = {
+        ...window.__reviewDrawingMode,
+        afterTitle: document.querySelector("#gameModeBtn")?.textContent?.trim() || "",
+        playMode: state.playMode,
+        resourceName: state.resourceName,
+        introText: document.querySelector("#enemyField")?.innerText || "",
+        desktopHint: document.querySelector("#desktopInputHint")?.innerText || "",
+        drawingEmptyIconCount: document.querySelectorAll(".drawing-empty-icon").length,
+      };
+    });
+    await page.locator(".intro-reward-card").nth(0).click();
+    await page.locator(".intro-reward-card").nth(1).click();
+    await page.locator(".intro-reward-card").nth(2).click();
+    await page.click("#attackBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).floor === 1, null, { timeout: 3000 });
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewDrawingMode = {
+        ...window.__reviewDrawingMode,
+        afterFloor: state.floor,
+        afterResourceCount: state.player?.filmCount,
+        photoButtonText: document.querySelector("#photoActionBtn")?.textContent?.trim() || "",
+      };
+    });
+    await page.evaluate(() => document.querySelector("#photoActionBtn")?.click());
+    await page.waitForFunction(() => !document.querySelector("#drawingModal")?.hidden, null, { timeout: 3000 });
+    await page.click('[data-drawing-tool="eraser"]');
+    await page.click('[data-drawing-size="24"]');
+    await page.evaluate(() => {
+      window.__reviewDrawingMode = {
+        ...window.__reviewDrawingMode,
+        modalOpened: !document.querySelector("#drawingModal")?.hidden,
+        canvasVisible: Boolean(document.querySelector("#drawingCanvas")?.getBoundingClientRect().width),
+        eraserActive: document.querySelector('[data-drawing-tool="eraser"]')?.classList.contains("is-active") || false,
+        activeSize: document.querySelector(".drawing-size.is-active")?.dataset.drawingSize || "",
+      };
+    });
+    await page.click('[data-drawing-color="#2f7ed8"]');
+    await page.evaluate(() => {
+      window.__reviewDrawingMode = {
+        ...window.__reviewDrawingMode,
+        brushRestored: document.querySelector('[data-drawing-tool="brush"]')?.classList.contains("is-active") || false,
+      };
+    });
+    const box = await page.locator("#drawingCanvas").boundingBox();
+    await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.56);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.48, box.y + box.height * 0.34, { steps: 4 });
+    await page.mouse.move(box.x + box.width * 0.72, box.y + box.height * 0.58, { steps: 4 });
+    await page.mouse.up();
+    await page.click("#drawingUseBtn");
+    await page.waitForFunction(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      return state.hasPhoto && state.pendingSourceMode === "drawing";
+    }, null, { timeout: 3000 });
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewDrawingMode = {
+        ...window.__reviewDrawingMode,
+        pendingAfterUse: Boolean(state.hasPhoto),
+        pendingSourceMode: state.pendingSourceMode,
+        detailAfterUse: document.querySelector("#equipmentDetail")?.innerText || "",
+      };
+    });
+  });
+
+  scenarios.modeSwitchEquivalence = await collectScenario(desktop, "mode-switch-equivalence", async (page) => {
+    await page.locator(".intro-reward-card").nth(0).click();
+    await page.locator(".intro-reward-card").nth(1).click();
+    await page.evaluate(() => {
+      window.__reviewModeSwitchEquivalence = {
+        introPhotoText: document.querySelector("#enemyField")?.innerText || "",
+      };
+    });
+    await page.click("#gameModeBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).playMode === "drawing", null, { timeout: 3000 });
+    await page.evaluate(() => {
+      window.__reviewModeSwitchEquivalence = {
+        ...window.__reviewModeSwitchEquivalence,
+        introDrawingText: document.querySelector("#enemyField")?.innerText || "",
+        introDrawingBadges: Array.from(document.querySelectorAll(".intro-reward-card .selection-badge")).map((badge) => badge.textContent?.trim() || ""),
+        drawingEmptyIcons: document.querySelectorAll(".drawing-empty-icon").length,
+        cameraEmptyIconsAfterDrawing: document.querySelectorAll(".camera-empty-icon").length,
+      };
+    });
+    await page.click("#gameModeBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).playMode === "photo", null, { timeout: 3000 });
+    await page.locator(".intro-reward-card").nth(2).click();
+    await page.click("#attackBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).floor === 1, null, { timeout: 3000 });
+    await page.evaluate(() => {
+      window.__reviewModeSwitchEquivalence = {
+        ...window.__reviewModeSwitchEquivalence,
+        monsterPhotoText: document.querySelector("#enemyField")?.innerText || "",
+        actionAfterPhoto: document.querySelector("#photoActionBtn")?.textContent?.trim() || "",
+      };
+    });
+    await page.click("#gameModeBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).playMode === "drawing", null, { timeout: 3000 });
+    await page.evaluate(() => {
+      window.__reviewModeSwitchEquivalence = {
+        ...window.__reviewModeSwitchEquivalence,
+        monsterDrawingText: document.querySelector("#enemyField")?.innerText || "",
+        actionAfterDrawing: document.querySelector("#photoActionBtn")?.textContent?.trim() || "",
+      };
+    });
+    await page.evaluate(() => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.addRawItem({
+        itemName: "照片戒指",
+        sourceMode: "photo",
+        value: 10,
+        stats: { attack: 1 },
+        description: "照片装备原样保留。",
+        photoKey: "mode-switch-photo-item",
+        photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 },
+      });
+      hooks.addRawItem({
+        itemName: "画作护符",
+        sourceMode: "drawing",
+        value: 10,
+        stats: { defense: 1 },
+        description: "画作装备原样保留。",
+        photoKey: "mode-switch-drawing-item",
+        photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 2 },
+      });
+      window.__reviewModeSwitchEquivalence = {
+        ...window.__reviewModeSwitchEquivalence,
+        itemNamesBeforeSwitch: Array.from(document.querySelectorAll(".slot-name")).map((node) => node.textContent?.trim() || "").filter(Boolean),
+      };
+    });
+    await page.click("#gameModeBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).playMode === "photo", null, { timeout: 3000 });
+    await page.evaluate(() => {
+      window.__reviewModeSwitchEquivalence = {
+        ...window.__reviewModeSwitchEquivalence,
+        itemNamesAfterSwitch: Array.from(document.querySelectorAll(".slot-name")).map((node) => node.textContent?.trim() || "").filter(Boolean),
+      };
+    });
+    await page.evaluate(() => {
+      window.__photoHeroTestHooks.startBossRewardChoice(10);
+      window.__reviewModeSwitchEquivalence = {
+        ...window.__reviewModeSwitchEquivalence,
+        bossPhotoText: document.querySelector("#enemyField")?.innerText || "",
+      };
+    });
+    await page.click("#gameModeBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).playMode === "drawing", null, { timeout: 3000 });
+    await page.evaluate(() => {
+      window.__photoHeroTestHooks.state.analysisRequest = { id: "mode-switch-test" };
+      window.__photoHeroTestHooks.render();
+    });
+    await page.evaluate(() => {
+      window.__reviewModeSwitchEquivalence = {
+        ...window.__reviewModeSwitchEquivalence,
+        bossDrawingText: document.querySelector("#enemyField")?.innerText || "",
+      };
+    });
+    await page.click("#gameModeBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).playMode === "photo", null, { timeout: 3000 });
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewModeSwitchEquivalence = {
+        ...window.__reviewModeSwitchEquivalence,
+        analyzingSwitchAllowed: true,
+        modeAfterAnalyzingSwitch: state.playMode,
       };
     });
   });
@@ -2012,6 +2267,73 @@ function assertScenario(name, metrics) {
       infoClosed: !infoClosedState.infoVisible && !infoClosedState.configVisible,
       configOpened: configOpenState.configVisible,
       configClosed: !configClosedState.infoVisible && !configClosedState.configVisible,
+    });
+  });
+
+  scenarios.apiConfig = await collectScenario(desktop, "api-config", async (page) => {
+    await page.click("#configToggleBtn");
+    await page.evaluate(() => {
+      const readStoredConfig = () => JSON.parse(localStorage.getItem("photoHero.config") || "{}");
+      const state = JSON.parse(window.render_game_to_text());
+      const keyInput = document.querySelector("#apiKeyInput");
+      const toggle = document.querySelector("#toggleKeyBtn");
+      const modelInput = document.querySelector("#modelInput");
+      const baseUrlInput = document.querySelector("#baseUrlInput");
+      window.__reviewApiConfig = {
+        visiblePresets: Array.from(document.querySelectorAll(".preset-button")).map((button) => button.dataset.preset || ""),
+        visiblePresetLabels: Array.from(document.querySelectorAll(".preset-button")).map((button) => button.textContent?.trim() || ""),
+        defaultPreset: state.api?.presetId || "",
+        defaultBaseUrl: state.api?.baseUrl || "",
+        defaultModel: state.api?.model || "",
+        defaultReady: Boolean(state.api?.hasApiKey),
+        defaultKeyLocked: Boolean(keyInput?.readOnly),
+        defaultToggleHidden: Boolean(toggle?.hidden),
+        defaultModelDisabled: Boolean(modelInput?.disabled),
+        defaultHasMaskedKey: /^•+$/.test(keyInput?.value || ""),
+        defaultKeyValue: keyInput?.value || "",
+        defaultStoredKey: readStoredConfig().apiKey || "",
+      };
+    });
+    await page.evaluate(() => {
+      const keyInput = document.querySelector("#apiKeyInput");
+      document.querySelector("#toggleKeyBtn")?.click();
+      window.__reviewApiConfig = {
+        ...window.__reviewApiConfig,
+        afterToggleType: keyInput?.type || "",
+        afterToggleValue: keyInput?.value || "",
+      };
+    });
+    await page.click('[data-preset="xiaomi"]');
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      const modelInput = document.querySelector("#modelInput");
+      window.__reviewApiConfig = {
+        ...window.__reviewApiConfig,
+        xiaomiPreset: state.api?.presetId || "",
+        xiaomiBaseUrl: state.api?.baseUrl || "",
+        xiaomiModel: state.api?.model || "",
+        xiaomiModelOptions: Array.from(modelInput?.options || []).map((option) => option.value || ""),
+        xiaomiLinksText: document.querySelector("#providerLinks")?.innerText || "",
+      };
+    });
+    await page.click('[data-preset="custom"]');
+    await page.fill("#baseUrlInput", "https://example.test/v1");
+    await page.fill("#customModelInput", "vision-test-model");
+    await page.fill("#apiKeyInput", "sk-test-visible");
+    await page.click("#toggleKeyBtn");
+    await page.click("#saveConfigBtn");
+    await page.evaluate(() => {
+      const keyInput = document.querySelector("#apiKeyInput");
+      const toggle = document.querySelector("#toggleKeyBtn");
+      const stored = JSON.parse(localStorage.getItem("photoHero.config") || "{}");
+      window.__reviewApiConfig = {
+        ...window.__reviewApiConfig,
+        afterCustomEditable: !keyInput?.readOnly,
+        customToggleVisible: !toggle?.hidden,
+        customKeyType: keyInput?.type || "",
+        customKeyValue: keyInput?.value || "",
+        customStoredKey: stored.apiKey || "",
+      };
     });
   });
 

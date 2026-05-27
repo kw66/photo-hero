@@ -34,6 +34,7 @@ const STATS_COUNTER_IDS = {
 let appraisalPlayerRecordPending = false;
 
 const SILICONFLOW_MODELS = [
+  { value: "Qwen/Qwen3.5-35B-A3B" },
   { value: "Qwen/Qwen3.6-35B-A3B" },
   { value: "Pro/moonshotai/Kimi-K2.6" },
   { value: "Pro/moonshotai/Kimi-K2.5" },
@@ -42,8 +43,26 @@ const SILICONFLOW_MODELS = [
   { value: "Qwen/Qwen3.5-122B-A10B" },
 ];
 
+const defaultApiPresetId = "siliconflow";
+const experienceModelName = "Qwen/Qwen3.5-35B-A3B";
+const experienceApiKeyMask = "••••••••••••••••••••••••";
+const experienceWorkerBaseUrl = "https://photo-hero-experience.1092043672.workers.dev";
+const experienceProxyBaseUrl = (() => {
+  const configured = window.PHOTO_HERO_EXPERIENCE_PROXY_BASE_URL || "";
+  if (configured) return configured.replace(/\/+$/, "");
+  if (/^https?:$/.test(window.location.protocol) && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname)) {
+    return `${window.location.origin}/api/experience`;
+  }
+  return experienceWorkerBaseUrl;
+})();
+
 const ZHIPU_MODELS = [
   { value: "glm-5v-turbo" },
+];
+
+const XIAOMI_MODELS = [
+  { value: "mimo-v2.5" },
+  { value: "mimo-v2.5-pro" },
 ];
 
 const MICU_MODELS = [
@@ -56,6 +75,18 @@ const MICU_MODELS = [
 ];
 
 const API_PRESETS = {
+  experience: {
+    label: "体验",
+    hidden: true,
+    baseUrl: experienceProxyBaseUrl,
+    model: experienceModelName,
+    models: [{ value: experienceModelName }],
+    note: "体验模式使用内置代理转发到硅基流动，只能用于本游戏的图片鉴定；地址、模型和 Key 都已锁定。",
+    links: [],
+    supportsVision: true,
+    lockedKey: true,
+    lockedModel: true,
+  },
   siliconflow: {
     label: "硅基流动",
     baseUrl: "https://api.siliconflow.cn/v1",
@@ -65,6 +96,18 @@ const API_PRESETS = {
     links: [
       { label: "硅基流动邀请链接", url: "https://cloud.siliconflow.cn/i/GOrKhgP7" },
       { label: "API 文档", url: "https://docs.siliconflow.cn/" },
+    ],
+    supportsVision: true,
+  },
+  xiaomi: {
+    label: "小米",
+    baseUrl: "https://api.xiaomimimo.com/v1",
+    model: "mimo-v2.5",
+    models: XIAOMI_MODELS,
+    note: "",
+    links: [
+      { label: "小米邀请链接", url: "https://platform.xiaomimimo.com?ref=GV8ULT" },
+      { label: "小米文档", url: "https://platform.xiaomimimo.com/docs/zh-CN/welcome" },
     ],
     supportsVision: true,
   },
@@ -81,7 +124,7 @@ const API_PRESETS = {
     supportsVision: true,
   },
   micu: {
-    label: "米醋中转",
+    label: "米醋",
     baseUrl: "https://www.micuapi.ai/v1",
     model: "gpt-5.5",
     models: MICU_MODELS,
@@ -109,6 +152,39 @@ const customDraft = {
 };
 
 const providerApiKeys = {};
+const heroModes = {
+  photo: {
+    id: "photo",
+    title: "照片勇者",
+    resource: "胶卷",
+    resourceShard: "胶卷碎片",
+    action: "拍照",
+    pending: "照片",
+    equipment: "照片装备",
+    sourceMode: "photo",
+  },
+  drawing: {
+    id: "drawing",
+    title: "画图勇者",
+    resource: "画布",
+    resourceShard: "画布碎片",
+    action: "画图",
+    pending: "画作",
+    equipment: "画作装备",
+    sourceMode: "drawing",
+  },
+};
+const defaultHeroMode = "photo";
+const drawingCanvasSize = 768;
+const defaultDrawingState = {
+  open: false,
+  drawing: false,
+  tool: "brush",
+  color: "#17130f",
+  size: 12,
+  hasMarks: false,
+  lastPoint: null,
+};
 
 const equipmentVisibleSlots = 10;
 const equipmentSlotLimit = 10;
@@ -268,6 +344,45 @@ const photoIdentificationUserPrompt = [
   "",
   "输出示例：",
   "{\"itemName\":\"蓝柄剪刀\",\"subjectName\":\"剪刀\",\"objectType\":\"手持工具\",\"identityDescription\":\"蓝色塑料手柄、金属剪刀刃、桌面近景、主体占画面大，没有明显品牌文字。\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":3,\"subjectArea\":3,\"backgroundClean\":2,\"realPhoto\":3,\"focusLight\":2,\"interesting\":2},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3},{\"stat\":\"lifesteal\",\"score\":2}],\"specialAffinity\":[\"dealDamageAttack\"],\"description\":\"锋利的剪刀适合切开敌人的防线。\",\"reason\":\"手持尖锐工具，主体清晰。\",\"tags\":[\"尖锐\",\"工具\"],\"confidence\":0.9}",
+].join("\n");
+
+const drawingIdentificationSystemPrompt = [
+  "你是《画图勇者》的手绘装备鉴定器，负责把玩家画在画布上的简笔画、符号或幻想小道具转成装备语义倾向。",
+  "你必须只输出一个 JSON 对象，不要 Markdown，不要代码块，不要额外解释。",
+  "第一字符必须是 {，最后一个字符必须是 }。",
+  "你不负责计算最终 value、最终 stats 或最终 specialEffects；这些数值由本地游戏规则统一结算。",
+  "画图模式鼓励玩家画有趣、酷炫、天马行空的东西。不要因为它不是现实照片、不是现实物体、是幻想武器、怪物符号或卡通图案就直接判低分。",
+  "只在画布几乎空白、纯随机涂鸦、没有可识别主体、纯场景背景或明显无法转成装备概念时，才把 isEquipable 设为 false 或给很低分。",
+].join("\n");
+
+const drawingIdentificationUserPrompt = [
+  "鉴定这张玩家手绘画布里的一个主要主体，生成《画图勇者》装备素材 JSON。",
+  "",
+  "识别规则：",
+  "1. 优先找最醒目、最像装备/道具/符号/生物部件/幻想概念的主体；忽略零散背景线条。",
+  "2. 幻想剑、魔杖、盾、龙鳞、眼睛、火焰、星星、机器人、怪物符号、可爱小图标都可以鉴定，只要画面主体可辨认。",
+  "3. 画出来的巨大物、怪物或生物默认按“画作符号/装备概念”处理，不按现实尺寸判定 tooLarge；只有纯风景、整片天空、道路、房间这类没有道具主体的画面才 isScene=true。",
+  "4. 不要输出最终 value、最终 stats 或最终 specialEffects；本地规则会根据 photoQuality、statAffinity、specialAffinity 计算。",
+  "",
+  "必须输出这个 JSON 结构，字段名使用英文：",
+  "{\"itemName\":\"短装备名\",\"subjectName\":\"画布主体\",\"objectType\":\"主体类型\",\"identityDescription\":\"用于判断是否同一幅画的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
+  "",
+  "画作质量 photoQuality：",
+  "clarity=主体可辨识程度 0-3；subjectArea=主体是否占主要画面 0-3；backgroundClean=背景是否干净 0-2；realPhoto=手绘意图/原创完成度 0-3，在画图模式不是现实实拍感；focusLight=线条控制、颜色完成度 0-2；interesting=有趣、酷炫、让人想装备 0-2。",
+  "主动拉开分值：勉强可辨认 5-8；主体清楚但普通 9-11；线条清楚、有装备联想 12-14；主体鲜明、造型有趣或酷炫 14-15。纯空白或无主体接近 0。",
+  "",
+  "属性语义：",
+  "statAffinity 只输出属性倾向，score 用 1-3，最大 3 项。可选 stat：hp、attack、defense、speed、shield、lifesteal、regen。",
+  "attack=尖锐、武器、火焰、雷电、爪牙、爆炸、进攻符号；defense=盾、铠甲、墙、龟壳、堡垒、坚硬外壳；speed=翅膀、风、闪电、轮子、飞行、箭头；shield=盾牌、圆环、屏障、保护罩；lifesteal=吸血、尖牙、血滴、黑暗抽取；regen=水、草、药、光、治愈、心形、泉水；hp=生命、食物、果实、爱心、能量核心。",
+  `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}(价值${effect.value})`).join("；")}。`,
+  "",
+  "命名和描述：",
+  "itemName 要具体、短、有画面感，例如 星火短剑、蓝色护符、涂鸦龙鳞、笑脸魔盾；不要叫 画作装备、神秘涂鸦。",
+  "description 用一句中文写成装备味道，可以比照片模式更有想象力，但不要直接承诺最终数值或战斗效果。",
+  "reason 只写一句内部依据，格式尽量像：主体=火焰短剑；画面=清楚；倾向=攻击。",
+  "",
+  "输出示例：",
+  "{\"itemName\":\"星火短剑\",\"subjectName\":\"火焰短剑\",\"objectType\":\"手绘幻想武器\",\"identityDescription\":\"白色画布中央有一把黑线短剑，剑尖带红橙色火焰，左侧有两颗蓝色星点。\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":3,\"subjectArea\":3,\"backgroundClean\":2,\"realPhoto\":3,\"focusLight\":2,\"interesting\":2},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3},{\"stat\":\"speed\",\"score\":1}],\"specialAffinity\":[\"dealDamageAttack\"],\"description\":\"这把涂鸦短剑还带着纸面上的星火。\",\"reason\":\"主体=火焰短剑；画面清楚；倾向=攻击。\",\"tags\":[\"手绘\",\"火焰\",\"短剑\"],\"confidence\":0.86}",
 ].join("\n");
 
 const statOrder = ["hp", "attack", "defense", "speed", "shield", "lifesteal", "regen"];
@@ -445,9 +560,9 @@ const bgmPreloadOrder = [
 ];
 
 const introRewardOptions = [
-  { id: "intro-film-1", title: "胶卷", effect: "+1.0 胶卷", desc: "开局的第一次拍照机会，用来把身边小物鉴定成装备。", icon: "boss-film-drop.png" },
-  { id: "intro-film-2", title: "胶卷", effect: "+1.0 胶卷", desc: "备用的一次拍照机会，拍错或想换主体时更从容。", icon: "boss-film-drop.png" },
-  { id: "intro-film-3", title: "胶卷", effect: "+1.0 胶卷", desc: "收下最后一卷胶卷，三卷齐了就能进入魔塔。", icon: "boss-film-drop.png" },
+  { id: "intro-film-1", title: "胶卷", effect: "+1.0 胶卷", desc: "点亮空装备格，按下拍照，把身边小物带进塔中。", icon: "boss-film-drop.png" },
+  { id: "intro-film-2", title: "胶卷", effect: "+1.0 胶卷", desc: "在鉴定台填好图文 API，按钮亮起后再鉴定照片。", icon: "boss-film-drop.png" },
+  { id: "intro-film-3", title: "胶卷", effect: "+1.0 胶卷", desc: "入塔后点击怪物卡选定目标，按战斗夺回新的胶卷。", icon: "boss-film-drop.png" },
 ];
 
 const monsterImages = {
@@ -556,6 +671,7 @@ const rewardBossFloorNarratives = {
 };
 
 const els = {
+  gameModeBtn: byId("gameModeBtn"),
   playerHpText: byId("playerHpText"),
   playerHpBar: byId("playerHpBar"),
   playerAtk: byId("playerAtk"),
@@ -615,6 +731,7 @@ const els = {
   pendingCropBox: byId("pendingCropBox"),
   discardItemBtn: byId("discardItemBtn"),
   loadingState: byId("loadingState"),
+  desktopInputHint: byId("desktopInputHint"),
   battleLog: byId("battleLog"),
   imageViewer: byId("imageViewer"),
   imageViewerImage: byId("imageViewerImage"),
@@ -624,9 +741,15 @@ const els = {
   viewerCropActions: byId("viewerCropActions"),
   viewerCropConfirm: byId("viewerCropConfirm"),
   viewerCropCancel: byId("viewerCropCancel"),
+  drawingModal: byId("drawingModal"),
+  drawingCanvas: byId("drawingCanvas"),
+  drawingCancelBtn: byId("drawingCancelBtn"),
+  drawingUseBtn: byId("drawingUseBtn"),
+  drawingClearBtn: byId("drawingClearBtn"),
 };
 
 const state = {
+  playMode: defaultHeroMode,
   player: createDefaultPlayer(),
   runSeed: makeRunSeed(),
   floor: introFloor,
@@ -656,6 +779,7 @@ const state = {
   pendingPhotoSlotIndex: 0,
   selectedItemId: "",
   lastPhoto: "",
+  pendingSourceMode: defaultHeroMode,
   pendingCropRect: null,
   cropMode: false,
   cropDrag: null,
@@ -699,6 +823,7 @@ const state = {
   bgmWatchKey: "",
   bgmWatchCurrentTime: 0,
   bgmWatchProgressAt: 0,
+  drawing: { ...defaultDrawingState },
   tutorial: { ...defaultTutorialState },
 };
 
@@ -710,6 +835,83 @@ ensureInitialFloorNarrative();
 bindEvents();
 ensureBgmForGameState(true);
 render();
+
+function normalizeHeroMode(mode) {
+  return heroModes[mode]?.id || defaultHeroMode;
+}
+
+function getHeroMode(mode = state.playMode) {
+  return heroModes[normalizeHeroMode(mode)];
+}
+
+function isDrawingMode(mode = state.playMode) {
+  return normalizeHeroMode(mode) === "drawing";
+}
+
+function getPendingSourceMode() {
+  return normalizeHeroMode(state.pendingSourceMode || state.playMode);
+}
+
+function getGameTitle(mode = state.playMode) {
+  return getHeroMode(mode).title;
+}
+
+function getResourceName(mode = state.playMode) {
+  return getHeroMode(mode).resource;
+}
+
+function getResourceShardName(mode = state.playMode) {
+  return getHeroMode(mode).resourceShard;
+}
+
+function getInputActionName(mode = state.playMode) {
+  return getHeroMode(mode).action;
+}
+
+function getPendingImageLabel(mode = getPendingSourceMode()) {
+  return getHeroMode(mode).pending;
+}
+
+function getEquipmentSourceLabel(mode = state.playMode) {
+  return getHeroMode(mode).equipment;
+}
+
+function modeText(text, mode = state.playMode) {
+  if (!isDrawingMode(mode)) return String(text || "");
+  return String(text || "")
+    .replace(/照片勇者/g, "画图勇者")
+    .replace(/照片装备/g, "画作装备")
+    .replace(/照片/g, "画作")
+    .replace(/拍照/g, "画图")
+    .replace(/胶卷碎片/g, "画布碎片")
+    .replace(/胶卷/g, "画布")
+    .replace(/胶片/g, "画纸");
+}
+
+function renderGameMode() {
+  const mode = getHeroMode();
+  document.body.dataset.playMode = mode.id === "drawing" ? "drawing" : "photo";
+  document.title = mode.title;
+  if (els.gameModeBtn) {
+    const nextTitle = isDrawingMode() ? "照片勇者" : "画图勇者";
+    els.gameModeBtn.textContent = mode.title;
+    els.gameModeBtn.title = `切换为${nextTitle}`;
+    els.gameModeBtn.setAttribute("aria-label", `当前是${mode.title}，点击切换为${nextTitle}`);
+  }
+  if (els.desktopInputHint) {
+    els.desktopInputHint.textContent = isDrawingMode()
+      ? "桌面端点击画图打开画布；画完后放入装备格，再交给鉴定台。"
+      : "桌面端可把图片拖到这里，或点击信息框后按 Ctrl+V 粘贴图片。";
+  }
+}
+
+function toggleHeroMode() {
+  state.playMode = isDrawingMode() ? "photo" : "drawing";
+  closeDrawingModal();
+  saveConfig(false);
+  saveGame();
+  render();
+}
 
 function getSoundEffectAudio(key) {
   const effect = soundEffects[key];
@@ -1408,6 +1610,9 @@ function updateVolumeSliderFill(input) {
 function bindEvents() {
   document.addEventListener("pointerdown", unlockGameAudio, { once: true, passive: true });
   document.addEventListener("keydown", unlockGameAudio, { once: true });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !els.drawingModal?.hidden) closeDrawingModal();
+  });
   document.addEventListener("pointerdown", () => recoverGameAudio("gesture"), { passive: true });
   document.addEventListener("touchstart", () => recoverGameAudio("touch"), { passive: true });
   document.addEventListener("keydown", () => recoverGameAudio("keydown"));
@@ -1417,6 +1622,7 @@ function bindEvents() {
   window.addEventListener("focus", () => recoverGameAudio("focus", { force: true }));
   window.addEventListener("pageshow", () => recoverGameAudio("pageshow", { force: true }));
   window.setInterval(checkBgmWatchdog, 1200);
+  els.gameModeBtn?.addEventListener("click", toggleHeroMode);
 
   document.querySelectorAll("[data-panel-target]").forEach((button) => {
     button.addEventListener("click", () => toggleSecondaryPanel(button.dataset.panelTarget || "none"));
@@ -1522,7 +1728,205 @@ function bindEvents() {
       button.click();
     });
   });
+  bindDrawingCanvasEvents();
   renderHeroForms();
+}
+
+function bindDrawingCanvasEvents() {
+  const canvas = els.drawingCanvas;
+  if (!canvas) return;
+  canvas.addEventListener("pointerdown", handleDrawingPointerDown);
+  canvas.addEventListener("pointermove", handleDrawingPointerMove);
+  canvas.addEventListener("pointerup", handleDrawingPointerUp);
+  canvas.addEventListener("pointercancel", handleDrawingPointerUp);
+  els.drawingCancelBtn?.addEventListener("click", closeDrawingModal);
+  els.drawingUseBtn?.addEventListener("click", useDrawingAsPendingPhoto);
+  els.drawingClearBtn?.addEventListener("click", clearDrawingCanvas);
+  document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
+    button.addEventListener("click", () => setDrawingTool(button.dataset.drawingTool || "brush"));
+  });
+  document.querySelectorAll("[data-drawing-color]").forEach((button) => {
+    button.addEventListener("click", () => setDrawingColor(button.dataset.drawingColor || defaultDrawingState.color));
+  });
+  document.querySelectorAll("[data-drawing-size]").forEach((button) => {
+    button.addEventListener("click", () => setDrawingSize(Number(button.dataset.drawingSize) || defaultDrawingState.size));
+  });
+}
+
+function getDrawingContext() {
+  return els.drawingCanvas?.getContext("2d", { willReadFrequently: true }) || null;
+}
+
+function prepareDrawingCanvas() {
+  const canvas = els.drawingCanvas;
+  const ctx = getDrawingContext();
+  if (!canvas || !ctx) return;
+  if (canvas.width !== drawingCanvasSize || canvas.height !== drawingCanvasSize) {
+    canvas.width = drawingCanvasSize;
+    canvas.height = drawingCanvasSize;
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#fffaf0";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  state.drawing.hasMarks = false;
+  state.drawing.lastPoint = null;
+}
+
+function openDrawingCanvasForSelectedSlot() {
+  if (isCareerSummaryOpen() && state.careerSummary) {
+    requestCareerSummary(true);
+    return;
+  }
+  const redrawPending = Boolean(state.lastPhoto && getPendingSourceMode() === "drawing");
+  if (isEquipmentLocked() || (!redrawPending && hasPendingPhoto()) || isPlayerDefeated() || state.bossReward) {
+    showInputNotice(getPhotoInputBlockedMessage());
+    render();
+    return;
+  }
+  const index = redrawPending ? clampSlotIndex(state.pendingPhotoSlotIndex) : getSelectedSlotIndex();
+  if (getInventoryItemAt(index)) {
+    showInputNotice(getPhotoInputBlockedMessage());
+    render();
+    return;
+  }
+  if (state.filmRolls < 1) {
+    showInputNotice(`${getResourceName()}不足，先击败怪物攒到新的${getInputActionName()}机会。`);
+    render();
+    return;
+  }
+  state.tutorial.photoStarted = true;
+  state.pendingPhotoSlotIndex = index;
+  state.selectedSlotIndex = index;
+  state.infoMode = "item";
+  state.drawing.open = true;
+  state.drawing.drawing = false;
+  state.drawing.lastPoint = null;
+  els.photoActionBtn.classList.remove("is-photo-callout");
+  prepareDrawingCanvas();
+  renderDrawingToolbar();
+  els.drawingModal.hidden = false;
+  saveGame();
+  renderGameTextOnly();
+}
+
+function closeDrawingModal() {
+  state.drawing.open = false;
+  state.drawing.drawing = false;
+  state.drawing.lastPoint = null;
+  if (els.drawingModal) els.drawingModal.hidden = true;
+}
+
+function setDrawingTool(tool) {
+  state.drawing.tool = tool === "eraser" ? "eraser" : "brush";
+  renderDrawingToolbar();
+}
+
+function setDrawingColor(color) {
+  state.drawing.color = /^#[0-9a-f]{6}$/i.test(String(color || "")) ? color : defaultDrawingState.color;
+  state.drawing.tool = "brush";
+  renderDrawingToolbar();
+}
+
+function setDrawingSize(size) {
+  state.drawing.size = clampInt(size, 2, 48);
+  renderDrawingToolbar();
+}
+
+function renderDrawingToolbar() {
+  document.querySelectorAll("[data-drawing-tool]").forEach((button) => {
+    const active = (button.dataset.drawingTool || "brush") === state.drawing.tool;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.querySelectorAll("[data-drawing-color]").forEach((button) => {
+    const active = (button.dataset.drawingColor || "") === state.drawing.color && state.drawing.tool === "brush";
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.querySelectorAll("[data-drawing-size]").forEach((button) => {
+    const active = Number(button.dataset.drawingSize) === state.drawing.size;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function getDrawingPoint(event) {
+  const rect = els.drawingCanvas.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) / Math.max(1, rect.width)) * els.drawingCanvas.width,
+    y: ((event.clientY - rect.top) / Math.max(1, rect.height)) * els.drawingCanvas.height,
+  };
+}
+
+function handleDrawingPointerDown(event) {
+  if (els.drawingModal.hidden) return;
+  event.preventDefault();
+  els.drawingCanvas.setPointerCapture?.(event.pointerId);
+  state.drawing.drawing = true;
+  const point = getDrawingPoint(event);
+  state.drawing.lastPoint = point;
+  drawOnCanvas(point, point);
+}
+
+function handleDrawingPointerMove(event) {
+  if (!state.drawing.drawing || els.drawingModal.hidden) return;
+  event.preventDefault();
+  const point = getDrawingPoint(event);
+  drawOnCanvas(state.drawing.lastPoint || point, point);
+  state.drawing.lastPoint = point;
+}
+
+function handleDrawingPointerUp(event) {
+  if (!state.drawing.drawing) return;
+  event.preventDefault();
+  state.drawing.drawing = false;
+  state.drawing.lastPoint = null;
+  els.drawingCanvas.releasePointerCapture?.(event.pointerId);
+}
+
+function drawOnCanvas(from, to) {
+  const ctx = getDrawingContext();
+  if (!ctx) return;
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = state.drawing.tool === "eraser" ? state.drawing.size * 1.8 : state.drawing.size;
+  ctx.strokeStyle = state.drawing.tool === "eraser" ? "#fffaf0" : state.drawing.color;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(to.x, to.y);
+  ctx.stroke();
+  ctx.restore();
+  if (state.drawing.tool !== "eraser") state.drawing.hasMarks = true;
+}
+
+function clearDrawingCanvas() {
+  prepareDrawingCanvas();
+}
+
+function useDrawingAsPendingPhoto() {
+  if (!state.drawing.hasMarks) {
+    showInputNotice("画布还是空的，先画一个主体再放入装备格。");
+    render();
+    return;
+  }
+  const dataUrl = els.drawingCanvas.toDataURL("image/jpeg", 0.88);
+  state.lastPhoto = dataUrl;
+  state.pendingSourceMode = "drawing";
+  state.pendingCropRect = null;
+  state.cropMode = false;
+  state.cropDrag = null;
+  state.pendingPhotoSlotIndex = getSelectedSlotIndex();
+  state.lootError = "";
+  state.infoMode = "item";
+  state.tutorial.photoStarted = true;
+  closeDrawingModal();
+  setBusy("");
+  render();
+  renderGameTextOnly();
 }
 
 function openPhotoPicker() {
@@ -1531,6 +1935,10 @@ function openPhotoPicker() {
 }
 
 function openPhotoPickerForSelectedSlot() {
+  if (isDrawingMode()) {
+    openDrawingCanvasForSelectedSlot();
+    return;
+  }
   if (isCareerSummaryOpen() && state.careerSummary) {
     requestCareerSummary(true);
     return;
@@ -1549,6 +1957,7 @@ function openPhotoPickerForSelectedSlot() {
   state.tutorial.photoStarted = true;
   state.pendingPhotoSlotIndex = index;
   state.infoMode = "item";
+  state.pendingSourceMode = "photo";
   els.photoActionBtn.classList.remove("is-photo-callout");
   openPhotoPicker();
   saveGame();
@@ -1557,6 +1966,10 @@ function openPhotoPickerForSelectedSlot() {
 
 function handlePhotoActionButtonClick() {
   if (state.lastPhoto && !isAnalyzingPhoto()) {
+    if (getPendingSourceMode() === "drawing") {
+      openDrawingCanvasForSelectedSlot();
+      return;
+    }
     if (state.cropMode) {
       confirmPendingCrop();
     } else {
@@ -1800,6 +2213,7 @@ function handleViewerCropPointerUp(event) {
 }
 
 function canPreparePhotoInDetail() {
+  if (isDrawingMode()) return false;
   if (isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || state.bossReward || state.gameClear) return false;
   return !getInventoryItemAt(getSelectedSlotIndex());
 }
@@ -1818,14 +2232,14 @@ async function preparePhotoFromDetailFile(file, errorPrefix, successMessage = ""
 }
 
 function getPhotoInputBlockedMessage() {
-  if (state.gameClear) return "通关后可以查看和保存本局装备，重开后照片会清空。";
-  if (isPlayerDefeated()) return "照片勇者已经倒下，只能重开。";
+  if (state.gameClear) return modeText("通关后可以查看和保存本局装备，重开后照片会清空。");
+  if (isPlayerDefeated()) return `${getGameTitle()}已经倒下，只能重开。`;
   if (state.bossReward) return "先确认一张 Boss 奖励牌。";
-  if (isAnalyzingPhoto()) return "正在鉴定照片，先等待或取消鉴定。";
-  if (hasPendingPhoto()) return "已有待鉴定照片，先鉴定或放弃。";
-  if (isEquipmentLocked()) return "战斗中不能拍照鉴定。";
+  if (isAnalyzingPhoto()) return `正在鉴定${getPendingImageLabel()}，先等待或取消鉴定。`;
+  if (hasPendingPhoto()) return `已有待鉴定${getPendingImageLabel()}，先鉴定或放弃。`;
+  if (isEquipmentLocked()) return `战斗中不能${getInputActionName()}鉴定。`;
   if (getInventoryItemAt(getSelectedSlotIndex())) return "当前装备格已有装备，请选择空格。";
-  return "当前还不能放入照片。";
+  return `当前还不能放入${getPendingImageLabel(state.playMode)}。`;
 }
 
 async function handleEquipmentDetailPaste(event) {
@@ -1864,7 +2278,7 @@ async function handleEquipmentDetailDrop(event) {
 
 function handleDocumentClickForInfoMode(event) {
   if (event.target.closest("#fileInput")) return;
-  if (event.target.closest(".equipment-slot, .equipment-detail, .image-viewer, .secondary-area, .floor-action-row, [data-panel-target], .preset-button")) {
+  if (event.target.closest(".equipment-slot, .equipment-detail, .image-viewer, .drawing-modal, .secondary-area, .floor-action-row, [data-panel-target], .preset-button")) {
     return;
   }
   if (hasPendingPhoto()) return;
@@ -1938,7 +2352,7 @@ async function saveImageDataUrl(image, fileName, successMessage = "图片已保�
       const file = new File([blob], fileName, { type: blob.type || "image/jpeg" });
       if (navigator.canShare({ files: [file] })) {
         try {
-          await navigator.share({ files: [file], title: "照片勇者" });
+          await navigator.share({ files: [file], title: getGameTitle() });
           addLog(successMessage);
           return "share";
         } catch (error) {
@@ -2017,7 +2431,7 @@ async function dataUrlToBlob(dataUrl) {
 }
 
 function makePhotoSaveFileName(item) {
-  const name = sanitizeFileName(formatItemDisplayName(item) || "照片装备");
+  const name = sanitizeFileName(formatItemDisplayName(item) || getEquipmentSourceLabel(item?.sourceMode || state.playMode));
   return `photo-hero-${name}-${new Date().toISOString().slice(0, 10)}.jpg`;
 }
 
@@ -2087,7 +2501,7 @@ async function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
 
   ctx.fillStyle = accent;
   ctx.font = "900 46px sans-serif";
-  ctx.fillText(isDefeat ? "照片勇者塔史残页" : "照片勇者塔顶旧史", margin + 34, margin + 78);
+  ctx.fillText(isDefeat ? `${getGameTitle()}塔史残页` : `${getGameTitle()}塔顶旧史`, margin + 34, margin + 78);
   ctx.fillStyle = "#b9c2b8";
   ctx.font = "800 24px sans-serif";
   ctx.fillText(subtitle, margin + 36, margin + 118);
@@ -2136,7 +2550,7 @@ async function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
 
   ctx.fillStyle = "#aeb8ac";
   ctx.font = "700 22px sans-serif";
-  ctx.fillText(isDefeat ? "photo-hero · 现实物品留在魔塔残页" : "photo-hero · 现实物品写入魔塔旧史", margin + 36, height - 84);
+  ctx.fillText(isDefeat ? modeText("photo-hero · 现实物品留在魔塔残页") : modeText("photo-hero · 现实物品写入魔塔旧史"), margin + 36, height - 84);
   ctx.fillStyle = accentSoft;
   ctx.fillRect(margin + 34, height - 70, width - margin * 2 - 68, 4);
 }
@@ -2150,7 +2564,7 @@ async function drawCareerEquipmentCanvas(ctx, snapshot, x, y, width, height) {
   if (!items.length) {
     ctx.fillStyle = "#aeb8ac";
     ctx.font = "800 24px sans-serif";
-    ctx.fillText("没有照片装备记录", x, y + 62);
+    ctx.fillText(modeText("没有照片装备记录"), x, y + 62);
     return;
   }
   const loaded = await Promise.all(items.map(async (item) => {
@@ -2265,6 +2679,14 @@ function roundRect(ctx, x, y, width, height, radius) {
 }
 
 function toggleApiKeyVisibility() {
+  if (isActivePresetLockedKey()) {
+    els.apiKeyInput.type = "password";
+    els.toggleKeyBtn.classList.remove("is-visible");
+    els.toggleKeyBtn.setAttribute("aria-label", "体验模式的 API Key 已隐藏");
+    els.toggleKeyBtn.querySelector(".visually-hidden").textContent = "体验模式的 API Key 已隐藏";
+    return;
+  }
+
   const showing = els.apiKeyInput.type === "text";
   const label = showing ? "显示 API Key" : "隐藏 API Key";
   els.apiKeyInput.type = showing ? "password" : "text";
@@ -2313,12 +2735,14 @@ function setInfoTab(tabId) {
 
 function applyPreset(presetId, persist = false) {
   rememberCurrentApiKey();
-  if (persist && getActivePresetId() === "custom" && presetId !== "custom") {
+  const targetPresetId = API_PRESETS[presetId] ? presetId : defaultApiPresetId;
+  if (persist && getActivePresetId() === "custom" && targetPresetId !== "custom") {
     rememberCustomDraft();
   }
 
-  const preset = API_PRESETS[presetId] || API_PRESETS.custom;
-  const isCustom = presetId === "custom";
+  const preset = API_PRESETS[targetPresetId] || API_PRESETS.custom;
+  const isCustom = targetPresetId === "custom";
+  const isLockedKey = Boolean(preset.lockedKey);
   const selectedModel = isCustom ? customDraft.model : preset.model;
 
   if (isCustom) {
@@ -2328,11 +2752,22 @@ function applyPreset(presetId, persist = false) {
     els.baseUrlInput.value = preset.baseUrl;
     els.customModelInput.value = preset.editableModel ? customDraft.model : "";
   }
-  els.apiKeyInput.value = providerApiKeys[presetId] || "";
+  els.apiKeyInput.value = isLockedKey ? experienceApiKeyMask : providerApiKeys[targetPresetId] || "";
+  els.apiKeyInput.type = "password";
   renderModelOptions(preset, selectedModel);
 
   els.baseUrlInput.readOnly = !isCustom;
   els.baseUrlInput.classList.toggle("is-locked", !isCustom);
+  els.apiKeyInput.readOnly = isLockedKey;
+  els.apiKeyInput.classList.toggle("is-locked", isLockedKey);
+  els.apiKeyInput.setAttribute("aria-readonly", String(isLockedKey));
+  els.toggleKeyBtn.disabled = isLockedKey;
+  els.toggleKeyBtn.hidden = isLockedKey;
+  els.toggleKeyBtn.classList.remove("is-visible");
+  els.toggleKeyBtn.setAttribute("aria-label", isLockedKey ? "体验模式的 API Key 已隐藏" : "显示 API Key");
+  els.toggleKeyBtn.querySelector(".visually-hidden").textContent = isLockedKey ? "体验模式的 API Key 已隐藏" : "显示 API Key";
+  els.modelInput.disabled = Boolean(preset.lockedModel);
+  els.modelInput.classList.toggle("is-locked", Boolean(preset.lockedModel));
   els.presetModelField.hidden = isCustom || Boolean(preset.editableModel);
   els.customModelField.hidden = !isCustom && !preset.editableModel;
   if (preset.editableModel) {
@@ -2343,7 +2778,7 @@ function applyPreset(presetId, persist = false) {
   renderProviderLinks(preset);
 
   document.querySelectorAll(".preset-button").forEach((button) => {
-    const isActive = button.dataset.preset === presetId;
+    const isActive = button.dataset.preset === targetPresetId;
     button.classList.toggle("is-active", isActive);
     button.setAttribute("aria-pressed", String(isActive));
   });
@@ -2380,7 +2815,9 @@ function renderProviderLinks(preset) {
 
   if (!preset.links?.length) {
     const hint = document.createElement("span");
-    hint.textContent = "自定义接口请优先使用服务商官网提供的 API Key 和文档。";
+    hint.textContent = preset.lockedKey
+      ? "体验模式免配置，公共额度有限；如遇繁忙或失败，可切到自定义使用自己的 API。"
+      : "自定义接口请优先使用服务商官网提供的 API Key 和文档。";
     els.providerLinks.append(hint);
     return;
   }
@@ -2396,12 +2833,18 @@ function renderProviderLinks(preset) {
 }
 
 function getActivePresetId() {
-  return document.querySelector(".preset-button.is-active")?.dataset.preset || "siliconflow";
+  return document.querySelector(".preset-button.is-active")?.dataset.preset || defaultApiPresetId;
+}
+
+function isSelectableApiPreset(presetId) {
+  const preset = API_PRESETS[presetId];
+  return Boolean(preset && !preset.hidden);
 }
 
 function rememberCurrentApiKey() {
   const activePreset = document.querySelector(".preset-button.is-active")?.dataset.preset;
   if (!API_PRESETS[activePreset]) return;
+  if (API_PRESETS[activePreset].lockedKey) return;
   providerApiKeys[activePreset] = els.apiKeyInput.value.trim();
 }
 
@@ -2419,6 +2862,7 @@ async function preparePhotoFromFile(file, successMessage, errorPrefix) {
     state.cropMode = false;
     state.cropDrag = null;
     state.pendingPhotoSlotIndex = getSelectedSlotIndex();
+    state.pendingSourceMode = "photo";
     state.lootError = "";
     state.infoMode = "item";
     renderCameraStatus();
@@ -2522,15 +2966,12 @@ async function callVisionText(config, image) {
   try {
     response = await fetchJsonWithTimeout(buildChatEndpoint(config.baseUrl), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
+      headers: buildModelHeaders(config),
       body: JSON.stringify(body),
     }, visionTestTimeoutMs, "图文模型测试");
   } catch (error) {
     if (isAbortError(error) || isTimeoutError(error)) throw error;
-    throw new Error(`浏览器直连失败：${error.message || "请求被浏览器拦截"}。如果这是 CORS 错误，说明该 API 不允许网页直接调用。`);
+    throw formatBrowserRequestFailure(config, error, (message) => `浏览器直连失败：${message}。如果这是 CORS 错误，说明该 API 不允许网页直接调用。`);
   }
 
   if (!response.response.ok) {
@@ -2600,20 +3041,20 @@ function getMissingConfigFields(config) {
   const missing = [];
   if (!config.baseUrl) missing.push("API Base URL");
   if (!config.model) missing.push("Model");
-  if (!config.apiKey) missing.push("API Key");
+  if (!isExperienceConfig(config) && !config.apiKey) missing.push("API Key");
   return missing;
 }
 
 function getPhotoApiConfigHint() {
   const missing = getMissingConfigFields(getConfigFromInputs());
   if (!missing.length) return "";
-  return "先点右上角鉴定，配置 API，点亮鉴定。";
+  return `先点右上角鉴定，配置 API，点亮${getPendingSourceMode() === "drawing" ? "画作" : "照片"}鉴定。`;
 }
 
 async function analyzePhoto() {
   if (isPlayerDefeated() || state.bossReward) return;
   if (!state.lastPhoto) {
-    addLog("还没有照片。");
+    addLog(`还没有${getPendingImageLabel()}。`);
     render();
     return;
   }
@@ -2628,7 +3069,7 @@ async function analyzePhoto() {
   }
 
   if (state.filmRolls < 1) {
-    const message = "胶卷不足。普通怪会留下 0.1 胶卷，单体 Boss 会留下 0.3。";
+    const message = `${getResourceName()}不足。普通怪会留下 0.1 ${getResourceName()}，单体 Boss 会留下 0.3。`;
     showLootError(message);
     addLog(message);
     render();
@@ -2636,7 +3077,7 @@ async function analyzePhoto() {
   }
 
   const config = getConfigFromInputs();
-  if (!config.baseUrl || !config.apiKey || !config.model) {
+  if (getMissingConfigFields(config).length) {
     const message = getPhotoApiConfigHint();
     showLootError(message);
     addLog(message);
@@ -2655,13 +3096,14 @@ async function analyzePhoto() {
 
   saveConfig(false);
   const request = startAnalysisRequest();
+  const sourceMode = getPendingSourceMode();
   let appraisalImage = state.lastPhoto;
   let inventorySourceImage = state.lastPhoto;
   let sourcePhotoKey = makePhotoDuplicateKey(state.lastPhoto);
   let appraisalPhotoKey = sourcePhotoKey;
   let cropRect = null;
   try {
-    if (state.pendingCropRect) {
+    if (sourceMode === "photo" && state.pendingCropRect) {
       cropRect = normalizeCropRect(state.pendingCropRect);
       appraisalImage = await cropImageToDataUrl(state.lastPhoto, cropRect, analysisImageMaxEdge, analysisImageQuality);
       inventorySourceImage = appraisalImage;
@@ -2679,7 +3121,7 @@ async function analyzePhoto() {
   if (photoDuplicate) {
     const message = `当前装备栏已经有这件影像生成的装备：${formatItemDisplayName(photoDuplicate)}。`;
     showLootError(`${message} 请换个主体或重新拍摄。`);
-    addLog(`${message} 胶卷未消耗。`);
+    addLog(`${message} ${getResourceName()}未消耗。`);
     finishAnalysisRequest(request.id);
     render();
     return;
@@ -2690,12 +3132,13 @@ async function analyzePhoto() {
   setBusy("鉴定中...");
   render();
   try {
-    const item = await measureAppraisalStage(timing, "apiMs", () => analyzeDirectly(config, appraisalImage, { signal: request.controller.signal, timing, cropped: Boolean(cropRect) }));
+    const item = await measureAppraisalStage(timing, "apiMs", () => analyzeDirectly(config, appraisalImage, { signal: request.controller.signal, timing, cropped: Boolean(cropRect), sourceMode }));
     if (request.id !== state.analysisRequest?.id) return;
     const inventoryImage = await measureAppraisalStage(timing, "inventoryResizeMs", () => makeInventoryImage(inventorySourceImage));
     if (request.id !== state.analysisRequest?.id) return;
     const balancedItem = measureAppraisalStageSync(timing, "balanceMs", () => balanceItem({
       ...item,
+      sourceMode,
       photoKey: appraisalPhotoKey,
       sourcePhotoKey,
       cropRect,
@@ -2715,14 +3158,14 @@ async function analyzePhoto() {
       throw new Error(`这个物品已经鉴定过：${formatItemDisplayName(duplicate)}。请拍摄新的物品。`);
     }
     if (!consumeFilm()) {
-      throw new Error("胶卷不足，未生成装备。");
+      throw new Error(`${getResourceName()}不足，未生成装备。`);
     }
     receiveItem(balancedItem, "鉴定完成。");
   } catch (error) {
     if (request.id !== state.analysisRequest?.id && isAbortError(error)) return;
     const message = normalizeAnalyzeError(error);
     showLootError(message);
-    addLog(`鉴定失败：${message}（胶卷未消耗）`);
+    addLog(`鉴定失败：${message}（${getResourceName()}未消耗）`);
     clearPendingPhoto();
   } finally {
     if (request.id === state.analysisRequest?.id) {
@@ -2762,7 +3205,7 @@ function normalizeAnalyzeError(error) {
 
 function getAppraisalFailureReason(item) {
   if (!item) return "影像没有在鉴定台上成形。";
-  const name = formatItemDisplayName(item) || "这张照片";
+  const name = formatItemDisplayName(item) || (item?.sourceMode === "drawing" ? "这幅画作" : "这张照片");
   if (item.virtualImage) {
     return `${name}的影像气息太虚，没能凝成装备。`;
   }
@@ -2791,6 +3234,7 @@ function showLootError(message) {
 
 function clearPendingPhoto(options = {}) {
   state.lastPhoto = "";
+  state.pendingSourceMode = state.playMode;
   state.pendingCropRect = null;
   state.cropMode = false;
   state.cropDrag = null;
@@ -2836,7 +3280,7 @@ function cancelAnalyzePhoto() {
   const request = state.analysisRequest;
   request.controller.abort();
   finishAnalysisRequest(request.id);
-  const message = "已取消鉴定，胶卷未消耗。";
+  const message = `已取消鉴定，${getResourceName()}未消耗。`;
   showLootError(message);
   addLog(message);
   clearPendingPhoto();
@@ -2887,7 +3331,8 @@ function finishAppraisalTiming(timing) {
 
 async function analyzeDirectly(config, image, options = {}) {
   let response;
-  const prompt = getPhotoIdentificationPrompt(options);
+  const sourceMode = normalizeHeroMode(options.sourceMode || getPendingSourceMode());
+  const prompt = getIdentificationPrompt({ ...options, sourceMode });
   const body = withProviderRequestOptions(config, {
     model: config.model,
     temperature: 0.35,
@@ -2895,7 +3340,7 @@ async function analyzeDirectly(config, image, options = {}) {
     messages: [
       {
         role: "system",
-        content: photoIdentificationSystemPrompt,
+        content: getIdentificationSystemPrompt(sourceMode),
       },
       {
         role: "user",
@@ -2916,16 +3361,13 @@ async function analyzeDirectly(config, image, options = {}) {
   try {
     response = await fetchJsonWithTimeout(buildChatEndpoint(config.baseUrl), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
+      headers: buildModelHeaders(config),
       body: JSON.stringify(body),
       signal: options.signal,
-    }, photoAnalyzeTimeoutMs, "照片鉴定");
+    }, photoAnalyzeTimeoutMs, sourceMode === "drawing" ? "画作鉴定" : "照片鉴定");
   } catch (error) {
     if (isAbortError(error) || isTimeoutError(error)) throw error;
-    throw new Error(`浏览器直连失败：${error.message || "请求被浏览器拦截"}。常见原因是模型服务没有允许 CORS。`);
+    throw formatBrowserRequestFailure(config, error, (message) => `浏览器直连失败：${message}。常见原因是模型服务没有允许 CORS。`);
   }
 
   if (!response.response.ok) {
@@ -2951,11 +3393,12 @@ async function analyzeDirectly(config, image, options = {}) {
 async function compareIdentifiedObjects(config, currentItem, knownItem, signal = null) {
   if (!currentItem?.image || !knownItem?.image) return false;
   let response;
+  const drawingCompare = currentItem.sourceMode === "drawing" || knownItem.sourceMode === "drawing";
   const prompt = [
-    "请判断两张图片中的主要装备主体是否是同一个现实物体。",
-    "只比较主要主体，不要因为同类型、同颜色、同品牌或都是白色小风扇就判定相同。",
-    "如果是同一个实体在不同角度、距离、光线下拍摄，sameObject=true。",
-    "如果只是同类但款式、结构、贴纸、纹理、磨损、背景位置或可见细节不同，sameObject=false。",
+    drawingCompare ? "请判断两张图片中的主要画作装备主体是否来自同一幅玩家手绘图。" : "请判断两张图片中的主要装备主体是否是同一个现实物体。",
+    drawingCompare ? "只比较主要手绘主体，不要因为同样都是剑、盾、火焰或同颜色就判定相同。" : "只比较主要主体，不要因为同类型、同颜色、同品牌或都是白色小风扇就判定相同。",
+    drawingCompare ? "如果线条轮廓、颜色分布、局部标记和构图位置基本一致，sameObject=true。" : "如果是同一个实体在不同角度、距离、光线下拍摄，sameObject=true。",
+    drawingCompare ? "如果只是同题材但造型、线条、颜色、附加符号或布局不同，sameObject=false。" : "如果只是同类但款式、结构、贴纸、纹理、磨损、背景位置或可见细节不同，sameObject=false。",
     "必须只输出 JSON：{\"sameObject\":false,\"confidence\":0.0,\"reason\":\"一句中文理由\"}。",
     "",
     `已存物品描述：${knownItem.identityDescription || knownItem.description || knownItem.reason || formatItemDisplayName(knownItem)}`,
@@ -2980,10 +3423,7 @@ async function compareIdentifiedObjects(config, currentItem, knownItem, signal =
   try {
     response = await fetchJsonWithTimeout(buildChatEndpoint(config.baseUrl), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
+      headers: buildModelHeaders(config),
       body: JSON.stringify(body),
       signal,
     }, duplicateCompareTimeoutMs, "重复物品比对");
@@ -3019,7 +3459,34 @@ function shouldDisableThinking(config) {
   const preset = String(config?.presetId || "").toLowerCase();
   const baseUrl = String(config?.baseUrl || "").toLowerCase();
   const model = String(config?.model || "").toLowerCase();
-  return preset === "siliconflow" || baseUrl.includes("siliconflow") || model.includes("qwen");
+  return preset === "experience" || preset === "siliconflow" || baseUrl.includes("siliconflow") || model.includes("qwen");
+}
+
+function isExperienceConfig(config) {
+  return String(config?.presetId || "").toLowerCase() === "experience";
+}
+
+function isActivePresetLockedKey() {
+  const preset = API_PRESETS[getActivePresetId()] || API_PRESETS.custom;
+  return Boolean(preset.lockedKey);
+}
+
+function buildModelHeaders(config) {
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  if (!isExperienceConfig(config) && config.apiKey) {
+    headers.Authorization = `Bearer ${config.apiKey}`;
+  }
+  return headers;
+}
+
+function formatBrowserRequestFailure(config, error, fallback) {
+  const message = error.message || "请求被浏览器拦截";
+  if (isExperienceConfig(config)) {
+    return new Error(`体验接口连接失败：${message}。如果线上体验暂不可用，请切到自定义使用自己的 API。`);
+  }
+  return new Error(fallback(message));
 }
 
 async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 30000, label = "请求") {
@@ -3075,7 +3542,16 @@ function buildChatEndpoint(input) {
   return url.toString();
 }
 
-function getPhotoIdentificationPrompt(options = {}) {
+function getIdentificationSystemPrompt(sourceMode = state.playMode) {
+  return normalizeHeroMode(sourceMode) === "drawing"
+    ? drawingIdentificationSystemPrompt
+    : photoIdentificationSystemPrompt;
+}
+
+function getIdentificationPrompt(options = {}) {
+  if (normalizeHeroMode(options.sourceMode) === "drawing") {
+    return `${drawingIdentificationUserPrompt}\n\n当前本局本地结算的装备价值范围：${getPhotoValueMin()} 到 ${getPhotoValueMax()}。你仍然不要输出最终 value 或最终 stats，只需要按 rubric 输出质量分与倾向。`;
+  }
   const cropHint = options.cropped
     ? "\n\n玩家已经圈定主体区域；请优先鉴定这块区域里的现实物体，不要因为画面被裁小、背景较少就判成商品图或素材图。"
     : "";
@@ -4119,6 +4595,7 @@ function receiveItem(item, message) {
   };
   const targetSlot = Number.isInteger(state.pendingPhotoSlotIndex) ? state.pendingPhotoSlotIndex : getSelectedSlotIndex();
   state.lastPhoto = "";
+  state.pendingSourceMode = state.playMode;
   state.pendingCropRect = null;
   state.cropMode = false;
   state.cropDrag = null;
@@ -4518,7 +4995,7 @@ function fleeCurrentFloor() {
   if (canRetreatCurrentBattle()) return retreatCurrentBattle();
   if (!canBypassCurrentFloor()) return false;
   state.infoMode = "log";
-  addBattleEvent(`第${state.floor}层的脚步没有停留，照片勇者绕开阴影继续向上。`, "info");
+  addBattleEvent(modeText(`第${state.floor}层的脚步没有停留，照片勇者绕开阴影继续向上。`), "info");
   advanceFloor();
   saveGame();
   render();
@@ -5509,7 +5986,7 @@ function finishCurrentBattle(result) {
   resetBattleSpecial();
   if (showPostKillHint) {
     state.tutorial.postKillHintShown = true;
-    addBattleEvent("胶卷攒够后，可以继续拍新装备。", "info");
+    addBattleEvent(modeText("胶卷攒够后，可以继续拍新装备。"), "info");
   }
   if (result === "defeat") {
     createDefeatCareerSummary();
@@ -5568,13 +6045,30 @@ function buildBossRewardOptions(floor) {
 }
 
 function getBossRewardCatalog() {
-  return [
+  const catalog = [
     { type: "filmFlat", title: "补给胶卷", effect: "+1.0 胶卷", desc: "立刻获得 1.0 胶卷。", icon: "boss-value-min.png" },
     { type: "filmDrop", title: "胶卷磁石", effect: "掉落 +0.1", desc: "之后击败怪物永久 +0.1。", icon: "boss-film-drop.png" },
     { type: "filmPercent", title: "胶卷倍增", effect: "当前 +50%", desc: "按当前数量 +50%，向上取整。", icon: "boss-film-percent.png" },
     { type: "valueMin", title: "泛用胶卷", effect: "最低 +2", desc: "之后照片最低价值永久 +2。", icon: "boss-value-min-boost.png" },
     { type: "valueMax", title: "高级胶卷", effect: "最高 +3", desc: "之后照片最高价值永久 +3。", icon: "boss-value-max.png" },
   ];
+  return catalog.map((item) => ({
+    ...item,
+    title: modeText(item.title),
+    effect: modeText(item.effect),
+    desc: modeText(item.desc),
+  }));
+}
+
+function getBossRewardDisplayOption(option, mode = state.playMode) {
+  const fallback = getBossRewardCatalog(mode).find((item) => item.type === option?.type) || {};
+  return {
+    ...option,
+    title: fallback.title || modeText(option?.title || "奖励", mode),
+    effect: fallback.effect || modeText(option?.effect || "", mode),
+    desc: fallback.desc || modeText(option?.desc || "选择后进入下一层。", mode),
+    icon: fallback.icon || option?.icon || getBossRewardIcon(option?.type),
+  };
 }
 
 function ensureBossRewardDeck() {
@@ -5689,17 +6183,17 @@ function confirmSelectedBossReward() {
 function applyBossReward(option) {
   if (option.type === "filmDrop") {
     state.globalFilmDropBonus = getGlobalFilmDropBonus() + 1;
-    return "奖励：胶卷掉落 +0.1。";
+    return `奖励：${getResourceName()}掉落 +0.1。`;
   }
   if (option.type === "filmPercent") {
     const before = getFilmCount();
     const gain = ceilFilmTenth(before * 0.5);
     addFilmShards(Math.round(gain * 10));
-    return `奖励：当前胶卷 +${gain.toFixed(1)}。`;
+    return `奖励：当前${getResourceName()} +${gain.toFixed(1)}。`;
   }
   if (option.type === "filmFlat") {
     addFilmShards(10);
-    return "奖励：胶卷 +1.0。";
+    return `奖励：${getResourceName()} +1.0。`;
   }
   if (option.type === "valueMin") {
     state.photoValueMin = getPhotoValueMin() + 2;
@@ -5763,7 +6257,17 @@ function isIntroFloor() {
 }
 
 function getIntroRewards() {
-  return introRewardOptions.map((option) => ({ ...option }));
+  if (!isDrawingMode()) return introRewardOptions.map((option) => ({ ...option }));
+  return introRewardOptions.map((option, index) => ({
+    ...option,
+    title: "画布",
+    effect: "+1.0 画布",
+    desc: [
+      "点亮空装备格，打开画布，把你的简笔画带进塔中。",
+      "在鉴定台填好图文 API，按钮亮起后再鉴定画作。",
+      "入塔后点击怪物卡选定目标，按战斗夺回新的画布。",
+    ][index] || modeText(option.desc),
+  }));
 }
 
 function getIntroRewardSelection() {
@@ -5783,8 +6287,13 @@ function selectIntroReward(id) {
   const validIds = new Set(introRewardOptions.map((option) => option.id));
   if (!validIds.has(id)) return;
   const selected = getIntroRewardSelection();
-  if (!selected.includes(id)) selected.push(id);
-  state.infoMode = "log";
+  const existingIndex = selected.indexOf(id);
+  if (existingIndex >= 0) {
+    selected.splice(existingIndex, 1);
+  } else {
+    selected.push(id);
+  }
+  state.infoMode = "item";
   saveGame();
   render();
 }
@@ -5792,8 +6301,8 @@ function selectIntroReward(id) {
 function confirmIntroRewards() {
   if (!isIntroFloor()) return;
   if (!hasSelectedAllIntroRewards()) {
-    state.infoMode = "log";
-    addBattleEvent("先把三卷胶卷都收进口袋，再推开魔塔的门。", "item");
+    state.infoMode = "item";
+    addBattleEvent(modeText("塔门纹路尚未闭合。把三卷胶卷一并放上石台，门锁才会转动。"), "item");
     saveGame();
     render();
     return;
@@ -5821,7 +6330,7 @@ function enterTowerFromIntro() {
   state.enemyFlipEncounterId = state.encounterId;
   applyFloorShield();
   focusInitialPhotoSlotAfterTowerEntry();
-  addBattleEvent("三卷胶卷压进口袋，塔门向内打开。照片勇者踏上第 1 层。", "item");
+  addBattleEvent(modeText("三卷胶卷在石台上亮起，塔门缓缓向内打开。照片勇者踏上第 1 层。"), "item");
   addFloorNarrative(state.floor);
   playSoundEffect("nextFloor");
   ensureBgmForGameState(true);
@@ -5856,7 +6365,7 @@ function buildLocalCareerSummary(outcome = state.gameClear ? "clear" : isPlayerD
         `多年以后，塔底的旧账仍夹着一张未烧尽的胶片。${snapshot.formLabel}把照片装备带到第${floor}层，生命停在${snapshot.hp}，攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}也被一并记下。`,
         `这次登塔击退了${snapshot.killCount}只怪物，${snapshot.bossKillCount}位Boss的名字曾被划去。${itemText}留在记录里，像几件从现实落进塔缝的遗物。`,
         `${defeatLine}守塔人没有把它写成笑话，只在边角补了一句：倒下的那一刻，照片勇者仍握着下一次重开的影子。`,
-      ].join("\n\n"),
+      ].map((line) => modeText(line)).join("\n\n"),
       snapshot,
       createdAt: Date.now(),
     };
@@ -5869,7 +6378,7 @@ function buildLocalCareerSummary(outcome = state.gameClear ? "clear" : isPlayerD
       `多年以后，塔底的石碑仍记着一位${snapshot.formLabel}。他带着照片醒出的器物登上第${maxFloor}层，终局之力定格为生命${snapshot.stats.maxHp}、攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}。`,
       `旧塔账册记下了${snapshot.killCount}场怪物败退，其中${snapshot.bossKillCount}位Boss被刻进封门名录。${itemText}被列为代表装备，像从现实里带入塔中的奇物。`,
       `后来的人说，照片勇者并非只靠一柄名剑通关，而是把手边万物都变成了登塔的台阶。胶卷耗尽之前，他把这段冒险留成了新的塔顶传说。`,
-    ].join("\n\n"),
+    ].map((line) => modeText(line)).join("\n\n"),
     snapshot,
     createdAt: Date.now(),
     outcome: "clear",
@@ -5878,7 +6387,7 @@ function buildLocalCareerSummary(outcome = state.gameClear ? "clear" : isPlayerD
 
 function formatCareerTopItemNames(snapshot) {
   const names = snapshot.topItems.map((item) => item.name).filter(Boolean).slice(0, 3);
-  if (!names.length) return "还没有被命名的照片装备";
+  if (!names.length) return modeText("还没有被命名的照片装备");
   if (names.length === 1) return `${names[0]}`;
   return `${names.slice(0, -1).join("、")}和${names[names.length - 1]}`;
 }
@@ -5965,16 +6474,13 @@ async function requestCareerSummary(force = false) {
   try {
     const response = await fetchJsonWithTimeout(buildChatEndpoint(config.baseUrl), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
+      headers: buildModelHeaders(config),
       body: JSON.stringify(withProviderRequestOptions(config, {
         model: config.model,
         temperature: 0.72,
         max_tokens: 520,
         messages: [
-          { role: "system", content: "你是魔塔旧史的书记官。请用第三人称写照片勇者的塔史记录，像多年后塔内石碑和旧账册留下的文字。只输出成稿，不要Markdown、星号、列表、分析过程或标题标签。" },
+          { role: "system", content: modeText("你是魔塔旧史的书记官。请用第三人称写照片勇者的塔史记录，像多年后塔内石碑和旧账册留下的文字。只输出成稿，不要Markdown、星号、列表、分析过程或标题标签。") },
           { role: "user", content: buildCareerSummaryPrompt(snapshot, outcome) },
         ],
       })),
@@ -6008,7 +6514,7 @@ async function requestCareerSummary(force = false) {
 function buildCareerSummaryPrompt(snapshot, outcome = snapshot?.outcome || "clear") {
   const itemLines = snapshot.topItems.length
     ? snapshot.allItems.slice(0, 10).map((item, index) => `${index + 1}. ${item.quality} ${item.name}，分数${item.score}，属性${formatSnapshotStats(item.stats)}${item.effects.length ? `，词条${item.effects.join("、")}` : ""}`).join("\n")
-    : "无照片装备";
+    : modeText("无照片装备");
   if (outcome === "defeat") {
     return [
       "请基于以下战败数据，写一段更像魔塔旧账残页的中文结局。",
@@ -6034,7 +6540,7 @@ function buildCareerSummaryPrompt(snapshot, outcome = snapshot?.outcome || "clea
       itemLines,
       "最后战斗：",
       snapshot.defeatSummary || snapshot.battleHighlights.join("\n") || "无",
-    ].join("\n");
+    ].map((line) => modeText(line)).join("\n");
   }
   return [
     "请基于以下通关数据，写一段更像魔塔通关后流传多年的中文传说。",
@@ -6058,7 +6564,7 @@ function buildCareerSummaryPrompt(snapshot, outcome = snapshot?.outcome || "clea
     itemLines,
     "最近战斗：",
     snapshot.battleHighlights.join("\n") || "无",
-  ].join("\n");
+  ].map((line) => modeText(line)).join("\n");
 }
 
 function formatSnapshotStats(stats) {
@@ -6067,7 +6573,7 @@ function formatSnapshotStats(stats) {
     const value = stats[key] || 0;
     if (value) parts.push(`${statLabels[key]}${formatSignedNumber(value)}`);
   }
-  return parts.join("、") || "无";
+  return modeText(parts.join("、") || "无");
 }
 
 function sanitizeCareerSummaryText(text) {
@@ -6140,7 +6646,7 @@ function hasRecentFloorNarrative(floor, text) {
 
 function getFloorNarrative(floor) {
   if (floor <= introFloor) {
-    return "塔门还没有打开。先收下三卷胶卷，它们就是开局的三次拍照机会。";
+    return modeText("塔门前的石台亮着三道卷轴槽。收齐三卷胶卷，第一层才会现身。");
   }
   const safeFloor = getPlayableFloor(floor);
   if (bossFloorNarratives[safeFloor]) return bossFloorNarratives[safeFloor];
@@ -6226,7 +6732,7 @@ function formatLootNames(names) {
     }
     parts.push(count > 1 ? `${name}*${count}` : name);
   }
-  if (filmTotal > 0) parts.unshift(`胶卷 +${filmTotal.toFixed(1)}`);
+  if (filmTotal > 0) parts.unshift(`${getResourceName()} +${filmTotal.toFixed(1)}`);
   return parts.join("、") || "无";
 }
 
@@ -6354,7 +6860,7 @@ function completeGame() {
     state.careerSummary = buildLocalCareerSummary();
   }
   state.infoMode = "career";
-  addBattleEvent("塔顶的门被推开，照片勇者带着一包奇怪装备通关了40层。", "hero");
+  addBattleEvent(modeText("塔顶的门被推开，照片勇者带着一包奇怪装备通关了40层。"), "hero");
   if (!wasClear) recordGlobalGameMetric("Clears", 1);
   ensureBgmForGameState(true);
   requestCareerSummary();
@@ -6797,7 +7303,7 @@ function getPhotoValueMax() {
 }
 
 function formatEnemyFilmDrop(enemy) {
-  return `胶卷 ${(getEnemyPreviewFilmShardDrop(enemy) / 10).toFixed(1)}`;
+  return `${getResourceName()} ${(getEnemyPreviewFilmShardDrop(enemy) / 10).toFixed(1)}`;
 }
 
 function getFilmCount() {
@@ -8243,7 +8749,7 @@ function dismantleSelectedItem() {
   syncShieldAfterEquipmentChange(oldStats.shield, newStats.shield, oldShield);
   state.lootError = "";
   setBusy("");
-  addBattleEvent(`分解 ${formatItemDisplayName(removed)}，返还胶卷 +${formatFilmAmount(returnedFilm)}。`, "item");
+  addBattleEvent(`分解 ${formatItemDisplayName(removed)}，返还${getResourceName()} +${formatFilmAmount(returnedFilm)}。`, "item");
   playSoundEffect("dismantle");
   saveGame();
   render();
@@ -8258,8 +8764,9 @@ function makePhotoStatEvidenceText({ itemName, subjectName, objectType, sizeClas
 
 function balanceItem(item, image = "") {
   const safe = item && typeof item === "object" ? item : {};
+  const sourceMode = normalizeHeroMode(safe.sourceMode || safe.source_mode || "photo");
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
-  const itemName = cleanText(safe.itemName, "照片装备", 18);
+  const itemName = cleanText(safe.itemName, sourceMode === "drawing" ? "画作装备" : "照片装备", 18);
   const subjectName = cleanText(safe.subjectName, itemName, 18);
   const tags = normalizeStringList(safe.tags);
   const objectType = cleanText(safe.objectType, "", 18);
@@ -8275,12 +8782,15 @@ function balanceItem(item, image = "") {
   const safeTooLarge = parseBooleanMaybe(safe.tooLarge) === true;
   const safeIsScene = parseBooleanMaybe(safe.isScene) === true;
   const safeIsEquipable = parseBooleanMaybe(safe.isEquipable);
-  const modelRejected = safeTooLarge
-    || safeIsScene
-    || safeIsEquipable === false
-    || isOversizedSizeClass(sizeClass);
-  const tooLarge = shouldTreatAsTooLarge(itemName, semanticText, modelRejected);
-  const virtualPenalty = getVirtualImagePenalty(semanticText, photoQuality);
+  const modelRejected = sourceMode === "drawing"
+    ? safeIsScene || safeIsEquipable === false
+    : safeTooLarge || safeIsScene || safeIsEquipable === false || isOversizedSizeClass(sizeClass);
+  const tooLarge = sourceMode === "drawing"
+    ? Boolean(safeTooLarge || safeIsScene || safeIsEquipable === false)
+    : shouldTreatAsTooLarge(itemName, semanticText, modelRejected);
+  const virtualPenalty = sourceMode === "drawing"
+    ? { level: "none", noEffect: false, cap: null, suppressSpecial: false, description: "" }
+    : getVirtualImagePenalty(semanticText, photoQuality);
   const noEffect = tooLarge || virtualPenalty.noEffect;
   let requestedValue = noEffect
     ? 0
@@ -8322,7 +8832,7 @@ function balanceItem(item, image = "") {
     subjectName,
     objectType,
     sizeClass,
-    isScene: safeIsScene || isOversizedSizeClass(sizeClass),
+    isScene: safeIsScene || (sourceMode !== "drawing" && isOversizedSizeClass(sizeClass)),
     isEquipable: safeIsEquipable !== false && !noEffect,
     rarity,
     value: targetValue,
@@ -8330,12 +8840,12 @@ function balanceItem(item, image = "") {
     stats,
     specialEffects,
     specialState: normalizeSpecialState(safe.specialState, specialEffects),
-    description: noEffect ? virtualPenalty.description || "主体过大或主要是场景，无法提供属性。" : cleanText(safe.description || reason, "由照片鉴定出的装备。", 72),
+    description: noEffect ? virtualPenalty.description || "主体过大或主要是场景，无法提供属性。" : cleanText(safe.description || reason, sourceMode === "drawing" ? "由画作鉴定出的装备。" : "由照片鉴定出的装备。", 72),
     identityDescription,
     reason,
     tags,
     photoQuality,
-    photoQualityScore: semanticSchema ? calculatePhotoQualityScore(photoQuality, semanticText) : null,
+    photoQualityScore: semanticSchema ? (sourceMode === "drawing" ? calculateDrawingQualityScore(photoQuality, semanticText) : calculatePhotoQualityScore(photoQuality, semanticText)) : null,
     statAffinity,
     specialAffinity,
     semanticAppraisal: semanticSchema,
@@ -8343,6 +8853,7 @@ function balanceItem(item, image = "") {
     photoKey: cleanText(safe.photoKey, "", 48),
     sourcePhotoKey: cleanText(safe.sourcePhotoKey, "", 48),
     cropRect: normalizeCropRect(safe.cropRect),
+    sourceMode,
     objectKey: cleanText(safe.objectKey, "", 80),
     film: Boolean(safe.film),
     skipSpecialRoll: Boolean(safe.skipSpecialRoll),
@@ -8476,16 +8987,21 @@ function clampStatsToValue(stats, valueBudget) {
 
 function calculatePhotoItemValue(item, semanticText = "") {
   const quality = normalizePhotoQuality(item.photoQuality);
+  const sourceMode = normalizeHeroMode(item.sourceMode || item.source_mode || "photo");
   const hasQuality = calculatePhotoQualityTotal(quality) > 0;
   if (!hasQuality && Number.isFinite(item.value) && item.value > 0) {
     return clampInt(item.value, getPhotoValueMin(), getPhotoValueMax());
   }
-  const qualityScore = hasQuality ? calculateAdjustedPhotoQualityScore(quality, semanticText) : inferFallbackQualityScore(semanticText);
+  const qualityScore = hasQuality
+    ? sourceMode === "drawing"
+      ? calculateDrawingQualityScore(quality, semanticText)
+      : calculateAdjustedPhotoQualityScore(quality, semanticText)
+    : inferFallbackQualityScore(semanticText);
   const min = getPhotoValueMin();
   const max = getPhotoValueMax();
   if (max <= min) return min;
   let value = mapPhotoQualityScoreToValue(qualityScore);
-  const cap = getPhotoValueCapFromQuality(quality, semanticText);
+  const cap = sourceMode === "drawing" ? max : getPhotoValueCapFromQuality(quality, semanticText);
   value = Math.min(value, cap);
   return Math.max(min, Math.min(max, value));
 }
@@ -8636,6 +9152,21 @@ function calculatePhotoQualityScore(photoQuality, semanticText = "") {
   const total = calculatePhotoQualityTotal(quality);
   if (total > 0) return calculateAdjustedPhotoQualityScore(quality, semanticText);
   return inferFallbackQualityScore(semanticText);
+}
+
+function calculateDrawingQualityScore(photoQuality, semanticText = "") {
+  const quality = normalizePhotoQuality(photoQuality);
+  let score = calculatePhotoQualityTotal(quality);
+  const text = String(semanticText || "");
+  if (quality.clarity >= 3 && quality.subjectArea >= 2) score += 2;
+  if (quality.backgroundClean >= 1 && quality.focusLight >= 1) score += 1;
+  if (quality.interesting >= 2) score += 2;
+  if (hasStrongEquipmentFantasyText(text) || isPortableEquipmentText(text)) score += 1;
+  if (quality.clarity <= 1) score -= 3;
+  if (quality.subjectArea <= 1) score -= 2;
+  if (quality.interesting <= 0) score -= 1;
+  if (/空白|无主体|随机涂鸦|无法辨认|blank|scribble|unrecognizable/i.test(text)) score -= 5;
+  return Math.max(0, Math.min(15, score));
 }
 
 function calculateAdjustedPhotoQualityScore(photoQuality, semanticText = "") {
@@ -9141,7 +9672,7 @@ function makeVisionTestImage() {
   ctx.fillRect(26, 26, 308, 168);
   ctx.fillStyle = "#fffaf0";
   ctx.font = "bold 34px sans-serif";
-  ctx.fillText("照片勇者", 78, 92);
+  ctx.fillText(getGameTitle(), 78, 92);
   ctx.font = "bold 28px sans-serif";
   ctx.fillText("VISION OK", 86, 142);
   return canvas.toDataURL("image/jpeg", 0.82);
@@ -9200,6 +9731,7 @@ function render() {
   ensureEncounter();
   ensureInventorySlots();
   ensureBgmForGameState();
+  renderGameMode();
   const stats = getPlayerStats();
   const battleStats = getBattleStats(state.activeEnemyIds);
   const battleDelta = {
@@ -9216,7 +9748,7 @@ function render() {
   state.player.hp = Math.max(0, Math.min(state.player.hp, stats.maxHp));
   const form = getHeroForm();
   els.heroAvatarImage.src = getHeroFormImageUrl(form);
-  els.heroAvatarImage.alt = `照片勇者${form.label}形态`;
+  els.heroAvatarImage.alt = `${getGameTitle()}${form.label}形态`;
   const heroFormCard = els.heroAvatarImage.closest(".hero-form-card");
   if (heroFormCard) {
     heroFormCard.dataset.formKey = form.id;
@@ -9319,11 +9851,12 @@ function renderApiStatus() {
 }
 
 function renderCameraStatus() {
-  els.filmCountBadge.textContent = `胶卷 ${formatFilmCount()}`;
+  els.filmCountBadge.textContent = `${getResourceName()} ${formatFilmCount()}`;
 }
 
 function renderEnemyField() {
   els.enemyField.innerHTML = "";
+  els.enemyField.classList.toggle("is-intro-field", isIntroFloor());
   const enemyDamageEstimates = getEnemyDamageEstimates();
   const shouldFlipIn = state.enemyFlipEncounterId === state.encounterId && !state.currentBattle && !state.autoBattleTimer;
 
@@ -9417,19 +9950,21 @@ function renderEnemyField() {
 }
 
 function renderIntroRewardCards() {
-  const selectedIds = new Set(getIntroRewardSelection());
+  const selected = getIntroRewardSelection();
   const title = document.createElement("div");
   title.className = "boss-reward-prompt";
-  title.textContent = hasSelectedAllIntroRewards() ? "三卷胶卷已收好，点击进入魔塔" : "开局胶卷 · 三卷都要收下";
+  title.textContent = hasSelectedAllIntroRewards() ? "三道槽纹已经亮起，塔门可以推开了" : modeText("塔门前的三卷胶卷");
   els.enemyField.append(title);
   for (const option of getIntroRewards()) {
-    const selected = selectedIds.has(option.id);
+    const selectionOrder = selected.indexOf(option.id) + 1;
+    const isSelected = selectionOrder > 0;
     const button = document.createElement("button");
-    button.className = `enemy-card reward-card intro-reward-card${selected ? " is-selected" : ""}`;
+    button.className = `enemy-card reward-card intro-reward-card${isSelected ? " is-selected" : ""}`;
     button.type = "button";
-    button.setAttribute("aria-pressed", String(selected));
+    button.setAttribute("aria-pressed", String(isSelected));
     button.addEventListener("click", () => selectIntroReward(option.id));
     button.innerHTML = `
+      ${selectionOrder ? `<span class="selection-badge">${selectionOrder}</span>` : ""}
       <div class="reward-card-main">
         <div class="monster-portrait reward-portrait">
           <img src="${rewardIconBase}${escapeHtml(option.icon)}" alt="" aria-hidden="true">
@@ -9440,7 +9975,6 @@ function renderIntroRewardCards() {
         </div>
       </div>
       <p class="reward-card-desc">${escapeHtml(option.desc)}</p>
-      ${selected ? `<div class="reward-card-foot"><span>已收起</span><strong>胶卷</strong></div>` : ""}
     `;
     els.enemyField.append(button);
   }
@@ -9454,13 +9988,14 @@ function renderBossRewardCards() {
   title.textContent = selectedIndex >= 0 ? "已选中奖励牌，点击选择确认" : "三张奖励牌，只能带走一张";
   els.enemyField.append(title);
   options.forEach((option, index) => {
+    const displayOption = getBossRewardDisplayOption(option);
     const button = document.createElement("button");
     const selected = index === selectedIndex;
     button.className = `enemy-card reward-card${selected ? " is-selected" : ""}`;
     button.type = "button";
     button.setAttribute("aria-pressed", String(selected));
     button.addEventListener("click", () => selectBossReward(index));
-    const icon = option.icon || getBossRewardIcon(option.type);
+    const icon = displayOption.icon || getBossRewardIcon(option.type);
     const footHtml = selected
       ? `<div class="reward-card-foot">
         <span>已选</span>
@@ -9473,11 +10008,11 @@ function renderBossRewardCards() {
           <img src="${rewardIconBase}${escapeHtml(icon)}" alt="" aria-hidden="true">
         </div>
         <div class="enemy-name-block">
-          <strong>${escapeHtml(option.title || "奖励")}</strong>
-          <em>${escapeHtml(option.effect || "")}</em>
+          <strong>${escapeHtml(displayOption.title || "奖励")}</strong>
+          <em>${escapeHtml(displayOption.effect || "")}</em>
         </div>
       </div>
-      <p class="reward-card-desc">${escapeHtml(option.desc || "选择后进入下一层。")}</p>
+      <p class="reward-card-desc">${escapeHtml(displayOption.desc || "选择后进入下一层。")}</p>
       ${footHtml}
     `;
     els.enemyField.append(button);
@@ -9746,7 +10281,7 @@ function renderEquipmentGrid() {
     } else {
       button.innerHTML = state.gameClear
         ? `<span class="empty-slot empty-slot-clear">空</span>`
-        : `<span class="empty-slot">${getCameraIconMarkup()}</span>`;
+        : `<span class="empty-slot">${getEmptySlotIconMarkup()}</span>`;
     }
 
     els.equipmentGrid.append(button);
@@ -9764,8 +10299,8 @@ function renderEquipmentDetail() {
   els.photoActionBtn.hidden = true;
   els.photoActionBtn.disabled = true;
   els.photoActionBtn.classList.remove("is-photo-callout");
-  els.photoActionBtn.textContent = "拍照";
-  els.photoActionBtn.setAttribute("aria-label", "拍照");
+  els.photoActionBtn.textContent = getInputActionName();
+  els.photoActionBtn.setAttribute("aria-label", getInputActionName());
   els.analyzePhotoBtn.hidden = true;
   els.analyzePhotoBtn.disabled = true;
   els.analyzePhotoBtn.textContent = "鉴定";
@@ -9774,7 +10309,7 @@ function renderEquipmentDetail() {
   els.savePhotoBtn.hidden = true;
   els.savePhotoBtn.disabled = true;
   els.savePhotoBtn.textContent = "保存";
-  els.savePhotoBtn.setAttribute("aria-label", "保存照片");
+  els.savePhotoBtn.setAttribute("aria-label", `保存${getPendingImageLabel()}`);
   els.discardItemBtn.disabled = true;
   els.discardItemBtn.hidden = true;
   els.battleLog.hidden = true;
@@ -9802,8 +10337,8 @@ function renderEquipmentDetail() {
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
     els.equipmentDetailDesc.textContent = hasSelectedAllIntroRewards()
-      ? "三卷胶卷都已经收好。点击进入魔塔后，会从第 1 层开始选择怪物和拍照鉴定。"
-      : "先收下石台上的三卷胶卷。它们会变成开局的三次拍照机会，全部选中后再进入魔塔。";
+      ? modeText("三卷胶卷已经嵌进石台。推开塔门后，第一层的怪物会立刻现身。")
+      : modeText("石台上放着三卷胶卷：一卷教你点亮装备格拍照，一卷教你启用鉴定台，一卷教你入塔选怪战斗。");
     els.filmCountBadge.hidden = false;
     return;
   }
@@ -9814,13 +10349,13 @@ function renderEquipmentDetail() {
     els.equipmentDetailName.textContent = "鉴定失败";
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
-    els.equipmentDetailDesc.textContent = `${formatLootErrorMessage(state.lootError)}\n胶卷还在。可以重拍，也可以先继续爬塔。`;
+    els.equipmentDetailDesc.textContent = `${formatLootErrorMessage(state.lootError)}\n${getResourceName()}还在。可以重${getInputActionName()}，也可以先继续爬塔。`;
     if (canRetake) {
       els.equipmentActions.hidden = false;
       els.photoActionBtn.hidden = false;
       els.photoActionBtn.disabled = false;
-      els.photoActionBtn.textContent = "拍照";
-      els.photoActionBtn.setAttribute("aria-label", "重新拍照");
+      els.photoActionBtn.textContent = getInputActionName();
+      els.photoActionBtn.setAttribute("aria-label", `重新${getInputActionName()}`);
     }
     return;
   }
@@ -9828,20 +10363,25 @@ function renderEquipmentDetail() {
   if (state.lastPhoto && showingItem) {
     if (state.lootError) els.equipmentDetail.classList.add("is-error");
     const apiHint = getPhotoApiConfigHint();
+    const pendingSourceMode = getPendingSourceMode();
+    const pendingLabel = getPendingImageLabel(pendingSourceMode);
+    const isPendingDrawing = pendingSourceMode === "drawing";
     const pendingPhotoCopy = analyzing
-      ? "正在鉴定照片。若接口长时间无响应，可以取消后重拍一张主体更清楚的照片。"
-      : state.cropMode
+      ? `正在鉴定${pendingLabel}。若接口长时间无响应，可以取消后重${getHeroMode(pendingSourceMode).action}一张主体更清楚的${pendingLabel}。`
+      : state.cropMode && !isPendingDrawing
       ? "在照片上拖出物品范围，确认后再鉴定。"
-      : state.pendingCropRect
+      : state.pendingCropRect && !isPendingDrawing
       ? apiHint || "鉴定台会看向圈定的主体。"
       : state.lootError
       ? `${state.lootError} 可以重新鉴定。`
       : apiHint
       ? apiHint
       : state.filmRolls >= 1
-        ? "照片里有多个物品时，可以先圈定主体。"
-        : "胶卷不足，先击败怪物攒到新的拍照机会。";
-    els.equipmentDetailName.textContent = state.pendingCropRect ? "已圈定主体" : "待鉴定照片";
+        ? isPendingDrawing
+          ? "画作主体清楚就可以鉴定；想换造型可以先重画。"
+          : "照片里有多个物品时，可以先圈定主体。"
+        : `${getResourceName()}不足，先击败怪物攒到新的${getInputActionName()}机会。`;
+    els.equipmentDetailName.textContent = state.pendingCropRect && !isPendingDrawing ? "已圈定主体" : `待鉴定${pendingLabel}`;
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
     els.equipmentDetailDesc.textContent = pendingPhotoCopy;
@@ -9849,15 +10389,15 @@ function renderEquipmentDetail() {
     if (!analyzing) {
       els.photoActionBtn.hidden = false;
       els.photoActionBtn.disabled = false;
-      els.photoActionBtn.textContent = state.cropMode ? "确认" : "圈定主体";
-      els.photoActionBtn.setAttribute("aria-label", state.cropMode ? "确认主体范围" : "圈定照片主体");
+      els.photoActionBtn.textContent = isPendingDrawing ? "重画" : state.cropMode ? "确认" : "圈定主体";
+      els.photoActionBtn.setAttribute("aria-label", isPendingDrawing ? "重新打开画布" : state.cropMode ? "确认主体范围" : "圈定照片主体");
     }
     els.analyzePhotoBtn.hidden = false;
     els.analyzePhotoBtn.textContent = analyzing ? "取消鉴定" : "鉴定";
-    els.analyzePhotoBtn.setAttribute("aria-label", analyzing ? "取消鉴定" : "鉴定照片");
+    els.analyzePhotoBtn.setAttribute("aria-label", analyzing ? "取消鉴定" : `鉴定${pendingLabel}`);
     els.analyzePhotoBtn.classList.toggle("is-cancel", analyzing);
     els.analyzePhotoBtn.disabled = analyzing ? false : state.cropMode || locked || Boolean(els.loadingState.textContent) || state.filmRolls < 1;
-    if (!analyzing && (state.cropMode || state.pendingCropRect)) {
+    if (!analyzing && !isPendingDrawing && (state.cropMode || state.pendingCropRect)) {
       els.savePhotoBtn.hidden = false;
       els.savePhotoBtn.disabled = false;
       els.savePhotoBtn.textContent = "重置";
@@ -9867,11 +10407,13 @@ function renderEquipmentDetail() {
       els.discardItemBtn.hidden = false;
       els.discardItemBtn.disabled = false;
       els.discardItemBtn.classList.remove("danger-button");
-      els.discardItemBtn.textContent = state.cropMode || state.pendingCropRect ? "取消" : "放弃照片";
-      els.discardItemBtn.setAttribute("aria-label", state.cropMode || state.pendingCropRect ? "取消主体范围" : "放弃待鉴定照片");
+      els.discardItemBtn.textContent = !isPendingDrawing && (state.cropMode || state.pendingCropRect) ? "取消" : `放弃${pendingLabel}`;
+      els.discardItemBtn.setAttribute("aria-label", !isPendingDrawing && (state.cropMode || state.pendingCropRect) ? "取消主体范围" : `放弃待鉴定${pendingLabel}`);
     }
     els.pendingPhotoPreview.hidden = false;
     els.pendingPhotoImage.src = state.lastPhoto;
+    els.pendingPhotoImage.alt = `待鉴定${pendingLabel}`;
+    els.pendingPhotoPreview.setAttribute("aria-label", `查看待鉴定${pendingLabel}`);
     els.pendingPhotoPreview.classList.toggle("is-crop-mode", state.cropMode);
     els.pendingPhotoPreview.classList.toggle("has-crop", Boolean(state.pendingCropRect));
     renderPendingCropOverlay();
@@ -9897,24 +10439,28 @@ function renderEquipmentDetail() {
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
     els.equipmentDetailDesc.textContent = state.gameClear
-      ? "通关装备会留在本局。选择已有装备可以查看和保存原图；重开后这些照片会清空。"
+      ? modeText("通关装备会留在本局。选择已有装备可以查看和保存原图；重开后这些照片会清空。")
       : locked
       ? isPlayerDefeated()
-        ? "照片勇者已经倒下，只能重开。"
+        ? `${getGameTitle()}已经倒下，只能重开。`
         : state.bossReward
           ? "先确认一张 Boss 奖励牌。"
           : "战斗中不能拍照鉴定。"
       : firstPhotoHint
-        ? "先拍一件身边的小物品。"
+        ? isDrawingMode()
+          ? "先画一件能变成装备的简笔画。"
+          : "先拍一件身边的小物品。"
       : state.filmRolls >= 1
-        ? "拍下身边物品，鉴定成照片装备。"
-        : "胶卷不足，先击败怪物攒到新的拍照机会。";
+        ? isDrawingMode()
+          ? "打开画布，画一件能被鉴定成装备的简笔画。"
+          : "拍下身边物品，鉴定成照片装备。"
+        : `${getResourceName()}不足，先击败怪物攒到新的${getInputActionName()}机会。`;
     els.filmCountBadge.hidden = state.gameClear;
     els.equipmentActions.hidden = state.gameClear;
     els.photoActionBtn.hidden = state.gameClear;
     els.photoActionBtn.disabled = state.gameClear || locked || state.filmRolls < 1;
-    els.photoActionBtn.textContent = "拍照";
-    els.photoActionBtn.setAttribute("aria-label", "拍照");
+    els.photoActionBtn.textContent = getInputActionName();
+    els.photoActionBtn.setAttribute("aria-label", getInputActionName());
     els.photoActionBtn.classList.toggle("is-photo-callout", firstPhotoHint && !els.photoActionBtn.disabled);
     return;
   }
@@ -9936,7 +10482,7 @@ function renderEquipmentDetail() {
   els.savePhotoBtn.hidden = false;
   els.savePhotoBtn.disabled = locked || !(selected.fullImage || selected.image);
   els.savePhotoBtn.textContent = "保存";
-  els.savePhotoBtn.setAttribute("aria-label", "保存照片");
+  els.savePhotoBtn.setAttribute("aria-label", `保存${selected.sourceMode === "drawing" ? "画作" : "照片"}`);
   els.discardItemBtn.hidden = false;
   els.discardItemBtn.disabled = locked;
   els.discardItemBtn.classList.add("danger-button");
@@ -10031,7 +10577,7 @@ function renderCareerSummaryCard(summary, snapshot) {
     : `${statusText} · 第${maxFloor}层通关`;
   const subline = isDefeat
     ? `${snapshot.formLabel} · 倒在第${floor}层`
-    : `${snapshot.formLabel} · 剩余胶卷 ${snapshot.film}`;
+    : `${snapshot.formLabel} · 剩余${getResourceName()} ${snapshot.film}`;
   const stats = isDefeat
     ? [
         ["层数", floor],
@@ -10054,7 +10600,7 @@ function renderCareerSummaryCard(summary, snapshot) {
         ${stats.map(([label, value]) => `<span>${escapeHtml(label)} ${escapeHtml(value)}</span>`).join("")}
       </div>
       <div class="career-card-ability">${escapeHtml(formatCareerAbilityLine(snapshot))}</div>
-      <div class="career-card-body">${paragraphs || (isDefeat ? "<p>旧账停在这一页，塔里仍记得照片勇者倒下前留下的影子。</p>" : "<p>多年以后，塔中仍流传着照片勇者登顶的旧闻。</p>")}</div>
+      <div class="career-card-body">${paragraphs || (isDefeat ? `<p>${escapeHtml(modeText("旧账停在这一页，塔里仍记得照片勇者倒下前留下的影子。"))}</p>` : `<p>${escapeHtml(modeText("多年以后，塔中仍流传着照片勇者登顶的旧闻。"))}</p>`)}</div>
       <h4>${isDefeat ? "遗落在塔中的装备" : "塔史记名装备"}</h4>
       <ul class="career-card-items">${topItems}</ul>
       ${note}
@@ -10065,7 +10611,7 @@ function renderCareerSummaryCard(summary, snapshot) {
 function renderCareerEquipmentGallery(snapshot) {
   const items = (snapshot.allItems || snapshot.topItems || []).slice(0, equipmentVisibleSlots);
   if (!items.length) {
-    const emptyText = snapshot?.outcome === "defeat" ? "没有留下照片装备" : "没有照片装备记录";
+    const emptyText = snapshot?.outcome === "defeat" ? modeText("没有留下照片装备") : modeText("没有照片装备记录");
     return `<li class="career-item-empty">${escapeHtml(emptyText)}</li>`;
   }
   return items.map((item) => {
@@ -10100,6 +10646,21 @@ function getCameraIconMarkup() {
       <circle cx="12" cy="13.5" r="3.2"></circle>
     </svg>
   `;
+}
+
+function getDrawingIconMarkup() {
+  return `
+    <svg class="drawing-empty-icon" aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M5 4.5h14v14H5z"></path>
+      <path d="M8 16.5l2.6-.6 7-7a1.8 1.8 0 0 0-2.5-2.5l-7 7L7.5 16z"></path>
+      <path d="M13.8 7.7l2.5 2.5"></path>
+      <path d="M8 19.5h8"></path>
+    </svg>
+  `;
+}
+
+function getEmptySlotIconMarkup() {
+  return isDrawingMode() ? getDrawingIconMarkup() : getCameraIconMarkup();
 }
 
 function renderHeroForms() {
@@ -10142,7 +10703,7 @@ function renderHeroForms() {
 
     const copy = document.createElement("div");
     copy.className = "form-copy";
-    copy.innerHTML = effectLines.map((line) => `<i>${escapeHtml(line)}</i>`).join("");
+    copy.innerHTML = effectLines.map((line) => `<i>${escapeHtml(modeText(line))}</i>`).join("");
 
     button.append(img, meta, copy);
     button.addEventListener("click", () => setHeroForm(form.id));
@@ -10175,7 +10736,7 @@ function getLootErrorHint(message) {
 
 function formatLootErrorMessage(message) {
   const text = String(message || "").trim();
-  if (!text) return "影像没有在鉴定台上成形。";
+  if (!text) return modeText("影像没有在鉴定台上成形。");
   const cleaned = text
     .replace(/^鉴定失败[:：]\s*/, "")
     .replace(/（?胶卷未消耗）?/g, "")
@@ -10187,7 +10748,7 @@ function formatLootErrorMessage(message) {
     return "这件东西太难装进行囊。";
   }
   if (/没有形成可用属性|没有醒出力量|可用属性/.test(cleaned)) {
-    return "这张照片没有醒出力量。";
+    return modeText("这张照片没有醒出力量。");
   }
   if (/已取消鉴定/.test(cleaned)) {
     return "鉴定已经收回。";
@@ -10237,7 +10798,7 @@ function renderItemDetailPills(item) {
 
 function renderItemDescription(item) {
   if (!item) return "";
-  return improveItemDescription(item);
+  return modeText(improveItemDescription(item), item.sourceMode || state.playMode);
 }
 
 function improveItemDescription(item) {
@@ -10397,7 +10958,7 @@ function renderBattleEntry(entry, markText, canToggle) {
     const button = document.createElement("button");
     button.className = "battle-report-toggle";
     button.type = "button";
-    button.textContent = entry.summary;
+    button.textContent = modeText(entry.summary);
     button.setAttribute("aria-expanded", String(Boolean(entry.expanded)));
     button.addEventListener("click", () => toggleBattleReport(entry.id));
     li.lastChild.replaceWith(button);
@@ -10436,7 +10997,7 @@ function createBattleListItem({ mark, markClass = "", text, className = "" }) {
   const li = document.createElement("li");
   li.className = className.trim();
   const textEl = document.createElement("span");
-  textEl.textContent = text;
+  textEl.textContent = modeText(text);
   if (mark) {
     const markEl = document.createElement("span");
     markEl.className = `log-mark ${markClass}`.trim();
@@ -10463,7 +11024,11 @@ function renderGameTextOnly() {
   const selectedEquipmentImage = selectedEquipment?.fullImage || selectedEquipment?.image || "";
   const enemyDamageEstimates = getEnemyDamageEstimates();
   const inventoryItems = state.inventory.filter(Boolean);
+  const apiConfig = getConfigFromInputs();
   window.__photoHeroState = {
+    playMode: state.playMode,
+    gameTitle: getGameTitle(),
+    resourceName: getResourceName(),
     runSeed: state.runSeed,
     player: {
       hp: state.player.hp,
@@ -10473,7 +11038,7 @@ function renderGameTextOnly() {
         label: getHeroForm().label,
         level: getHeroFormLevel(),
         progress: getHeroFormProgressText(),
-        effects: getHeroFormEffectLines(),
+      effects: getHeroFormEffectLines().map((line) => modeText(line)),
         stats: getHeroFormStats(),
         filmDropBonus: getHeroFormFilmShardBonus() / 10,
         noFilmDrop: Boolean(getHeroFormLevelConfig().noFilmDrop),
@@ -10505,6 +11070,13 @@ function renderGameTextOnly() {
     infoMode: state.infoMode,
     selectedSlotIndex: getSelectedSlotIndex(),
     pendingPhotoSlotIndex: state.pendingPhotoSlotIndex,
+    api: {
+      presetId: apiConfig.presetId,
+      baseUrl: apiConfig.baseUrl,
+      model: apiConfig.model,
+      hasApiKey: Boolean(apiConfig.apiKey) || isExperienceConfig(apiConfig),
+      keyLocked: isExperienceConfig(apiConfig),
+    },
     gameClear: Boolean(state.gameClear),
     tutorial: { ...state.tutorial },
     enemies: state.enemies.map((enemy, index) => ({
@@ -10560,6 +11132,7 @@ function renderGameTextOnly() {
       note: state.careerSummary.note || "",
     } : null,
     hasPhoto: Boolean(state.lastPhoto),
+    pendingSourceMode: getPendingSourceMode(),
     pendingCropRect: normalizeCropRect(state.pendingCropRect),
     cropMode: Boolean(state.cropMode),
     latestItem: state.latestItem,
@@ -10580,6 +11153,7 @@ function renderGameTextOnly() {
       } : null,
       stats: item.stats || {},
       effects: getItemSpecialKeys(item),
+      sourceMode: item.sourceMode || "photo",
       fullImage: item.fullImage || "",
       photoKey: item.photoKey || "",
       sourcePhotoKey: item.sourcePhotoKey || "",
@@ -10642,13 +11216,15 @@ function saveConfig(showLog = true) {
 
 function loadConfig() {
   const config = readJson(STORAGE_KEYS.config, {});
+  state.playMode = normalizeHeroMode(config.playMode);
+  state.pendingSourceMode = state.playMode;
   state.audioSettings = normalizeAudioSettings(config.audioSettings);
   renderAudioSettings();
-  const presetId = API_PRESETS[config.presetId] ? config.presetId : "siliconflow";
+  const presetId = isSelectableApiPreset(config.presetId) ? config.presetId : defaultApiPresetId;
   customDraft.baseUrl = presetId === "custom" ? config.baseUrl || "" : config.customBaseUrl || "";
   customDraft.model = presetId === "custom" ? config.model || "" : config.customModel || "";
   Object.assign(providerApiKeys, config.apiKeys || {});
-  if (config.apiKey && !providerApiKeys[presetId]) {
+  if (config.apiKey && !API_PRESETS[presetId]?.lockedKey && !providerApiKeys[presetId]) {
     providerApiKeys[presetId] = config.apiKey;
   }
   els.apiKeyInput.value = providerApiKeys[presetId] || "";
@@ -10662,13 +11238,18 @@ function getConfigFromInputs() {
   const model = activePreset === "custom" || activePresetConfig.editableModel
     ? (els.customModelInput.value.trim() || els.modelInput.value.trim())
     : els.modelInput.value.trim();
+  const apiKey = activePresetConfig.lockedKey ? "" : els.apiKeyInput.value.trim();
+  const apiKeys = activePresetConfig.lockedKey
+    ? { ...providerApiKeys }
+    : { ...providerApiKeys, [activePreset]: apiKey };
 
   return {
     presetId: activePreset,
     baseUrl,
-    apiKey: els.apiKeyInput.value.trim(),
-    apiKeys: { ...providerApiKeys, [activePreset]: els.apiKeyInput.value.trim() },
+    apiKey,
+    apiKeys,
     model,
+    playMode: state.playMode,
     customBaseUrl: activePreset === "custom" ? baseUrl : customDraft.baseUrl.trim(),
     customModel: activePreset === "custom" ? model : customDraft.model.trim(),
     audioSettings: { ...state.audioSettings },
@@ -10819,6 +11400,7 @@ function normalizeBossRewardOption(option, floor, index) {
     id: typeof option.id === "string" && option.id ? option.id : `${floor}-${index}-${option.type}`,
     type: option.type,
     title: fallback.title || cleanText(option.title, "奖励", 24),
+    effect: fallback.effect || cleanText(option.effect, "", 32),
     desc: fallback.desc || cleanText(option.desc, "选择后进入下一层。", 64),
     icon: fallback.icon || option.icon || getBossRewardIcon(option.type),
   };
@@ -10830,7 +11412,7 @@ function normalizeCareerSummary(summary) {
   return {
     status: status === "loading" ? "local" : status,
     outcome: summary.outcome === "defeat" || summary.snapshot?.outcome === "defeat" ? "defeat" : "clear",
-    title: cleanText(summary.title, "照片勇者生涯总结", 32),
+    title: cleanText(summary.title, `${getGameTitle()}生涯总结`, 32),
     text: cleanText(summary.text, "", 1200),
     note: cleanText(summary.note, "", 160),
     snapshot: summary.snapshot && typeof summary.snapshot === "object" ? summary.snapshot : null,

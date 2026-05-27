@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260526-photo-callout">
+    <link rel="stylesheet" href="./styles.css?v=20260527-draw-mode">
   </head>
   <body>
     <main class="app-shell">
@@ -12,7 +12,7 @@
         <div class="game-board">
           <section class="hero-zone" aria-label="勇者属性、装备和战斗">
             <div class="zone-head hero-head">
-              <h2>照片勇者</h2>
+              <h2><button class="mode-title-button" id="gameModeBtn" type="button" aria-label="切换勇者模式">照片勇者</button></h2>
               <div class="panel-tools" aria-label="面板工具">
                 <button class="tool-button info-button" id="infoToggleBtn" type="button" data-panel-target="info" aria-pressed="false">游戏信息</button>
                 <button class="tool-button music-button" id="musicToggleBtn" type="button" data-panel-target="music" aria-pressed="false" aria-label="音效设置" title="音效设置">音效</button>
@@ -73,7 +73,7 @@
                       <img id="equipmentDetailImage" alt="装备大图">
                     </button>
                   </div>
-                  <p class="desktop-input-hint">桌面端可把图片拖到这里，或点击信息框后按 Ctrl+V 粘贴图片。</p>
+                  <p class="desktop-input-hint" id="desktopInputHint">桌面端可把图片拖到这里，或点击信息框后按 Ctrl+V 粘贴图片。</p>
                   <span id="loadingState"></span>
                   <ol id="battleLog"></ol>
                 </article>
@@ -171,7 +171,7 @@
                       </article>
                       <article class="info-block wide-info">
                         <h3>塔门和 Boss</h3>
-                        <p>这座塔共有 40 层。第 10、20、30、40 层是封门 Boss，必须打完才能继续；第 25、35、38 层是奖励强敌，可以绕过。Boss 战拖到回合上限也能脱身，但拿不到击败奖励。</p>
+                        <p>这座塔共有 40 层。第 10、20、30、40 层有门锁守卫拦路，打倒它们才能上楼；第 25、35、38 层藏着可绕开的强敌。强敌战拖到回合上限也能脱身，但拿不到击败奖励。</p>
                       </article>
                       <article class="info-block wide-info">
                         <h3>胶卷、形态和奖励</h3>
@@ -234,8 +234,9 @@
 
                 <div class="preset-row" aria-label="模型预设">
                   <button class="preset-button" type="button" data-preset="siliconflow">硅基流动</button>
+                  <button class="preset-button" type="button" data-preset="xiaomi">小米</button>
                   <button class="preset-button" type="button" data-preset="zhipu">智谱</button>
-                  <button class="preset-button" type="button" data-preset="micu">米醋中转</button>
+                  <button class="preset-button" type="button" data-preset="micu">米醋</button>
                   <button class="preset-button" type="button" data-preset="custom">自定义</button>
                 </div>
                 <p class="preset-note" id="presetNote" hidden></p>
@@ -309,6 +310,42 @@
       <span id="imageViewerCaption"></span>
     </div>
 
-    <script defer src="./app.js?v=20260526-photo-callout"></script>
+    <div class="drawing-modal" id="drawingModal" hidden aria-label="画图勇者画布">
+      <section class="drawing-panel" role="dialog" aria-modal="true" aria-labelledby="drawingTitle">
+        <div class="drawing-head">
+          <div>
+            <h2 id="drawingTitle">画图勇者画布</h2>
+            <p>画一个能被鉴定成装备的简笔画，主体清楚比细节复杂更重要。</p>
+          </div>
+          <button class="ghost-button" id="drawingCancelBtn" type="button">取消</button>
+        </div>
+        <canvas id="drawingCanvas" width="768" height="768" aria-label="手绘装备画布"></canvas>
+        <div class="drawing-toolbar" aria-label="画布工具">
+          <div class="drawing-tool-group" aria-label="工具">
+            <button class="drawing-tool is-active" type="button" data-drawing-tool="brush" aria-pressed="true">画笔</button>
+            <button class="drawing-tool" type="button" data-drawing-tool="eraser" aria-pressed="false">橡皮</button>
+          </div>
+          <div class="drawing-tool-group drawing-color-group" aria-label="颜色">
+            <button class="drawing-color is-active" type="button" data-drawing-color="#17130f" style="--swatch:#17130f" aria-label="黑色" aria-pressed="true"></button>
+            <button class="drawing-color" type="button" data-drawing-color="#d94a38" style="--swatch:#d94a38" aria-label="红色" aria-pressed="false"></button>
+            <button class="drawing-color" type="button" data-drawing-color="#e0a22f" style="--swatch:#e0a22f" aria-label="金色" aria-pressed="false"></button>
+            <button class="drawing-color" type="button" data-drawing-color="#2f7ed8" style="--swatch:#2f7ed8" aria-label="蓝色" aria-pressed="false"></button>
+            <button class="drawing-color" type="button" data-drawing-color="#28905b" style="--swatch:#28905b" aria-label="绿色" aria-pressed="false"></button>
+            <button class="drawing-color" type="button" data-drawing-color="#7d4ac7" style="--swatch:#7d4ac7" aria-label="紫色" aria-pressed="false"></button>
+          </div>
+          <div class="drawing-tool-group" aria-label="线条粗细">
+            <button class="drawing-size" type="button" data-drawing-size="6" aria-pressed="false">细</button>
+            <button class="drawing-size is-active" type="button" data-drawing-size="12" aria-pressed="true">中</button>
+            <button class="drawing-size" type="button" data-drawing-size="24" aria-pressed="false">粗</button>
+          </div>
+          <div class="drawing-actions">
+            <button class="secondary-button" id="drawingClearBtn" type="button">清空</button>
+            <button class="primary-button" id="drawingUseBtn" type="button">放入装备格</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script defer src="./app.js?v=20260527-draw-mode"></script>
   </body>
 </html>
