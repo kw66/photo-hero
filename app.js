@@ -347,11 +347,12 @@ const photoIdentificationUserPrompt = [
 ].join("\n");
 
 const drawingIdentificationSystemPrompt = [
-  "你是《画图勇者》的手绘装备鉴定器，负责把玩家画在画布上的简笔画、符号或幻想小道具转成装备语义倾向。",
+  "你是《画图勇者》的装备概念鉴定器，负责把玩家画出的主体当成真实装备概念来识别，并给出装备语义倾向。",
   "你必须只输出一个 JSON 对象，不要 Markdown，不要代码块，不要额外解释。",
   "第一字符必须是 {，最后一个字符必须是 }。",
   "你不负责计算最终 value、最终 stats 或最终 specialEffects；这些数值由本地游戏规则统一结算。",
   "画图模式鼓励玩家画有趣、酷炫、天马行空的东西。不要因为它不是现实照片、不是现实物体、是幻想武器、怪物符号或卡通图案就直接判低分。",
+  "命名和玩家描述里要抛开“手绘/涂鸦/画布/纸面”这层媒介，直接猜它在魔塔里会是什么装备。",
   "只在画布几乎空白、纯随机涂鸦、没有可识别主体、纯场景背景或明显无法转成装备概念时，才把 isEquipable 设为 false 或给很低分。",
 ].join("\n");
 
@@ -363,6 +364,7 @@ const drawingIdentificationUserPrompt = [
   "2. 幻想剑、魔杖、盾、龙鳞、眼睛、火焰、星星、机器人、怪物符号、可爱小图标都可以鉴定，只要画面主体可辨认。",
   "3. 画出来的巨大物、怪物或生物默认按“画作符号/装备概念”处理，不按现实尺寸判定 tooLarge；只有纯风景、整片天空、道路、房间这类没有道具主体的画面才 isScene=true。",
   "4. 不要输出最终 value、最终 stats 或最终 specialEffects；本地规则会根据 photoQuality、statAffinity、specialAffinity 计算。",
+  "5. itemName、objectType、description 面向玩家时不要出现 手绘、涂鸦、画作、画布、纸面、简笔画、线稿、草图、画出来的 这些媒介词；identityDescription 可以写线条、颜色和构图用于查重。",
   "",
   "必须输出这个 JSON 结构，字段名使用英文：",
   "{\"itemName\":\"短装备名\",\"subjectName\":\"画布主体\",\"objectType\":\"主体类型\",\"identityDescription\":\"用于判断是否同一幅画的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
@@ -377,12 +379,12 @@ const drawingIdentificationUserPrompt = [
   `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}(价值${effect.value})`).join("；")}。`,
   "",
   "命名和描述：",
-  "itemName 要具体、短、有画面感，例如 星火短剑、蓝色护符、涂鸦龙鳞、笑脸魔盾；不要叫 画作装备、神秘涂鸦。",
-  "description 用一句中文写成装备味道，可以比照片模式更有想象力，但不要直接承诺最终数值或战斗效果。",
+  "itemName 要具体、短、有画面感，像是在给真实装备命名，例如 星火短剑、蓝纹护符、龙鳞坠饰、笑脸魔盾、风羽靴、尖牙项链；不要叫 画作装备、神秘涂鸦、手绘短剑。",
+  "description 用一句中文写成装备味道，可以比照片模式更有想象力，但不要直接承诺最终数值或战斗效果，也不要说这是一幅画或纸上的东西。",
   "reason 只写一句内部依据，格式尽量像：主体=火焰短剑；画面=清楚；倾向=攻击。",
   "",
   "输出示例：",
-  "{\"itemName\":\"星火短剑\",\"subjectName\":\"火焰短剑\",\"objectType\":\"手绘幻想武器\",\"identityDescription\":\"白色画布中央有一把黑线短剑，剑尖带红橙色火焰，左侧有两颗蓝色星点。\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":3,\"subjectArea\":3,\"backgroundClean\":2,\"realPhoto\":3,\"focusLight\":2,\"interesting\":2},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3},{\"stat\":\"speed\",\"score\":1}],\"specialAffinity\":[\"dealDamageAttack\"],\"description\":\"这把涂鸦短剑还带着纸面上的星火。\",\"reason\":\"主体=火焰短剑；画面清楚；倾向=攻击。\",\"tags\":[\"手绘\",\"火焰\",\"短剑\"],\"confidence\":0.86}",
+  "{\"itemName\":\"星火短剑\",\"subjectName\":\"火焰短剑\",\"objectType\":\"幻想武器\",\"identityDescription\":\"白色画布中央有一把黑线短剑，剑尖带红橙色火焰，左侧有两颗蓝色星点。\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":3,\"subjectArea\":3,\"backgroundClean\":2,\"realPhoto\":3,\"focusLight\":2,\"interesting\":2},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3},{\"stat\":\"speed\",\"score\":1}],\"specialAffinity\":[\"dealDamageAttack\"],\"description\":\"短剑的星火沿着剑脊跳动，适合在塔里劈开暗影。\",\"reason\":\"主体=火焰短剑；画面清楚；倾向=攻击。\",\"tags\":[\"火焰\",\"短剑\"],\"confidence\":0.86}",
 ].join("\n");
 
 const statOrder = ["hp", "attack", "defense", "speed", "shield", "lifesteal", "regen"];
@@ -497,6 +499,8 @@ const bgmFadeScales = new WeakMap();
 const bgmFadeTimers = new WeakMap();
 const bgmAudioCache = {};
 const activeSfxAudios = new Set();
+const pooledSfxAudios = new WeakSet();
+const sfxCleanupCallbacks = new WeakMap();
 let bgmPreloadStarted = false;
 let bgmPlayAttemptToken = 0;
 let bgmFallbackStopTimer = 0;
@@ -508,6 +512,8 @@ const audioRecoveryCooldownMs = 180;
 const bgmLoopDelayMs = 1000;
 const bgmCrossfadeMs = 720;
 const bgmCrossfadeStepMs = 60;
+const sfxPoolSize = 5;
+const sfxPoolMaxSize = 8;
 
 const defaultTutorialState = {
   photoStarted: false,
@@ -910,18 +916,65 @@ function toggleHeroMode() {
   closeDrawingModal();
   saveConfig(false);
   saveGame();
-  render();
+  render({ skipBgmEnsure: true });
 }
 
 function getSoundEffectAudio(key) {
   const effect = soundEffects[key];
   if (!effect) return null;
   if (!effect.audio) {
-    effect.audio = new Audio(`${audioAssetBase}${effect.file}`);
-    effect.audio.preload = "auto";
-    effect.audio.volume = getElementSafeSfxVolume(effect.volume);
+    effect.audio = createSoundEffectAudioElement(effect);
   }
   return effect.audio;
+}
+
+function createSoundEffectAudioElement(effect, pooled = false) {
+  const audio = new Audio(`${audioAssetBase}${effect.file}`);
+  audio.preload = "auto";
+  audio.volume = getElementSafeSfxVolume(effect.volume);
+  sfxAudioBaseVolumes.set(audio, effect.volume);
+  if (pooled) pooledSfxAudios.add(audio);
+  return audio;
+}
+
+function primeSoundEffectPool(key) {
+  const effect = soundEffects[key];
+  if (!effect) return [];
+  const created = !effect.pool;
+  if (!effect.pool) {
+    effect.pool = Array.from({ length: sfxPoolSize }, () => createSoundEffectAudioElement(effect, true));
+    effect.poolIndex = 0;
+  }
+  for (const audio of effect.pool) {
+    audio.volume = getElementSafeSfxVolume(effect.volume);
+    try {
+      if (created || (audio.paused && audio.readyState === 0)) audio.load?.();
+    } catch {
+      // Preloading SFX is best-effort.
+    }
+  }
+  return effect.pool;
+}
+
+function getSoundEffectPlaybackAudio(key) {
+  const effect = soundEffects[key];
+  if (!effect) return null;
+  const pool = primeSoundEffectPool(key);
+  const reusable = pool.find((audio) => audio.paused || audio.ended);
+  if (reusable) return reusable;
+  if (pool.length < sfxPoolMaxSize) {
+    const audio = createSoundEffectAudioElement(effect, true);
+    pool.push(audio);
+    try {
+      audio.load?.();
+    } catch {
+      // Loading a just-in-time SFX slot is best-effort.
+    }
+    return audio;
+  }
+  const index = effect.poolIndex || 0;
+  effect.poolIndex = (index + 1) % pool.length;
+  return pool[index] || getSoundEffectAudio(key);
 }
 
 function unlockGameAudio() {
@@ -934,6 +987,7 @@ function unlockGameAudio() {
   for (const key of Object.keys(soundEffects)) {
     const audio = getSoundEffectAudio(key);
     audio?.load?.();
+    primeSoundEffectPool(key);
   }
   preloadBgmTracksInOrder();
   ensureBgmForGameState(true);
@@ -1021,6 +1075,10 @@ function recoverGameAudio(reason = "recover", options = {}) {
 
   updateBgmAudioElementVolume(audio);
   if (getBgmLoopHoldRemaining(audio) > 0) return true;
+  if (isBgmPlaying(audio) && !options.restartPlaying) {
+    updateBgmWatchProgress(audio);
+    return true;
+  }
   if (audio.error) {
     state.lastBgmPlayError = formatAudioError(audio.error);
     try {
@@ -1038,8 +1096,19 @@ function recoverGameAudio(reason = "recover", options = {}) {
   if (audio.ended) audio.currentTime = 0;
 
   const contextNeedsResume = Boolean(context && context.state !== "running" && context.state !== "closed");
-  if (options.force || audio.paused || audio.ended || contextNeedsResume) {
-    playCurrentBgmAudio({ force: audio.paused || audio.ended || contextNeedsResume });
+  if (options.restartPlaying && isBgmPlaying(audio)) {
+    try {
+      const resumeAt = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      intentionalBgmPauseUntil.set(audio, Date.now() + 360);
+      audio.pause();
+      audio.currentTime = Math.max(0, resumeAt);
+    } catch {
+      // If a browser rejects seeking during recovery, play() below still gets a chance.
+    }
+  }
+  const shouldForcePlay = Boolean(audio.paused || audio.ended || contextNeedsResume || options.restartPlaying);
+  if (options.force || shouldForcePlay) {
+    playCurrentBgmAudio({ force: shouldForcePlay });
   }
   return true;
 }
@@ -1086,7 +1155,7 @@ function checkBgmWatchdog() {
   }
 
   if (now - state.bgmWatchProgressAt > 2600) {
-    recoverGameAudio("watchdog-bgm-stalled", { force: true });
+    recoverGameAudio("watchdog-bgm-stalled", { force: true, restartPlaying: true });
     state.bgmWatchProgressAt = now;
   }
 }
@@ -1104,11 +1173,17 @@ function playSoundEffect(key, options = {}) {
 
   try {
     recoverGameAudio(`sfx:${key}`);
-    const baseAudio = getSoundEffectAudio(key);
-    if (!baseAudio) return;
-    const audio = baseAudio.cloneNode();
+    const audio = getSoundEffectPlaybackAudio(key);
+    if (!audio) return;
+    const previousCleanup = sfxCleanupCallbacks.get(audio);
+    previousCleanup?.();
+    try {
+      audio.pause();
+      audio.currentTime = 0;
+    } catch {
+      // Some mobile browsers may reject currentTime before metadata is ready.
+    }
     audio.preload = "auto";
-    audio.currentTime = 0;
     const baseVolume = Number.isFinite(options.volume) ? options.volume : effect.volume;
     sfxAudioBaseVolumes.set(audio, baseVolume);
     audio.volume = getElementSafeSfxVolume(baseVolume);
@@ -1117,15 +1192,20 @@ function playSoundEffect(key, options = {}) {
       audio.volume = 1;
     }
     activeSfxAudios.add(audio);
+    let cleanupTimer = 0;
     const cleanup = () => {
       audio.removeEventListener("ended", cleanup);
       audio.removeEventListener("error", cleanup);
-      detachBoostedAudioNode(audio);
+      if (cleanupTimer) window.clearTimeout(cleanupTimer);
+      cleanupTimer = 0;
+      if (!pooledSfxAudios.has(audio)) detachBoostedAudioNode(audio);
       activeSfxAudios.delete(audio);
+      sfxCleanupCallbacks.delete(audio);
     };
+    sfxCleanupCallbacks.set(audio, cleanup);
     audio.addEventListener("ended", cleanup, { once: true });
     audio.addEventListener("error", cleanup, { once: true });
-    window.setTimeout(cleanup, 3000);
+    cleanupTimer = window.setTimeout(cleanup, 3000);
     audio.play().catch((error) => {
       state.lastSfxPlayError = formatAudioError(error);
       cleanup();
@@ -1463,7 +1543,10 @@ function playCurrentBgmAudio(options = {}) {
     bgmFallbackStopTimer = 0;
   }
   const playPromise = audio.play();
-  if (previousAudio) startCurrentFadeIn();
+  if (previousAudio) {
+    startCurrentFadeIn();
+    fadeBgmAudioTo(previousAudio, 0.015, { duration: Math.min(360, bgmCrossfadeMs) });
+  }
   if (playPromise?.then) {
     playPromise
       .then(() => {
@@ -4389,7 +4472,13 @@ function isLivingCreatureMainSubjectText(text) {
 
 function hasStrongEquipmentFantasyText(text) {
   const source = String(text || "");
-  return /(?:锋利|尖锐|厚重|坚硬|防护|护盾|容器|外壳|工具|武器|速度|旋转|气流|修复|补能|吸附|抽取|成长|训练|奖牌|有趣|动心|奇特|故事感|装备联想|sharp|solid|protect|shield|tool|weapon|speed|rotate|airflow|heal|energy|grow|medal|interesting|fantasy)/i.test(source);
+  return /(?:锋利|尖锐|厚重|坚硬|防护|护盾|容器|外壳|工具|武器|剑|斧|弓|箭|枪|魔杖|法杖|龙鳞|尖牙|爪|火焰|雷电|闪电|星火|速度|旋转|气流|修复|补能|吸附|抽取|成长|训练|奖牌|有趣|动心|奇特|故事感|装备联想|sharp|solid|protect|shield|tool|weapon|sword|axe|bow|arrow|wand|fang|claw|fire|lightning|speed|rotate|airflow|heal|energy|grow|medal|interesting|fantasy)/i.test(source);
+}
+
+function hasDrawingEquipmentConceptText(text) {
+  const source = String(text || "");
+  return hasStrongEquipmentFantasyText(source)
+    || /(?:装备|道具|护符|护身符|徽记|坠饰|项链|戒指|靴|披风|铠|甲|盾|剑|刃|刀|枪|矛|弓|箭|斧|锤|魔杖|法杖|宝石|水晶|符文|符号|核心|面具|齿轮|龙鳞|羽|翅|心形|爱心|药|泉|光|风|火|雷|血|牙|爪|explosion|rune|crystal|amulet|ring|boots|cloak|armor)/i.test(source);
 }
 
 function hasAirPurifierSemanticText(text) {
@@ -4410,17 +4499,17 @@ function hasEdibleContentSemanticText(text) {
 function hasHpSemanticText(text) {
   const source = String(text || "");
   if (isTablewareSemanticText(source) && !hasEdibleContentSemanticText(source)) return false;
-  return /(?:咖啡|矿泉水|饮料|药|汤|茶|牛奶|果汁|食物|饭团|面包|糖果|饼干|肉|蔬菜|水果|香蕉|番茄|西红柿|能量|植物|花朵|叶片|种子|可爱|治愈|毛绒|玩偶|娃娃|贴纸|卡通|图案|青蛙|coffee|water|drink|medicine|tea|milk|juice|food|bread|candy|fruit|banana|tomato|energy|plant|flower|seed|cute|heal|healing|plush|doll|toy|sticker|cartoon|pattern)/i.test(source);
+  return /(?:生命|爱心|心形|核心|咖啡|矿泉水|饮料|药|汤|茶|牛奶|果汁|食物|饭团|面包|糖果|饼干|肉|蔬菜|水果|香蕉|番茄|西红柿|能量|植物|花朵|叶片|种子|可爱|治愈|毛绒|玩偶|娃娃|贴纸|卡通|图案|青蛙|coffee|water|drink|medicine|tea|milk|juice|food|bread|candy|fruit|banana|tomato|energy|plant|flower|seed|heart|core|cute|heal|healing|plush|doll|toy|sticker|cartoon|pattern)/i.test(source);
 }
 
 function hasStrongHpSemanticText(text) {
   const source = String(text || "");
   if (isTablewareSemanticText(source) && !hasEdibleContentSemanticText(source)) return false;
-  return /(?:咖啡|矿泉水|饮料|药|汤|茶|牛奶|果汁|食物|饭团|面包|糖果|饼干|肉|蔬菜|水果|香蕉|番茄|西红柿|能量|植物|花朵|叶片|种子|治愈|毛绒|玩偶|娃娃|coffee|water|drink|medicine|tea|milk|juice|food|bread|candy|fruit|banana|tomato|energy|plant|flower|seed|heal|healing|plush|doll)/i.test(source);
+  return /(?:生命|爱心|心形|咖啡|矿泉水|饮料|药|汤|茶|牛奶|果汁|食物|饭团|面包|糖果|饼干|肉|蔬菜|水果|香蕉|番茄|西红柿|能量|植物|花朵|叶片|种子|治愈|毛绒|玩偶|娃娃|coffee|water|drink|medicine|tea|milk|juice|food|bread|candy|fruit|banana|tomato|energy|plant|flower|seed|heart|heal|healing|plush|doll)/i.test(source);
 }
 
 function hasStrongSpeedSemanticText(text) {
-  return /(?:风扇|小风扇|桌面小风扇|空气动力|气流|旋转|扇叶|电扇|fan|airflow|rotate|blade)/i.test(String(text || ""));
+  return /(?:风扇|小风扇|桌面小风扇|空气动力|气流|旋转|扇叶|电扇|闪电|雷电|疾风|羽翼|翅膀|飞行|fan|airflow|rotate|blade|lightning|wing|fly)/i.test(String(text || ""));
 }
 
 function hasShieldSemanticText(text) {
@@ -4433,7 +4522,7 @@ function hasDefenseSemanticText(text) {
 }
 
 function hasAttackSemanticText(text) {
-  return /(?:工具|武器|敲|打|锤|棒|棍|枪|长枪|短枪|矛|戟|砖|石|球|键盘|鼠标|笔|刀|剪|针|钩|刺|尖|刃|爪|牙|攻击|冲击|震动|声波|音箱|音响|喇叭|运动|飞行|展翅|风车|旋转|数字|显示屏|勺|叉|筷|餐具|tool|weapon|hit|hammer|club|spear|lance|pike|brick|stone|ball|keyboard|mouse|pen|knife|scissor|needle|hook|sharp|claw|tooth|attack|impact|speaker|sport|fly|wing|windmill|rotate|screen|spoon|fork|chopstick|tableware|cutlery)/i.test(String(text || ""));
+  return /(?:工具|武器|敲|打|锤|棒|棍|剑|短剑|长剑|斧|弓|箭|魔杖|法杖|枪|长枪|短枪|矛|戟|砖|石|球|键盘|鼠标|笔|刀|剪|针|钩|刺|尖|刃|爪|牙|火焰|星火|雷电|闪电|爆炸|攻击|冲击|震动|声波|音箱|音响|喇叭|运动|飞行|展翅|风车|旋转|数字|显示屏|勺|叉|筷|餐具|tool|weapon|hit|hammer|club|sword|axe|bow|arrow|wand|spear|lance|pike|brick|stone|ball|keyboard|mouse|pen|knife|scissor|needle|hook|sharp|claw|tooth|fire|lightning|explosion|attack|impact|speaker|sport|fly|wing|windmill|rotate|screen|spoon|fork|chopstick|tableware|cutlery)/i.test(String(text || ""));
 }
 
 function isSharpToolSemanticText(text) {
@@ -4445,7 +4534,7 @@ function hasOffensiveToolSemanticText(text) {
 }
 
 function hasSpeedSemanticText(text) {
-  return /(?:鞋|轮|滑板|风|扇|羽|飞|跑|跳|旋转|气流|车模|遥控|线缆|速度|敏捷|运动|球|shoe|wheel|skateboard|wind|fan|feather|fly|run|jump|rotate|airflow|remote|cable|speed|sport|ball)/i.test(String(text || ""));
+  return /(?:鞋|靴|轮|滑板|风|疾风|扇|羽|羽翼|翅|飞|跑|跳|旋转|气流|车模|遥控|线缆|速度|敏捷|闪电|雷电|箭头|运动|球|shoe|boot|wheel|skateboard|wind|fan|feather|wing|fly|run|jump|rotate|airflow|remote|cable|speed|lightning|arrow|sport|ball)/i.test(String(text || ""));
 }
 
 function hasLifestealSemanticText(text) {
@@ -4455,12 +4544,12 @@ function hasLifestealSemanticText(text) {
 function hasRegenSemanticText(text) {
   const source = String(text || "");
   if (isSharpToolSemanticText(source) && !hasStrongRegenSemanticText(source)) return false;
-  return hasAirPurifierSemanticText(source) || /(?:回复|恢复|治愈|修复|补能|清洁|净化|清新|水|咖啡|饮|药|茶|奶|充电|电池|灯|纸巾|毛巾|植物|花|叶|种子|可爱|柔软|贴纸|卡通|图案|青蛙|heal|regen|repair|clean|purify|water|coffee|drink|medicine|charger|battery|light|tissue|towel|plant|flower|leaf|seed|cute|soft|sticker|cartoon|pattern)/i.test(source);
+  return hasAirPurifierSemanticText(source) || /(?:回复|恢复|治愈|修复|补能|清洁|净化|清新|水|泉|泉水|咖啡|饮|药|茶|奶|充电|电池|灯|光|圣光|纸巾|毛巾|植物|草|花|叶|种子|心形|爱心|可爱|柔软|贴纸|卡通|图案|青蛙|heal|regen|repair|clean|purify|water|spring|coffee|drink|medicine|charger|battery|light|tissue|towel|plant|grass|flower|leaf|seed|heart|cute|soft|sticker|cartoon|pattern)/i.test(source);
 }
 
 function hasStrongRegenSemanticText(text) {
   const source = String(text || "");
-  return hasAirPurifierSemanticText(source) || /(?:回复|恢复|治愈|回血|药|水|咖啡|饮|茶|奶|充电|电池|清洁|净化|过滤|滤芯|纸巾|毛巾|heal|regen|medicine|water|coffee|drink|charger|battery|clean|purify|filter|tissue|towel)/i.test(source);
+  return hasAirPurifierSemanticText(source) || /(?:回复|恢复|治愈|回血|药|水|泉|光|咖啡|饮|茶|奶|充电|电池|清洁|净化|过滤|滤芯|纸巾|毛巾|heal|regen|medicine|water|spring|light|coffee|drink|charger|battery|clean|purify|filter|tissue|towel)/i.test(source);
 }
 
 function normalizeModelStats(stats) {
@@ -8762,14 +8851,63 @@ function makePhotoStatEvidenceText({ itemName, subjectName, objectType, sizeClas
   return [primaryText, identityDescription].filter(Boolean).join(" ");
 }
 
+function stripDrawingMediumWords(text = "") {
+  return String(text || "")
+    .replace(/这[幅张](?:画作|画|图画|图)/g, "这件装备")
+    .replace(/(?:画布|纸面|纸上)上?的?/g, "")
+    .replace(/玩家/g, "")
+    .replace(/手绘|涂鸦|画作|画布|纸面|纸上|简笔画|线稿|草图/g, "")
+    .replace(/画出来的|画出的|画成的|画下的/g, "")
+    .replace(/图中|画面中|画面里/g, "")
+    .replace(/这件装备里(?:的)?/g, "")
+    .replace(/带着上?的/g, "带着")
+    .replace(/\s+/g, " ")
+    .replace(/[“”"'`]/g, "")
+    .replace(/^[的、，。；：\s]+|[的、，。；：\s]+$/g, "")
+    .trim();
+}
+
+function isGenericDrawingName(text = "") {
+  return /^(?:神秘|未知|装备|物品|主体|道具|小道具|幻想|概念|符号|图案|装备概念)?$/.test(String(text || "").trim());
+}
+
+function cleanDrawingName(value, fallback, maxLength = 18) {
+  const cleaned = stripDrawingMediumWords(cleanText(value, "", maxLength + 12))
+    .replace(/^(?:一把|一个|一枚|一件|一只|一条)/, "")
+    .replace(/(?:装备|道具)$/g, "")
+    .trim();
+  const fallbackClean = stripDrawingMediumWords(cleanText(fallback, "", maxLength + 12));
+  const picked = !isGenericDrawingName(cleaned) ? cleaned : (!isGenericDrawingName(fallbackClean) ? fallbackClean : "幻想装备");
+  return cleanText(picked, "幻想装备", maxLength);
+}
+
+function cleanDrawingDescription(value, fallback, itemName) {
+  let text = stripDrawingMediumWords(cleanText(value, "", 96))
+    .replace(/媒介|载体/g, "")
+    .replace(/^\s*这件装备?装备/, "这件装备")
+    .replace(/^\s*这件$/, "")
+    .trim();
+  if (!text || /^由.*鉴定/.test(text)) {
+    const name = cleanDrawingName(itemName, fallback, 18);
+    text = `${name}带着清晰的装备轮廓，可以被带进魔塔。`;
+  }
+  if (text && !/[。！？.!?]$/.test(text)) text += "。";
+  return cleanText(text, "由想象凝成的装备。", 72);
+}
+
 function balanceItem(item, image = "") {
   const safe = item && typeof item === "object" ? item : {};
   const sourceMode = normalizeHeroMode(safe.sourceMode || safe.source_mode || "photo");
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
-  const itemName = cleanText(safe.itemName, sourceMode === "drawing" ? "画作装备" : "照片装备", 18);
-  const subjectName = cleanText(safe.subjectName, itemName, 18);
+  const rawItemName = cleanText(safe.itemName, sourceMode === "drawing" ? "幻想装备" : "照片装备", 30);
+  const rawSubjectName = cleanText(safe.subjectName, rawItemName, 30);
+  const itemName = sourceMode === "drawing" ? cleanDrawingName(rawItemName, rawSubjectName, 18) : cleanText(rawItemName, "照片装备", 18);
+  const subjectName = sourceMode === "drawing" ? cleanDrawingName(rawSubjectName, itemName, 18) : cleanText(rawSubjectName, itemName, 18);
   const tags = normalizeStringList(safe.tags);
-  const objectType = cleanText(safe.objectType, "", 18);
+  const rawObjectType = cleanText(safe.objectType, "", 30);
+  const objectType = sourceMode === "drawing"
+    ? rawObjectType ? cleanDrawingName(rawObjectType, "", 18) : ""
+    : cleanText(rawObjectType, "", 18);
   const sizeClass = cleanText(safe.sizeClass, "", 18);
   const reason = cleanText(safe.reason, "", 72);
   const semanticSchema = getRawSemanticFlag(safe);
@@ -8778,7 +8916,10 @@ function balanceItem(item, image = "") {
   const specialAffinity = normalizeSpecialEffects(safe.specialAffinity || []);
   const preserveSettledOutput = Boolean(safe.skipSpecialRoll);
   const identityDescription = cleanText(safe.identityDescription || safe.identity_description || safe.appearance || safe.objectIdentity || "", "", 160);
-  const semanticText = [itemName, subjectName, objectType, sizeClass, identityDescription, safe.description, reason, tags.join(" ")].filter(Boolean).join(" ");
+  const displayDescription = sourceMode === "drawing"
+    ? cleanDrawingDescription(safe.description || reason, reason, itemName)
+    : cleanText(safe.description || reason, "由照片鉴定出的装备。", 72);
+  const semanticText = [itemName, subjectName, objectType, sizeClass, identityDescription, displayDescription, reason, tags.join(" ")].filter(Boolean).join(" ");
   const safeTooLarge = parseBooleanMaybe(safe.tooLarge) === true;
   const safeIsScene = parseBooleanMaybe(safe.isScene) === true;
   const safeIsEquipable = parseBooleanMaybe(safe.isEquipable);
@@ -8801,7 +8942,9 @@ function balanceItem(item, image = "") {
   if (!noEffect) {
     requestedValue = preserveSettledOutput
       ? requestedValue
-      : adjustPhotoItemValueForSemanticMinimum(requestedValue, objectStatEvidenceText, statAffinity);
+      : sourceMode === "drawing"
+        ? adjustDrawingItemValueForSemanticMinimum(requestedValue, objectStatEvidenceText, statAffinity)
+        : adjustPhotoItemValueForSemanticMinimum(requestedValue, objectStatEvidenceText, statAffinity);
     if (!preserveSettledOutput && Number.isFinite(virtualPenalty.cap)) {
       requestedValue = Math.min(requestedValue, mapLegacyPhotoValueCapToCurrentRange(virtualPenalty.cap));
     }
@@ -8840,7 +8983,11 @@ function balanceItem(item, image = "") {
     stats,
     specialEffects,
     specialState: normalizeSpecialState(safe.specialState, specialEffects),
-    description: noEffect ? virtualPenalty.description || "主体过大或主要是场景，无法提供属性。" : cleanText(safe.description || reason, sourceMode === "drawing" ? "由画作鉴定出的装备。" : "由照片鉴定出的装备。", 72),
+    description: noEffect
+      ? sourceMode === "drawing"
+        ? "没有形成可鉴定的装备主体。"
+        : virtualPenalty.description || "主体过大或主要是场景，无法提供属性。"
+      : displayDescription,
     identityDescription,
     reason,
     tags,
@@ -9047,6 +9194,17 @@ function adjustPhotoItemValueForSemanticMinimum(value, semanticText = "", statAf
   return Math.max(current, Math.min(minAffordable, cap, getPhotoValueMax()));
 }
 
+function adjustDrawingItemValueForSemanticMinimum(value, semanticText = "", statAffinity = []) {
+  const current = clampInt(value, getPhotoValueMin(), getPhotoValueMax());
+  if (current <= 0) return current;
+  const minimums = [
+    getMinimumPreferredStatCost(semanticText, statAffinity),
+    getMinimumSemanticStatCost(semanticText, statAffinity),
+  ].filter((cost) => Number.isFinite(cost) && cost > 0 && cost <= getPhotoValueMax());
+  if (!minimums.length) return current;
+  return Math.max(current, Math.min(...minimums));
+}
+
 function getMinimumPreferredStatCost(text, statAffinity = []) {
   const keys = sanitizeStatAffinityForSemantics(statAffinity, text)
     .map((item) => item.stat)
@@ -9156,16 +9314,36 @@ function calculatePhotoQualityScore(photoQuality, semanticText = "") {
 
 function calculateDrawingQualityScore(photoQuality, semanticText = "") {
   const quality = normalizePhotoQuality(photoQuality);
-  let score = calculatePhotoQualityTotal(quality);
   const text = String(semanticText || "");
-  if (quality.clarity >= 3 && quality.subjectArea >= 2) score += 2;
-  if (quality.backgroundClean >= 1 && quality.focusLight >= 1) score += 1;
-  if (quality.interesting >= 2) score += 2;
-  if (hasStrongEquipmentFantasyText(text) || isPortableEquipmentText(text)) score += 1;
+  const blankLike = /空白|无主体|随机涂鸦|无法辨认|不能辨认|看不出|乱线|blank|scribble|unrecognizable/i.test(text);
+  if (blankLike && quality.clarity <= 1) return Math.max(0, Math.min(3, calculatePhotoQualityTotal(quality)));
+
+  const hasConcept = hasDrawingEquipmentConceptText(text) || hasPhotoStatSemanticText(text);
+  let score = Math.round(
+    (quality.clarity * 2.2)
+    + (quality.subjectArea * 1.6)
+    + (quality.backgroundClean * 0.7)
+    + (quality.realPhoto * 1.0)
+    + (quality.focusLight * 1.2)
+    + (quality.interesting * 1.5),
+  );
+
+  if (hasConcept) score += 1;
+  if (hasConcept && quality.clarity >= 3 && quality.subjectArea >= 2) score += 1;
+  if (quality.interesting >= 2 && hasConcept) score += 1;
+
   if (quality.clarity <= 1) score -= 3;
   if (quality.subjectArea <= 1) score -= 2;
-  if (quality.interesting <= 0) score -= 1;
-  if (/空白|无主体|随机涂鸦|无法辨认|blank|scribble|unrecognizable/i.test(text)) score -= 5;
+  if (quality.focusLight <= 0 && quality.realPhoto <= 1) score -= 1;
+  if (!hasConcept) score = Math.min(score, quality.interesting >= 2 ? 10 : 8);
+  if (blankLike) score -= 4;
+
+  if (quality.clarity <= 0 || quality.subjectArea <= 0) score = Math.min(score, 4);
+  else if (quality.clarity <= 1) score = Math.min(score, 8);
+  else if (quality.subjectArea <= 1) score = Math.min(score, 11);
+  if (quality.clarity >= 3 && quality.subjectArea >= 2 && hasConcept && quality.interesting >= 1) {
+    score = Math.max(score, 12);
+  }
   return Math.max(0, Math.min(15, score));
 }
 
@@ -9545,6 +9723,11 @@ function getSpecialEffectDefinitions(effectKeys) {
 
 function inferPreferredStats(name) {
   const text = String(name || "");
+  if (/爱心|心形|生命核心|能量核心|heart|life core/i.test(text)) return ["hp", "regen", "shield"];
+  if (/火焰|星火|雷电|闪电|爆炸|剑|短剑|长剑|斧|弓|箭|魔杖|法杖|爪|牙|fire|lightning|explosion|sword|axe|bow|arrow|wand|claw|fang/i.test(text)) return ["attack", "speed", "lifesteal"];
+  if (/盾|护盾|铠|甲|堡垒|屏障|结界|龟壳|龙鳞|shield|armor|barrier|shell|scale/i.test(text)) return ["shield", "defense", "hp"];
+  if (/风|疾风|羽|羽翼|翅|靴|轮|飞|箭头|wind|feather|wing|boot|wheel|fly|arrow/i.test(text)) return ["speed", "attack", "regen"];
+  if (/泉|水|草|药|光|治愈|净化|spring|water|grass|medicine|light|heal/i.test(text)) return ["regen", "hp", "defense"];
   if (/刺|尖刺|荆棘|倒刺|玻璃片|碎玻璃|铁丝网|cactus|thorn|spike|barb|broken glass|wire fence/i.test(text)) return ["attack", "defense", "lifesteal"];
   if (hasAirPurifierSemanticText(text)) return ["regen", "defense", "shield"];
   if (isTablewareSemanticText(text) && !hasEdibleContentSemanticText(text)) return ["attack", "defense", "shield"];
@@ -9727,10 +9910,11 @@ function setStatReadout(element, baseValue, delta = 0) {
   element.append(deltaEl);
 }
 
-function render() {
+function render(options = {}) {
   ensureEncounter();
   ensureInventorySlots();
-  ensureBgmForGameState();
+  if (!options.skipBgmEnsure) ensureBgmForGameState();
+  else renderAudioSettings();
   renderGameMode();
   const stats = getPlayerStats();
   const battleStats = getBattleStats(state.activeEnemyIds);

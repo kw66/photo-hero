@@ -222,6 +222,7 @@ function assertScenario(name, metrics) {
   if (name === "drawing-mode") {
     const result = metrics.drawingMode || {};
     if (result.initialTitle !== "照片勇者" || result.afterTitle !== "画图勇者") failures.push(`${name}: title button should toggle from photo to drawing mode, got ${JSON.stringify(result)}`);
+    if (!result.modeButtonInsideTools || result.modeButtonInsideHeading || !result.modeButtonBeforeInfo) failures.push(`${name}: mode button should be in panel tools before 游戏信息, got ${JSON.stringify(result)}`);
     if (result.playMode !== "drawing" || result.resourceName !== "画布") failures.push(`${name}: state should expose drawing mode and canvas resource, got ${JSON.stringify(result)}`);
     if (!/画布/.test(result.introText || "") || /胶卷/.test(result.introText || "")) failures.push(`${name}: intro copy should switch from film to canvas wording, got ${result.introText}`);
     if (!result.drawingEmptyIconCount) failures.push(`${name}: empty equipment slots should switch to drawing icons, got ${JSON.stringify(result)}`);
@@ -393,6 +394,7 @@ function assertScenario(name, metrics) {
     if (se.heroHitActive !== true || se.enemyHitActive !== true) failures.push(`${name}: hit animation state should remain active after sound checks, got ${JSON.stringify({ hero: se.heroHitActive, enemy: se.enemyHitActive })}`);
     if (se.bgmNativeLoopDisabled !== true) failures.push(`${name}: BGM should use manual delayed looping, got ${JSON.stringify(se)}`);
     if (se.bgmSameTrackNoRefresh !== true) failures.push(`${name}: same-track BGM refreshes should not restart playback, got ${JSON.stringify(se)}`);
+    if (se.modeSwitchDoesNotTouchBgm !== true) failures.push(`${name}: switching photo/drawing mode should not restart or switch BGM, got ${JSON.stringify(se)}`);
     if (se.bgmDelayedLoopRestart !== true) failures.push(`${name}: BGM should restart only after delayed loop handoff, got ${JSON.stringify(se)}`);
     if (se.bgmRecoveredFromPause !== true) failures.push(`${name}: BGM should recover if paused unexpectedly, got ${JSON.stringify(se)}`);
     if (se.bgmWatchdogRecovered !== true) failures.push(`${name}: BGM watchdog should recover stalled playback, got ${JSON.stringify(se)}`);
@@ -807,6 +809,14 @@ function assertScenario(name, metrics) {
     await page.evaluate(() => {
       window.__reviewDrawingMode = {
         initialTitle: document.querySelector("#gameModeBtn")?.textContent?.trim() || "",
+        modeButtonInsideTools: document.querySelector("#gameModeBtn")?.parentElement?.classList.contains("panel-tools") || false,
+        modeButtonInsideHeading: Boolean(document.querySelector("#gameModeBtn")?.closest("h2")),
+        modeButtonBeforeInfo: (() => {
+          const buttons = Array.from(document.querySelectorAll(".panel-tools > button"));
+          const modeButton = document.querySelector("#gameModeBtn");
+          const infoButton = document.querySelector("#infoToggleBtn");
+          return buttons.indexOf(modeButton) >= 0 && buttons.indexOf(modeButton) < buttons.indexOf(infoButton);
+        })(),
       };
     });
     await page.click("#gameModeBtn");
@@ -2403,6 +2413,14 @@ function assertScenario(name, metrics) {
       hooks.ensureBgmForTest?.(true);
       hooks.ensureBgmForTest?.(true);
       const sameTrackRefreshState = hooks.getBgmPlaybackStateForTest?.() || {};
+      const modeSwitchBgmEventCount = (hooks.getBgmEvents?.() || []).length;
+      const modeSwitchBaselineState = hooks.getBgmPlaybackStateForTest?.() || {};
+      document.querySelector("#gameModeBtn")?.click();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      document.querySelector("#gameModeBtn")?.click();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const modeSwitchBgmState = hooks.getBgmPlaybackStateForTest?.() || {};
+      const modeSwitchBgmEvents = (hooks.getBgmEvents?.() || []).length - modeSwitchBgmEventCount;
       hooks.markCurrentBgmEndedForTest?.();
       await new Promise((resolve) => setTimeout(resolve, 220));
       const loopWaitState = hooks.getBgmPlaybackStateForTest?.() || {};
@@ -2474,6 +2492,9 @@ function assertScenario(name, metrics) {
       const floor10CachedDuringSwitch = hooks.getCachedBgmPlaybackStateForTest?.("skeletonCaptain") || {};
       await new Promise((resolve) => setTimeout(resolve, 900));
       const floor10CachedAfterSwitch = hooks.getCachedBgmPlaybackStateForTest?.("skeletonCaptain") || {};
+      const floor10OldTrackSoftened = floor10CachedDuringSwitch.paused === false
+        && (floor10CachedDuringSwitch.fading === true || (floor10CachedDuringSwitch.volume || 0) < (floor10BgmState.volume || 1) - 0.02);
+      const floor10OldTrackGoneOrSilent = floor10CachedAfterSwitch.paused === true || (floor10CachedAfterSwitch.volume || 0) <= 0.02;
 
       const setupBattle = (ids) => {
         hooks.clearAudioEvents();
@@ -2528,6 +2549,9 @@ function assertScenario(name, metrics) {
         enemyHitActive,
         bgmNativeLoopDisabled: initialBgmState.loop === false,
         bgmSameTrackNoRefresh: sameTrackRefreshState.playAttemptToken === sameTrackBaselineState.playAttemptToken,
+        modeSwitchDoesNotTouchBgm: modeSwitchBgmEvents === 0
+          && modeSwitchBgmState.key === modeSwitchBaselineState.key
+          && modeSwitchBgmState.playAttemptToken === modeSwitchBaselineState.playAttemptToken,
         bgmDelayedLoopRestart: loopWaitState.playAttemptToken === sameTrackRefreshState.playAttemptToken && loopWaitState.loopRestartScheduled === true && loopRestartState.playAttemptToken > loopWaitState.playAttemptToken,
         bgmRecoveredFromPause: recoveredBgmState.hasAudio && recoveredBgmState.paused === false,
         bgmWatchdogRecovered: (recoveryAfterWatchdog.count || 0) > (recoveryBeforeWatchdog.count || 0),
@@ -2536,7 +2560,8 @@ function assertScenario(name, metrics) {
         bgmSwitchStopsOldTrack: area1DuringSwitchState.paused === false && area1AfterSwitchState.paused === true,
         bossBgmOnFloorEntry: floor10BgmState.key === "skeletonCaptain",
         bossBattleDoesNotRefreshBgm: floor10BattleBgmState.key === floor10BgmState.key && floor10BattleBgmEvents.length === 0,
-        bgmCrossfadeHandoff: area2BgmState.key === "area2" && floor10CachedDuringSwitch.paused === false && floor10CachedDuringSwitch.fading === true && floor10CachedAfterSwitch.paused === true,
+        bgmCrossfadeHandoff: area2BgmState.key === "area2" && floor10OldTrackSoftened && floor10OldTrackGoneOrSilent,
+        bgmCrossfadeProbe: { floor10BgmState, floor10CachedDuringSwitch, floor10CachedAfterSwitch, area2BgmState },
         contextState: recoveryAfterContext.contextState,
         lastSfxPlayError: finalRecoveryState.lastSfxPlayError || switchSfxRecovery.lastSfxPlayError || "",
       };

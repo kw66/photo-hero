@@ -150,6 +150,70 @@ const cases = [
     expect: ({ item }) => item.stats.hp === 0 && (item.stats.attack > 0 || item.stats.defense > 0 || item.stats.shield > 0),
   },
   {
+    label: "drawing sword removes medium words and keeps attack",
+    input: {
+      sourceMode: "drawing",
+      itemName: "涂鸦火焰剑",
+      subjectName: "手绘火焰短剑",
+      objectType: "手绘幻想武器",
+      identityDescription: "白色画布中央有一把黑线短剑，剑尖带红橙色火焰，左侧有蓝色星点。",
+      description: "这把涂鸦短剑还带着纸面上的星火。",
+      reason: "主体=火焰短剑；画面清楚；倾向=攻击。",
+      tags: ["手绘", "火焰", "短剑"],
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "attack", score: 3 }, { stat: "speed", score: 1 }],
+    },
+    expect: ({ item, renderedDescription }) => (
+      !/涂鸦|手绘|画作|画布|纸面|简笔画|线稿|草图/.test(item.itemName)
+      && !/涂鸦|手绘|画作|画布|纸面|简笔画|线稿|草图/.test(renderedDescription)
+      && item.stats.attack > 0
+      && item.value >= 17
+    ),
+  },
+  {
+    label: "drawing shield removes hand drawn wording and keeps shield defense",
+    input: {
+      sourceMode: "drawing",
+      itemName: "手绘蓝色护盾",
+      subjectName: "画布上的蓝色圆盾",
+      objectType: "手绘防护道具",
+      identityDescription: "蓝色圆盾居中，外圈有深蓝线条，盾面有白色十字。",
+      description: "这幅画里的护盾看起来可以挡住塔里的冲击。",
+      reason: "主体=蓝色圆盾；画面清楚；倾向=护盾防御。",
+      tags: ["手绘", "盾", "防护"],
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "shield", score: 3 }, { stat: "defense", score: 2 }],
+    },
+    expect: ({ item, renderedDescription }) => (
+      !/涂鸦|手绘|画作|画布|纸面|简笔画|线稿|草图/.test(item.itemName)
+      && !/涂鸦|手绘|画作|画布|纸面|简笔画|线稿|草图/.test(renderedDescription)
+      && (item.stats.shield > 0 || item.stats.defense > 0)
+      && item.value >= 15
+    ),
+  },
+  {
+    label: "blank drawing stays no-effect",
+    input: {
+      sourceMode: "drawing",
+      itemName: "随机涂鸦",
+      subjectName: "无主体",
+      objectType: "抽象线条",
+      identityDescription: "画布上只有几条零散线条，没有可识别主体。",
+      description: "随机涂鸦，没有明确装备主体。",
+      reason: "无主体；无法辨认。",
+      isScene: true,
+      isEquipable: false,
+      photoQuality: { clarity: 0, subjectArea: 0, backgroundClean: 1, realPhoto: 0, focusLight: 0, interesting: 0 },
+      statAffinity: [{ stat: "attack", score: 1 }],
+    },
+    expect: ({ item, renderedDescription }) => (
+      item.value === 0
+      && item.tooLarge === true
+      && Object.values(item.stats).every((value) => value === 0)
+      && !/涂鸦|手绘|画作|画布|纸面|简笔画|线稿|草图/.test(renderedDescription)
+    ),
+  },
+  {
     label: "fan keeps speed",
     input: {
       itemName: "白色小风扇",
