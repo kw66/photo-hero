@@ -925,7 +925,7 @@ const state = {
 };
 
 let selectedBestiaryGroup = "normal";
-let bestiaryPageByGroup = { normal: 0, boss: 0, hidden: 0, npc: 0 };
+let bestiaryPageByGroup = { normal: 0, boss: 0, npc: 0, affix: 0 };
 
 loadConfig();
 loadSave();
@@ -2926,28 +2926,43 @@ function setInfoTab(tabId) {
 }
 
 function normalizeBestiaryGroup(group) {
-  return ["normal", "boss", "hidden", "npc"].includes(group) ? group : "normal";
+  return ["normal", "boss", "npc", "affix"].includes(group) ? group : "normal";
 }
 
 function getBestiaryEntriesForGroup(group) {
   const target = normalizeBestiaryGroup(group);
   if (target === "boss") return getBossBestiaryEntries();
-  if (target === "hidden") return getHiddenBestiaryEntries();
   if (target === "npc") return getNpcBestiaryEntries();
+  if (target === "affix") return getAffixBestiaryEntries();
   return getNormalBestiaryEntries();
+}
+
+function getBestiaryPageSize(group) {
+  const target = normalizeBestiaryGroup(group);
+  return target === "affix" ? 6 : 4;
 }
 
 function getBestiaryPageState(group = selectedBestiaryGroup) {
   const targetGroup = normalizeBestiaryGroup(group);
   const entries = getBestiaryEntriesForGroup(targetGroup);
-  const total = entries.length;
-  if (total <= 0) {
+  const pageSize = getBestiaryPageSize(targetGroup);
+  const pageCount = Math.max(0, Math.ceil(entries.length / pageSize));
+  if (pageCount <= 0) {
     bestiaryPageByGroup[targetGroup] = 0;
-    return { group: targetGroup, entries, total, index: 0, entry: null };
+    return { group: targetGroup, entries, pageEntries: [], count: 0, total: 0, pageSize, index: 0 };
   }
-  const index = clampInt(bestiaryPageByGroup[targetGroup] ?? 0, 0, total - 1);
+  const index = clampInt(bestiaryPageByGroup[targetGroup] ?? 0, 0, pageCount - 1);
   bestiaryPageByGroup[targetGroup] = index;
-  return { group: targetGroup, entries, total, index, entry: entries[index] };
+  const start = index * pageSize;
+  return {
+    group: targetGroup,
+    entries,
+    pageEntries: entries.slice(start, start + pageSize),
+    count: entries.length,
+    total: pageCount,
+    pageSize,
+    index,
+  };
 }
 
 function selectBestiaryGroup(group) {
@@ -2969,23 +2984,22 @@ function renderMonsterBestiary() {
   if (!els.monsterBestiaryContent) return;
   const normalEntries = getNormalBestiaryEntries();
   const bossEntries = getBossBestiaryEntries();
-  const hiddenEntries = getHiddenBestiaryEntries();
   const npcEntries = getNpcBestiaryEntries();
+  const affixEntries = getAffixBestiaryEntries();
   const page = getBestiaryPageState();
   const bossKeys = bossEntries.map((entry) => entry.key).join(",");
   els.monsterBestiaryContent.innerHTML = `
-    <div class="bestiary-layout" data-bestiary-shell data-current-group="${escapeHtml(page.group)}" data-current-index="${page.index}" data-normal-count="${normalEntries.length}" data-boss-count="${bossEntries.length}" data-hidden-count="${hiddenEntries.length}" data-npc-count="${npcEntries.length}" data-boss-keys="${escapeHtml(bossKeys)}">
+    <div class="bestiary-layout" data-bestiary-shell data-current-group="${escapeHtml(page.group)}" data-current-index="${page.index}" data-current-count="${page.count}" data-current-pages="${page.total}" data-normal-count="${normalEntries.length}" data-boss-count="${bossEntries.length}" data-npc-count="${npcEntries.length}" data-affix-count="${affixEntries.length}" data-boss-keys="${escapeHtml(bossKeys)}">
       <div class="bestiary-toolbar">
         <div class="bestiary-group-switch" role="tablist" aria-label="怪物分类">
           ${renderBestiaryGroupButton("普通怪", "normal", normalEntries.length)}
           ${renderBestiaryGroupButton("Boss", "boss", bossEntries.length)}
-          ${renderBestiaryGroupButton("隐藏", "hidden", hiddenEntries.length)}
           ${renderBestiaryGroupButton("NPC", "npc", npcEntries.length)}
+          ${renderBestiaryGroupButton("词条", "affix", affixEntries.length)}
         </div>
         ${renderBestiaryPager(page)}
       </div>
-      ${renderBestiaryDetail(page.entry, page)}
-      ${renderAffixBestiary()}
+      ${renderBestiaryPage(page)}
     </div>
   `;
 }
@@ -3014,15 +3028,57 @@ function renderBestiaryPager(page) {
   `;
 }
 
-function renderBestiaryDetail(entry, page) {
+function renderBestiaryPage(page) {
+  if (page.group === "affix") return renderAffixBestiary(page.pageEntries, page);
+  if (page.group === "npc") return renderNpcBestiaryPage(page.pageEntries, page);
+  const entries = page.pageEntries || [];
+  if (!entries.length) return "";
+  return `
+    <div class="bestiary-card-grid" data-bestiary-page-kind="${escapeHtml(page.group)}">
+      ${entries.map((entry) => renderBestiaryCard(entry, page)).join("")}
+    </div>
+  `;
+}
+
+function renderNpcBestiaryPage(entries, page) {
+  const cards = (entries || []).map((entry) => renderNpcBestiaryCard(entry, page)).join("");
+  if (!cards) return "";
+  return `
+    <div class="bestiary-card-grid bestiary-npc-grid" data-bestiary-page-kind="npc">
+      ${cards}
+    </div>
+  `;
+}
+
+function renderNpcBestiaryCard(entry, page) {
+  const config = entry.config;
+  return `
+    <article class="bestiary-card bestiary-npc-card" data-selected-npc="${escapeHtml(config.npcKey)}" data-selected-group="npc">
+      <div class="bestiary-card-head">
+        ${renderNpcPortrait(config.npcKey, config.npcName, "bestiary-card-portrait")}
+        <div>
+          <span class="bestiary-badge">${escapeHtml(config.label)}</span>
+          <strong>${escapeHtml(config.npcName)}</strong>
+          <em>NPC · ${escapeHtml(config.npcRole)}</em>
+        </div>
+      </div>
+      <div class="bestiary-card-rules">
+        <p><b>出没</b><span>${escapeHtml(getNpcBestiaryAppearText(config))}</span></p>
+        <ul>
+          <li><b>看守</b><span>${escapeHtml(config.monsterLabel)} ×2，选中三张卡牌后开战。</span></li>
+          <li><b>奖励</b><span>${escapeHtml(config.rewardText)}</span></li>
+        </ul>
+      </div>
+    </article>
+  `;
+}
+
+function renderBestiaryCard(entry, page) {
   if (!entry) return "";
-  if (entry.category === "hidden") return renderHiddenBestiaryDetail(entry, page);
-  if (entry.category === "npc") return renderNpcBestiaryDetail(entry, page);
   const type = monsterTypes[entry.key] || monsterTypes.slime;
   const traits = Array.isArray(type.traits) ? type.traits : [];
   const isBoss = entry.category === "boss";
   const categoryLabel = isBoss ? "Boss" : "普通怪";
-  const pageText = page?.total ? `${page.index + 1} / ${page.total}` : "";
   const traitHtml = traits.length
     ? traits.map((trait) => `
         <li>
@@ -3032,13 +3088,13 @@ function renderBestiaryDetail(entry, page) {
       `).join("")
     : "<li><b>无特殊效果</b><span>只按基础攻防速和生命参与战斗。</span></li>";
   return `
-    <article class="bestiary-detail${isBoss ? " is-boss" : ""}" data-selected-monster="${escapeHtml(entry.key)}" data-selected-group="${escapeHtml(entry.category)}">
-      <div class="bestiary-detail-head">
-        ${renderMonsterSprite(entry.key, type.name, "bestiary-detail-portrait")}
+    <article class="bestiary-card${isBoss ? " is-boss" : ""}" data-selected-monster="${escapeHtml(entry.key)}" data-selected-group="${escapeHtml(entry.category)}">
+      <div class="bestiary-card-head">
+        ${renderMonsterSprite(entry.key, type.name, "bestiary-card-portrait")}
         <div>
           <span class="bestiary-badge">${escapeHtml(entry.badge)}</span>
           <strong>${escapeHtml(type.name)}</strong>
-          <em>${escapeHtml(categoryLabel)} · ${escapeHtml(pageText)}</em>
+          <em>${escapeHtml(categoryLabel)}</em>
         </div>
       </div>
       <dl class="bestiary-stats">
@@ -3047,117 +3103,145 @@ function renderBestiaryDetail(entry, page) {
         <div><dt>防御</dt><dd>${type.def}</dd></div>
         <div><dt>速度</dt><dd>${type.speed}</dd></div>
       </dl>
-      <div class="bestiary-rules">
-        <section>
-          <h4>出没规律</h4>
-          <p>${escapeHtml(entry.appear)}</p>
-        </section>
-        <section>
-          <h4>效果</h4>
-          <ul>${traitHtml}</ul>
-        </section>
+      <div class="bestiary-card-rules">
+        <p><b>出没</b><span>${escapeHtml(entry.appear)}</span></p>
+        <ul>${traitHtml}</ul>
       </div>
     </article>
   `;
 }
 
-function renderHiddenBestiaryDetail(entry, page) {
-  const config = entry.config;
-  const type = monsterTypes[config.monsterType] || monsterTypes.guard;
-  const trigger = getHiddenTrigger(config.index);
-  const triggerText = trigger
-    ? `本次冒险触发怪位于第${trigger.floor}层第${trigger.slot + 1}张怪物卡，且不会是每层最弱位。`
-    : "触发怪会从对应区间的普通楼层里随机确定。";
+function renderAffixBestiary(entries, page) {
+  const rows = (entries || []).map((entry) => renderAffixBestiaryCard(entry.effect)).join("");
   return `
-    <article class="bestiary-detail is-hidden-layer" data-selected-hidden="${escapeHtml(config.index)}" data-selected-group="hidden">
-      <div class="bestiary-detail-head">
-        <div class="hidden-rescue-preview" aria-hidden="true">
-          ${renderMonsterSprite(config.monsterType, type.name, "mini-guard-portrait")}
-          ${renderNpcPortrait(config.npcKey, config.npcName, "mini-npc-portrait")}
-          ${renderMonsterSprite(config.monsterType, type.name, "mini-guard-portrait")}
-        </div>
-        <div>
-          <span class="bestiary-badge">隐藏层</span>
-          <strong>${escapeHtml(config.label)} · ${escapeHtml(config.npcName)}</strong>
-          <em>${escapeHtml(page?.total ? `${page.index + 1} / ${page.total}` : "")}</em>
-        </div>
-      </div>
-      <dl class="bestiary-stats">
-        <div><dt>看守</dt><dd>${escapeHtml(type.name)} ×2</dd></div>
-        <div><dt>生命</dt><dd>${type.hp}</dd></div>
-        <div><dt>攻击</dt><dd>${type.atk}</dd></div>
-        <div><dt>奖励</dt><dd>${escapeHtml(config.rewardTitle)}</dd></div>
-      </dl>
-      <div class="bestiary-rules">
-        <section>
-          <h4>触发规律</h4>
-          <p>${escapeHtml(entry.appear)}</p>
-          <p>${escapeHtml(triggerText)}</p>
-        </section>
-        <section>
-          <h4>救援规则</h4>
-          <p>隐藏层左、右是看守怪物，中间是待解救 NPC。三张卡牌都选中才能开战，NPC 不参与战斗；也可以直接逃跑返回主塔。</p>
-          <p>${escapeHtml(config.rewardText)}</p>
-        </section>
-      </div>
-    </article>
-  `;
-}
-
-function renderNpcBestiaryDetail(entry, page) {
-  const config = entry.config;
-  return `
-    <article class="bestiary-detail is-npc-detail" data-selected-npc="${escapeHtml(config.npcKey)}" data-selected-group="npc">
-      <div class="bestiary-detail-head">
-        ${renderNpcPortrait(config.npcKey, config.npcName, "bestiary-detail-portrait")}
-        <div>
-          <span class="bestiary-badge">NPC</span>
-          <strong>${escapeHtml(config.npcName)}</strong>
-          <em>${escapeHtml(config.label)} · ${escapeHtml(page?.total ? `${page.index + 1} / ${page.total}` : "")}</em>
-        </div>
-      </div>
-      <dl class="bestiary-stats">
-        <div><dt>身份</dt><dd>${escapeHtml(config.npcRole)}</dd></div>
-        <div><dt>楼层</dt><dd>${escapeHtml(config.label)}</dd></div>
-        <div><dt>行动</dt><dd>不参战</dd></div>
-        <div><dt>奖励</dt><dd>${escapeHtml(config.rewardTitle)}</dd></div>
-      </dl>
-      <div class="bestiary-rules">
-        <section>
-          <h4>出没规律</h4>
-          <p>${escapeHtml(config.appear)}</p>
-        </section>
-        <section>
-          <h4>救援结果</h4>
-          <p>${escapeHtml(config.rewardText)}</p>
-        </section>
-      </div>
-    </article>
-  `;
-}
-
-function renderAffixBestiary() {
-  const rows = photoSpecialEffects.map((effect) => {
-    const cooldown = effect.cooldown
-      ? `${effect.cooldownTrigger === "hit" ? "受击" : "进攻"}${effect.cooldown}`
-      : "无";
-    return `
-      <li>
-        <b data-stat="${escapeHtml(getBattleBadgeStat(effect))}">${escapeHtml(effect.label)}</b>
-        <span>${escapeHtml(effect.detail || effect.label)}</span>
-        <em>${escapeHtml(cooldown)}</em>
-      </li>
-    `;
-  }).join("");
-  return `
-    <section class="affix-bestiary" aria-label="装备词条图鉴">
+    <section class="affix-bestiary" aria-label="装备词条图鉴" data-selected-group="affix">
       <div class="affix-bestiary-head">
         <strong>装备词条</strong>
-        <span>冷却按本场战斗内的勇者进攻或受击重新计算</span>
+        <span>每页 ${Math.min(page.pageSize, page.count)} 条，冷却和叠层均按本场战斗重新计算。</span>
       </div>
-      <ul>${rows}</ul>
+      <div class="affix-card-grid">${rows}</div>
     </section>
   `;
+}
+
+function renderAffixBestiaryCard(effect) {
+  if (!effect) return "";
+  const stat = getBattleBadgeStat(effect);
+  return `
+    <article class="affix-card" data-affix-key="${escapeHtml(effect.key)}" data-stat="${escapeHtml(stat)}">
+      <div class="affix-card-top">
+        <b data-stat="${escapeHtml(stat)}">${escapeHtml(effect.label)}</b>
+        <span>${escapeHtml(getAffixTypeLabel(effect))}</span>
+      </div>
+      <p>${escapeHtml(effect.detail || effect.label)}</p>
+      <dl>
+        <div><dt>触发</dt><dd>${escapeHtml(getAffixTriggerText(effect))}</dd></div>
+        <div><dt>范围</dt><dd>${escapeHtml(getAffixScopeText(effect))}</dd></div>
+        <div><dt>显示</dt><dd>${escapeHtml(getAffixDisplayText(effect))}</dd></div>
+        <div><dt>权重</dt><dd>${effect.value}</dd></div>
+      </dl>
+    </article>
+  `;
+}
+
+function getAffixBestiaryEntries() {
+  return photoSpecialEffects.map((effect) => ({
+    key: effect.key,
+    category: "affix",
+    effect,
+  }));
+}
+
+function getNpcBestiaryEntries() {
+  return hiddenLayerConfigs.map((config) => ({
+    key: config.npcKey,
+    category: "npc",
+    config,
+  }));
+}
+
+function getNpcBestiaryAppearText(config) {
+  return `${config.label}中间卡牌，击败左右看守即可解救。`;
+}
+
+function getAffixTypeLabel(effect) {
+  switch (effect?.kind) {
+    case "killThreshold": return "击杀成长";
+    case "killPermanent": return "永久成长";
+    case "killHeal": return "击杀续航";
+    case "cooldownStack": return "叠层技能";
+    case "attackSkill": return "进攻技能";
+    case "hitSkill": return "受击技能";
+    case "killBattleTemp": return "击杀爆发";
+    case "missingHpAttack": return "被动技能";
+    default: return "特殊词条";
+  }
+}
+
+function getAffixTriggerText(effect) {
+  if (!effect) return "特殊触发";
+  if (effect.cooldown) {
+    const action = effect.cooldownTrigger === "hit" ? "受击" : "进攻";
+    return `每${effect.cooldown}次${action}`;
+  }
+  if (effect.kind === "killThreshold") return `每击杀${effect.threshold || 1}怪`;
+  if (effect.kind === "killPermanent" || effect.kind === "killHeal") return "每击杀1怪";
+  if (effect.kind === "killBattleTemp") return "击杀后";
+  if (effect.kind === "missingHpAttack") return `每损失${effect.threshold || 20}生命`;
+  return "持续生效";
+}
+
+function getAffixScopeText(effect) {
+  if (!effect) return "按词条规则结算";
+  const stat = statLabels[effect.stat] || statLabels[effect.displayStat] || "属性";
+  const amount = Math.max(0, Number(effect.amount) || 0);
+  switch (effect.kind) {
+    case "killThreshold":
+      return `跨战斗累计，${stat}+${amount || 1}`;
+    case "killPermanent":
+      return `永久提高，${stat}+${amount || 1}`;
+    case "killHeal":
+      return `立即回复生命+${effect.amount || 0}`;
+    case "cooldownStack":
+      return `本场临时${stat}+${amount || 1}，最多+${effect.cap || 0}`;
+    case "killBattleTemp":
+      return `本场攻击/防御+${effect.amount || 0}`;
+    case "missingHpAttack":
+      return `按当前损血换算攻击+${effect.amount || 1}`;
+    case "attackSkill":
+      if (effect.spreadRatio) return "本次攻击向其他怪扩散100%伤害";
+      if (effect.strikeCount) return `本次进攻变为${effect.strikeCount}连击`;
+      if (effect.shieldDamageRatio) return "本次进攻附带当前护盾伤害";
+      if (effect.multiplier && effect.stat === "lifesteal") return `${effect.multiplier}倍吸血`;
+      if (effect.attackMultiplier) return `${effect.attackMultiplier}倍攻击重击`;
+      return "本次进攻额外生效";
+    case "hitSkill":
+      if (effect.multiplier && effect.stat === "regen") return `${effect.multiplier}倍受击回复`;
+      return "本次受击额外生效";
+    default:
+      return "按词条规则结算";
+  }
+}
+
+function getAffixDisplayText(effect) {
+  if (!effect) return "按词条显示";
+  const pieces = [];
+  if (effect.cooldown) pieces.push("左上倒计时");
+  if (effect.kind === "killBattleTemp") return "右上显示 +攻/+防";
+  if (effect.hideBattleValue) return pieces.length ? pieces.join("，") : "不显示数值";
+  const stat = statLabels[getBattleBadgeStat(effect)] || "数值";
+  if (effect.kind === "killThreshold" || effect.kind === "killPermanent" || effect.kind === "killHeal" || effect.kind === "cooldownStack" || effect.kind === "missingHpAttack") {
+    pieces.push(`右上显示 +${stat}`);
+  } else if (effect.key === "shieldCrashAttackDown") {
+    pieces.push("右上显示护盾伤害");
+  } else if (effect.key === "regenMultiplier") {
+    pieces.push("右上累计回复");
+  } else if (effect.key === "lifestealMultiplier") {
+    pieces.push("右上累计吸血");
+  } else if (effect.key === "heavyStrike") {
+    pieces.push("右上累计重击");
+  }
+  return pieces.length ? pieces.join("，") : "战斗中按需显示";
 }
 
 function renderMonsterSprite(typeKey, alt, extraClass = "") {
@@ -3194,26 +3278,6 @@ function getNormalBestiaryEntries() {
     });
 }
 
-function getHiddenBestiaryEntries() {
-  return hiddenLayerConfigs.map((config) => ({
-    key: `hidden-${config.index}`,
-    category: "hidden",
-    badge: config.label,
-    appear: config.appear,
-    config,
-  }));
-}
-
-function getNpcBestiaryEntries() {
-  return hiddenLayerConfigs.map((config) => ({
-    key: `npc-${config.npcKey}`,
-    category: "npc",
-    badge: config.label,
-    appear: config.appear,
-    config,
-  }));
-}
-
 function getBossBestiaryEntries() {
   return bossBestiaryEntries.map((entry) => ({
     ...entry,
@@ -3222,7 +3286,7 @@ function getBossBestiaryEntries() {
 }
 
 function getMonsterBestiaryEntry(typeKey) {
-  return [...getNormalBestiaryEntries(), ...getBossBestiaryEntries(), ...getHiddenBestiaryEntries(), ...getNpcBestiaryEntries()].find((entry) => entry.key === typeKey) || null;
+  return [...getNormalBestiaryEntries(), ...getBossBestiaryEntries()].find((entry) => entry.key === typeKey) || null;
 }
 
 function getNormalMonsterAppearText(entry, type) {
@@ -11539,26 +11603,22 @@ function renderEnemyField() {
 
     if (isNonCombatEnemy(enemy)) {
       const config = getHiddenLayerConfig(enemy.hiddenLayerIndex);
+      const rewardTitle = config?.rewardTitle || "救援奖励";
       button.classList.add("is-npc-card");
       button.innerHTML = `
         ${selectionOrder ? `<span class="selection-badge">${selectionOrder}</span>` : ""}
-        <div class="enemy-card-head">
+        <div class="enemy-card-head npc-card-head">
           <div class="monster-portrait npc-portrait">
             <img src="${escapeHtml(getNpcImageUrl(enemy.npcKey))}" alt="${escapeHtml(enemy.name)}">
           </div>
           <div class="enemy-name-block">
             <strong>${escapeHtml(enemy.name)}</strong>
-            <span>${escapeHtml(enemy.npcRole || "待解救")}</span>
+            <span class="npc-card-status">待解救</span>
           </div>
         </div>
-        <div class="npc-card-callout">
-          <span>不参与战斗</span>
-          <strong>${escapeHtml(config?.rewardTitle || "救援奖励")}</strong>
-        </div>
-        <p class="npc-card-desc">${escapeHtml(config?.rewardText || "击败两侧看守后完成解救。")}</p>
-        <div class="enemy-card-result">
-          <span>中间卡牌</span>
-          <strong class="estimate-safe">待解救</strong>
+        <div class="npc-card-reward">
+          <span>奖励</span>
+          <strong>${escapeHtml(rewardTitle)}</strong>
         </div>
       `;
       els.enemyField.append(button);

@@ -589,37 +589,64 @@ function assertScenario(name, metrics) {
     if (bestiary.activeInfoTab !== "bestiary") failures.push(`${name}: bestiary tab should be active, got ${JSON.stringify(bestiary)}`);
     if ((bestiary.normalCount || 0) < 12) failures.push(`${name}: normal pagination should include all normal monsters, got ${JSON.stringify(bestiary)}`);
     if (bestiary.bossCount !== 7) failures.push(`${name}: boss pagination should include seven bosses, got ${JSON.stringify(bestiary)}`);
-    if (bestiary.hiddenCount !== 4 || bestiary.npcCount !== 4) failures.push(`${name}: hidden and npc pagination should include four entries each, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.npcCount !== 4 || bestiary.npcGroupCount !== 1) failures.push(`${name}: npc bestiary should be a separate paged group with four NPCs, got ${JSON.stringify(bestiary)}`);
+    if ((bestiary.affixCount || 0) < 10 || bestiary.affixGroupCount !== 1) failures.push(`${name}: affix bestiary should be a separate paged group, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.hiddenGroupCount !== 0 || bestiary.hiddenCount !== 0) {
+      failures.push(`${name}: hidden layers should not be a separate bestiary group, got ${JSON.stringify(bestiary)}`);
+    }
     if (!bestiary.bossKeys?.includes("demon") || !bestiary.bossKeys?.includes("archmage")) failures.push(`${name}: boss pagination should include final and reward bosses, got ${JSON.stringify(bestiary)}`);
-    if (bestiary.initial?.group !== "normal" || bestiary.initial?.selectedKey !== "slime" || bestiary.initial?.pageText !== `1 / ${bestiary.normalCount}`) {
-      failures.push(`${name}: bestiary should start on normal page 1, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.initial?.group !== "normal" || !bestiary.initial?.monsterKeys?.includes("slime") || (bestiary.initial?.cardCount || 0) < 2 || bestiary.initial?.pageText !== `1 / ${bestiary.normalPages}`) {
+      failures.push(`${name}: bestiary should start on a compact normal monster page with multiple cards, got ${JSON.stringify(bestiary)}`);
     }
-    if (bestiary.afterNormalNext?.selectedKey !== "bat" || bestiary.afterNormalNext?.pageText !== `2 / ${bestiary.normalCount}`) {
-      failures.push(`${name}: normal next page should advance to bat, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.initialAffixCardCount !== 0) {
+      failures.push(`${name}: affix cards should not be appended below the monster page, got ${JSON.stringify(bestiary)}`);
     }
-    if (bestiary.bossStart?.group !== "boss" || bestiary.bossStart?.selectedKey !== "skeletonCaptain" || bestiary.bossStart?.pageText !== `1 / ${bestiary.bossCount}`) {
-      failures.push(`${name}: boss group should start on skeleton captain page 1, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.statValueFontSize > 13.5) {
+      failures.push(`${name}: bestiary stat value font should stay compact, got ${JSON.stringify(bestiary)}`);
     }
-    if (bestiary.bossFinal?.group !== "boss" || bestiary.bossFinal?.selectedKey !== "demon" || bestiary.bossFinal?.pageText !== `${bestiary.bossCount} / ${bestiary.bossCount}`) {
-      failures.push(`${name}: boss pagination should reach demon as page 7, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.afterNormalNext?.group !== "normal" || bestiary.afterNormalNext?.pageText !== `2 / ${bestiary.normalPages}` || JSON.stringify(bestiary.afterNormalNext?.monsterKeys) === JSON.stringify(bestiary.initial?.monsterKeys)) {
+      failures.push(`${name}: normal next page should advance to a different multi-card page, got ${JSON.stringify(bestiary)}`);
+    }
+    if (bestiary.bossStart?.group !== "boss" || !bestiary.bossStart?.monsterKeys?.includes("skeletonCaptain") || (bestiary.bossStart?.cardCount || 0) < 2 || bestiary.bossStart?.pageText !== `1 / ${bestiary.bossPages}`) {
+      failures.push(`${name}: boss group should start on a compact boss page, got ${JSON.stringify(bestiary)}`);
+    }
+    if (bestiary.bossFinal?.group !== "boss" || !bestiary.bossFinal?.monsterKeys?.includes("demon") || bestiary.bossFinal?.pageText !== `${bestiary.bossPages} / ${bestiary.bossPages}`) {
+      failures.push(`${name}: boss pagination should reach a final page containing demon, got ${JSON.stringify(bestiary)}`);
     }
     if (!bestiary.hasDetailPortrait) failures.push(`${name}: selected monster detail should show portrait, got ${JSON.stringify(bestiary)}`);
     if (!/魔王/.test(bestiary.detailText || "") || !/第40层最终 Boss/.test(bestiary.detailText || "") || !/晋升/.test(bestiary.detailText || "")) {
       failures.push(`${name}: demon detail should show name, floor pattern, and trait detail, got ${JSON.stringify(bestiary)}`);
     }
-    if (bestiary.hiddenStart?.group !== "hidden" || bestiary.hiddenStart?.selectedKey !== "1" || !/隐藏1/.test(bestiary.hiddenDetailText || "") || !/形态经验/.test(bestiary.hiddenDetailText || "")) {
-      failures.push(`${name}: hidden bestiary should show hidden rescue pages and rewards, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.affixStart?.group !== "affix" || (bestiary.affixStart?.affixCardCount || 0) < 2 || !/触发/.test(bestiary.affixDetailText || "") || !/权重/.test(bestiary.affixDetailText || "") || !/显示/.test(bestiary.affixDetailText || "")) {
+      failures.push(`${name}: affix group should show multiple detailed affix cards, got ${JSON.stringify(bestiary)}`);
     }
-    if (bestiary.npcStart?.group !== "npc" || bestiary.npcStart?.selectedKey !== "elder" || !bestiary.npcHasPortrait || !/老人/.test(bestiary.npcDetailText || "")) {
-      failures.push(`${name}: npc bestiary should show npc pages with portraits, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.npcStart?.group !== "npc" || (bestiary.npcStart?.npcCardCount || 0) !== 4 || !bestiary.npcStart?.npcKeys?.includes("elder") || !bestiary.npcStart?.npcKeys?.includes("princess") || !bestiary.npcHasPortrait) {
+      failures.push(`${name}: npc group should show all rescue NPC cards with portraits, got ${JSON.stringify(bestiary)}`);
     }
-    if (!/普通怪/.test(bestiary.groupText || "") || !/Boss/.test(bestiary.groupText || "") || !/隐藏/.test(bestiary.groupText || "") || !/NPC/.test(bestiary.groupText || "")) failures.push(`${name}: normal, boss, hidden, and npc pagination groups should be visible, got ${JSON.stringify(bestiary)}`);
+    if (!/老人/.test(bestiary.npcDetailText || "") || !/出没/.test(bestiary.npcDetailText || "") || !/奖励/.test(bestiary.npcDetailText || "") || /暗门触发怪|随机选中|非最弱位/.test(bestiary.npcDetailText || "")) {
+      failures.push(`${name}: npc bestiary should show NPC appearance/reward without hidden-trigger mechanics, got ${JSON.stringify(bestiary)}`);
+    }
+    if (!/普通怪/.test(bestiary.groupText || "") || !/Boss/.test(bestiary.groupText || "") || !/NPC/.test(bestiary.groupText || "") || !/词条/.test(bestiary.groupText || "") || /隐藏/.test(bestiary.groupText || "")) {
+      failures.push(`${name}: bestiary groups should show normal, Boss, NPC, and affix only, got ${JSON.stringify(bestiary)}`);
+    }
   }
   if (name === "hidden-layers") {
     const hidden = metrics.hiddenLayers || {};
     if (!hidden.triggersValid) failures.push(`${name}: hidden triggers should avoid first four floors, boss floors, and slot 0, got ${JSON.stringify(hidden.triggers)}`);
     if (hidden.hidden1?.floorText !== "隐藏1 · 老人" || hidden.hidden1?.enemyCount !== 3 || hidden.hidden1?.npcCount !== 1 || hidden.hidden1?.combatCount !== 2) {
       failures.push(`${name}: hidden1 should render two guards and one noncombat elder, got ${JSON.stringify(hidden.hidden1)}`);
+    }
+    if (
+      !/老人/.test(hidden.hidden1?.npcCardText || "")
+      || !/待解救/.test(hidden.hidden1?.npcCardText || "")
+      || !/奖励/.test(hidden.hidden1?.npcCardText || "")
+      || !/形态经验\s*\+2/.test(hidden.hidden1?.npcCardText || "")
+      || /不参与战斗|中间卡牌|被困老人|解救老人后/.test(hidden.hidden1?.npcCardText || "")
+    ) {
+      failures.push(`${name}: hidden NPC card should only show name, rescue status, and reward, got ${JSON.stringify(hidden.hidden1)}`);
+    }
+    if (hidden.hidden1?.npcCardHeight > hidden.hidden1?.maxGuardCardHeight + 8) {
+      failures.push(`${name}: hidden NPC card height should stay aligned with guard cards, got ${JSON.stringify(hidden.hidden1)}`);
     }
     if (hidden.hidden1?.beforeAllSelectedText !== "选齐三张" || hidden.hidden1?.afterAllSelectedText !== "解救") {
       failures.push(`${name}: hidden battle button should require all three selected cards, got ${JSON.stringify(hidden.hidden1)}`);
@@ -2561,63 +2588,91 @@ function assertScenario(name, metrics) {
     await page.click('[data-info-tab="bestiary"]');
     const readPage = async () => page.evaluate(() => ({
       group: document.querySelector("[data-bestiary-shell]")?.dataset.currentGroup || "",
-      selectedKey: document.querySelector(".bestiary-detail")?.dataset.selectedMonster
-        || document.querySelector(".bestiary-detail")?.dataset.selectedHidden
-        || document.querySelector(".bestiary-detail")?.dataset.selectedNpc
+      pages: Number(document.querySelector("[data-bestiary-shell]")?.dataset.currentPages || 0),
+      count: Number(document.querySelector("[data-bestiary-shell]")?.dataset.currentCount || 0),
+      selectedKey: document.querySelector(".bestiary-card")?.dataset.selectedMonster
+        || document.querySelector(".bestiary-card")?.dataset.selectedNpc
+        || document.querySelector(".affix-card")?.dataset.affixKey
         || "",
+      monsterKeys: Array.from(document.querySelectorAll(".bestiary-card")).map((card) => card.dataset.selectedMonster || ""),
+      npcKeys: Array.from(document.querySelectorAll(".bestiary-npc-card")).map((card) => card.dataset.selectedNpc || ""),
+      affixKeys: Array.from(document.querySelectorAll(".affix-card")).map((card) => card.dataset.affixKey || ""),
+      cardCount: document.querySelectorAll(".bestiary-card").length,
+      npcCardCount: document.querySelectorAll(".bestiary-npc-card").length,
+      affixCardCount: document.querySelectorAll(".affix-card").length,
       pageText: document.querySelector(".bestiary-page-indicator")?.textContent.trim() || "",
     }));
     const initial = await readPage();
+    const initialAffixCardCount = await page.locator(".affix-card").count();
+    const statValueFontSize = await page.$eval(".bestiary-stats dd", (node) => Number.parseFloat(getComputedStyle(node).fontSize));
     await page.click('[data-bestiary-action="next"]');
     const afterNormalNext = await readPage();
     await page.click('[data-bestiary-group="boss"]');
     const bossStart = await readPage();
-    for (let i = 0; i < 6; i += 1) {
+    for (let i = 0; i < 10; i += 1) {
+      const canNext = await page.$eval('[data-bestiary-action="next"]', (button) => !button.disabled);
+      if (!canNext) break;
       await page.click('[data-bestiary-action="next"]');
     }
     const bossFinal = await readPage();
-    const bossDetailText = await page.$eval(".bestiary-detail", (node) => node.innerText);
-    const bossHasDetailPortrait = await page.$eval(".bestiary-detail", (node) => Boolean(node.querySelector(".monster-sprite img")));
-    await page.click('[data-bestiary-group="hidden"]');
-    const hiddenStart = await readPage();
-    const hiddenDetailText = await page.$eval(".bestiary-detail", (node) => node.innerText);
+    const bossDetailText = await page.$eval(".bestiary-card-grid", (node) => node.innerText);
+    const bossHasDetailPortrait = await page.$eval(".bestiary-card-grid", (node) => Boolean(node.querySelector(".monster-sprite img")));
     await page.click('[data-bestiary-group="npc"]');
     const npcStart = await readPage();
-    const npcDetailText = await page.$eval(".bestiary-detail", (node) => node.innerText);
-    const npcHasPortrait = await page.$eval(".bestiary-detail", (node) => Boolean(node.querySelector(".npc-portrait img")));
-    await page.evaluate(({ initial, afterNormalNext, bossStart, bossFinal, bossDetailText, bossHasDetailPortrait, hiddenStart, hiddenDetailText, npcStart, npcDetailText, npcHasPortrait }) => {
+    const npcDetailText = await page.$eval(".bestiary-card-grid", (node) => node.innerText);
+    const npcHasPortrait = await page.$eval(".bestiary-card-grid", (node) => Boolean(node.querySelector(".npc-portrait img")));
+    await page.click('[data-bestiary-group="affix"]');
+    const affixStart = await readPage();
+    const affixDetailText = await page.$eval(".affix-bestiary", (node) => node.innerText);
+    const groupState = await page.evaluate(() => ({
+      groupText: document.querySelector(".bestiary-group-switch")?.innerText || "",
+      hiddenGroupCount: document.querySelectorAll('[data-bestiary-group="hidden"]').length,
+      npcGroupCount: document.querySelectorAll('[data-bestiary-group="npc"]').length,
+      affixGroupCount: document.querySelectorAll('[data-bestiary-group="affix"]').length,
+    }));
+    await page.evaluate(({ initial, afterNormalNext, bossStart, bossFinal, npcStart, affixStart, bossDetailText, bossHasDetailPortrait, npcDetailText, npcHasPortrait, affixDetailText, groupState, initialAffixCardCount, statValueFontSize }) => {
       const shell = document.querySelector("[data-bestiary-shell]");
       window.__reviewBestiary = {
         activeInfoTab: document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "",
         tabLabels: Array.from(document.querySelectorAll("[data-info-tab]")).map((button) => button.textContent.trim()),
         normalCount: Number(shell?.dataset.normalCount || 0),
         bossCount: Number(shell?.dataset.bossCount || 0),
+        affixCount: Number(shell?.dataset.affixCount || 0),
         hiddenCount: Number(shell?.dataset.hiddenCount || 0),
         npcCount: Number(shell?.dataset.npcCount || 0),
+        hiddenGroupCount: groupState.hiddenGroupCount,
+        npcGroupCount: groupState.npcGroupCount,
+        affixGroupCount: groupState.affixGroupCount,
         bossKeys: (shell?.dataset.bossKeys || "").split(",").filter(Boolean),
+        normalPages: initial.pages,
+        bossPages: bossStart.pages,
+        npcPages: npcStart.pages,
+        affixPages: affixStart.pages,
+        initialAffixCardCount,
+        statValueFontSize,
         initial,
         afterNormalNext,
         bossStart,
         bossFinal,
-        hiddenStart,
         npcStart,
+        affixStart,
         selectedGroup: shell?.dataset.currentGroup || "",
-        selectedKey: document.querySelector(".bestiary-detail")?.dataset.selectedMonster
-          || document.querySelector(".bestiary-detail")?.dataset.selectedHidden
-          || document.querySelector(".bestiary-detail")?.dataset.selectedNpc
+        selectedKey: document.querySelector(".bestiary-card")?.dataset.selectedMonster
+          || document.querySelector(".bestiary-card")?.dataset.selectedNpc
+          || document.querySelector(".affix-card")?.dataset.affixKey
           || "",
         pageText: document.querySelector(".bestiary-page-indicator")?.textContent.trim() || "",
         hasDetailPortrait: bossHasDetailPortrait,
         npcHasPortrait,
-        groupText: document.querySelector(".bestiary-group-switch")?.innerText || "",
+        groupText: groupState.groupText,
         detailText: bossDetailText,
-        hiddenDetailText,
         npcDetailText,
+        affixDetailText,
       };
-    }, { initial, afterNormalNext, bossStart, bossFinal, bossDetailText, bossHasDetailPortrait, hiddenStart, hiddenDetailText, npcStart, npcDetailText, npcHasPortrait });
+    }, { initial, afterNormalNext, bossStart, bossFinal, npcStart, affixStart, bossDetailText, bossHasDetailPortrait, npcDetailText, npcHasPortrait, affixDetailText, groupState, initialAffixCardCount, statValueFontSize });
   });
 
-  scenarios.hiddenLayers = await collectScenario(desktop, "hidden-layers", async (page) => {
+  scenarios.hiddenLayers = await collectScenario(mobile, "hidden-layers", async (page) => {
     await page.evaluate(async () => {
       const hooks = window.__photoHeroTestHooks;
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -2641,6 +2696,11 @@ function assertScenario(name, metrics) {
         middleNpc: hidden1State.enemies[1]?.npcKey || "",
         visibleText: document.querySelector("#enemyField")?.innerText || "",
       };
+      const npcCard = document.querySelector(".enemy-card.is-npc-card");
+      const guardCards = Array.from(document.querySelectorAll(".enemy-card:not(.is-npc-card)"));
+      hidden1.npcCardText = npcCard?.innerText || "";
+      hidden1.npcCardHeight = Math.round(npcCard?.getBoundingClientRect().height || 0);
+      hidden1.maxGuardCardHeight = Math.max(...guardCards.map((card) => Math.round(card.getBoundingClientRect().height || 0)), 0);
       hooks.selectEnemies(hooks.state.enemies.filter((enemy) => !enemy.nonCombat).map((enemy) => enemy.id));
       hidden1.beforeAllSelectedText = document.querySelector("#attackBtn")?.textContent.trim() || "";
       hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));

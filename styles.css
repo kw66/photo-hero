@@ -77,6 +77,10 @@
   --space-3: 12px;
   --space-4: 16px;
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --font-ui: "MiSans", "HarmonyOS Sans SC", "Alibaba PuHuiTi", "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+  --font-title: "YouSheBiaoTiHei", "HYWenHei 85W", "Microsoft YaHei UI", "MiSans", "PingFang SC", sans-serif;
+  --font-number: "Bahnschrift", "DIN Alternate", "Arial Narrow", "MiSans", "Microsoft YaHei UI", sans-serif;
+  --font-reading: "LXGW WenKai Screen", "MiSans", "HarmonyOS Sans SC", "Microsoft YaHei UI", "PingFang SC", sans-serif;
 }
 
 * {
@@ -99,7 +103,7 @@ body {
     linear-gradient(180deg, rgb(7 8 8 / 80%), rgb(0 0 0 / 94%)),
     var(--wall-bg);
   color: var(--ink);
-  font-family: "MiSans", "HarmonyOS Sans SC", "Alibaba PuHuiTi", "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+  font-family: var(--font-ui);
   font-size: 15px;
   line-height: 1.35;
   font-kerning: normal;
@@ -108,7 +112,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -120,6 +125,7 @@ button {
   touch-action: manipulation;
   background: var(--button-bg);
   color: var(--ink);
+  font-family: var(--font-title);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 12%),
     0 2px 0 rgb(0 0 0 / 52%);
@@ -232,6 +238,21 @@ h2,
 h3,
 p {
   margin: 0;
+}
+
+h1,
+h2,
+h3,
+.section-title h2,
+.secondary-head h2,
+.enemy-name-block strong,
+.slot-name,
+.equipment-detail strong,
+.form-card-meta strong,
+.hero-form-card span,
+.bestiary-card-head strong,
+.affix-card-top b {
+  font-family: var(--font-title);
 }
 
 h1 {
@@ -912,6 +933,7 @@ dd {
   margin: 0;
   font-size: 1.02rem;
   font-weight: 900;
+  font-family: var(--font-number);
   line-height: 1;
 }
 
@@ -1385,6 +1407,10 @@ dd {
     min-height: 166px;
   }
 
+  .enemy-card.is-npc-card {
+    min-height: 166px;
+  }
+
   .equipment-detail .detail-head {
     gap: 8px;
   }
@@ -1541,6 +1567,7 @@ dd {
 .equipment-detail p,
 .detail-desc {
   min-width: 0;
+  font-family: var(--font-reading);
   overflow-wrap: anywhere;
 }
 
@@ -2443,7 +2470,8 @@ dd {
 
 .enemy-card.is-npc-card {
   min-height: 158px;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
   border-color: color-mix(in srgb, var(--green) 44%, var(--panel-border) 56%);
   background:
     linear-gradient(180deg, rgb(255 255 255 / 5%), transparent 34%),
@@ -2646,35 +2674,38 @@ dd {
     var(--floor-bg);
 }
 
-.npc-card-callout {
+.enemy-card.is-npc-card .npc-card-head {
+  align-items: center;
+}
+
+.enemy-card.is-npc-card .npc-card-status {
+  color: color-mix(in srgb, var(--green) 62%, var(--ink));
+}
+
+.npc-card-reward {
+  align-self: end;
   display: grid;
   gap: 3px;
-  padding: 6px 7px;
+  min-height: 50px;
+  padding: 7px;
   border: 1px solid color-mix(in srgb, var(--green) 34%, var(--panel-border));
   border-radius: 6px;
   background: rgb(10 22 16 / 48%);
 }
 
-.npc-card-callout span {
+.npc-card-reward span {
   color: var(--muted);
   font-size: 0.62rem;
   font-weight: 900;
   line-height: 1;
 }
 
-.npc-card-callout strong {
+.npc-card-reward strong {
   color: color-mix(in srgb, var(--green) 72%, var(--ink));
   font-size: 0.76rem;
   font-weight: 950;
   line-height: 1.18;
-}
-
-.npc-card-desc {
-  margin: 0;
-  color: color-mix(in srgb, var(--ink) 82%, var(--muted));
-  font-size: 0.68rem;
-  font-weight: 750;
-  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .monster-sprite {
@@ -3357,6 +3388,7 @@ dd {
   color: color-mix(in srgb, var(--ink) 88%, var(--muted));
   font-size: 0.76rem;
   font-weight: 500;
+  font-family: var(--font-reading);
   line-height: 1.52;
   text-wrap: pretty;
 }
@@ -3497,12 +3529,6 @@ dd {
   background: linear-gradient(180deg, color-mix(in srgb, var(--enemy-soft) 18%, var(--panel-2) 82%), var(--panel));
 }
 
-.bestiary-detail.is-hidden-layer,
-.bestiary-detail.is-npc-detail {
-  border-color: color-mix(in srgb, var(--green) 38%, var(--line-strong));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--green) 12%, var(--panel-2) 88%), var(--panel));
-}
-
 .bestiary-detail-head {
   grid-area: head;
   min-width: 0;
@@ -3510,10 +3536,6 @@ dd {
   grid-template-columns: 76px minmax(0, 1fr);
   gap: 9px;
   align-items: center;
-}
-
-.bestiary-detail.is-hidden-layer .bestiary-detail-head {
-  grid-template-columns: 154px minmax(0, 1fr);
 }
 
 .bestiary-detail-head > div {
@@ -3556,13 +3578,6 @@ dd {
   color: color-mix(in srgb, var(--enemy) 76%, var(--ink));
 }
 
-.bestiary-detail.is-hidden-layer .bestiary-badge,
-.bestiary-detail.is-npc-detail .bestiary-badge {
-  border-color: color-mix(in srgb, var(--green) 48%, var(--line));
-  background: color-mix(in srgb, var(--green) 18%, var(--panel) 82%);
-  color: color-mix(in srgb, var(--green) 78%, var(--ink));
-}
-
 .monster-portrait.bestiary-detail-portrait {
   width: 76px;
   height: 76px;
@@ -3570,42 +3585,6 @@ dd {
 
 .bestiary-detail-portrait .monster-sprite {
   --sprite-size: 76px;
-}
-
-.monster-portrait.bestiary-detail-portrait.npc-portrait img {
-  width: 64px;
-  height: 64px;
-}
-
-.hidden-rescue-preview {
-  width: 154px;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(3, 46px);
-  gap: 5px;
-  align-items: center;
-}
-
-.hidden-rescue-preview .monster-portrait {
-  width: 46px;
-  height: 46px;
-}
-
-.hidden-rescue-preview .monster-portrait img {
-  width: 46px;
-  height: 46px;
-}
-
-.hidden-rescue-preview .monster-sprite {
-  --sprite-size: 46px;
-}
-
-.hidden-rescue-preview .npc-portrait {
-  border-color: color-mix(in srgb, var(--green) 52%, var(--line));
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--green) 12%, transparent),
-    inset 0 0 0 1px rgb(255 255 255 / 10%),
-    0 2px 0 rgb(0 0 0 / 36%);
 }
 
 .bestiary-stats {
@@ -3784,6 +3763,327 @@ dd {
   white-space: nowrap;
 }
 
+.bestiary-group-switch {
+  min-width: min(384px, 100%);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.bestiary-card-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.bestiary-card {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--panel-border-soft);
+  border-radius: 7px;
+  background: var(--panel-bg-raised);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%), 0 2px 0 rgb(0 0 0 / 30%);
+}
+
+.bestiary-card.is-boss {
+  border-color: color-mix(in srgb, var(--enemy) 48%, var(--line-strong));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--enemy-soft) 18%, var(--panel-2) 82%), var(--panel));
+}
+
+.bestiary-card.is-boss .bestiary-badge {
+  border-color: color-mix(in srgb, var(--enemy) 48%, var(--line));
+  background: color-mix(in srgb, var(--enemy-soft) 34%, var(--panel) 66%);
+  color: color-mix(in srgb, var(--enemy) 76%, var(--ink));
+}
+
+.bestiary-npc-card {
+  border-color: color-mix(in srgb, var(--green) 42%, var(--line-strong));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--green) 10%, var(--panel-2) 90%), var(--panel));
+}
+
+.bestiary-npc-card .bestiary-badge {
+  border-color: color-mix(in srgb, var(--green) 46%, var(--line));
+  background: color-mix(in srgb, var(--green) 14%, var(--panel) 86%);
+  color: color-mix(in srgb, var(--green) 76%, var(--ink));
+}
+
+.bestiary-npc-card .npc-portrait img {
+  width: min(50px, 100%);
+  height: min(50px, 100%);
+}
+
+.bestiary-npc-card .bestiary-card-rules {
+  align-content: start;
+}
+
+.bestiary-card-head {
+  grid-area: auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.bestiary-card-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.bestiary-card-head strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 950;
+  line-height: 1.04;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bestiary-card-head em {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.monster-portrait.bestiary-card-portrait {
+  width: 58px;
+  height: 58px;
+}
+
+.bestiary-card-portrait .monster-sprite {
+  --sprite-size: 58px;
+}
+
+.bestiary-card .bestiary-stats {
+  grid-area: auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.bestiary-card .bestiary-stats div {
+  gap: 1px;
+  padding: 4px 5px;
+  border-color: color-mix(in srgb, var(--line-strong) 34%, var(--line));
+  background: color-mix(in srgb, var(--field) 86%, var(--panel) 14%);
+}
+
+.bestiary-card .bestiary-stats dt {
+  font-size: 0.52rem;
+  font-weight: 850;
+}
+
+.bestiary-card .bestiary-stats dd {
+  font-size: 0.8rem;
+  font-weight: 900;
+  font-family: var(--font-number);
+  line-height: 1;
+}
+
+.bestiary-card-rules {
+  grid-area: auto;
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.bestiary-card-rules p {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  color: color-mix(in srgb, var(--ink) 86%, var(--muted));
+  font-family: var(--font-reading);
+  font-size: 0.66rem;
+  font-weight: 650;
+  line-height: 1.34;
+}
+
+.bestiary-card-rules p b {
+  color: var(--ink-soft);
+  font-family: var(--font-title);
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.bestiary-card-rules p span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.bestiary-card-rules ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bestiary-card-rules li {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 5px 6px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 32%, var(--line));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--field) 78%, var(--panel) 22%);
+}
+
+.bestiary-card-rules li b {
+  color: var(--ink);
+  font-family: var(--font-title);
+  font-size: 0.64rem;
+  line-height: 1.08;
+}
+
+.bestiary-card-rules li span {
+  color: var(--muted);
+  font-family: var(--font-reading);
+  font-size: 0.61rem;
+  font-weight: 650;
+  line-height: 1.28;
+}
+
+.affix-bestiary {
+  padding: 8px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 5%), rgb(0 0 0 / 16%)), var(--panel);
+}
+
+.affix-bestiary-head {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.affix-bestiary-head strong {
+  font-family: var(--font-title);
+  font-size: 0.92rem;
+}
+
+.affix-card-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
+  gap: 6px;
+}
+
+.affix-card {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 42%, var(--line));
+  border-radius: 7px;
+  background: rgb(15 19 18 / 72%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+}
+
+.affix-card-top {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.affix-card-top b {
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.affix-card-top b[data-stat="attack"],
+.affix-card-top b[data-stat="lifesteal"],
+.affix-card[data-stat="attack"] dd,
+.affix-card[data-stat="lifesteal"] dd {
+  color: #ff746b;
+}
+
+.affix-card-top b[data-stat="defense"],
+.affix-card[data-stat="defense"] dd {
+  color: #7db8ff;
+}
+
+.affix-card-top b[data-stat="shield"],
+.affix-card[data-stat="shield"] dd {
+  color: #fffef4;
+}
+
+.affix-card-top b[data-stat="hp"],
+.affix-card-top b[data-stat="regen"],
+.affix-card[data-stat="hp"] dd,
+.affix-card[data-stat="regen"] dd {
+  color: #7be58d;
+}
+
+.affix-card-top b[data-stat="speed"],
+.affix-card[data-stat="speed"] dd {
+  color: #ffd36d;
+}
+
+.affix-card-top span {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--amber) 34%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--amber-soft) 58%, var(--field) 42%);
+  color: color-mix(in srgb, var(--amber) 82%, var(--ink));
+  font-size: 0.56rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.affix-card p {
+  min-height: 2.5em;
+  color: var(--ink);
+  font-family: var(--font-reading);
+  font-size: 0.66rem;
+  font-weight: 650;
+  line-height: 1.26;
+}
+
+.affix-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+}
+
+.affix-card dl div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 4px 5px;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--field) 76%, transparent);
+}
+
+.affix-card dt {
+  color: var(--muted);
+  font-size: 0.52rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.affix-card dd {
+  color: var(--ink-soft);
+  font-size: 0.62rem;
+  font-weight: 900;
+  font-family: var(--font-ui);
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+
 .author-qr-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -3926,7 +4226,7 @@ dd {
   color: var(--ink);
   font-size: 0.98rem;
   line-height: 1;
-  font-family: "Trebuchet MS", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--font-number);
 }
 
 .global-stat em {
@@ -4676,23 +4976,27 @@ textarea {
 
   .bestiary-toolbar {
     align-items: stretch;
+    flex-wrap: wrap;
     gap: 6px;
     padding: 5px;
   }
 
   .bestiary-group-switch {
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 1 1 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .bestiary-group-button {
-    min-height: 32px;
-    padding-inline: 6px;
-    font-size: 0.66rem;
+    min-height: 30px;
+    gap: 3px;
+    padding-inline: 4px;
+    font-size: 0.62rem;
   }
 
   .bestiary-pager {
     flex: 0 0 auto;
+    margin-left: auto;
     grid-template-columns: 32px minmax(52px, auto) 32px;
     gap: 4px;
   }
@@ -4743,6 +5047,143 @@ textarea {
 
   .bestiary-stats div {
     padding: 4px 5px;
+  }
+
+  .bestiary-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .bestiary-card {
+    gap: 5px;
+    padding: 6px;
+    border-radius: 6px;
+  }
+
+  .bestiary-card-head {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .monster-portrait.bestiary-card-portrait {
+    width: 42px;
+    height: 42px;
+  }
+
+  .bestiary-card-portrait .monster-sprite {
+    --sprite-size: 42px;
+  }
+
+  .bestiary-card-head strong {
+    font-size: 0.72rem;
+  }
+
+  .bestiary-card-head em {
+    font-size: 0.52rem;
+  }
+
+  .bestiary-card .bestiary-badge {
+    padding: 1px 4px;
+    font-size: 0.48rem;
+  }
+
+  .bestiary-card .bestiary-stats {
+    gap: 2px;
+  }
+
+  .bestiary-card .bestiary-stats div {
+    padding: 3px 2px;
+  }
+
+  .bestiary-card .bestiary-stats dt {
+    font-size: 0.46rem;
+  }
+
+  .bestiary-card .bestiary-stats dd {
+    font-size: 0.66rem;
+  }
+
+  .bestiary-card-rules {
+    gap: 4px;
+  }
+
+  .bestiary-card-rules p {
+    font-size: 0.56rem;
+    line-height: 1.24;
+  }
+
+  .bestiary-card-rules p b,
+  .bestiary-card-rules li b {
+    font-size: 0.54rem;
+  }
+
+  .bestiary-card-rules li {
+    padding: 4px 5px;
+  }
+
+  .bestiary-card-rules li span {
+    font-size: 0.52rem;
+    line-height: 1.22;
+  }
+
+  .affix-bestiary {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .affix-bestiary-head strong {
+    font-size: 0.78rem;
+  }
+
+  .affix-bestiary-head span {
+    font-size: 0.58rem;
+  }
+
+  .affix-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .affix-card {
+    gap: 5px;
+    padding: 6px;
+  }
+
+  .affix-card-top {
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .affix-card-top b {
+    font-size: 0.68rem;
+  }
+
+  .affix-card-top span {
+    padding-inline: 4px;
+    font-size: 0.46rem;
+  }
+
+  .affix-card p {
+    min-height: 2.4em;
+    font-size: 0.54rem;
+    line-height: 1.2;
+  }
+
+  .affix-card dl {
+    gap: 3px;
+  }
+
+  .affix-card dl div {
+    padding: 3px 4px;
+  }
+
+  .affix-card dt {
+    font-size: 0.45rem;
+  }
+
+  .affix-card dd {
+    font-size: 0.5rem;
+    line-height: 1.15;
   }
 
   .bestiary-rules p,
@@ -5001,6 +5442,10 @@ textarea {
     gap: 4px;
     padding: 6px;
     border-width: 1px;
+  }
+
+  .enemy-card.is-npc-card {
+    min-height: 126px;
   }
 
   .clear-card {
