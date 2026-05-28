@@ -483,7 +483,7 @@ const heroForms = [
     image: "form-hp.png",
     levels: {
       1: { stats: { hp: 30 }, effects: ["生命上限 +30"] },
-      2: { stats: { hp: 40 }, effects: ["生命上限 +40", "每击杀1怪生命上限 +3", "每击杀1怪生命 +6"], killMaxHp: 3, killHeal: 6 },
+      2: { stats: { hp: 40 }, effects: ["生命上限 +40", "每击杀1怪，生命上限+3且生命+6"], killMaxHp: 3, killHeal: 6 },
     },
   },
   {
@@ -8343,6 +8343,7 @@ function getHeroFormEffectLines(form = getHeroForm(), level = getHeroFormLevel(f
 
 function getHeroFormProgressText(form = getHeroForm()) {
   const progress = getHeroFormProgress(form.id);
+  if (progress.level >= 2) return "";
   return `经验${Math.min(progress.kills, heroFormUpgradeKills)}/${heroFormUpgradeKills}`;
 }
 
@@ -12465,7 +12466,7 @@ function renderHeroForms() {
       <span class="form-title-line">
         <strong>${escapeHtml(getHeroFormDisplayName(form))}</strong>
       </span>
-      <small>${escapeHtml(progressText)}</small>
+      ${progressText ? `<small>${escapeHtml(progressText)}</small>` : ""}
     `;
 
     const copy = document.createElement("div");

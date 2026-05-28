@@ -797,6 +797,12 @@ function assertScenario(name, metrics) {
     if (formChecks.hpKill?.maxHp !== 93 || formChecks.hpKill?.hp !== 56) {
       failures.push(`${name}: mega HP kill should add max HP +3 and heal 6 in battle, got ${JSON.stringify(formChecks.hpKill)}`);
     }
+    if (!/每击杀1怪，生命上限\+3且生命\+6/.test(formChecks.hpEffectText || "") || /每击杀1怪生命上限\s*\+3/.test(formChecks.hpEffectText || "") || /每击杀1怪生命\s*\+6/.test(formChecks.hpEffectText || "")) {
+      failures.push(`${name}: mega HP form should combine max-HP and heal-on-kill copy into one line, got ${JSON.stringify(formChecks.hpEffectText)}`);
+    }
+    if (/经验/.test(formChecks.hpMetaText || "")) {
+      failures.push(`${name}: evolved HP form card should not show experience progress, got ${JSON.stringify(formChecks.hpMetaText)}`);
+    }
     if (formChecks.hpShared?.defenseMaxHp !== 50 || formChecks.hpShared?.afterKillDefenseMaxHp !== 53 || formChecks.hpShared?.afterKillDefenseHp !== 16) {
       failures.push(`${name}: mega HP form bonus should not be shared, but kill max HP should persist across forms, got ${JSON.stringify(formChecks.hpShared)}`);
     }
@@ -811,6 +817,9 @@ function assertScenario(name, metrics) {
     const visibleLabelList = [visibleLabels.header || "", ...(visibleLabels.cards || [])];
     if (visibleLabels.header !== "\u8d85\u7ea7\u8d22\u8ff7") {
       failures.push(`${name}: evolved hero label should use 超级 instead of mega, got ${visibleLabels.header}`);
+    }
+    if (/经验/.test(formChecks.greedyMetaText || "")) {
+      failures.push(`${name}: evolved greedy form card should not show experience progress, got ${JSON.stringify(formChecks.greedyMetaText)}`);
     }
     if (!visibleLabelList.includes("\u8d85\u7ea7\u8d22\u8ff7")) {
       failures.push(`${name}: form chooser should show 超级财迷 for evolved greedy form, got ${JSON.stringify(visibleLabelList)}`);
@@ -1899,6 +1908,8 @@ function assertScenario(name, metrics) {
       hooks.resetGameForTest();
       hooks.setFormProgress({ hp: { kills: 10, level: 2 }, defense: { kills: 10, level: 2 } });
       hooks.setHeroForm("hp");
+      const hpEffectText = document.querySelector('.form-card[data-form-id="hp"] .form-copy')?.innerText || "";
+      const hpMetaText = document.querySelector('.form-card[data-form-id="hp"] .form-card-meta')?.innerText || "";
       hooks.setHeroStats({ hp: 50 });
       hooks.setHeroForm("defense");
       const defenseMaxHp = hooks.getPlayerStats().maxHp;
@@ -1990,6 +2001,7 @@ function assertScenario(name, metrics) {
       hooks.resetGameForTest();
       setMegaForm("greedy");
       const greedyDropBonus = JSON.parse(window.render_game_to_text()).player.form.filmDropBonus;
+      const greedyMetaText = document.querySelector('.form-card[data-form-id="greedy"] .form-card-meta')?.innerText || "";
       const greedyStatsByFilm = {};
       for (const film of [0.9, 1.0, 2.0, 3.0, 4.0]) {
         const rolls = Math.floor(film);
@@ -2001,8 +2013,9 @@ function assertScenario(name, metrics) {
       const visibleFormLabels = {
         header: document.querySelector("[data-form-label]")?.textContent.trim() || "",
         cards: Array.from(document.querySelectorAll(".form-card-meta strong")).map((node) => node.textContent.trim()),
+        metaText: Array.from(document.querySelectorAll(".form-card-meta")).map((node) => node.textContent.trim()),
       };
-      window.__reviewFormEconomy = { shield, shieldAvatar, lifesteal, regenShield, hpKill, hpShared, hpSwitch, speedPreStrike, greedyDropBonus, greedyStatsByFilm, visibleFormLabels };
+      window.__reviewFormEconomy = { shield, shieldAvatar, lifesteal, regenShield, hpKill, hpShared, hpSwitch, speedPreStrike, greedyDropBonus, greedyStatsByFilm, visibleFormLabels, hpEffectText, hpMetaText, greedyMetaText };
     });
   });
 
