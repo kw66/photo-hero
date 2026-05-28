@@ -263,7 +263,7 @@ h3 {
 .panel-tools {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   gap: 6px;
 }
@@ -473,35 +473,12 @@ h3 {
 
 .hero-head {
   min-height: 34px;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .mode-title-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--amber) 58%, var(--line-strong));
-  border-radius: 6px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-2) 86%, var(--amber) 14%), var(--panel));
-  color: #fff4d4;
-  font-size: 0.86rem;
-  font-weight: 950;
-  text-align: center;
-  text-shadow: 0 1px 0 rgb(0 0 0 / 54%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 12%),
-    0 2px 0 rgb(0 0 0 / 44%);
+  min-width: 104px;
   white-space: nowrap;
-}
-
-body[data-play-mode="drawing"] .mode-title-button {
-  border-color: color-mix(in srgb, var(--hero) 68%, var(--line-strong));
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--hero-soft) 58%, var(--panel-2) 42%), var(--panel));
-  color: #d9f0ff;
 }
 
 .hero-summary {
@@ -4603,7 +4580,7 @@ textarea {
 
   .panel-tools {
     flex-wrap: nowrap;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 4px;
   }
 
