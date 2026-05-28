@@ -97,6 +97,7 @@ async function collectScenario(page, name, action = async () => {}) {
       bossRetreat: window.__reviewBossRetreat || null,
       knightCaptainSummon: window.__reviewKnightCaptainSummon || null,
       panelToggle: window.__reviewPanelToggle || null,
+      bestiary: window.__reviewBestiary || null,
       apiConfig: window.__reviewApiConfig || null,
       monsterSprites: Array.from(document.querySelectorAll(".monster-sprite")).map((node) => {
         const style = getComputedStyle(node);
@@ -571,6 +572,30 @@ function assertScenario(name, metrics) {
     const panel = metrics.panelToggle || {};
     if (!panel.infoOpened || !panel.infoClosed) failures.push(`${name}: info button should open then close the info panel`);
     if (!panel.configOpened || !panel.configClosed) failures.push(`${name}: API button should open then close the config panel`);
+  }
+  if (name === "monster-bestiary") {
+    const bestiary = metrics.bestiary || {};
+    if (bestiary.activeInfoTab !== "bestiary") failures.push(`${name}: bestiary tab should be active, got ${JSON.stringify(bestiary)}`);
+    if ((bestiary.normalCount || 0) < 12) failures.push(`${name}: normal pagination should include all normal monsters, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.bossCount !== 7) failures.push(`${name}: boss pagination should include seven bosses, got ${JSON.stringify(bestiary)}`);
+    if (!bestiary.bossKeys?.includes("demon") || !bestiary.bossKeys?.includes("archmage")) failures.push(`${name}: boss pagination should include final and reward bosses, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.initial?.group !== "normal" || bestiary.initial?.selectedKey !== "slime" || bestiary.initial?.pageText !== `1 / ${bestiary.normalCount}`) {
+      failures.push(`${name}: bestiary should start on normal page 1, got ${JSON.stringify(bestiary)}`);
+    }
+    if (bestiary.afterNormalNext?.selectedKey !== "bat" || bestiary.afterNormalNext?.pageText !== `2 / ${bestiary.normalCount}`) {
+      failures.push(`${name}: normal next page should advance to bat, got ${JSON.stringify(bestiary)}`);
+    }
+    if (bestiary.bossStart?.group !== "boss" || bestiary.bossStart?.selectedKey !== "skeletonCaptain" || bestiary.bossStart?.pageText !== `1 / ${bestiary.bossCount}`) {
+      failures.push(`${name}: boss group should start on skeleton captain page 1, got ${JSON.stringify(bestiary)}`);
+    }
+    if (bestiary.selectedGroup !== "boss" || bestiary.selectedKey !== "demon" || bestiary.pageText !== `${bestiary.bossCount} / ${bestiary.bossCount}`) {
+      failures.push(`${name}: boss pagination should reach demon as page 7, got ${JSON.stringify(bestiary)}`);
+    }
+    if (!bestiary.hasDetailPortrait) failures.push(`${name}: selected monster detail should show portrait, got ${JSON.stringify(bestiary)}`);
+    if (!/魔王/.test(bestiary.detailText || "") || !/第40层最终 Boss/.test(bestiary.detailText || "") || !/晋升/.test(bestiary.detailText || "")) {
+      failures.push(`${name}: demon detail should show name, floor pattern, and trait detail, got ${JSON.stringify(bestiary)}`);
+    }
+    if (!/普通怪/.test(bestiary.groupText || "") || !/Boss/.test(bestiary.groupText || "")) failures.push(`${name}: normal and boss pagination groups should be visible, got ${JSON.stringify(bestiary)}`);
   }
   if (name === "api-config") {
     const api = metrics.apiConfig || {};
@@ -2437,6 +2462,43 @@ function assertScenario(name, metrics) {
       configOpened: configOpenState.configVisible,
       configClosed: !configClosedState.infoVisible && !configClosedState.configVisible,
     });
+  });
+
+  scenarios.monsterBestiary = await collectScenario(desktop, "monster-bestiary", async (page) => {
+    await page.click("#infoToggleBtn");
+    await page.click('[data-info-tab="bestiary"]');
+    const readPage = async () => page.evaluate(() => ({
+      group: document.querySelector("[data-bestiary-shell]")?.dataset.currentGroup || "",
+      selectedKey: document.querySelector(".bestiary-detail")?.dataset.selectedMonster || "",
+      pageText: document.querySelector(".bestiary-page-indicator")?.textContent.trim() || "",
+    }));
+    const initial = await readPage();
+    await page.click('[data-bestiary-action="next"]');
+    const afterNormalNext = await readPage();
+    await page.click('[data-bestiary-group="boss"]');
+    const bossStart = await readPage();
+    for (let i = 0; i < 6; i += 1) {
+      await page.click('[data-bestiary-action="next"]');
+    }
+    await page.evaluate(({ initial, afterNormalNext, bossStart }) => {
+      const shell = document.querySelector("[data-bestiary-shell]");
+      window.__reviewBestiary = {
+        activeInfoTab: document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "",
+        tabLabels: Array.from(document.querySelectorAll("[data-info-tab]")).map((button) => button.textContent.trim()),
+        normalCount: Number(shell?.dataset.normalCount || 0),
+        bossCount: Number(shell?.dataset.bossCount || 0),
+        bossKeys: (shell?.dataset.bossKeys || "").split(",").filter(Boolean),
+        initial,
+        afterNormalNext,
+        bossStart,
+        selectedGroup: shell?.dataset.currentGroup || "",
+        selectedKey: document.querySelector(".bestiary-detail")?.dataset.selectedMonster || "",
+        pageText: document.querySelector(".bestiary-page-indicator")?.textContent.trim() || "",
+        hasDetailPortrait: Boolean(document.querySelector(".bestiary-detail .monster-sprite img")),
+        groupText: document.querySelector(".bestiary-group-switch")?.innerText || "",
+        detailText: document.querySelector(".bestiary-detail")?.innerText || "",
+      };
+    }, { initial, afterNormalNext, bossStart });
   });
 
   scenarios.apiConfig = await collectScenario(desktop, "api-config", async (page) => {

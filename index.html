@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260528-experience-simple">
+    <link rel="stylesheet" href="./styles.css?v=20260528-bestiary-pages">
   </head>
   <body>
     <main class="app-shell">
@@ -91,6 +91,7 @@
                       <button class="info-tab-button" type="button" data-info-tab="about" role="tab" aria-selected="true">作者/统计</button>
                       <button class="info-tab-button" type="button" data-info-tab="photo" role="tab" aria-selected="false">拍照</button>
                       <button class="info-tab-button" type="button" data-info-tab="battle" role="tab" aria-selected="false">战斗</button>
+                      <button class="info-tab-button" type="button" data-info-tab="bestiary" role="tab" aria-selected="false">图鉴</button>
                     </div>
                     <button class="ghost-button" type="button" data-panel-target="none">收起</button>
                   </div>
@@ -178,6 +179,10 @@
                         <p>胶卷就是下一次拍照装备的机会。普通怪通常给 0.1，单体 Boss 给 0.3；击败部分 Boss 后，还能从三张奖励牌里选一张。勇者头像可以切换形态，每种形态攒满 10 点经验后，会在战后进化。</p>
                       </article>
                     </div>
+                  </div>
+
+                  <div class="info-page" data-info-page="bestiary" hidden>
+                    <div class="monster-bestiary" id="monsterBestiaryContent"></div>
                   </div>
                 </div>
               </section>
@@ -347,6 +352,6 @@
       </section>
     </div>
 
-    <script defer src="./app.js?v=20260528-experience-simple"></script>
+    <script defer src="./app.js?v=20260528-bestiary-pages"></script>
   </body>
 </html>

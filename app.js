@@ -230,6 +230,15 @@ const bossRewardChoiceFloors = [10, 20, 25, 30, 35, 38];
 const bossRewardChoiceCount = bossRewardChoiceFloors.length;
 const bossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
 const highFilmBossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
+const bossBestiaryEntries = [
+  { floor: 10, key: "skeletonCaptain", kind: "gate", badge: "守门", appear: "第10层 Boss。击败后塔门开启，并从三张奖励牌里选一张。" },
+  { floor: 20, key: "vampire", kind: "gate", badge: "守门", appear: "第20层 Boss。击败后进入更深楼层，并从三张奖励牌里选一张。" },
+  { floor: 25, key: "octopus", kind: "reward", badge: "奖励", appear: "第25层奖励强敌。可以绕过；击败后从三张奖励牌里选一张。" },
+  { floor: 30, key: "knightCaptain", kind: "gate", badge: "守门", appear: "第30层 Boss。击败后塔门开启，并从三张奖励牌里选一张。" },
+  { floor: 35, key: "dragon", kind: "reward", badge: "奖励", appear: "第35层奖励强敌。可以绕过；击败后从三张奖励牌里选一张。" },
+  { floor: 38, key: "archmage", kind: "reward", badge: "奖励", appear: "第38层奖励强敌。可以绕过；击败后从三张奖励牌里选一张。" },
+  { floor: 40, key: "demon", kind: "final", badge: "最终", appear: "第40层最终 Boss。击败后本次登塔通关。" },
+];
 
 const statLabels = {
   hp: "生命上限",
@@ -722,6 +731,7 @@ const els = {
   nowPlayingText: byId("nowPlayingText"),
   fileInput: byId("fileInput"),
   filmCountBadge: byId("filmCountBadge"),
+  monsterBestiaryContent: byId("monsterBestiaryContent"),
   configToggleBtn: byId("configToggleBtn"),
   configPanel: byId("configPanel"),
   secondaryArea: byId("secondaryArea"),
@@ -851,6 +861,9 @@ const state = {
   drawing: { ...defaultDrawingState },
   tutorial: { ...defaultTutorialState },
 };
+
+let selectedBestiaryGroup = "normal";
+let bestiaryPageByGroup = { normal: 0, boss: 0 };
 
 loadConfig();
 loadSave();
@@ -1741,6 +1754,18 @@ function bindEvents() {
 
   document.querySelectorAll("[data-info-tab]").forEach((button) => {
     button.addEventListener("click", () => setInfoTab(button.dataset.infoTab || "about"));
+  });
+
+  els.monsterBestiaryContent?.addEventListener("click", (event) => {
+    const groupButton = event.target.closest("[data-bestiary-group]");
+    if (groupButton && els.monsterBestiaryContent.contains(groupButton)) {
+      selectBestiaryGroup(groupButton.dataset.bestiaryGroup || "normal");
+      return;
+    }
+
+    const actionButton = event.target.closest("[data-bestiary-action]");
+    if (!actionButton || !els.monsterBestiaryContent.contains(actionButton)) return;
+    turnBestiaryPage(actionButton.dataset.bestiaryAction === "prev" ? -1 : 1);
   });
 
   [els.baseUrlInput, els.modelInput, els.customModelInput, els.apiKeyInput].forEach((input) => {
@@ -2824,7 +2849,7 @@ function getActiveInfoTab() {
 }
 
 function setInfoTab(tabId) {
-  const target = ["about", "photo", "battle"].includes(tabId) ? tabId : "about";
+  const target = ["about", "photo", "battle", "bestiary"].includes(tabId) ? tabId : "about";
   document.querySelectorAll("[data-info-tab]").forEach((button) => {
     const active = button.dataset.infoTab === target;
     button.setAttribute("aria-selected", String(active));
@@ -2832,6 +2857,203 @@ function setInfoTab(tabId) {
   document.querySelectorAll("[data-info-page]").forEach((page) => {
     page.hidden = page.dataset.infoPage !== target;
   });
+  if (target === "bestiary") {
+    renderMonsterBestiary();
+  }
+}
+
+function normalizeBestiaryGroup(group) {
+  return group === "boss" ? "boss" : "normal";
+}
+
+function getBestiaryEntriesForGroup(group) {
+  return normalizeBestiaryGroup(group) === "boss" ? getBossBestiaryEntries() : getNormalBestiaryEntries();
+}
+
+function getBestiaryPageState(group = selectedBestiaryGroup) {
+  const targetGroup = normalizeBestiaryGroup(group);
+  const entries = getBestiaryEntriesForGroup(targetGroup);
+  const total = entries.length;
+  if (total <= 0) {
+    bestiaryPageByGroup[targetGroup] = 0;
+    return { group: targetGroup, entries, total, index: 0, entry: null };
+  }
+  const index = clampInt(bestiaryPageByGroup[targetGroup] ?? 0, 0, total - 1);
+  bestiaryPageByGroup[targetGroup] = index;
+  return { group: targetGroup, entries, total, index, entry: entries[index] };
+}
+
+function selectBestiaryGroup(group) {
+  selectedBestiaryGroup = normalizeBestiaryGroup(group);
+  getBestiaryPageState(selectedBestiaryGroup);
+  renderMonsterBestiary();
+}
+
+function turnBestiaryPage(delta) {
+  const page = getBestiaryPageState();
+  if (page.total <= 0) return;
+  const nextIndex = clampInt(page.index + delta, 0, page.total - 1);
+  if (nextIndex === page.index) return;
+  bestiaryPageByGroup[page.group] = nextIndex;
+  renderMonsterBestiary();
+}
+
+function renderMonsterBestiary() {
+  if (!els.monsterBestiaryContent) return;
+  const normalEntries = getNormalBestiaryEntries();
+  const bossEntries = getBossBestiaryEntries();
+  const page = getBestiaryPageState();
+  const bossKeys = bossEntries.map((entry) => entry.key).join(",");
+  els.monsterBestiaryContent.innerHTML = `
+    <div class="bestiary-layout" data-bestiary-shell data-current-group="${escapeHtml(page.group)}" data-current-index="${page.index}" data-normal-count="${normalEntries.length}" data-boss-count="${bossEntries.length}" data-boss-keys="${escapeHtml(bossKeys)}">
+      <div class="bestiary-toolbar">
+        <div class="bestiary-group-switch" role="tablist" aria-label="怪物分类">
+          ${renderBestiaryGroupButton("普通怪", "normal", normalEntries.length)}
+          ${renderBestiaryGroupButton("Boss", "boss", bossEntries.length)}
+        </div>
+        ${renderBestiaryPager(page)}
+      </div>
+      ${renderBestiaryDetail(page.entry, page)}
+    </div>
+  `;
+}
+
+function renderBestiaryGroupButton(label, group, count) {
+  const active = normalizeBestiaryGroup(group) === selectedBestiaryGroup;
+  return `
+    <button class="bestiary-group-button${active ? " is-active" : ""}" type="button" role="tab" data-bestiary-group="${escapeHtml(group)}" aria-selected="${active}">
+      <span>${escapeHtml(label)}</span>
+      <b>${count}</b>
+    </button>
+  `;
+}
+
+function renderBestiaryPager(page) {
+  const total = page.total || 0;
+  const current = total ? page.index + 1 : 0;
+  const prevDisabled = current <= 1 ? " disabled" : "";
+  const nextDisabled = current >= total ? " disabled" : "";
+  return `
+    <div class="bestiary-pager" aria-label="图鉴翻页">
+      <button class="bestiary-page-button" type="button" data-bestiary-action="prev" aria-label="上一页"${prevDisabled}>‹</button>
+      <span class="bestiary-page-indicator" aria-live="polite">${current} / ${total}</span>
+      <button class="bestiary-page-button" type="button" data-bestiary-action="next" aria-label="下一页"${nextDisabled}>›</button>
+    </div>
+  `;
+}
+
+function renderBestiaryDetail(entry, page) {
+  if (!entry) return "";
+  const type = monsterTypes[entry.key] || monsterTypes.slime;
+  const traits = Array.isArray(type.traits) ? type.traits : [];
+  const isBoss = entry.category === "boss";
+  const categoryLabel = isBoss ? "Boss" : "普通怪";
+  const pageText = page?.total ? `${page.index + 1} / ${page.total}` : "";
+  const traitHtml = traits.length
+    ? traits.map((trait) => `
+        <li>
+          <b>${escapeHtml(trait.text || trait.type)}</b>
+          <span>${escapeHtml(getMonsterTraitDetail(trait))}</span>
+        </li>
+      `).join("")
+    : "<li><b>无特殊效果</b><span>只按基础攻防速和生命参与战斗。</span></li>";
+  return `
+    <article class="bestiary-detail${isBoss ? " is-boss" : ""}" data-selected-monster="${escapeHtml(entry.key)}" data-selected-group="${escapeHtml(entry.category)}">
+      <div class="bestiary-detail-head">
+        ${renderMonsterSprite(entry.key, type.name, "bestiary-detail-portrait")}
+        <div>
+          <span class="bestiary-badge">${escapeHtml(entry.badge)}</span>
+          <strong>${escapeHtml(type.name)}</strong>
+          <em>${escapeHtml(categoryLabel)} · ${escapeHtml(pageText)}</em>
+        </div>
+      </div>
+      <dl class="bestiary-stats">
+        <div><dt>生命</dt><dd>${type.hp}</dd></div>
+        <div><dt>攻击</dt><dd>${type.atk}</dd></div>
+        <div><dt>防御</dt><dd>${type.def}</dd></div>
+        <div><dt>速度</dt><dd>${type.speed}</dd></div>
+      </dl>
+      <div class="bestiary-rules">
+        <section>
+          <h4>出没规律</h4>
+          <p>${escapeHtml(entry.appear)}</p>
+        </section>
+        <section>
+          <h4>效果</h4>
+          <ul>${traitHtml}</ul>
+        </section>
+      </div>
+    </article>
+  `;
+}
+
+function renderMonsterSprite(typeKey, alt, extraClass = "") {
+  const imageUrl = getMonsterImageUrl(typeKey);
+  const animationUrl = getMonsterAnimationUrl(typeKey);
+  return `
+    <div class="monster-portrait ${extraClass}">
+      <span class="monster-sprite" style="--monster-sprite:url('${animationUrl}');">
+        <img src="${imageUrl}" alt="${escapeHtml(alt)}">
+      </span>
+    </div>
+  `;
+}
+
+function getNormalBestiaryEntries() {
+  return normalMonsterUnlocks
+    .filter((entry) => !isBossMonsterType(entry.key))
+    .map((entry) => {
+      const type = monsterTypes[entry.key] || monsterTypes.slime;
+      return {
+        key: entry.key,
+        category: "normal",
+        badge: `第${entry.floor}层起`,
+        appear: getNormalMonsterAppearText(entry, type),
+      };
+    });
+}
+
+function getBossBestiaryEntries() {
+  return bossBestiaryEntries.map((entry) => ({
+    ...entry,
+    category: "boss",
+  }));
+}
+
+function getMonsterBestiaryEntry(typeKey) {
+  return [...getNormalBestiaryEntries(), ...getBossBestiaryEntries()].find((entry) => entry.key === typeKey) || null;
+}
+
+function getNormalMonsterAppearText(entry, type) {
+  const start = Math.max(1, entry.floor || 1);
+  if (entry.key === "slime") return "第1层起在普通楼层出现，前期最常见，也会在弱位池里保留较久。";
+  if (entry.tier >= 4) return `第${start}层起在普通楼层出现，通常进入后段强位池，适合先看预估损失再多选。`;
+  if (entry.tier >= 3) return `第${start}层起在普通楼层出现，中段开始混入三选怪物池。`;
+  return `第${start}层起在普通楼层出现，Boss 和奖励强敌楼层不会随机刷出。`;
+}
+
+function getMonsterTraitDetail(trait) {
+  const value = Number.isFinite(trait.value) ? trait.value : 0;
+  switch (trait.type) {
+    case "regen": return `每次行动后回复 ${value} 点生命。`;
+    case "lifesteal": return `攻击命中后回复 ${value} 点生命。`;
+    case "noLifesteal": return "本场战斗压制勇者吸血，吸血属性不生效。";
+    case "magic": return "造成伤害时无视勇者防御，直接按攻击力结算。";
+    case "defenseBreakAura": return `战斗开场削减勇者当前防御的 ${value}%，巫师倒下后本场不会返还。`;
+    case "teamShield": return `开战时给同场怪物增加 ${value} 点护盾。`;
+    case "noRegen": return "本场战斗压制勇者回复，受击回复不生效。";
+    case "sturdy": return "如果勇者攻击过低，会把自身防御抬到接近勇者攻击。";
+    case "breakShield": return "战斗开场清空勇者当前护盾。";
+    case "giant": return "勇者生命上限越高，它的攻击越容易被拉高。";
+    case "speedUpOnAttack": return `每次攻击后速度 +${value || 1}，拖久会越来越快。`;
+    case "promotion": return "它攻击后涨防御，被攻击后涨攻击。";
+    case "multiHit": return `每次行动连续攻击 ${value || 2} 次。`;
+    case "teamWarcry": return `同场怪物获得攻击 +${trait.atk || 0}、防御 +${trait.def || 0}、速度 +${trait.speed || 0}。`;
+    case "summonMageOnAttack": return "攻击时如果场上有空位，会召唤一名法师。";
+    case "summonGuards": return "开战时召唤 2 名卫兵一起参战。";
+    case "shield": return `自带 ${value} 点护盾。`;
+    default: return trait.text || "特殊规则会在战斗中生效。";
+  }
 }
 
 function applyPreset(presetId, persist = false) {
