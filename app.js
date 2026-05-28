@@ -220,7 +220,7 @@ const inventoryImageMaxEdge = 420;
 const inventoryImageQuality = 0.72;
 const maxFloor = 40;
 const introFloor = 0;
-const gameSaveVersion = 24;
+const gameSaveVersion = 25;
 const initialFilmRolls = 0;
 const introFilmRewardCount = 3;
 const heroFormUpgradeKills = 10;
@@ -228,6 +228,7 @@ const bossFloors = new Set([10, 20, 30, 40]);
 const rewardBossFloors = new Set([25, 35, 38]);
 const bossRewardChoiceFloors = [10, 20, 25, 30, 35, 38];
 const bossRewardChoiceCount = bossRewardChoiceFloors.length;
+const hiddenLayerCount = 4;
 const bossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
 const highFilmBossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
 const bossBestiaryEntries = [
@@ -239,6 +240,59 @@ const bossBestiaryEntries = [
   { floor: 38, key: "archmage", kind: "reward", badge: "奖励", appear: "第38层奖励强敌。可以绕过；击败后从三张奖励牌里选一张。" },
   { floor: 40, key: "demon", kind: "final", badge: "最终", appear: "第40层最终 Boss。击败后本次登塔通关。" },
 ];
+
+const hiddenLayerConfigs = [
+  {
+    index: 1,
+    label: "隐藏1",
+    monsterType: "guard",
+    monsterLabel: "看守卫兵",
+    npcKey: "elder",
+    npcName: "老人",
+    npcRole: "被困老人",
+    rewardTitle: "形态经验 +2",
+    rewardText: "解救老人后，所有形态经验 +2。",
+    appear: "第5-9层的普通楼层里，会随机选中一只非最弱位怪物作为暗门触发怪。击败它后，下一层先进入隐藏1。",
+  },
+  {
+    index: 2,
+    label: "隐藏2",
+    monsterType: "orc",
+    monsterLabel: "看守兽人",
+    npcKey: "merchant",
+    npcName: "商人",
+    npcRole: "被困商人",
+    rewardTitle: "胶卷/画布 +2.0",
+    rewardText: "解救商人后，立刻获得 2.0 张胶卷/画布。",
+    appear: "第11-19层的普通楼层里，会随机选中一只非最弱位怪物作为暗门触发怪。击败它后，下一层先进入隐藏2。",
+  },
+  {
+    index: 3,
+    label: "隐藏3",
+    monsterType: "knight",
+    monsterLabel: "看守骑士",
+    npcKey: "thief",
+    npcName: "小偷",
+    npcRole: "被困小偷",
+    rewardTitle: "宝石：攻防速 +1",
+    rewardText: "解救小偷后，获得宝石，攻击、防御、速度各 +1。",
+    appear: "第21-29层的普通楼层里，会随机选中一只非最弱位怪物作为暗门触发怪。击败它后，下一层先进入隐藏3。",
+  },
+  {
+    index: 4,
+    label: "隐藏4",
+    monsterType: "swordsman",
+    monsterLabel: "看守剑士",
+    npcKey: "princess",
+    npcName: "公主",
+    npcRole: "被困公主",
+    rewardTitle: "生命回满，真结局开启",
+    rewardText: "解救公主后生命回满，并开启击败魔王后的真结局。",
+    appear: "第31-39层的普通楼层里，会随机选中一只非最弱位怪物作为暗门触发怪。击败它后，下一层先进入隐藏4。",
+  },
+];
+
+const hiddenLayerConfigMap = new Map(hiddenLayerConfigs.map((config) => [config.index, config]));
 
 const statLabels = {
   hp: "生命上限",
@@ -512,6 +566,7 @@ const heroFormImageBase = "./assets/heroes/";
 const monsterImageBase = "./assets/monsters/";
 const monsterAnimationBase = "./assets/monster-animations/";
 const rewardIconBase = "./assets/rewards/";
+const npcImageBase = "./assets/npcs/";
 const audioAssetBase = "./assets/audio/";
 const musicAssetBase = "./assets/music/";
 
@@ -807,6 +862,7 @@ const state = {
   infoMode: "item",
   gameClear: false,
   bossReward: null,
+  hiddenLayerState: createDefaultHiddenLayerState(),
   formProgress: createDefaultFormProgress(),
   photoValueMin: defaultPhotoValueMin,
   photoValueMax: defaultPhotoValueMax,
@@ -869,7 +925,7 @@ const state = {
 };
 
 let selectedBestiaryGroup = "normal";
-let bestiaryPageByGroup = { normal: 0, boss: 0 };
+let bestiaryPageByGroup = { normal: 0, boss: 0, hidden: 0, npc: 0 };
 
 loadConfig();
 loadSave();
@@ -1629,6 +1685,7 @@ function getBgmKeyForGameState() {
   if (isPlayerDefeated()) return "defeat";
   if (state.gameClear) return "ending";
   if (state.bossReward) return "reward";
+  if (isHiddenLayerActive()) return getAreaBgmKey(getCurrentHiddenLayer()?.sourceFloor || state.floor);
   const floorKey = getFloorBgmKey(state.floor);
   if (floorKey) return floorKey;
   return getAreaBgmKey(state.floor);
@@ -2869,11 +2926,15 @@ function setInfoTab(tabId) {
 }
 
 function normalizeBestiaryGroup(group) {
-  return group === "boss" ? "boss" : "normal";
+  return ["normal", "boss", "hidden", "npc"].includes(group) ? group : "normal";
 }
 
 function getBestiaryEntriesForGroup(group) {
-  return normalizeBestiaryGroup(group) === "boss" ? getBossBestiaryEntries() : getNormalBestiaryEntries();
+  const target = normalizeBestiaryGroup(group);
+  if (target === "boss") return getBossBestiaryEntries();
+  if (target === "hidden") return getHiddenBestiaryEntries();
+  if (target === "npc") return getNpcBestiaryEntries();
+  return getNormalBestiaryEntries();
 }
 
 function getBestiaryPageState(group = selectedBestiaryGroup) {
@@ -2908,14 +2969,18 @@ function renderMonsterBestiary() {
   if (!els.monsterBestiaryContent) return;
   const normalEntries = getNormalBestiaryEntries();
   const bossEntries = getBossBestiaryEntries();
+  const hiddenEntries = getHiddenBestiaryEntries();
+  const npcEntries = getNpcBestiaryEntries();
   const page = getBestiaryPageState();
   const bossKeys = bossEntries.map((entry) => entry.key).join(",");
   els.monsterBestiaryContent.innerHTML = `
-    <div class="bestiary-layout" data-bestiary-shell data-current-group="${escapeHtml(page.group)}" data-current-index="${page.index}" data-normal-count="${normalEntries.length}" data-boss-count="${bossEntries.length}" data-boss-keys="${escapeHtml(bossKeys)}">
+    <div class="bestiary-layout" data-bestiary-shell data-current-group="${escapeHtml(page.group)}" data-current-index="${page.index}" data-normal-count="${normalEntries.length}" data-boss-count="${bossEntries.length}" data-hidden-count="${hiddenEntries.length}" data-npc-count="${npcEntries.length}" data-boss-keys="${escapeHtml(bossKeys)}">
       <div class="bestiary-toolbar">
         <div class="bestiary-group-switch" role="tablist" aria-label="怪物分类">
           ${renderBestiaryGroupButton("普通怪", "normal", normalEntries.length)}
           ${renderBestiaryGroupButton("Boss", "boss", bossEntries.length)}
+          ${renderBestiaryGroupButton("隐藏", "hidden", hiddenEntries.length)}
+          ${renderBestiaryGroupButton("NPC", "npc", npcEntries.length)}
         </div>
         ${renderBestiaryPager(page)}
       </div>
@@ -2951,6 +3016,8 @@ function renderBestiaryPager(page) {
 
 function renderBestiaryDetail(entry, page) {
   if (!entry) return "";
+  if (entry.category === "hidden") return renderHiddenBestiaryDetail(entry, page);
+  if (entry.category === "npc") return renderNpcBestiaryDetail(entry, page);
   const type = monsterTypes[entry.key] || monsterTypes.slime;
   const traits = Array.isArray(type.traits) ? type.traits : [];
   const isBoss = entry.category === "boss";
@@ -2994,6 +3061,81 @@ function renderBestiaryDetail(entry, page) {
   `;
 }
 
+function renderHiddenBestiaryDetail(entry, page) {
+  const config = entry.config;
+  const type = monsterTypes[config.monsterType] || monsterTypes.guard;
+  const trigger = getHiddenTrigger(config.index);
+  const triggerText = trigger
+    ? `本次冒险触发怪位于第${trigger.floor}层第${trigger.slot + 1}张怪物卡，且不会是每层最弱位。`
+    : "触发怪会从对应区间的普通楼层里随机确定。";
+  return `
+    <article class="bestiary-detail is-hidden-layer" data-selected-hidden="${escapeHtml(config.index)}" data-selected-group="hidden">
+      <div class="bestiary-detail-head">
+        <div class="hidden-rescue-preview" aria-hidden="true">
+          ${renderMonsterSprite(config.monsterType, type.name, "mini-guard-portrait")}
+          ${renderNpcPortrait(config.npcKey, config.npcName, "mini-npc-portrait")}
+          ${renderMonsterSprite(config.monsterType, type.name, "mini-guard-portrait")}
+        </div>
+        <div>
+          <span class="bestiary-badge">隐藏层</span>
+          <strong>${escapeHtml(config.label)} · ${escapeHtml(config.npcName)}</strong>
+          <em>${escapeHtml(page?.total ? `${page.index + 1} / ${page.total}` : "")}</em>
+        </div>
+      </div>
+      <dl class="bestiary-stats">
+        <div><dt>看守</dt><dd>${escapeHtml(type.name)} ×2</dd></div>
+        <div><dt>生命</dt><dd>${type.hp}</dd></div>
+        <div><dt>攻击</dt><dd>${type.atk}</dd></div>
+        <div><dt>奖励</dt><dd>${escapeHtml(config.rewardTitle)}</dd></div>
+      </dl>
+      <div class="bestiary-rules">
+        <section>
+          <h4>触发规律</h4>
+          <p>${escapeHtml(entry.appear)}</p>
+          <p>${escapeHtml(triggerText)}</p>
+        </section>
+        <section>
+          <h4>救援规则</h4>
+          <p>隐藏层左、右是看守怪物，中间是待解救 NPC。三张卡牌都选中才能开战，NPC 不参与战斗；也可以直接逃跑返回主塔。</p>
+          <p>${escapeHtml(config.rewardText)}</p>
+        </section>
+      </div>
+    </article>
+  `;
+}
+
+function renderNpcBestiaryDetail(entry, page) {
+  const config = entry.config;
+  return `
+    <article class="bestiary-detail is-npc-detail" data-selected-npc="${escapeHtml(config.npcKey)}" data-selected-group="npc">
+      <div class="bestiary-detail-head">
+        ${renderNpcPortrait(config.npcKey, config.npcName, "bestiary-detail-portrait")}
+        <div>
+          <span class="bestiary-badge">NPC</span>
+          <strong>${escapeHtml(config.npcName)}</strong>
+          <em>${escapeHtml(config.label)} · ${escapeHtml(page?.total ? `${page.index + 1} / ${page.total}` : "")}</em>
+        </div>
+      </div>
+      <dl class="bestiary-stats">
+        <div><dt>身份</dt><dd>${escapeHtml(config.npcRole)}</dd></div>
+        <div><dt>楼层</dt><dd>${escapeHtml(config.label)}</dd></div>
+        <div><dt>行动</dt><dd>不参战</dd></div>
+        <div><dt>奖励</dt><dd>${escapeHtml(config.rewardTitle)}</dd></div>
+      </dl>
+      <div class="bestiary-rules">
+        <section>
+          <h4>出没规律</h4>
+          <p>${escapeHtml(config.appear)}</p>
+        </section>
+        <section>
+          <h4>救援结果</h4>
+          <p>${escapeHtml(config.rewardText)}</p>
+        </section>
+      </div>
+    </article>
+  `;
+}
+
 function renderAffixBestiary() {
   const rows = photoSpecialEffects.map((effect) => {
     const cooldown = effect.cooldown
@@ -3030,6 +3172,14 @@ function renderMonsterSprite(typeKey, alt, extraClass = "") {
   `;
 }
 
+function renderNpcPortrait(npcKey, alt, extraClass = "") {
+  return `
+    <div class="monster-portrait npc-portrait ${extraClass}">
+      <img src="${escapeHtml(getNpcImageUrl(npcKey))}" alt="${escapeHtml(alt)}">
+    </div>
+  `;
+}
+
 function getNormalBestiaryEntries() {
   return normalMonsterUnlocks
     .filter((entry) => !isBossMonsterType(entry.key))
@@ -3044,6 +3194,26 @@ function getNormalBestiaryEntries() {
     });
 }
 
+function getHiddenBestiaryEntries() {
+  return hiddenLayerConfigs.map((config) => ({
+    key: `hidden-${config.index}`,
+    category: "hidden",
+    badge: config.label,
+    appear: config.appear,
+    config,
+  }));
+}
+
+function getNpcBestiaryEntries() {
+  return hiddenLayerConfigs.map((config) => ({
+    key: `npc-${config.npcKey}`,
+    category: "npc",
+    badge: config.label,
+    appear: config.appear,
+    config,
+  }));
+}
+
 function getBossBestiaryEntries() {
   return bossBestiaryEntries.map((entry) => ({
     ...entry,
@@ -3052,7 +3222,7 @@ function getBossBestiaryEntries() {
 }
 
 function getMonsterBestiaryEntry(typeKey) {
-  return [...getNormalBestiaryEntries(), ...getBossBestiaryEntries()].find((entry) => entry.key === typeKey) || null;
+  return [...getNormalBestiaryEntries(), ...getBossBestiaryEntries(), ...getHiddenBestiaryEntries(), ...getNpcBestiaryEntries()].find((entry) => entry.key === typeKey) || null;
 }
 
 function getNormalMonsterAppearText(entry, type) {
@@ -5423,6 +5593,14 @@ function fleeCurrentFloor() {
   if (canRetreatCurrentBattle()) return retreatCurrentBattle();
   if (!canBypassCurrentFloor()) return false;
   state.infoMode = "log";
+  if (isHiddenLayerActive()) {
+    const label = getHiddenLayerFloorLabel();
+    addBattleEvent(`${label}的暗门在身后合拢，勇者回到主塔楼梯。`, "info");
+    exitHiddenLayerToReturnFloor(false);
+    saveGame();
+    render();
+    return true;
+  }
   addBattleEvent(modeText(`第${state.floor}层的脚步没有停留，照片勇者绕开阴影继续向上。`), "info");
   advanceFloor();
   saveGame();
@@ -5440,6 +5618,7 @@ function canBypassCurrentFloor() {
   if (isPlayerDefeated() || state.currentBattle || state.autoBattleTimer || state.battleStartTimer || state.pendingFloorAdvance) return false;
   if (isEquipmentLocked() || hasPendingPhoto()) return false;
   if (isIntroFloor()) return false;
+  if (isHiddenLayerActive()) return true;
   return !isBossFloor(state.floor);
 }
 
@@ -5494,15 +5673,17 @@ function startAutoBattle() {
 
   ensureEncounter();
   if (!canStartSelectedBattle()) return;
-  const selectedEnemyIds = state.selectedEnemyIds
+  const selectedCardIds = state.selectedEnemyIds
     .filter((id) => state.enemies.some((enemy) => enemy.id === id && enemy.hp > 0));
+  const selectedEnemyIds = selectedCardIds
+    .filter((id) => state.enemies.some((enemy) => enemy.id === id && enemy.hp > 0 && !isNonCombatEnemy(enemy)));
   const selectedEnemies = selectedEnemyIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
     .filter(Boolean);
   if (!selectedEnemies.length) return;
   recordGlobalGameStart();
 
-  const selectedIds = new Set(selectedEnemyIds);
+  const selectedIds = new Set(selectedCardIds);
   const unselectedIds = state.enemies
     .filter((enemy) => enemy.hp > 0 && !selectedIds.has(enemy.id))
     .map((enemy) => enemy.id);
@@ -5514,7 +5695,7 @@ function startAutoBattle() {
     for (const id of unselectedIds) state.enemyFaceDownIds.add(id);
     state.enemyFlipDownIds = new Set();
     const currentSelectedEnemies = selectedEnemyIds
-      .map((id) => state.enemies.find((enemy) => enemy.id === id && enemy.hp > 0))
+      .map((id) => state.enemies.find((enemy) => enemy.id === id && enemy.hp > 0 && !isNonCombatEnemy(enemy)))
       .filter(Boolean);
     beginBattle(currentSelectedEnemies);
     resolveBattleAction();
@@ -5594,7 +5775,12 @@ function beginBattle(enemies) {
   state.battleSnapshot = makeBattleSnapshot(snapshotIds);
   const activeIds = expandEnemiesForBattle(enemies).map((enemy) => enemy.id);
   state.activeEnemyIds = activeIds;
-  state.selectedEnemyIds = [...activeIds];
+  if (isHiddenLayerActive()) {
+    const validIds = new Set(state.enemies.map((enemy) => enemy.id));
+    state.selectedEnemyIds = state.selectedEnemyIds.filter((id) => validIds.has(id));
+  } else {
+    state.selectedEnemyIds = [...activeIds];
+  }
   resetBattleSpecial();
   resetEquippedBattleRuntimeSpecialStates();
   ensureCurrentBattle(activeIds);
@@ -5734,6 +5920,7 @@ function makeBattleSnapshot(activeIds) {
     battleReports: state.battleReports,
     battleReportSeq: state.battleReportSeq,
     infoMode: state.infoMode,
+    hiddenLayerState: state.hiddenLayerState,
   });
 }
 
@@ -5766,6 +5953,7 @@ function restoreBattleSnapshot(snapshot) {
   state.battleReports = Array.isArray(snapshot.battleReports) ? snapshot.battleReports.map(normalizeBattleReport).filter(Boolean) : state.battleReports;
   state.battleReportSeq = Number.isFinite(snapshot.battleReportSeq) ? snapshot.battleReportSeq : state.battleReportSeq;
   state.infoMode = snapshot.infoMode === "log" ? "log" : snapshot.infoMode === "career" && state.careerSummary ? "career" : "item";
+  state.hiddenLayerState = normalizeHiddenLayerState(snapshot.hiddenLayerState);
 }
 
 function cloneSerializable(value) {
@@ -5773,6 +5961,10 @@ function cloneSerializable(value) {
 }
 
 function getBattleRoundLimit(count = state.activeEnemyIds.length || state.selectedEnemyIds.length || 1, floor = state.floor) {
+  if (isHiddenLayerActive()) {
+    const enemyCount = clampInt(count, 1, 2);
+    return battleRoundLimitsByEnemyCount[enemyCount] || battleRoundLimitsByEnemyCount[1];
+  }
   if (isBossRewardFloor(floor)) return bossBattleRoundLimit;
   const enemyCount = clampInt(count, 1, 3);
   return battleRoundLimitsByEnemyCount[enemyCount] || battleRoundLimitsByEnemyCount[1];
@@ -5802,7 +5994,7 @@ function resolveBattleAction() {
 
   const roundLimit = state.currentBattle.roundLimit || getBattleRoundLimit();
   if (round >= roundLimit) {
-    const bossTimeout = isBossRewardFloor(state.currentBattle.floor);
+    const bossTimeout = !state.currentBattle.hiddenLayer && isBossRewardFloor(state.currentBattle.floor);
     addBattleDetail(bossTimeout
       ? `第${roundLimit}回合照片勇者撑过强敌，继续前进。`
       : `第${roundLimit}回合敌方逃跑。`);
@@ -5844,10 +6036,13 @@ function resolveBattleAction() {
 
   if (!getActiveBattleEnemies().length) {
     const completedFloor = state.floor;
+    const completedHiddenLayer = Boolean(state.currentBattle?.hiddenLayer || isHiddenLayerActive());
     finishCurrentBattle("victory");
     stopAutoBattle();
-    recordGlobalGameMetric("Floors", 1);
-    if (completedFloor >= maxFloor) {
+    if (!completedHiddenLayer) recordGlobalGameMetric("Floors", 1);
+    if (completedHiddenLayer) {
+      handleBattleEndAdvance("delay");
+    } else if (completedFloor >= maxFloor) {
       advanceFloor();
       saveGame();
       render();
@@ -6298,10 +6493,15 @@ function defeatEnemy(enemy) {
   const drops = getEnemyDrops(enemy);
   const defeatedIds = state.currentBattle?.defeatedIds;
   const defeatedTypes = state.currentBattle?.defeatedTypes;
+  const hiddenTriggerIndex = shouldEnemyTriggerHiddenLayer(enemy);
   addLootNamesToCurrentBattle(drops);
   if (Array.isArray(defeatedIds)) defeatedIds.push(enemy.id);
   if (Array.isArray(defeatedTypes)) defeatedTypes.push(enemy.typeKey || "");
   addBattleDetail(`${enemy.name} 被击败。`);
+  if (hiddenTriggerIndex && markPendingHiddenLayer(hiddenTriggerIndex)) {
+    const config = getHiddenLayerConfig(hiddenTriggerIndex);
+    addBattleDetail(`${config?.label || "隐藏层"}的暗门在墙后响了一声，下一层会先偏离主塔。`);
+  }
   applyFormKillEffects();
   triggerKillSpecial(enemy);
   for (const drop of drops) {
@@ -6433,6 +6633,8 @@ function ensureCurrentBattle(activeIds, stats = getBattleStats(activeIds)) {
   const enemies = activeIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
     .filter(Boolean);
+  const hiddenLayer = getCurrentHiddenLayer();
+  const hiddenConfig = getHiddenLayerConfig(hiddenLayer);
   state.currentBattle = {
     id: makeId("battle"),
     type: "battle",
@@ -6448,6 +6650,8 @@ function ensureCurrentBattle(activeIds, stats = getBattleStats(activeIds)) {
     lootNames: [],
     defeatedIds: [],
     defeatedTypes: [],
+    hiddenLayer: hiddenConfig ? { index: hiddenConfig.index, label: hiddenConfig.label, npcName: hiddenConfig.npcName } : null,
+    hiddenRewardText: "",
     createdAt: Date.now(),
   };
   ensureBgmForGameState(true);
@@ -6489,6 +6693,9 @@ function finishCurrentBattle(result) {
   applyFormBattleEndEffects(result, battle);
   settleFormProgressAfterBattle(result, battle);
   recordBattleKillStats(result, battle);
+  if (result === "victory" && (battle.hiddenLayer || isHiddenLayerActive())) {
+    applyHiddenLayerReward(battle.hiddenLayer || getCurrentHiddenLayer(), battle);
+  }
   const hpDelta = state.player.hp - battle.startHp;
   const stats = getPlayerStats();
   const endHp = Math.min(state.player.hp, stats.maxHp);
@@ -6913,14 +7120,19 @@ function buildLocalCareerSummary(outcome = state.gameClear ? "clear" : isPlayerD
       createdAt: Date.now(),
     };
   }
+  const trueEnding = Boolean(snapshot.trueEnding);
   return {
     status: "local",
     outcome: "clear",
-    title: "塔顶旧闻",
+    title: trueEnding ? "真结局旧闻" : "未竟旧闻",
     text: [
-      `多年以后，塔底的石碑仍记着一位${snapshot.formLabel}。他带着照片醒出的器物登上第${maxFloor}层，终局之力定格为生命${snapshot.stats.maxHp}、攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}。`,
+      trueEnding
+        ? `多年以后，塔底的石碑仍记着一位${snapshot.formLabel}。他带着照片醒出的器物登上第${maxFloor}层，也把隐藏4里失踪的公主带回了塔顶晨光中。`
+        : `多年以后，塔底的石碑仍记着一位${snapshot.formLabel}。他带着照片醒出的器物登上第${maxFloor}层，却没能解开隐藏4里那段仍旧空白的传闻。`,
       `旧塔账册记下了${snapshot.killCount}场怪物败退，其中${snapshot.bossKillCount}位Boss被刻进封门名录。${itemText}被列为代表装备，像从现实里带入塔中的奇物。`,
-      `后来的人说，照片勇者并非只靠一柄名剑通关，而是把手边万物都变成了登塔的台阶。胶卷耗尽之前，他把这段冒险留成了新的塔顶传说。`,
+      trueEnding
+        ? `后来的人说，照片勇者并非只靠一柄名剑通关，而是把手边万物都变成了登塔的台阶。魔王倒下、公主获救之后，这段冒险才被写成真正的塔顶传说。`
+        : `后来的人说，照片勇者确实击败了魔王，却只完成了旧塔明面上的结局。没有公主归来的那一页，守塔人只能把它记作未竟旧闻。`,
     ].map((line) => modeText(line)).join("\n\n"),
     snapshot,
     createdAt: Date.now(),
@@ -6978,6 +7190,8 @@ function buildCareerSnapshot(outcome = state.gameClear ? "clear" : isPlayerDefea
     killCount,
     bossKillCount,
     equipmentCount: items.length,
+    trueEnding: hasRescuedPrincess(),
+    hiddenRescues: Object.fromEntries(hiddenLayerConfigs.map((config) => [config.index, isHiddenLayerRescued(config.index)])),
     topItems: items.slice(0, 5),
     allItems: items,
     battleHighlights: reports.slice(0, 5).map((report) => report.summary).filter(Boolean),
@@ -7098,6 +7312,7 @@ function buildCareerSummaryPrompt(snapshot, outcome = snapshot?.outcome || "clea
     "8. 只输出最终成稿。",
     "",
     `勇者形态：${snapshot.formLabel}`,
+    `结局类型：${snapshot.trueEnding ? "真结局，已解救公主" : "普通结局，只击败魔王，未解救公主"}`,
     `最终能力：生命${snapshot.stats.maxHp}，当前生命${snapshot.hp}，攻击${snapshot.stats.atk}，防御${snapshot.stats.def}，速度${snapshot.stats.speed}，护盾${snapshot.stats.shield}，回复${snapshot.stats.regen}，吸血${snapshot.stats.lifesteal}`,
     `击败怪物：${snapshot.killCount}只`,
     `击败Boss：${snapshot.bossKillCount}只`,
@@ -7189,6 +7404,7 @@ function hasRecentFloorNarrative(floor, text) {
 }
 
 function getFloorNarrative(floor) {
+  if (isHiddenLayerActive()) return getHiddenLayerNarrative();
   if (floor <= introFloor) {
     return modeText("塔门前的石台亮着三道卷轴槽。收齐三卷胶卷，第一层才会现身。");
   }
@@ -7223,6 +7439,12 @@ function makeBattleSummary(result, battle, hpDelta) {
           ? "小胜"
           : "胜";
     const remainText = label === "险胜" ? `，剩余生命 ${endHp}/${endMaxHp}` : "";
+    if (battle?.hiddenLayer) {
+      const hiddenLabel = battle.hiddenLayer.label || `隐藏${battle.hiddenLayer.index || ""}`;
+      const npcName = battle.hiddenLayer.npcName || "被困者";
+      const rewardText = battle.hiddenRewardText || "救援完成。";
+      return `${hiddenLabel}救援完成 · 击败${monsterName}，救出${npcName}，${lifeText}${remainText}，${rewardText}`;
+    }
     if (isBossFloor(floor)) {
       const bossText = floor === maxFloor
         ? "塔顶封印碎裂，魔王的名字被刻进最后一页"
@@ -7235,10 +7457,18 @@ function makeBattleSummary(result, battle, hpDelta) {
     return `${label} · 第${floor}层击败${monsterName}，${lifeText}${remainText}，获得：${lootText}。`;
   }
   if (result === "defeat") {
+    if (battle?.hiddenLayer) {
+      const hiddenLabel = battle.hiddenLayer.label || `隐藏${battle.hiddenLayer.index || ""}`;
+      return `倒下 · ${hiddenLabel}的看守截住了照片勇者，${lifeText}，获得：${lootText}。`;
+    }
     return `倒下 · 第${floor}层${monsterName}截住了照片勇者，${lifeText}，获得：${lootText}。`;
   }
   if (result === "enemy-fled") {
     const roundLimit = Number.isFinite(battle?.roundLimit) ? battle.roundLimit : getBattleRoundLimit(battle?.initialEnemyCount || 1);
+    if (battle?.hiddenLayer) {
+      const hiddenLabel = battle.hiddenLayer.label || `隐藏${battle.hiddenLayer.index || ""}`;
+      return `脱战 · ${hiddenLabel}拖满${roundLimit}回合后暗门松动，${lifeText}，获得：${lootText}。`;
+    }
     return `脱战 · 第${floor}层缠斗${roundLimit}回合后，敌人退回阴影，${lifeText}，获得：${lootText}。`;
   }
   if (result === "boss-timeout") {
@@ -7340,7 +7570,7 @@ function getHeroTargetEnemy() {
 function getActiveBattleEnemies() {
   return state.activeEnemyIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
-    .filter((enemy) => enemy && enemy.hp > 0);
+    .filter((enemy) => enemy && enemy.hp > 0 && !isNonCombatEnemy(enemy));
 }
 
 function handleBattleEndAdvance(mode = "instant") {
@@ -7367,6 +7597,15 @@ function advanceFloor() {
     return;
   }
   clearEnemyCardMotion();
+  if (isHiddenLayerActive()) {
+    exitHiddenLayerToReturnFloor();
+    return;
+  }
+  const pendingHiddenIndex = consumePendingHiddenLayerIndex();
+  if (pendingHiddenIndex) {
+    enterHiddenLayer(pendingHiddenIndex, Math.min(maxFloor, state.floor + 1));
+    return;
+  }
   if (state.floor >= maxFloor) {
     completeGame();
     return;
@@ -7387,6 +7626,57 @@ function advanceFloor() {
   ensureBgmForGameState(true);
 }
 
+function enterHiddenLayer(index, returnFloor) {
+  const config = getHiddenLayerConfig(index);
+  if (!config || isHiddenLayerResolved(config.index)) return false;
+  stopAutoBattle();
+  clearEnemyCardMotion();
+  const safeReturnFloor = clampInt(returnFloor, 1, maxFloor);
+  ensureHiddenLayerState().current = {
+    index: config.index,
+    returnFloor: safeReturnFloor,
+    sourceFloor: state.floor,
+    startedAt: Date.now(),
+  };
+  state.floor = safeReturnFloor;
+  state.selectedEnemyIds = [];
+  state.currentBattle = null;
+  state.battleSnapshot = null;
+  state.activeEnemyIds = [];
+  state.battleClock = null;
+  resetBattleSpecial();
+  state.enemies = buildHiddenLayerEncounter();
+  state.encounterId = makeEncounterId();
+  state.enemyFlipEncounterId = state.encounterId;
+  applyFloorShield();
+  addFloorNarrative(state.floor);
+  ensureBgmForGameState(true);
+  return true;
+}
+
+function exitHiddenLayerToReturnFloor(rescued = false) {
+  const layer = getCurrentHiddenLayer();
+  const config = getHiddenLayerConfig(layer);
+  if (!layer || !config) return false;
+  markHiddenLayerResolved(config.index, rescued || isHiddenLayerRescued(config.index));
+  ensureHiddenLayerState().current = null;
+  clearEnemyCardMotion();
+  state.floor = clampInt(layer.returnFloor || state.floor, 1, maxFloor);
+  state.selectedEnemyIds = [];
+  state.currentBattle = null;
+  state.battleSnapshot = null;
+  state.activeEnemyIds = [];
+  state.battleClock = null;
+  resetBattleSpecial();
+  state.enemies = buildFloorEncounter(state.floor);
+  state.encounterId = makeEncounterId();
+  state.enemyFlipEncounterId = state.encounterId;
+  applyFloorShield();
+  addFloorNarrative(state.floor);
+  ensureBgmForGameState(true);
+  return true;
+}
+
 function completeGame() {
   const wasClear = state.gameClear;
   state.gameClear = true;
@@ -7404,7 +7694,9 @@ function completeGame() {
     state.careerSummary = buildLocalCareerSummary();
   }
   state.infoMode = "career";
-  addBattleEvent(modeText("塔顶的门被推开，照片勇者带着一包奇怪装备通关了40层。"), "hero");
+  addBattleEvent(modeText(hasRescuedPrincess()
+    ? "塔顶的门被推开，照片勇者带着公主和一包奇怪装备通关了40层，旧塔露出真正结局。"
+    : "塔顶的门被推开，照片勇者击败魔王通关了40层，但隐藏4的传闻仍未补完。"), "hero");
   if (!wasClear) recordGlobalGameMetric("Clears", 1);
   ensureBgmForGameState(true);
   requestCareerSummary();
@@ -7438,6 +7730,11 @@ function ensureEncounter() {
     state.encounterId = "intro";
     return;
   }
+  const hiddenLayer = getCurrentHiddenLayer();
+  if (hiddenLayer && isHiddenLayerResolved(hiddenLayer.index) && !state.currentBattle && !state.pendingFloorAdvance) {
+    exitHiddenLayerToReturnFloor(isHiddenLayerRescued(hiddenLayer.index));
+    return;
+  }
   if (!Array.isArray(state.enemies) || !state.enemies.length) {
     state.enemies = buildFloorEncounter(state.floor);
   }
@@ -7454,6 +7751,7 @@ function ensureEncounter() {
 
 function buildFloorEncounter(floor) {
   if (floor <= introFloor) return [];
+  if (isHiddenLayerActive()) return buildHiddenLayerEncounter();
   if (Array.isArray(state.testEnemyOverride)) {
     const override = state.testEnemyOverride;
     state.testEnemyOverride = null;
@@ -7593,12 +7891,63 @@ function makeEnemy(typeKey, floor, slot) {
   };
 }
 
+function buildHiddenLayerEncounter(layer = getCurrentHiddenLayer()) {
+  const config = getHiddenLayerConfig(layer);
+  if (!config) return [];
+  return [
+    makeHiddenLayerGuard(config, 0, "left"),
+    makeHiddenLayerNpc(config),
+    makeHiddenLayerGuard(config, 2, "right"),
+  ];
+}
+
+function makeHiddenLayerGuard(config, slot, side) {
+  const enemy = makeEnemy(config.monsterType, state.floor, slot);
+  return {
+    ...enemy,
+    id: `hidden-${config.index}-${side}-${config.monsterType}`,
+    name: config.monsterLabel || enemy.name,
+    hiddenLayerIndex: config.index,
+    hiddenSide: side,
+  };
+}
+
+function makeHiddenLayerNpc(config) {
+  return {
+    id: `hidden-${config.index}-npc-${config.npcKey}`,
+    floor: state.floor,
+    slot: 1,
+    visualIndex: 1,
+    typeKey: `npc-${config.npcKey}`,
+    typeName: config.npcName,
+    name: config.npcName,
+    npcKey: config.npcKey,
+    npcRole: config.npcRole,
+    hiddenLayerIndex: config.index,
+    nonCombat: true,
+    isNpc: true,
+    maxHp: 1,
+    hp: 1,
+    atk: 0,
+    def: 0,
+    speed: 1,
+    maxShield: 0,
+    shield: 0,
+    traits: [],
+  };
+}
+
+function isNonCombatEnemy(enemy) {
+  return Boolean(enemy?.nonCombat || enemy?.isNpc);
+}
+
 function isBossMonsterType(typeKey) {
   return bossMonsterKeys.has(typeKey);
 }
 
 function normalizeEnemy(enemy) {
   if (!enemy || typeof enemy !== "object") return null;
+  if (isNonCombatEnemy(enemy)) return normalizeNonCombatEnemy(enemy);
   if (enemy.testEnemy) {
     const maxHp = Number.isFinite(enemy.maxHp) ? Math.max(1, enemy.maxHp) : Number.isFinite(enemy.hp) ? Math.max(1, enemy.hp) : 1;
     const maxShield = Number.isFinite(enemy.maxShield) ? Math.max(0, enemy.maxShield) : Number.isFinite(enemy.shield) ? Math.max(0, enemy.shield) : 0;
@@ -7623,6 +7972,7 @@ function normalizeEnemy(enemy) {
 
 function normalizeCombatEnemy(enemy) {
   if (!enemy || typeof enemy !== "object") return null;
+  if (isNonCombatEnemy(enemy)) return normalizeNonCombatEnemy(enemy);
   if (enemy.testEnemy) return normalizeEnemy(enemy);
 
   const floor = Number.isFinite(enemy.floor) ? enemy.floor : state.floor;
@@ -7649,6 +7999,35 @@ function normalizeCombatEnemy(enemy) {
     maxShield,
     shield: Number.isFinite(enemy.shield) ? Math.max(0, Math.min(enemy.shield, maxShield)) : maxShield,
     traits: base.traits,
+  };
+}
+
+function normalizeNonCombatEnemy(enemy) {
+  const config = getHiddenLayerConfig(enemy.hiddenLayerIndex) || hiddenLayerConfigs.find((item) => item.npcKey === enemy.npcKey) || null;
+  const npcKey = typeof enemy.npcKey === "string" && enemy.npcKey ? enemy.npcKey : config?.npcKey || "elder";
+  const npcName = typeof enemy.name === "string" && enemy.name ? enemy.name : config?.npcName || "NPC";
+  return {
+    ...enemy,
+    id: typeof enemy.id === "string" && enemy.id ? enemy.id : makeId("npc"),
+    floor: Number.isFinite(enemy.floor) ? enemy.floor : state.floor,
+    slot: Number.isFinite(enemy.slot) ? enemy.slot : 1,
+    visualIndex: Number.isFinite(enemy.visualIndex) ? enemy.visualIndex : 1,
+    typeKey: `npc-${npcKey}`,
+    typeName: npcName,
+    name: npcName,
+    npcKey,
+    npcRole: typeof enemy.npcRole === "string" && enemy.npcRole ? enemy.npcRole : config?.npcRole || "待解救",
+    hiddenLayerIndex: normalizeHiddenLayerIndex(enemy.hiddenLayerIndex || config?.index),
+    nonCombat: true,
+    isNpc: true,
+    maxHp: 1,
+    hp: 1,
+    atk: 0,
+    def: 0,
+    speed: 1,
+    maxShield: 0,
+    shield: 0,
+    traits: [],
   };
 }
 
@@ -7740,6 +8119,7 @@ function getEnemyPreviewFilmShardDrop(enemy) {
 }
 
 function getEnemyBaseFilmShards(enemy) {
+  if (isNonCombatEnemy(enemy)) return 0;
   if (enemy?.summoned) return 0;
   const typeKey = enemy?.typeKey || "";
   return highFilmBossMonsterKeys.has(typeKey) ? 3 : 1;
@@ -7747,6 +8127,176 @@ function getEnemyBaseFilmShards(enemy) {
 
 function getGlobalFilmDropBonus() {
   return clampInt(state.globalFilmDropBonus, 0, 999);
+}
+
+function createDefaultHiddenLayerState() {
+  return {
+    pendingIndex: 0,
+    current: null,
+    resolved: {},
+    rescued: {},
+  };
+}
+
+function normalizeHiddenLayerState(input) {
+  const source = input && typeof input === "object" ? input : {};
+  const result = createDefaultHiddenLayerState();
+  result.pendingIndex = normalizeHiddenLayerIndex(source.pendingIndex);
+  result.current = normalizeCurrentHiddenLayer(source.current);
+  result.resolved = normalizeHiddenLayerFlagMap(source.resolved);
+  result.rescued = normalizeHiddenLayerFlagMap(source.rescued);
+  if (result.current) {
+    result.pendingIndex = 0;
+  }
+  return result;
+}
+
+function normalizeHiddenLayerFlagMap(input) {
+  const result = {};
+  const source = input && typeof input === "object" ? input : {};
+  for (let index = 1; index <= hiddenLayerCount; index += 1) {
+    if (source[index] || source[String(index)]) result[index] = true;
+  }
+  return result;
+}
+
+function normalizeHiddenLayerIndex(value) {
+  const index = Number.parseInt(value, 10);
+  return hiddenLayerConfigMap.has(index) ? index : 0;
+}
+
+function normalizeCurrentHiddenLayer(input) {
+  if (!input || typeof input !== "object") return null;
+  const index = normalizeHiddenLayerIndex(input.index);
+  if (!index) return null;
+  const returnFloor = clampInt(input.returnFloor, 1, maxFloor);
+  const sourceFloor = clampInt(input.sourceFloor, 1, maxFloor);
+  return {
+    index,
+    returnFloor,
+    sourceFloor,
+    startedAt: Number.isFinite(input.startedAt) ? input.startedAt : Date.now(),
+  };
+}
+
+function ensureHiddenLayerState() {
+  state.hiddenLayerState = normalizeHiddenLayerState(state.hiddenLayerState);
+  return state.hiddenLayerState;
+}
+
+function getCurrentHiddenLayer() {
+  return ensureHiddenLayerState().current;
+}
+
+function isHiddenLayerActive() {
+  return Boolean(getCurrentHiddenLayer());
+}
+
+function getHiddenLayerConfig(indexOrLayer = getCurrentHiddenLayer()) {
+  const index = typeof indexOrLayer === "object" ? indexOrLayer?.index : indexOrLayer;
+  return hiddenLayerConfigMap.get(normalizeHiddenLayerIndex(index)) || null;
+}
+
+function isHiddenLayerResolved(index) {
+  return Boolean(ensureHiddenLayerState().resolved?.[index]);
+}
+
+function isHiddenLayerRescued(index) {
+  return Boolean(ensureHiddenLayerState().rescued?.[index]);
+}
+
+function hasRescuedPrincess() {
+  return isHiddenLayerRescued(4);
+}
+
+function getHiddenLayerIndexForFloor(floor) {
+  const safeFloor = clampInt(floor, 1, maxFloor);
+  if (safeFloor < 5 || safeFloor >= maxFloor) return 0;
+  if (isBossRewardFloor(safeFloor)) return 0;
+  const index = Math.ceil(safeFloor / 10);
+  return hiddenLayerConfigMap.has(index) ? index : 0;
+}
+
+function getHiddenTriggerCandidates(index) {
+  const safeIndex = normalizeHiddenLayerIndex(index);
+  if (!safeIndex) return [];
+  const start = safeIndex === 1 ? 5 : (safeIndex - 1) * 10 + 1;
+  const end = Math.min(maxFloor - 1, safeIndex * 10 - 1);
+  const candidates = [];
+  for (let floor = start; floor <= end; floor += 1) {
+    if (getHiddenLayerIndexForFloor(floor) !== safeIndex) continue;
+    const types = getFloorMonsterTypes(floor);
+    for (const slot of [1, 2]) {
+      const typeKey = types[slot];
+      if (typeKey === types[0]) continue;
+      if (!typeKey || isBossMonsterType(typeKey)) continue;
+      candidates.push({
+        index: safeIndex,
+        floor,
+        slot,
+        typeKey,
+        enemyId: `${floor}-${slot}-${typeKey}`,
+      });
+    }
+  }
+  return candidates;
+}
+
+function getHiddenTrigger(index) {
+  const safeIndex = normalizeHiddenLayerIndex(index);
+  if (!safeIndex) return null;
+  const candidates = getHiddenTriggerCandidates(safeIndex);
+  if (!candidates.length) return null;
+  return candidates[hashIndex(`${state.runSeed || "default"}:hidden-trigger:${safeIndex}`, candidates.length)] || null;
+}
+
+function getHiddenTriggerForFloor(floor) {
+  const index = getHiddenLayerIndexForFloor(floor);
+  if (!index || isHiddenLayerResolved(index)) return null;
+  const trigger = getHiddenTrigger(index);
+  return trigger && trigger.floor === floor ? trigger : null;
+}
+
+function shouldEnemyTriggerHiddenLayer(enemy) {
+  if (!enemy || isHiddenLayerActive()) return 0;
+  const trigger = getHiddenTriggerForFloor(enemy.floor || state.floor);
+  if (!trigger) return 0;
+  return enemy.id === trigger.enemyId ? trigger.index : 0;
+}
+
+function markPendingHiddenLayer(index) {
+  const safeIndex = normalizeHiddenLayerIndex(index);
+  if (!safeIndex || isHiddenLayerResolved(safeIndex)) return false;
+  const hidden = ensureHiddenLayerState();
+  hidden.pendingIndex = safeIndex;
+  return true;
+}
+
+function consumePendingHiddenLayerIndex() {
+  const hidden = ensureHiddenLayerState();
+  const index = normalizeHiddenLayerIndex(hidden.pendingIndex);
+  hidden.pendingIndex = 0;
+  return index && !isHiddenLayerResolved(index) ? index : 0;
+}
+
+function markHiddenLayerResolved(index, rescued = false) {
+  const safeIndex = normalizeHiddenLayerIndex(index);
+  if (!safeIndex) return;
+  const hidden = ensureHiddenLayerState();
+  hidden.resolved[safeIndex] = true;
+  if (rescued) hidden.rescued[safeIndex] = true;
+  if (hidden.pendingIndex === safeIndex) hidden.pendingIndex = 0;
+}
+
+function getHiddenLayerFloorLabel(layer = getCurrentHiddenLayer()) {
+  const config = getHiddenLayerConfig(layer);
+  return config?.label || "隐藏层";
+}
+
+function getHiddenLayerNarrative(layer = getCurrentHiddenLayer()) {
+  const config = getHiddenLayerConfig(layer);
+  if (!config) return "";
+  return `${config.label}的暗门已经打开。${config.npcName}被押在中间，左右看守必须全部击败；选中三张卡牌才能开战，也可以直接逃离。`;
 }
 
 function createDefaultFormProgress() {
@@ -7839,6 +8389,65 @@ function addCurrentFormKill(count = 1) {
   return false;
 }
 
+function addAllFormExperience(count = 1) {
+  const gain = Math.max(0, clampInt(count, 0, 999));
+  if (gain <= 0) return [];
+  const oldStats = getPlayerStats();
+  const oldShield = state.player.shield;
+  const upgraded = [];
+  for (const form of heroForms) {
+    const progress = getHeroFormProgress(form.id);
+    if (progress.level >= 2) continue;
+    progress.kills = Math.min(heroFormUpgradeKills, progress.kills + gain);
+    if (progress.kills >= heroFormUpgradeKills) {
+      progress.kills = heroFormUpgradeKills;
+      progress.level = 2;
+      upgraded.push(form);
+      recordGlobalGameMetric("SuperForms", 1);
+    }
+  }
+  if (upgraded.some((form) => form.id === state.player.formId)) {
+    adjustHeroResourcesAfterStatChange(oldStats, getPlayerStats(), oldShield);
+  }
+  for (const form of upgraded) {
+    addBattleDetail(`${form.label}形态进化为${getHeroFormDisplayName(form)}。`);
+  }
+  return upgraded;
+}
+
+function applyHiddenLayerReward(layer = getCurrentHiddenLayer(), battle = state.currentBattle) {
+  const config = getHiddenLayerConfig(layer);
+  if (!config || isHiddenLayerRescued(config.index)) return "";
+  let rewardText = config.rewardText;
+  if (config.index === 1) {
+    const upgraded = addAllFormExperience(2);
+    rewardText = upgraded.length
+      ? `解救老人，所有形态经验 +2；${upgraded.map((form) => getHeroFormDisplayName(form)).join("、")}完成进化。`
+      : "解救老人，所有形态经验 +2。";
+  } else if (config.index === 2) {
+    addFilmShards(20);
+    rewardText = `解救商人，${getResourceName()} +2.0。`;
+  } else if (config.index === 3) {
+    state.player.baseAtk += 1;
+    state.player.baseDef += 1;
+    state.player.baseSpeed += 1;
+    rewardText = "解救小偷，获得宝石：攻击、防御、速度各 +1。";
+  } else if (config.index === 4) {
+    const stats = getPlayerStats();
+    state.player.hp = stats.maxHp;
+    rewardText = "解救公主，生命回满，真结局已经开启。";
+  }
+  if (battle) {
+    battle.hiddenLayer = { index: config.index, label: config.label, npcName: config.npcName };
+    battle.hiddenRewardText = rewardText;
+    battle.lootNames = Array.isArray(battle.lootNames) ? battle.lootNames : [];
+    battle.lootNames.push(config.rewardTitle);
+  }
+  addBattleDetail(rewardText);
+  markHiddenLayerResolved(config.index, true);
+  return rewardText;
+}
+
 function getPhotoValueMin() {
   return clampInt(state.photoValueMin, defaultPhotoValueMin, 999);
 }
@@ -7848,6 +8457,7 @@ function getPhotoValueMax() {
 }
 
 function formatEnemyFilmDrop(enemy) {
+  if (isNonCombatEnemy(enemy)) return "待解救";
   return `${getResourceName()} ${(getEnemyPreviewFilmShardDrop(enemy) / 10).toFixed(1)}`;
 }
 
@@ -8263,22 +8873,35 @@ function getAliveEnemies() {
   return Array.isArray(state.enemies) ? state.enemies.filter((enemy) => enemy.hp > 0) : [];
 }
 
+function getAliveCombatEnemies() {
+  return getAliveEnemies().filter((enemy) => !isNonCombatEnemy(enemy));
+}
+
 function hasSelectedAllAliveEnemies() {
   const alive = getAliveEnemies();
   return alive.length > 0 && alive.every((enemy) => state.selectedEnemyIds.includes(enemy.id));
 }
 
+function hasSelectedAllHiddenLayerCards() {
+  const cards = getAliveEnemies();
+  const combatCards = cards.filter((enemy) => !isNonCombatEnemy(enemy));
+  return cards.length === 3
+    && combatCards.length >= 2
+    && cards.every((enemy) => state.selectedEnemyIds.includes(enemy.id));
+}
+
 function canStartSelectedBattle() {
   if (isIntroFloor()) return false;
+  if (isHiddenLayerActive()) return hasSelectedAllHiddenLayerCards();
   if (isBossFloor(state.floor)) return hasSelectedAllAliveEnemies();
-  return getSelectedEnemies().length > 0;
+  return getSelectedEnemies().some((enemy) => enemy.hp > 0 && !isNonCombatEnemy(enemy));
 }
 
 function getBattleStats(activeIds = state.activeEnemyIds) {
   const stats = getPlayerBattleStats();
   const activeEnemies = activeIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
-    .filter((enemy) => enemy && enemy.hp > 0);
+    .filter((enemy) => enemy && enemy.hp > 0 && !isNonCombatEnemy(enemy));
   return applyEnemyBattleModifiers(stats, activeEnemies, state.battleSpecial);
 }
 
@@ -8973,6 +9596,8 @@ function isPlayerDefeated() {
 
 function makeEncounterId() {
   if (isIntroFloor()) return "intro";
+  const hiddenLayer = getCurrentHiddenLayer();
+  if (hiddenLayer) return `hidden-${hiddenLayer.index}:${state.floor}:${state.enemies.map((enemy) => enemy.id).join("|")}`;
   return `${state.floor}:${state.enemies.map((enemy) => enemy.id).join("|")}`;
 }
 
@@ -9048,6 +9673,7 @@ function resetGame() {
   state.battleSnapshot = null;
   state.infoMode = "item";
   state.bossReward = null;
+  state.hiddenLayerState = createDefaultHiddenLayerState();
   state.formProgress = createDefaultFormProgress();
   state.photoValueMin = defaultPhotoValueMin;
   state.photoValueMax = defaultPhotoValueMax;
@@ -10794,6 +11420,9 @@ function render(options = {}) {
     els.attackBtn.textContent = "进入魔塔";
     els.attackBtn.disabled = !hasSelectedAllIntroRewards();
   }
+  if (isHiddenLayerActive() && !state.gameClear && !defeated && !bossRewardPending) {
+    els.attackBtn.textContent = canStartBattle ? "解救" : "选齐三张";
+  }
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
   els.attackBtn.setAttribute("aria-label", state.gameClear ? "查看塔史结局" : defeated && state.careerSummary ? "查看战败结局" : bossRewardPending ? "确认奖励牌" : "开始战斗");
   if (isIntroFloor()) els.attackBtn.setAttribute("aria-label", "进入魔塔第一层");
@@ -10803,7 +11432,7 @@ function render(options = {}) {
   els.battleSpeedBtn.disabled = defeated || state.gameClear || bossRewardPending;
   els.fleeBtn.hidden = !canFleeCurrentFloor();
   els.fleeBtn.disabled = !canFleeCurrentFloor();
-  els.fleeBtn.textContent = canRetreatCurrentBattle() ? "逃跑" : "绕过";
+  els.fleeBtn.textContent = canRetreatCurrentBattle() || isHiddenLayerActive() ? "逃跑" : "绕过";
   els.fleeBtn.setAttribute("aria-label", canRetreatCurrentBattle() ? "退出本场战斗并恢复战前状态" : "绕过本层并进入下一层");
 
   renderApiStatus();
@@ -10817,6 +11446,10 @@ function render(options = {}) {
 function getFloorActionLabel(bossRewardPending = Boolean(state.bossReward)) {
   if (state.gameClear) return "已通关";
   if (isIntroFloor()) return `第 ${introFloor} / ${maxFloor} 层 · 塔门前`;
+  if (isHiddenLayerActive()) {
+    const config = getHiddenLayerConfig();
+    return `${config?.label || "隐藏层"} · ${config?.npcName || "待解救"}`;
+  }
   const floor = bossRewardPending && state.bossReward?.floor ? state.bossReward.floor : state.floor;
   if (isPlayerDefeated()) return `第 ${floor} / ${maxFloor} 层 · 战败`;
   if (bossRewardPending) return `第 ${floor} / ${maxFloor} 层 · 奖励`;
@@ -10902,6 +11535,34 @@ function renderEnemyField() {
       saveGame();
       render();
     });
+
+    if (isNonCombatEnemy(enemy)) {
+      const config = getHiddenLayerConfig(enemy.hiddenLayerIndex);
+      button.classList.add("is-npc-card");
+      button.innerHTML = `
+        ${selectionOrder ? `<span class="selection-badge">${selectionOrder}</span>` : ""}
+        <div class="enemy-card-head">
+          <div class="monster-portrait npc-portrait">
+            <img src="${escapeHtml(getNpcImageUrl(enemy.npcKey))}" alt="${escapeHtml(enemy.name)}">
+          </div>
+          <div class="enemy-name-block">
+            <strong>${escapeHtml(enemy.name)}</strong>
+            <span>${escapeHtml(enemy.npcRole || "待解救")}</span>
+          </div>
+        </div>
+        <div class="npc-card-callout">
+          <span>不参与战斗</span>
+          <strong>${escapeHtml(config?.rewardTitle || "救援奖励")}</strong>
+        </div>
+        <p class="npc-card-desc">${escapeHtml(config?.rewardText || "击败两侧看守后完成解救。")}</p>
+        <div class="enemy-card-result">
+          <span>中间卡牌</span>
+          <strong class="estimate-safe">待解救</strong>
+        </div>
+      `;
+      els.enemyField.append(button);
+      return;
+    }
 
     const traitText = enemy.traits?.map((trait) => trait.text).filter(Boolean).join(" / ") || "";
     const imageUrl = getMonsterImageUrl(enemy.typeKey);
@@ -11044,13 +11705,20 @@ function getEnemyDamageEstimates() {
       estimates.set(id, estimate);
     }
     for (const enemy of state.enemies.filter((item) => item.hp > 0)) {
-      if (!estimates.has(enemy.id)) estimates.set(enemy.id, makeUnknownEstimate());
+      if (isNonCombatEnemy(enemy)) {
+        estimates.set(enemy.id, makeRescueEstimate());
+      } else if (!estimates.has(enemy.id)) {
+        estimates.set(enemy.id, makeUnknownEstimate());
+      }
     }
     return estimates;
   }
 
   const aliveEnemies = state.enemies.filter((enemy) => enemy.hp > 0);
-  const selectedIds = state.selectedEnemyIds.filter((id) => aliveEnemies.some((enemy) => enemy.id === id));
+  for (const enemy of aliveEnemies.filter(isNonCombatEnemy)) {
+    estimates.set(enemy.id, makeRescueEstimate());
+  }
+  const selectedIds = state.selectedEnemyIds.filter((id) => aliveEnemies.some((enemy) => enemy.id === id && !isNonCombatEnemy(enemy)));
   if (selectedIds.length) {
     for (const [id, estimate] of simulateDamageEstimateForIds(selectedIds)) {
       estimates.set(id, estimate);
@@ -11059,6 +11727,10 @@ function getEnemyDamageEstimates() {
 
   for (const enemy of aliveEnemies) {
     if (estimates.has(enemy.id)) continue;
+    if (isNonCombatEnemy(enemy)) {
+      estimates.set(enemy.id, makeRescueEstimate());
+      continue;
+    }
     const singleEstimate = simulateDamageEstimateForIds([enemy.id]).get(enemy.id);
     if (singleEstimate) estimates.set(enemy.id, singleEstimate);
   }
@@ -11074,7 +11746,7 @@ function simulateDamageEstimateForIds(enemyIds, options = {}) {
   const estimates = new Map();
   const sourceEnemies = enemyIds
     .map((id) => state.enemies.find((enemy) => enemy.id === id))
-    .filter(Boolean)
+    .filter((enemy) => enemy && !isNonCombatEnemy(enemy))
   const enemies = expandEnemiesForEstimate(sourceEnemies).map(cloneEnemyForSimulation);
   if (!enemies.length) return estimates;
 
@@ -11177,6 +11849,10 @@ function makeUnknownEstimate() {
   return makeUnresolvedEstimate("unresolved");
 }
 
+function makeRescueEstimate() {
+  return { text: "待解救", state: "safe" };
+}
+
 function makeUnresolvedEstimate(reason = "unresolved", enemy = null, enemies = []) {
   const labels = {
     noDamage: "破防不足",
@@ -11211,6 +11887,16 @@ function getEstimatedHeroDamageToEnemy(enemy, stats) {
 
 function getMonsterImageUrl(typeKey) {
   return `${monsterImageBase}${monsterImages[typeKey] || monsterImages.slime}`;
+}
+
+function getNpcImageUrl(npcKey) {
+  const key = typeof npcKey === "string" && npcKey ? npcKey : "elder";
+  return `${npcImageBase}${key}.png`;
+}
+
+function getNpcRowImageUrl(npcKey) {
+  const key = typeof npcKey === "string" && npcKey ? npcKey : "elder";
+  return `${npcImageBase}${key}-row.png`;
 }
 
 function getMonsterAnimationUrl(typeKey) {
@@ -12179,13 +12865,18 @@ function renderGameTextOnly() {
       name: enemy.name,
       typeKey: enemy.typeKey,
       image: getMonsterImageUrl(enemy.typeKey),
+      npcImage: isNonCombatEnemy(enemy) ? getNpcImageUrl(enemy.npcKey) : "",
+      nonCombat: isNonCombatEnemy(enemy),
+      hiddenLayerIndex: normalizeHiddenLayerIndex(enemy.hiddenLayerIndex),
+      npcKey: enemy.npcKey || "",
+      npcRole: enemy.npcRole || "",
       typeName: enemy.typeName,
       hp: enemy.hp,
       maxHp: enemy.maxHp,
       shield: enemy.shield,
       atk: enemy.atk,
-      displayStats: getMonsterDisplayStats(enemy, state.activeEnemyIds.includes(enemy.id) ? state.activeEnemyIds : [enemy.id]),
-      displayAtk: getMonsterDisplayAttack(enemy, state.activeEnemyIds.includes(enemy.id) ? state.activeEnemyIds : [enemy.id]),
+      displayStats: isNonCombatEnemy(enemy) ? { atk: 0, def: 0, speed: 0 } : getMonsterDisplayStats(enemy, state.activeEnemyIds.includes(enemy.id) ? state.activeEnemyIds : [enemy.id]),
+      displayAtk: isNonCombatEnemy(enemy) ? 0 : getMonsterDisplayAttack(enemy, state.activeEnemyIds.includes(enemy.id) ? state.activeEnemyIds : [enemy.id]),
       def: enemy.def,
       speed: enemy.speed,
       traits: enemy.traits?.map((trait) => trait.text || trait.type) || [],
@@ -12207,6 +12898,17 @@ function renderGameTextOnly() {
       options: state.bossReward.options,
       selectedIndex: getSelectedBossRewardIndex(),
     } : null,
+    hiddenLayer: getCurrentHiddenLayer() ? {
+      ...getCurrentHiddenLayer(),
+      label: getHiddenLayerConfig()?.label || "",
+      npcName: getHiddenLayerConfig()?.npcName || "",
+    } : null,
+    hiddenLayerState: {
+      pendingIndex: ensureHiddenLayerState().pendingIndex,
+      resolved: { ...ensureHiddenLayerState().resolved },
+      rescued: { ...ensureHiddenLayerState().rescued },
+      triggers: hiddenLayerConfigs.map((config) => getHiddenTrigger(config.index)).filter(Boolean),
+    },
     audio: {
       bgmKey: state.bgmKey,
       bgmTitle: bgmTracks[state.bgmKey]?.title || "",
@@ -12363,6 +13065,7 @@ function saveGame() {
     activeEnemyIds: state.activeEnemyIds,
     gameClear: state.gameClear,
     bossReward: state.bossReward,
+    hiddenLayerState: state.hiddenLayerState,
     photoValueMin: state.photoValueMin,
     photoValueMax: state.photoValueMax,
     globalFilmDropBonus: state.globalFilmDropBonus,
@@ -12402,6 +13105,7 @@ function loadSave() {
   state.floor = getSaveFloor(save.floor);
   state.gameClear = Boolean(save.gameClear);
   state.bossReward = normalizeBossReward(save.bossReward);
+  state.hiddenLayerState = normalizeHiddenLayerState(save.hiddenLayerState);
   state.photoValueMin = clampInt(save.photoValueMin, defaultPhotoValueMin, 999);
   state.photoValueMax = Math.max(state.photoValueMin, clampInt(save.photoValueMax, defaultPhotoValueMax, 999));
   state.globalFilmDropBonus = clampInt(save.globalFilmDropBonus, 0, 999);
@@ -12556,7 +13260,21 @@ function normalizeCurrentBattle(battle) {
     lootNames: Array.isArray(battle.lootNames) ? battle.lootNames.filter((item) => typeof item === "string") : [],
     defeatedIds: Array.isArray(battle.defeatedIds) ? battle.defeatedIds.filter((item) => typeof item === "string") : [],
     defeatedTypes: Array.isArray(battle.defeatedTypes) ? battle.defeatedTypes.filter((item) => typeof item === "string") : [],
+    hiddenLayer: normalizeBattleHiddenLayer(battle.hiddenLayer),
+    hiddenRewardText: typeof battle.hiddenRewardText === "string" ? battle.hiddenRewardText : "",
     createdAt: Number.isFinite(battle.createdAt) ? battle.createdAt : Date.now(),
+  };
+}
+
+function normalizeBattleHiddenLayer(layer) {
+  if (!layer || typeof layer !== "object") return null;
+  const index = normalizeHiddenLayerIndex(layer.index);
+  if (!index) return null;
+  const config = getHiddenLayerConfig(index);
+  return {
+    index,
+    label: typeof layer.label === "string" && layer.label ? layer.label : config?.label || `隐藏${index}`,
+    npcName: typeof layer.npcName === "string" && layer.npcName ? layer.npcName : config?.npcName || "",
   };
 }
 
@@ -12583,6 +13301,7 @@ function normalizeBattleSnapshot(snapshot) {
     battleReports: Array.isArray(snapshot.battleReports) ? snapshot.battleReports.map(normalizeBattleReport).filter(Boolean) : [],
     battleReportSeq: Number.isFinite(snapshot.battleReportSeq) ? snapshot.battleReportSeq : 0,
     infoMode: snapshot.infoMode === "log" || snapshot.infoMode === "item" ? snapshot.infoMode : "log",
+    hiddenLayerState: normalizeHiddenLayerState(snapshot.hiddenLayerState),
   };
 }
 
@@ -12613,6 +13332,8 @@ function normalizeBattleReport(entry) {
     lootNames: Array.isArray(entry.lootNames) ? entry.lootNames.filter((item) => typeof item === "string") : [],
     defeatedIds: Array.isArray(entry.defeatedIds) ? entry.defeatedIds.filter((item) => typeof item === "string") : [],
     defeatedTypes: Array.isArray(entry.defeatedTypes) ? entry.defeatedTypes.filter((item) => typeof item === "string") : [],
+    hiddenLayer: normalizeBattleHiddenLayer(entry.hiddenLayer),
+    hiddenRewardText: typeof entry.hiddenRewardText === "string" ? entry.hiddenRewardText : "",
     result: typeof entry.result === "string" ? entry.result : "battle",
     hpDelta: Number.isFinite(entry.hpDelta) ? entry.hpDelta : 0,
     endHp: Number.isFinite(entry.endHp) ? entry.endHp : state.player.hp,
@@ -12860,6 +13581,23 @@ window.__photoHeroTestHooks = {
   getIntroRewardsForTest() {
     return getIntroRewards();
   },
+  getHiddenTriggerForTest(index) {
+    return getHiddenTrigger(index);
+  },
+  getHiddenLayerStateForTest() {
+    return JSON.parse(JSON.stringify(ensureHiddenLayerState()));
+  },
+  enterHiddenLayerForTest(index = 1, returnFloor = state.floor + 1) {
+    if (isIntroFloor()) this.enterTowerForTest({ silent: true });
+    enterHiddenLayer(index, returnFloor);
+    saveGame();
+    render();
+  },
+  exitHiddenLayerForTest(rescued = false) {
+    exitHiddenLayerToReturnFloor(Boolean(rescued));
+    saveGame();
+    render();
+  },
   forceBgmPausedForTest() {
     if (!state.bgmAudio) return false;
     intentionalBgmPauseUntil.set(state.bgmAudio, 0);
@@ -13022,6 +13760,7 @@ window.__photoHeroTestHooks = {
         state.battleSnapshot = null;
         state.battleClock = null;
         state.bossReward = null;
+        state.hiddenLayerState = createDefaultHiddenLayerState();
         state.enemies = buildFloorEncounter(state.floor);
         state.encounterId = makeEncounterId();
         state.enemyFlipEncounterId = state.encounterId;
@@ -13131,6 +13870,7 @@ window.__photoHeroTestHooks = {
     state.floor = getSaveFloor(floor);
     state.gameClear = false;
     state.bossReward = null;
+    state.hiddenLayerState = createDefaultHiddenLayerState();
     state.enemies = buildFloorEncounter(state.floor);
     state.encounterId = makeEncounterId();
     state.selectedEnemyIds = [];

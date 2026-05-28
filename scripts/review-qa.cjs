@@ -98,6 +98,7 @@ async function collectScenario(page, name, action = async () => {}) {
       knightCaptainSummon: window.__reviewKnightCaptainSummon || null,
       panelToggle: window.__reviewPanelToggle || null,
       bestiary: window.__reviewBestiary || null,
+      hiddenLayers: window.__reviewHiddenLayers || null,
       apiConfig: window.__reviewApiConfig || null,
       monsterSprites: Array.from(document.querySelectorAll(".monster-sprite")).map((node) => {
         const style = getComputedStyle(node);
@@ -588,6 +589,7 @@ function assertScenario(name, metrics) {
     if (bestiary.activeInfoTab !== "bestiary") failures.push(`${name}: bestiary tab should be active, got ${JSON.stringify(bestiary)}`);
     if ((bestiary.normalCount || 0) < 12) failures.push(`${name}: normal pagination should include all normal monsters, got ${JSON.stringify(bestiary)}`);
     if (bestiary.bossCount !== 7) failures.push(`${name}: boss pagination should include seven bosses, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.hiddenCount !== 4 || bestiary.npcCount !== 4) failures.push(`${name}: hidden and npc pagination should include four entries each, got ${JSON.stringify(bestiary)}`);
     if (!bestiary.bossKeys?.includes("demon") || !bestiary.bossKeys?.includes("archmage")) failures.push(`${name}: boss pagination should include final and reward bosses, got ${JSON.stringify(bestiary)}`);
     if (bestiary.initial?.group !== "normal" || bestiary.initial?.selectedKey !== "slime" || bestiary.initial?.pageText !== `1 / ${bestiary.normalCount}`) {
       failures.push(`${name}: bestiary should start on normal page 1, got ${JSON.stringify(bestiary)}`);
@@ -598,14 +600,36 @@ function assertScenario(name, metrics) {
     if (bestiary.bossStart?.group !== "boss" || bestiary.bossStart?.selectedKey !== "skeletonCaptain" || bestiary.bossStart?.pageText !== `1 / ${bestiary.bossCount}`) {
       failures.push(`${name}: boss group should start on skeleton captain page 1, got ${JSON.stringify(bestiary)}`);
     }
-    if (bestiary.selectedGroup !== "boss" || bestiary.selectedKey !== "demon" || bestiary.pageText !== `${bestiary.bossCount} / ${bestiary.bossCount}`) {
+    if (bestiary.bossFinal?.group !== "boss" || bestiary.bossFinal?.selectedKey !== "demon" || bestiary.bossFinal?.pageText !== `${bestiary.bossCount} / ${bestiary.bossCount}`) {
       failures.push(`${name}: boss pagination should reach demon as page 7, got ${JSON.stringify(bestiary)}`);
     }
     if (!bestiary.hasDetailPortrait) failures.push(`${name}: selected monster detail should show portrait, got ${JSON.stringify(bestiary)}`);
     if (!/魔王/.test(bestiary.detailText || "") || !/第40层最终 Boss/.test(bestiary.detailText || "") || !/晋升/.test(bestiary.detailText || "")) {
       failures.push(`${name}: demon detail should show name, floor pattern, and trait detail, got ${JSON.stringify(bestiary)}`);
     }
-    if (!/普通怪/.test(bestiary.groupText || "") || !/Boss/.test(bestiary.groupText || "")) failures.push(`${name}: normal and boss pagination groups should be visible, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.hiddenStart?.group !== "hidden" || bestiary.hiddenStart?.selectedKey !== "1" || !/隐藏1/.test(bestiary.hiddenDetailText || "") || !/形态经验/.test(bestiary.hiddenDetailText || "")) {
+      failures.push(`${name}: hidden bestiary should show hidden rescue pages and rewards, got ${JSON.stringify(bestiary)}`);
+    }
+    if (bestiary.npcStart?.group !== "npc" || bestiary.npcStart?.selectedKey !== "elder" || !bestiary.npcHasPortrait || !/老人/.test(bestiary.npcDetailText || "")) {
+      failures.push(`${name}: npc bestiary should show npc pages with portraits, got ${JSON.stringify(bestiary)}`);
+    }
+    if (!/普通怪/.test(bestiary.groupText || "") || !/Boss/.test(bestiary.groupText || "") || !/隐藏/.test(bestiary.groupText || "") || !/NPC/.test(bestiary.groupText || "")) failures.push(`${name}: normal, boss, hidden, and npc pagination groups should be visible, got ${JSON.stringify(bestiary)}`);
+  }
+  if (name === "hidden-layers") {
+    const hidden = metrics.hiddenLayers || {};
+    if (!hidden.triggersValid) failures.push(`${name}: hidden triggers should avoid first four floors, boss floors, and slot 0, got ${JSON.stringify(hidden.triggers)}`);
+    if (hidden.hidden1?.floorText !== "隐藏1 · 老人" || hidden.hidden1?.enemyCount !== 3 || hidden.hidden1?.npcCount !== 1 || hidden.hidden1?.combatCount !== 2) {
+      failures.push(`${name}: hidden1 should render two guards and one noncombat elder, got ${JSON.stringify(hidden.hidden1)}`);
+    }
+    if (hidden.hidden1?.beforeAllSelectedText !== "选齐三张" || hidden.hidden1?.afterAllSelectedText !== "解救") {
+      failures.push(`${name}: hidden battle button should require all three selected cards, got ${JSON.stringify(hidden.hidden1)}`);
+    }
+    if (!hidden.hidden3Reward?.rescued || hidden.hidden3Reward?.atkDelta !== 1 || hidden.hidden3Reward?.defDelta !== 1 || hidden.hidden3Reward?.speedDelta !== 1 || hidden.hidden3Reward?.returnFloor !== 22) {
+      failures.push(`${name}: hidden3 rescue should grant gem stats and return to the queued floor, got ${JSON.stringify(hidden.hidden3Reward)}`);
+    }
+    if (!hidden.hidden4Reward?.trueEnding || hidden.hidden4Reward?.hpAfter !== hidden.hidden4Reward?.maxHpAfter) {
+      failures.push(`${name}: hidden4 rescue should full heal and unlock true ending, got ${JSON.stringify(hidden.hidden4Reward)}`);
+    }
   }
   if (name === "api-config") {
     const api = metrics.apiConfig || {};
@@ -2524,7 +2548,10 @@ function assertScenario(name, metrics) {
     await page.click('[data-info-tab="bestiary"]');
     const readPage = async () => page.evaluate(() => ({
       group: document.querySelector("[data-bestiary-shell]")?.dataset.currentGroup || "",
-      selectedKey: document.querySelector(".bestiary-detail")?.dataset.selectedMonster || "",
+      selectedKey: document.querySelector(".bestiary-detail")?.dataset.selectedMonster
+        || document.querySelector(".bestiary-detail")?.dataset.selectedHidden
+        || document.querySelector(".bestiary-detail")?.dataset.selectedNpc
+        || "",
       pageText: document.querySelector(".bestiary-page-indicator")?.textContent.trim() || "",
     }));
     const initial = await readPage();
@@ -2535,25 +2562,114 @@ function assertScenario(name, metrics) {
     for (let i = 0; i < 6; i += 1) {
       await page.click('[data-bestiary-action="next"]');
     }
-    await page.evaluate(({ initial, afterNormalNext, bossStart }) => {
+    const bossFinal = await readPage();
+    const bossDetailText = await page.$eval(".bestiary-detail", (node) => node.innerText);
+    const bossHasDetailPortrait = await page.$eval(".bestiary-detail", (node) => Boolean(node.querySelector(".monster-sprite img")));
+    await page.click('[data-bestiary-group="hidden"]');
+    const hiddenStart = await readPage();
+    const hiddenDetailText = await page.$eval(".bestiary-detail", (node) => node.innerText);
+    await page.click('[data-bestiary-group="npc"]');
+    const npcStart = await readPage();
+    const npcDetailText = await page.$eval(".bestiary-detail", (node) => node.innerText);
+    const npcHasPortrait = await page.$eval(".bestiary-detail", (node) => Boolean(node.querySelector(".npc-portrait img")));
+    await page.evaluate(({ initial, afterNormalNext, bossStart, bossFinal, bossDetailText, bossHasDetailPortrait, hiddenStart, hiddenDetailText, npcStart, npcDetailText, npcHasPortrait }) => {
       const shell = document.querySelector("[data-bestiary-shell]");
       window.__reviewBestiary = {
         activeInfoTab: document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "",
         tabLabels: Array.from(document.querySelectorAll("[data-info-tab]")).map((button) => button.textContent.trim()),
         normalCount: Number(shell?.dataset.normalCount || 0),
         bossCount: Number(shell?.dataset.bossCount || 0),
+        hiddenCount: Number(shell?.dataset.hiddenCount || 0),
+        npcCount: Number(shell?.dataset.npcCount || 0),
         bossKeys: (shell?.dataset.bossKeys || "").split(",").filter(Boolean),
         initial,
         afterNormalNext,
         bossStart,
+        bossFinal,
+        hiddenStart,
+        npcStart,
         selectedGroup: shell?.dataset.currentGroup || "",
-        selectedKey: document.querySelector(".bestiary-detail")?.dataset.selectedMonster || "",
+        selectedKey: document.querySelector(".bestiary-detail")?.dataset.selectedMonster
+          || document.querySelector(".bestiary-detail")?.dataset.selectedHidden
+          || document.querySelector(".bestiary-detail")?.dataset.selectedNpc
+          || "",
         pageText: document.querySelector(".bestiary-page-indicator")?.textContent.trim() || "",
-        hasDetailPortrait: Boolean(document.querySelector(".bestiary-detail .monster-sprite img")),
+        hasDetailPortrait: bossHasDetailPortrait,
+        npcHasPortrait,
         groupText: document.querySelector(".bestiary-group-switch")?.innerText || "",
-        detailText: document.querySelector(".bestiary-detail")?.innerText || "",
+        detailText: bossDetailText,
+        hiddenDetailText,
+        npcDetailText,
       };
-    }, { initial, afterNormalNext, bossStart });
+    }, { initial, afterNormalNext, bossStart, bossFinal, bossDetailText, bossHasDetailPortrait, hiddenStart, hiddenDetailText, npcStart, npcDetailText, npcHasPortrait });
+  });
+
+  scenarios.hiddenLayers = await collectScenario(desktop, "hidden-layers", async (page) => {
+    await page.evaluate(async () => {
+      const hooks = window.__photoHeroTestHooks;
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const bossFloors = new Set([10, 20, 25, 30, 35, 38, 40]);
+      hooks.resetGameForTest();
+      const triggers = [1, 2, 3, 4].map((index) => hooks.getHiddenTriggerForTest(index));
+      const triggersValid = triggers.every((trigger) =>
+        trigger
+        && trigger.floor >= 5
+        && trigger.slot !== 0
+        && !bossFloors.has(trigger.floor)
+      );
+
+      hooks.enterHiddenLayerForTest(1, 10);
+      const hidden1State = JSON.parse(window.render_game_to_text());
+      const hidden1 = {
+        floorText: document.querySelector("#floorText")?.textContent.trim() || "",
+        enemyCount: hidden1State.enemies.length,
+        npcCount: hidden1State.enemies.filter((enemy) => enemy.nonCombat).length,
+        combatCount: hidden1State.enemies.filter((enemy) => !enemy.nonCombat).length,
+        middleNpc: hidden1State.enemies[1]?.npcKey || "",
+        visibleText: document.querySelector("#enemyField")?.innerText || "",
+      };
+      hooks.selectEnemies(hooks.state.enemies.filter((enemy) => !enemy.nonCombat).map((enemy) => enemy.id));
+      hidden1.beforeAllSelectedText = document.querySelector("#attackBtn")?.textContent.trim() || "";
+      hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));
+      hidden1.afterAllSelectedText = document.querySelector("#attackBtn")?.textContent.trim() || "";
+
+      const runHiddenRescue = async (index, returnFloor) => {
+        hooks.resetGameForTest();
+        hooks.setHeroStats({ baseHp: 200, hp: 50, baseAtk: 200, baseDef: 100, baseSpeed: 20, baseShield: 0, shield: 0 });
+        hooks.enterHiddenLayerForTest(index, returnFloor);
+        const before = hooks.getPlayerStats();
+        hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));
+        hooks.beginBattle(hooks.state.enemies.filter((enemy) => !enemy.nonCombat));
+        for (let i = 0; i < 20 && hooks.state.currentBattle; i += 1) {
+          hooks.resolveBattleAction();
+        }
+        await wait(520);
+        const after = hooks.getPlayerStats();
+        const hero = hooks.getHeroStateForTest();
+        const hiddenState = hooks.getHiddenLayerStateForTest();
+        return {
+          rescued: Boolean(hiddenState.rescued?.[index]),
+          returnFloor: hooks.state.floor,
+          atkDelta: after.atk - before.atk,
+          defDelta: after.def - before.def,
+          speedDelta: after.speed - before.speed,
+          trueEnding: Boolean(hiddenState.rescued?.[4]),
+          hpAfter: hero.hp,
+          maxHpAfter: hero.maxHp,
+        };
+      };
+
+      const hidden3Reward = await runHiddenRescue(3, 22);
+      const hidden4Reward = await runHiddenRescue(4, 40);
+
+      window.__reviewHiddenLayers = {
+        triggers,
+        triggersValid,
+        hidden1,
+        hidden3Reward,
+        hidden4Reward,
+      };
+    });
   });
 
   scenarios.apiConfig = await collectScenario(desktop, "api-config", async (page) => {
