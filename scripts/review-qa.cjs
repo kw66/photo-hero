@@ -198,7 +198,8 @@ function assertScenario(name, metrics) {
     if (!metrics.visibleButtons.includes("进入魔塔")) failures.push(`${name}: missing intro enter-tower button`);
     if (metrics.visibleButtons.includes("绕过")) failures.push(`${name}: intro floor should not show bypass`);
     if (!/塔门前|石台|三卷胶卷/.test(metrics.detailText)) failures.push(`${name}: intro detail should explain the tower-door film rolls, got ${metrics.detailText}`);
-    if (!/塔门前的三卷胶卷|拍照|鉴定台|战斗/.test(metrics.enemyText)) failures.push(`${name}: intro reward cards should show in-world onboarding copy, got ${metrics.enemyText}`);
+    if (!/拍照/.test(metrics.enemyText) || !/鉴定台/.test(metrics.enemyText) || !/战斗/.test(metrics.enemyText)) failures.push(`${name}: intro reward cards should show in-world onboarding copy, got ${metrics.enemyText}`);
+    if (/塔门前的三卷胶卷|塔门前的三卷画布|三道槽纹/.test(metrics.enemyText)) failures.push(`${name}: intro reward grid should not show a separate prompt strip, got ${metrics.enemyText}`);
     if (/开局胶卷|三卷都要收下|第一次|备用|最后一卷/.test(metrics.enemyText)) failures.push(`${name}: intro copy still contains blunt placeholder wording, got ${metrics.enemyText}`);
     if (metrics.state.player.filmCount !== 0) failures.push(`${name}: intro film should be granted only after selection, got ${metrics.state.player.filmCount}`);
     if (/价值范围/.test(metrics.detailText)) failures.push(`${name}: exposes raw value range in empty state`);

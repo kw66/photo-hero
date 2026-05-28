@@ -10585,10 +10585,6 @@ function renderEnemyField() {
 
 function renderIntroRewardCards() {
   const selected = getIntroRewardSelection();
-  const title = document.createElement("div");
-  title.className = "boss-reward-prompt";
-  title.textContent = hasSelectedAllIntroRewards() ? "三道槽纹已经亮起，塔门可以推开了" : modeText("塔门前的三卷胶卷");
-  els.enemyField.append(title);
   for (const option of getIntroRewards()) {
     const selectionOrder = selected.indexOf(option.id) + 1;
     const isSelected = selectionOrder > 0;
