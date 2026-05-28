@@ -81,6 +81,7 @@ async function collectScenario(page, name, action = async () => {}) {
       equipmentDetailPreview: window.__reviewEquipmentDetailPreview || null,
       introFlow: window.__reviewIntroFlow || null,
       drawingMode: window.__reviewDrawingMode || null,
+      appraisalRetry: window.__reviewAppraisalRetry || null,
       modeSwitchEquivalence: window.__reviewModeSwitchEquivalence || null,
       itemStory: window.__reviewItemStory || null,
       itemTypography: window.__reviewItemTypography || null,
@@ -234,6 +235,15 @@ function assertScenario(name, metrics) {
     if (!result.pendingAfterUse || result.pendingSourceMode !== "drawing") failures.push(`${name}: drawn canvas should become pending drawing input, got ${JSON.stringify(result)}`);
     if (!/待鉴定画作/.test(result.detailAfterUse || "")) failures.push(`${name}: detail panel should show pending drawing copy, got ${result.detailAfterUse}`);
   }
+  if (name === "appraisal-retry-retains-input") {
+    const result = metrics.appraisalRetry || {};
+    if (!result.pendingAfterFailure || result.pendingSourceModeAfterFailure !== "drawing") failures.push(`${name}: failed drawing appraisal should keep the pending drawing input, got ${JSON.stringify(result)}`);
+    if (result.filmAfterFailure !== result.filmBeforeFailure) failures.push(`${name}: failed appraisal should not consume canvas/film, got ${JSON.stringify(result)}`);
+    if (!result.retryButtonEnabled || result.retryButtonText !== "鉴定") failures.push(`${name}: retry button should stay enabled after failure, got ${JSON.stringify(result)}`);
+    if (!/画作还在/.test(result.detailAfterFailure || "") || !/重新鉴定/.test(result.detailAfterFailure || "")) failures.push(`${name}: detail copy should tell the player the drawing is retained and retryable, got ${result.detailAfterFailure}`);
+    if (result.requestCountAfterRetry !== 2) failures.push(`${name}: clicking retry should send another appraisal request, got ${JSON.stringify(result)}`);
+    if (!result.pendingAfterRetry || result.pendingSourceModeAfterRetry !== "drawing") failures.push(`${name}: failed retry should still keep the drawing input, got ${JSON.stringify(result)}`);
+  }
   if (name === "mode-switch-equivalence") {
     const result = metrics.modeSwitchEquivalence || {};
     if (!/胶卷/.test(result.introPhotoText || "") || /画布/.test(result.introPhotoText || "")) failures.push(`${name}: intro should start with photo resource wording, got ${JSON.stringify(result)}`);
@@ -292,6 +302,9 @@ function assertScenario(name, metrics) {
     if (!result.emptySlotDisabled) failures.push(`${name}: empty slot should stay disabled after defeat ending, got ${JSON.stringify(result)}`);
     if (result.textHasClearCopy) failures.push(`${name}: defeat ending should not read as a clear ending, got ${result.detailText}`);
     if (!result.textHasDefeatCopy) failures.push(`${name}: defeat ending should mention stopping/falling, got ${result.detailText}`);
+    if (/(?:\bAI\b|重新生成|生成中|模型生成失败)/i.test(`${result.detailText || ""}\n${metrics.visibleButtons.join("\n")}`)) {
+      failures.push(`${name}: defeat tower-history UI should not expose AI/regenerate wording, got ${JSON.stringify({ detail: result.detailText, buttons: metrics.visibleButtons })}`);
+    }
     if (!result.canvasReady) failures.push(`${name}: defeat ending share image should render as PNG, got ${JSON.stringify(result)}`);
   }
   if (name === "desktop-equipment-preview") {
@@ -331,6 +344,9 @@ function assertScenario(name, metrics) {
     if (/\*\*|标题[:：]|【通关】/.test(metrics.detailText)) failures.push(`${name}: career summary should strip markdown/title wrappers, got ${metrics.detailText}`);
     if (!/黑伞旧闻/.test(metrics.detailText)) failures.push(`${name}: cleaned career title should remain visible`);
     if (!/塔史记名装备/.test(metrics.detailText)) failures.push(`${name}: career card should use tower-history equipment copy`);
+    if (/(?:\bAI\b|重新生成|生成中|模型生成失败)/i.test(`${metrics.detailText}\n${metrics.visibleButtons.join("\n")}`)) {
+      failures.push(`${name}: tower-history UI should not expose AI/regenerate wording, got ${JSON.stringify({ detail: metrics.detailText, buttons: metrics.visibleButtons })}`);
+    }
   }
   if (name === "career-gallery") {
     const gallery = metrics.careerGallery || {};
@@ -504,8 +520,11 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: wizard defense break should render as base plus red delta, got ${JSON.stringify(wizardReadout)}`);
     }
     if (traits.wizardDef !== 0) failures.push(`${name}: two wizards should reduce hero defense to 0, got ${traits.wizardDef}`);
-    if (traits.wizardAfterDeathDef !== 10) {
-      failures.push(`${name}: wizard defense break should disappear after wizard death, got ${traits.wizardAfterDeathDef}`);
+    if (traits.wizardTempDefAtCap !== 10 || traits.wizardDefenseSpecialAtCap !== 5 || traits.wizardCapReadout?.base !== "10" || traits.wizardCapReadout?.delta !== "") {
+      failures.push(`${name}: temporary defense should only offset the locked wizard penalty up to neutral, got ${JSON.stringify({ def: traits.wizardTempDefAtCap, readout: traits.wizardCapReadout, special: traits.wizardDefenseSpecialAtCap })}`);
+    }
+    if (traits.wizardAfterOneDeathDef !== 0 || traits.wizardAfterDeathDef !== 0) {
+      failures.push(`${name}: wizard defense break should stay locked after wizard death, got ${JSON.stringify({ one: traits.wizardAfterOneDeathDef, all: traits.wizardAfterDeathDef })}`);
     }
     if (traits.wizardNegativeDef !== -3 || traits.wizardNegativeHp !== 67) {
       failures.push(`${name}: wizard should not turn negative defense into zero, got ${JSON.stringify({ def: traits.wizardNegativeDef, hp: traits.wizardNegativeHp })}`);
@@ -566,8 +585,13 @@ function assertScenario(name, metrics) {
     if (api.afterToggleType !== "text" || api.afterToggleValue !== api.defaultKeyValue) failures.push(`${name}: eye toggle should work for the visible default preset, got ${JSON.stringify(api)}`);
     if (api.xiaomiPreset !== "xiaomi" || api.xiaomiBaseUrl !== "https://api.xiaomimimo.com/v1") failures.push(`${name}: Xiaomi preset should use the requested base URL, got ${JSON.stringify(api)}`);
     if (api.xiaomiModel !== "mimo-v2.5") failures.push(`${name}: Xiaomi preset should default to mimo-v2.5, got ${JSON.stringify(api)}`);
-    if (api.xiaomiModelOptions?.join(",") !== "mimo-v2.5,mimo-v2.5-pro") failures.push(`${name}: Xiaomi model dropdown should contain the requested models, got ${JSON.stringify(api)}`);
+    if (api.xiaomiModelOptions?.join(",") !== "mimo-v2.5,mimo-v2-omni") failures.push(`${name}: Xiaomi model dropdown should contain only supported vision models, got ${JSON.stringify(api)}`);
+    if (!/mimo-v2\.5-pro/.test(api.xiaomiNote || "")) failures.push(`${name}: Xiaomi note should explain mimo-v2.5-pro is not a vision model, got ${JSON.stringify(api)}`);
     if (!api.xiaomiLinksText?.includes("小米邀请链接") || !api.xiaomiLinksText?.includes("小米文档")) failures.push(`${name}: Xiaomi preset should show invite and docs links, got ${JSON.stringify(api)}`);
+    if (!api.xiaomiUsesApiKeyHeader || api.xiaomiUsesAuthorizationHeader) failures.push(`${name}: Xiaomi requests should use api-key header instead of Authorization, got ${JSON.stringify(api)}`);
+    if (api.xiaomiFirstContentType !== "image_url" || api.xiaomiSecondContentType !== "text") failures.push(`${name}: Xiaomi vision request should send image before text, got ${JSON.stringify(api)}`);
+    if (!api.xiaomiThinkingDisabled || api.xiaomiHasMaxTokens || !api.xiaomiHasMaxCompletionTokens) failures.push(`${name}: Xiaomi body should disable thinking and use max_completion_tokens, got ${JSON.stringify(api)}`);
+    if (!/图文模型测试成功/.test(api.xiaomiTestResult || "")) failures.push(`${name}: Xiaomi test result formatter should accept a valid image response, got ${JSON.stringify(api)}`);
     if (!api.afterCustomEditable || api.customToggleVisible === false) failures.push(`${name}: custom mode should restore editable key controls, got ${JSON.stringify(api)}`);
     if (api.customKeyType !== "text" || api.customKeyValue !== "sk-test-visible") failures.push(`${name}: custom key should remain viewable when user asks to show it, got ${JSON.stringify(api)}`);
     if (api.customStoredKey !== "sk-test-visible") failures.push(`${name}: custom key should still persist normally, got ${JSON.stringify(api)}`);
@@ -623,7 +647,7 @@ function assertScenario(name, metrics) {
     if (!metrics.visibleButtons.includes("战斗")) failures.push(`${name}: missing battle tab`);
     if (!/全站统计/.test(metrics.infoText)) failures.push(`${name}: missing global stats title`);
     if (!/作者其他游戏/.test(metrics.infoText)) failures.push(`${name}: missing other games block`);
-    for (const label of ["访问", "访客", "游玩", "通关", "击杀", "鉴定", "装备", "爬塔层数"]) {
+    for (const label of ["访问", "访客", "游玩", "通关", "击杀", "击杀Boss", "鉴定", "照片装备", "画图装备", "超级形态", "爬塔层数"]) {
       if (!metrics.statLabels.includes(label)) failures.push(`${name}: missing stat label ${label}`);
     }
     if (!metrics.groupQr.loaded || !metrics.groupQr.src.includes("xiaohongshu-group-qr.jpg")) failures.push(`${name}: Xiaohongshu QR image did not load`);
@@ -635,17 +659,39 @@ function assertScenario(name, metrics) {
     if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "项目地址（求个star⭐）" && link.href.includes("github.com/kw66/photo-hero"))) failures.push(`${name}: project label should link to GitHub`);
     if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "小红书交流帖（求点赞❤️）" && link.href.includes("xhslink.com/o/17XFWimxM94"))) failures.push(`${name}: Xiaohongshu label should link to post`);
     if (!metrics.groupQr.rightSide) failures.push(`${name}: Xiaohongshu QR should sit on the right side of author block`);
-    if (metrics.statCardCount !== 8) failures.push(`${name}: expected 8 global stat cards, got ${metrics.statCardCount}`);
-    if (metrics.todayStatCount !== 8) failures.push(`${name}: expected 8 today stat labels, got ${metrics.todayStatCount}`);
+    if (metrics.statLabels.includes("装备")) failures.push(`${name}: old generic equipment stat label should be split into photo/drawing equipment`);
+    if (metrics.statCardCount !== 11) failures.push(`${name}: expected 11 global stat cards, got ${metrics.statCardCount}`);
+    if (metrics.todayStatCount !== 11) failures.push(`${name}: expected 11 today stat labels, got ${metrics.todayStatCount}`);
     const globalStats = metrics.globalStats || {};
-    if (globalStats.equipmentTotalKey !== "photo_hero_appraisals_total" || globalStats.equipmentDailyPrefix !== "photo_hero_appraisals_day") {
-      failures.push(`${name}: equipment stat should preserve old appraisal counters, got ${JSON.stringify(globalStats)}`);
+    if (globalStats.photoEquipmentTotalKey !== "photo_hero_appraisals_total" || globalStats.photoEquipmentDailyPrefix !== "photo_hero_appraisals_day") {
+      failures.push(`${name}: photo equipment stat should preserve old successful-equipment counters, got ${JSON.stringify(globalStats)}`);
+    }
+    if (globalStats.legacyEquipmentTotalKey !== globalStats.photoEquipmentTotalKey || globalStats.legacyEquipmentDailyPrefix !== globalStats.photoEquipmentDailyPrefix) {
+      failures.push(`${name}: legacy equipment counter aliases should still point at photo equipment counters, got ${JSON.stringify(globalStats)}`);
+    }
+    if (globalStats.drawingEquipmentTotalKey !== "photo_hero_drawing_equipment_total" || globalStats.drawingEquipmentDailyPrefix !== "photo_hero_drawing_equipment_day") {
+      failures.push(`${name}: drawing equipment stat should use drawing equipment counters, got ${JSON.stringify(globalStats)}`);
+    }
+    if (globalStats.superFormsTotalKey !== "photo_hero_super_forms_total" || globalStats.superFormsDailyPrefix !== "photo_hero_super_forms_day") {
+      failures.push(`${name}: super form stat should use super form counters, got ${JSON.stringify(globalStats)}`);
+    }
+    if (globalStats.bossKillsTotalKey !== "photo_hero_boss_kills_total" || globalStats.bossKillsDailyPrefix !== "photo_hero_boss_kills_day") {
+      failures.push(`${name}: boss kill stat should use boss kill counters, got ${JSON.stringify(globalStats)}`);
     }
     if (globalStats.appraisalTotalKey !== "photo_hero_appraisal_players_total" || globalStats.appraisalDailyPrefix !== "photo_hero_appraisal_players_day") {
       failures.push(`${name}: appraisal stat should use unique player counters, got ${JSON.stringify(globalStats)}`);
     }
-    if (!globalStats.equipmentMetricOk || globalStats.equipmentIncrementCount !== 6) {
-      failures.push(`${name}: equipment metric should increment total and daily once per successful equipment, got ${JSON.stringify(globalStats)}`);
+    if (!globalStats.photoEquipmentMetricOk || globalStats.photoEquipmentIncrementCount !== 4) {
+      failures.push(`${name}: photo equipment metric should increment old total and daily counters once per photo equipment, got ${JSON.stringify(globalStats)}`);
+    }
+    if (!globalStats.drawingEquipmentMetricOk || globalStats.drawingEquipmentIncrementCount !== 2) {
+      failures.push(`${name}: drawing equipment metric should increment total and daily once, got ${JSON.stringify(globalStats)}`);
+    }
+    if (!globalStats.superFormsMetricOk || globalStats.superFormsIncrementCount !== 2) {
+      failures.push(`${name}: super form metric should increment total and daily once, got ${JSON.stringify(globalStats)}`);
+    }
+    if (!globalStats.bossKillsMetricOk || globalStats.bossKillsIncrementCount !== 4) {
+      failures.push(`${name}: boss kill metric should increment total and daily per boss kill, got ${JSON.stringify(globalStats)}`);
     }
     if (!globalStats.firstAppraisal?.totalRecorded || !globalStats.firstAppraisal?.dailyRecorded || globalStats.firstAppraisal?.skipped) {
       failures.push(`${name}: first successful appraisal should count this browser, got ${JSON.stringify(globalStats.firstAppraisal)}`);
@@ -887,6 +933,71 @@ function assertScenario(name, metrics) {
         detailAfterUse: document.querySelector("#equipmentDetail")?.innerText || "",
       };
     });
+  });
+
+  scenarios.appraisalRetry = await collectScenario(desktop, "appraisal-retry-retains-input", async (page) => {
+    let requestCount = 0;
+    await page.route("https://api.siliconflow.cn/v1/chat/completions", async (route) => {
+      requestCount += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ choices: [{ message: { content: "不是 JSON" } }] }),
+      });
+    });
+    const retainedDrawing = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20120%20120%22%3E%3Crect%20width%3D%22120%22%20height%3D%22120%22%20fill%3D%22%23fffaf0%22%2F%3E%3Cpath%20d%3D%22M20%2080%20L60%2025%20L100%2080%20Z%22%20fill%3D%22none%22%20stroke%3D%22%232f7ed8%22%20stroke-width%3D%2210%22%20stroke-linejoin%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2260%22%20cy%3D%2262%22%20r%3D%2215%22%20fill%3D%22%23d94a38%22%2F%3E%3C%2Fsvg%3E";
+    await page.click("#gameModeBtn");
+    await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).playMode === "drawing", null, { timeout: 3000 });
+    await page.evaluate((image) => {
+      const hooks = window.__photoHeroTestHooks;
+      hooks.enterTowerForTest({ silent: true });
+      hooks.setRunRewards({ filmRolls: 3, filmShards: 0 });
+      hooks.setPendingPhotoForTest(image, { sourceMode: "drawing" });
+      const keyInput = document.querySelector("#apiKeyInput");
+      if (keyInput) {
+        keyInput.value = "test-key";
+        keyInput.dispatchEvent(new Event("input", { bubbles: true }));
+        keyInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      window.__reviewAppraisalRetry = {
+        filmBeforeFailure: JSON.parse(window.render_game_to_text()).player?.filmCount,
+      };
+    }, retainedDrawing);
+    await page.click("#analyzePhotoBtn");
+    await page.waitForFunction(() => {
+      const hooks = window.__photoHeroTestHooks;
+      return !hooks.state.analysisRequest && Boolean(hooks.state.lootError);
+    }, null, { timeout: 5000 });
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      const retryButton = document.querySelector("#analyzePhotoBtn");
+      window.__reviewAppraisalRetry = {
+        ...window.__reviewAppraisalRetry,
+        pendingAfterFailure: Boolean(state.hasPhoto),
+        pendingSourceModeAfterFailure: state.pendingSourceMode,
+        filmAfterFailure: state.player?.filmCount,
+        retryButtonEnabled: Boolean(retryButton && !retryButton.hidden && !retryButton.disabled),
+        retryButtonText: retryButton?.textContent?.trim() || "",
+        detailAfterFailure: document.querySelector("#equipmentDetail")?.innerText || "",
+      };
+    });
+    await page.click("#analyzePhotoBtn");
+    for (let i = 0; i < 30 && requestCount < 2; i += 1) {
+      await page.waitForTimeout(100);
+    }
+    await page.waitForFunction(() => {
+      const hooks = window.__photoHeroTestHooks;
+      return !hooks.state.analysisRequest && Boolean(hooks.state.lootError);
+    }, null, { timeout: 5000 });
+    await page.evaluate((count) => {
+      const state = JSON.parse(window.render_game_to_text());
+      window.__reviewAppraisalRetry = {
+        ...window.__reviewAppraisalRetry,
+        requestCountAfterRetry: count,
+        pendingAfterRetry: Boolean(state.hasPhoto),
+        pendingSourceModeAfterRetry: state.pendingSourceMode,
+      };
+    }, requestCount);
   });
 
   scenarios.modeSwitchEquivalence = await collectScenario(desktop, "mode-switch-equivalence", async (page) => {
@@ -1282,21 +1393,47 @@ function assertScenario(name, metrics) {
         return originalFetch(url, options);
       };
       hooks.resetAppraisalPlayerStatsForTest();
-      const equipmentMetricOk = await hooks.recordStatsMetricForTest("Equipment", 3);
-      const equipmentIncrements = increments.slice();
+      const photoEquipmentMetricOk = await hooks.recordStatsMetricForTest("PhotoEquipment", 2);
+      const photoEquipmentIncrements = increments.slice();
+      increments.length = 0;
+      const drawingEquipmentMetricOk = await hooks.recordStatsMetricForTest("DrawingEquipment", 1);
+      const drawingEquipmentIncrements = increments.slice();
+      increments.length = 0;
+      const superFormsMetricOk = await hooks.recordStatsMetricForTest("SuperForms", 1);
+      const superFormsIncrements = increments.slice();
+      increments.length = 0;
+      const bossKillsMetricOk = await hooks.recordStatsMetricForTest("BossKills", 2);
+      const bossKillsIncrements = increments.slice();
       increments.length = 0;
       const firstAppraisal = await hooks.recordAppraisalPlayerForTest();
       const secondAppraisal = await hooks.recordAppraisalPlayerForTest();
       const appraisalIncrements = increments.slice();
       window.fetch = originalFetch;
       window.__reviewGlobalStats = {
-        equipmentTotalKey: counterIds.totalEquipment,
-        equipmentDailyPrefix: counterIds.dailyEquipmentPrefix,
+        legacyEquipmentTotalKey: counterIds.totalEquipment,
+        legacyEquipmentDailyPrefix: counterIds.dailyEquipmentPrefix,
+        photoEquipmentTotalKey: counterIds.totalPhotoEquipment,
+        photoEquipmentDailyPrefix: counterIds.dailyPhotoEquipmentPrefix,
+        drawingEquipmentTotalKey: counterIds.totalDrawingEquipment,
+        drawingEquipmentDailyPrefix: counterIds.dailyDrawingEquipmentPrefix,
+        superFormsTotalKey: counterIds.totalSuperForms,
+        superFormsDailyPrefix: counterIds.dailySuperFormsPrefix,
+        bossKillsTotalKey: counterIds.totalBossKills,
+        bossKillsDailyPrefix: counterIds.dailyBossKillsPrefix,
         appraisalTotalKey: counterIds.totalAppraisals,
         appraisalDailyPrefix: counterIds.dailyAppraisalsPrefix,
-        equipmentMetricOk,
-        equipmentIncrementCount: equipmentIncrements.length,
-        equipmentIncrements,
+        photoEquipmentMetricOk,
+        photoEquipmentIncrementCount: photoEquipmentIncrements.length,
+        photoEquipmentIncrements,
+        drawingEquipmentMetricOk,
+        drawingEquipmentIncrementCount: drawingEquipmentIncrements.length,
+        drawingEquipmentIncrements,
+        superFormsMetricOk,
+        superFormsIncrementCount: superFormsIncrements.length,
+        superFormsIncrements,
+        bossKillsMetricOk,
+        bossKillsIncrementCount: bossKillsIncrements.length,
+        bossKillsIncrements,
         firstAppraisal,
         secondAppraisal,
         appraisalIncrementCount: appraisalIncrements.length,
@@ -2094,11 +2231,19 @@ function assertScenario(name, metrics) {
       const wizardBaseDefAfterHit = hooks.getPlayerStats().def;
       hooks.render();
       const wizardStatReadout = JSON.parse(window.render_game_to_text()).player.statReadouts?.def || {};
+      for (let i = 0; i < 4; i += 1) {
+        hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["z0"]), 1);
+      }
+      const wizardTempDefAtCap = hooks.getBattleStatsForTest(["z0"]).def;
+      const wizardDefenseSpecialAtCap = hooks.state.battleSpecial.defense;
+      hooks.render();
+      const wizardCapReadout = JSON.parse(window.render_game_to_text()).player.statReadouts?.def || {};
 
       hooks.setHeroStats({ hp: 80, shield: 3, baseDef: 10, baseShield: 3 });
       enemies = begin([baseEnemy("z1", "wizard"), baseEnemy("z2", "wizard")]);
       const wizardDef = hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)).def;
       enemies[0].hp = 0;
+      const wizardAfterOneDeathDef = hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)).def;
       enemies[1].hp = 0;
       const wizardAfterDeathDef = hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)).def;
 
@@ -2209,7 +2354,11 @@ function assertScenario(name, metrics) {
         wizardTempDefAfterHit,
         wizardBaseDefAfterHit,
         wizardStatReadout,
+        wizardTempDefAtCap,
+        wizardDefenseSpecialAtCap,
+        wizardCapReadout,
         wizardDef,
+        wizardAfterOneDeathDef,
         wizardAfterDeathDef,
         wizardNegativeDef,
         wizardNegativeHp,
@@ -2313,6 +2462,19 @@ function assertScenario(name, metrics) {
         afterToggleValue: keyInput?.value || "",
       };
     });
+    let xiaomiRequest = null;
+    await page.route("https://api.xiaomimimo.com/v1/chat/completions", async (route) => {
+      const request = route.request();
+      xiaomiRequest = {
+        headers: request.headers(),
+        body: request.postDataJSON(),
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ choices: [{ message: { content: "图文模型测试成功：图片里写着照片勇者和 VISION OK。" } }] }),
+      });
+    });
     await page.click('[data-preset="xiaomi"]');
     await page.evaluate(() => {
       const state = JSON.parse(window.render_game_to_text());
@@ -2323,9 +2485,30 @@ function assertScenario(name, metrics) {
         xiaomiBaseUrl: state.api?.baseUrl || "",
         xiaomiModel: state.api?.model || "",
         xiaomiModelOptions: Array.from(modelInput?.options || []).map((option) => option.value || ""),
+        xiaomiNote: document.querySelector("#presetNote")?.innerText || "",
         xiaomiLinksText: document.querySelector("#providerLinks")?.innerText || "",
       };
     });
+    await page.fill("#apiKeyInput", "sk-xiaomi-test");
+    await page.click("#testChatBtn");
+    for (let i = 0; i < 30 && !xiaomiRequest; i += 1) {
+      await page.waitForTimeout(100);
+    }
+    await page.evaluate((request) => {
+      const body = request?.body || {};
+      const content = body.messages?.find?.((message) => message.role === "user")?.content || [];
+      window.__reviewApiConfig = {
+        ...window.__reviewApiConfig,
+        xiaomiUsesApiKeyHeader: request?.headers?.["api-key"] === "sk-xiaomi-test",
+        xiaomiUsesAuthorizationHeader: Boolean(request?.headers?.authorization),
+        xiaomiFirstContentType: content[0]?.type || "",
+        xiaomiSecondContentType: content[1]?.type || "",
+        xiaomiThinkingDisabled: body.thinking?.type === "disabled",
+        xiaomiHasMaxTokens: Object.prototype.hasOwnProperty.call(body, "max_tokens"),
+        xiaomiHasMaxCompletionTokens: Object.prototype.hasOwnProperty.call(body, "max_completion_tokens"),
+        xiaomiTestResult: document.querySelector("#chatResult")?.innerText || "",
+      };
+    }, xiaomiRequest);
     await page.click('[data-preset="custom"]');
     await page.fill("#baseUrlInput", "https://example.test/v1");
     await page.fill("#customModelInput", "vision-test-model");

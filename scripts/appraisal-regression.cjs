@@ -214,6 +214,75 @@ const cases = [
     ),
   },
   {
+    label: "rough drawing quality stays modest",
+    input: {
+      sourceMode: "drawing",
+      itemName: "红色火焰徽记",
+      subjectName: "火焰符号",
+      objectType: "攻击符号",
+      identityDescription: "红色火焰形状在中央偏小，轮廓有些断裂，旁边有几条杂线。",
+      description: "火焰徽记带着一点灼热感。",
+      reason: "主体=火焰符号；证据=红色火焰轮廓；质量=线条粗糙；倾向=攻击。",
+      tags: ["火焰", "徽记"],
+      photoQuality: { clarity: 1, subjectArea: 1, backgroundClean: 1, realPhoto: 1, focusLight: 0, interesting: 0 },
+      statAffinity: [{ stat: "attack", score: 2 }],
+    },
+    expect: ({ item }) => item.value > 0 && item.value < 18 && item.stats.attack >= 0,
+  },
+  {
+    label: "polished drawing quality earns higher value",
+    input: {
+      sourceMode: "drawing",
+      itemName: "红色火焰徽记",
+      subjectName: "火焰符号",
+      objectType: "攻击符号",
+      identityDescription: "中央有完整红橙火焰轮廓，外圈有深色描边，主体突出，背景干净。",
+      description: "火焰徽记带着清晰的灼热轮廓。",
+      reason: "主体=火焰符号；证据=完整红橙火焰+深色描边；质量=线条配色清楚；倾向=攻击。",
+      tags: ["火焰", "徽记"],
+      photoQuality: { "主体可识别性": 3, "主体完整度": 3, "杂线干扰": 2, "完成度": 3, "线条质量": 2, "美观程度": 2 },
+      statAffinity: [{ stat: "attack", score: 3 }],
+    },
+    expect: ({ item }) => item.value >= 22 && item.stats.attack > 0,
+  },
+  {
+    label: "unsupported drawing wand name falls back to visible subject",
+    input: {
+      sourceMode: "drawing",
+      itemName: "星光魔杖",
+      subjectName: "手绘魔杖",
+      objectType: "幻想武器",
+      identityDescription: "中央是一个蓝色圆圈，圆圈里有红色爱心，旁边只有两条短线装饰。",
+      description: "这根手绘魔杖像纸面上的星光武器。",
+      reason: "主体=魔杖；证据=蓝色圆圈和红色爱心；倾向=攻击。",
+      tags: ["魔杖", "爱心", "圆圈"],
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 2, focusLight: 1, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 3 }, { stat: "speed", score: 1 }],
+    },
+    expect: ({ item, renderedDescription }) => (
+      !/魔杖|法杖|剑|武器|涂鸦|手绘|画布|纸面/.test(item.itemName)
+      && !/魔杖|法杖|武器|涂鸦|手绘|画作|画布|纸面|简笔画|线稿|草图/.test(renderedDescription)
+      && item.stats.attack === 0
+      && (item.stats.hp > 0 || item.stats.regen > 0 || item.stats.shield > 0)
+    ),
+  },
+  {
+    label: "actual drawing wand keeps attack when visual evidence exists",
+    input: {
+      sourceMode: "drawing",
+      itemName: "星纹魔杖",
+      subjectName: "星形法杖",
+      objectType: "法杖",
+      identityDescription: "一根细长杆状杖身从下方延伸到顶部，顶端有黄色星形宝石和蓝色圆球。",
+      description: "星纹魔杖的杖头凝着一点微光。",
+      reason: "主体=星形法杖；证据=长杆杖身+星形顶端；质量=主体清楚；倾向=攻击。",
+      tags: ["魔杖", "星形", "长杆"],
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "attack", score: 3 }, { stat: "speed", score: 1 }],
+    },
+    expect: ({ item }) => /魔杖|法杖/.test(item.itemName) && item.stats.attack > 0,
+  },
+  {
     label: "fan keeps speed",
     input: {
       itemName: "白色小风扇",

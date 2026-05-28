@@ -17,16 +17,24 @@ const STATS_COUNTER_IDS = {
   totalUv: "photo_hero_uv_total",
   totalGames: "photo_hero_game_total",
   totalKills: "photo_hero_kills_total",
+  totalBossKills: "photo_hero_boss_kills_total",
   totalAppraisals: "photo_hero_appraisal_players_total",
   totalEquipment: "photo_hero_appraisals_total",
+  totalPhotoEquipment: "photo_hero_appraisals_total",
+  totalDrawingEquipment: "photo_hero_drawing_equipment_total",
+  totalSuperForms: "photo_hero_super_forms_total",
   totalFloors: "photo_hero_floors_total",
   totalClears: "photo_hero_clears_total",
   dailyPvPrefix: "photo_hero_pv_day",
   dailyUvPrefix: "photo_hero_uv_day",
   dailyGamesPrefix: "photo_hero_game_day",
   dailyKillsPrefix: "photo_hero_kills_day",
+  dailyBossKillsPrefix: "photo_hero_boss_kills_day",
   dailyAppraisalsPrefix: "photo_hero_appraisal_players_day",
   dailyEquipmentPrefix: "photo_hero_appraisals_day",
+  dailyPhotoEquipmentPrefix: "photo_hero_appraisals_day",
+  dailyDrawingEquipmentPrefix: "photo_hero_drawing_equipment_day",
+  dailySuperFormsPrefix: "photo_hero_super_forms_day",
   dailyFloorsPrefix: "photo_hero_floors_day",
   dailyClearsPrefix: "photo_hero_clears_day",
 };
@@ -60,9 +68,11 @@ const ZHIPU_MODELS = [
   { value: "glm-5v-turbo" },
 ];
 
+const XIAOMI_VISION_MODEL_VALUES = ["mimo-v2.5", "mimo-v2-omni"];
+
 const XIAOMI_MODELS = [
   { value: "mimo-v2.5" },
-  { value: "mimo-v2.5-pro" },
+  { value: "mimo-v2-omni" },
 ];
 
 const MICU_MODELS = [
@@ -104,7 +114,7 @@ const API_PRESETS = {
     baseUrl: "https://api.xiaomimimo.com/v1",
     model: "mimo-v2.5",
     models: XIAOMI_MODELS,
-    note: "",
+    note: "小米当前图片理解接口支持 mimo-v2.5 / mimo-v2-omni；mimo-v2.5-pro 不是图文鉴定模型。",
     links: [
       { label: "小米邀请链接", url: "https://platform.xiaomimimo.com?ref=GV8ULT" },
       { label: "小米文档", url: "https://platform.xiaomimimo.com/docs/zh-CN/welcome" },
@@ -347,44 +357,53 @@ const photoIdentificationUserPrompt = [
 ].join("\n");
 
 const drawingIdentificationSystemPrompt = [
-  "你是《画图勇者》的装备概念鉴定器，负责把玩家画出的主体当成真实装备概念来识别，并给出装备语义倾向。",
+  "你是《画图勇者》的涂鸦装备鉴定器。输入是一张玩家随手画的涂鸦/手绘图，你要先观察线条、颜色、形状和构图，再猜测它最像什么装备、道具、符号或部件。",
   "你必须只输出一个 JSON 对象，不要 Markdown，不要代码块，不要额外解释。",
   "第一字符必须是 {，最后一个字符必须是 }。",
   "你不负责计算最终 value、最终 stats 或最终 specialEffects；这些数值由本地游戏规则统一结算。",
-  "画图模式鼓励玩家画有趣、酷炫、天马行空的东西。不要因为它不是现实照片、不是现实物体、是幻想武器、怪物符号或卡通图案就直接判低分。",
-  "命名和玩家描述里要抛开“手绘/涂鸦/画布/纸面”这层媒介，直接猜它在魔塔里会是什么装备。",
-  "只在画布几乎空白、纯随机涂鸦、没有可识别主体、纯场景背景或明显无法转成装备概念时，才把 isEquipable 设为 false 或给很低分。",
+  "画图模式鼓励玩家画有趣、酷炫、天马行空的东西；不要因为它不是现实照片、不是现实物体、是幻想符号或卡通图案就直接判低分。",
+  "但是你必须仔细辨别画的到底是什么，不要把看不清的圆形、线团、笑脸、爱心、星星默认说成魔杖、法杖、神器或幻想武器。",
+  "魔杖/法杖只有在能看出长柄、杖身、顶端宝石/星尖/魔法棒轮廓时才可以命名；剑/刀/弓/箭也必须有刃、柄、弓弦、箭头等明确特征。",
+  "命名和玩家描述里要抛开“手绘/涂鸦/画布/纸面”这层媒介，直接写它在魔塔里会是什么装备。只有 identityDescription 和 reason 可以提到线条、颜色和画面判断。",
+  "只在画面几乎空白、纯随机线条、没有可识别主体、纯场景背景或明显无法转成装备概念时，才把 isEquipable 设为 false 或给很低分。",
 ].join("\n");
 
 const drawingIdentificationUserPrompt = [
-  "鉴定这张玩家手绘画布里的一个主要主体，生成《画图勇者》装备素材 JSON。",
+  "鉴定这张玩家涂鸦/手绘图里的一个主要主体，生成《画图勇者》装备素材 JSON。",
   "",
   "识别规则：",
-  "1. 优先找最醒目、最像装备/道具/符号/生物部件/幻想概念的主体；忽略零散背景线条。",
-  "2. 幻想剑、魔杖、盾、龙鳞、眼睛、火焰、星星、机器人、怪物符号、可爱小图标都可以鉴定，只要画面主体可辨认。",
-  "3. 画出来的巨大物、怪物或生物默认按“画作符号/装备概念”处理，不按现实尺寸判定 tooLarge；只有纯风景、整片天空、道路、房间这类没有道具主体的画面才 isScene=true。",
-  "4. 不要输出最终 value、最终 stats 或最终 specialEffects；本地规则会根据 photoQuality、statAffinity、specialAffinity 计算。",
-  "5. itemName、objectType、description 面向玩家时不要出现 手绘、涂鸦、画作、画布、纸面、简笔画、线稿、草图、画出来的 这些媒介词；identityDescription 可以写线条、颜色和构图用于查重。",
+  "1. 分两步判断：先看线条/颜色/形状/构图，写清楚可见证据；再猜主体。不要先套魔杖、神器、幻想武器模板。",
+  "2. 优先找最醒目、最完整、最像装备/道具/符号/生物部件/幻想概念的主体；忽略零散背景线条。",
+  "3. 盾、剑、翅膀、心形、火焰、星星、眼睛、机器人、怪物面具、可爱小图标都可以鉴定，只要主体可辨认；如果只是圆圈/方块/笑脸/爱心，按圆环、石板、徽记、护符这类形状装备处理，不要强行说成魔杖。",
+  "4. 画出来的巨大物、怪物或生物默认按“装备概念/符号化部件”处理，不按现实尺寸判定 tooLarge；只有纯风景、整片天空、道路、房间这类没有道具主体的画面才 isScene=true。",
+  "5. 不要输出最终 value、最终 stats 或最终 specialEffects；本地规则会根据 photoQuality、statAffinity、specialAffinity 计算。",
+  "6. itemName、subjectName、objectType、description 面向玩家时不要出现 手绘、涂鸦、画作、画布、纸面、简笔画、线稿、草图、画出来的 这些媒介词；identityDescription 可以写线条、颜色和构图用于查重。",
   "",
   "必须输出这个 JSON 结构，字段名使用英文：",
   "{\"itemName\":\"短装备名\",\"subjectName\":\"画布主体\",\"objectType\":\"主体类型\",\"identityDescription\":\"用于判断是否同一幅画的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
   "",
-  "画作质量 photoQuality：",
-  "clarity=主体可辨识程度 0-3；subjectArea=主体是否占主要画面 0-3；backgroundClean=背景是否干净 0-2；realPhoto=手绘意图/原创完成度 0-3，在画图模式不是现实实拍感；focusLight=线条控制、颜色完成度 0-2；interesting=有趣、酷炫、让人想装备 0-2。",
-  "主动拉开分值：勉强可辨认 5-8；主体清楚但普通 9-11；线条清楚、有装备联想 12-14；主体鲜明、造型有趣或酷炫 14-15。纯空白或无主体接近 0。",
+  "画作质量 photoQuality，必须主动拉开差距：",
+  "clarity=主体可识别性 0-3：0空白/乱线；1只能猜大概；2能认出主体；3一眼能认出。",
+  "subjectArea=主体占比和完整度 0-3：0没有主体；1很小或残缺；2占主要位置；3完整且突出。",
+  "backgroundClean=背景/杂线干扰 0-2：0杂线严重；1有少量干扰；2背景干净。",
+  "realPhoto=绘制意图和完成度 0-3：0随机痕迹；1草率少线；2轮廓完整；3有细节或完成感。这里不是现实实拍感。",
+  "focusLight=线条和配色控制 0-2：0线条断裂混乱或颜色干扰；1线条/颜色基本可读；2线条稳定、配色帮助识别。",
+  "interesting=美观/创意/装备吸引力 0-2：0普通或无设计；1有一点造型；2美观、酷炫或有趣。",
+  "质量参考：乱线/空白 0-3；勉强可辨认 4-7；主体清楚但普通 8-11；线条配色较好、有明确装备联想 12-13；主体鲜明且美观/有创意 14-15。",
   "",
   "属性语义：",
   "statAffinity 只输出属性倾向，score 用 1-3，最大 3 项。可选 stat：hp、attack、defense、speed、shield、lifesteal、regen。",
-  "attack=尖锐、武器、火焰、雷电、爪牙、爆炸、进攻符号；defense=盾、铠甲、墙、龟壳、堡垒、坚硬外壳；speed=翅膀、风、闪电、轮子、飞行、箭头；shield=盾牌、圆环、屏障、保护罩；lifesteal=吸血、尖牙、血滴、黑暗抽取；regen=水、草、药、光、治愈、心形、泉水；hp=生命、食物、果实、爱心、能量核心。",
+  "属性必须跟画出来的主体强相关，不要为了让装备变强而乱配。attack=剑刃、刀、斧、弓箭、尖刺、爪牙、火焰、雷电、爆炸等进攻证据；defense=铠甲、墙、龟壳、厚重外壳；shield=盾牌、圆环屏障、保护罩；speed=翅膀、风、闪电、轮子、飞行、箭头、靴子；lifesteal=吸血、尖牙、血滴、黑暗抽取；regen=水、草、药、光、治愈、泉水；hp=生命、食物、果实、爱心、能量核心。",
+  "圆形/星形/笑脸/普通符号不要默认 attack；更常见是护符、徽记、圆环、屏障、生命或回复倾向。魔杖/法杖只有在长柄和杖头明确时才能给 attack 或特殊效果。",
   `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}(价值${effect.value})`).join("；")}。`,
   "",
   "命名和描述：",
-  "itemName 要具体、短、有画面感，像是在给真实装备命名，例如 星火短剑、蓝纹护符、龙鳞坠饰、笑脸魔盾、风羽靴、尖牙项链；不要叫 画作装备、神秘涂鸦、手绘短剑。",
+  "itemName 要具体、短、有画面感，像是在给真实装备命名，例如 星火短剑、蓝纹护符、龙鳞坠饰、笑脸圆盾、风羽靴、尖牙项链。只有确实画出长柄杖形，才可以叫星纹魔杖或法杖；不要叫 画作装备、神秘涂鸦、手绘短剑、万能魔杖、幻想武器。",
   "description 用一句中文写成装备味道，可以比照片模式更有想象力，但不要直接承诺最终数值或战斗效果，也不要说这是一幅画或纸上的东西。",
-  "reason 只写一句内部依据，格式尽量像：主体=火焰短剑；画面=清楚；倾向=攻击。",
+  "reason 只写一句内部依据，格式尽量像：主体=火焰短剑；证据=黑线剑身+红橙火焰；质量=线条清楚；倾向=攻击。",
   "",
   "输出示例：",
-  "{\"itemName\":\"星火短剑\",\"subjectName\":\"火焰短剑\",\"objectType\":\"幻想武器\",\"identityDescription\":\"白色画布中央有一把黑线短剑，剑尖带红橙色火焰，左侧有两颗蓝色星点。\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":3,\"subjectArea\":3,\"backgroundClean\":2,\"realPhoto\":3,\"focusLight\":2,\"interesting\":2},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3},{\"stat\":\"speed\",\"score\":1}],\"specialAffinity\":[\"dealDamageAttack\"],\"description\":\"短剑的星火沿着剑脊跳动，适合在塔里劈开暗影。\",\"reason\":\"主体=火焰短剑；画面清楚；倾向=攻击。\",\"tags\":[\"火焰\",\"短剑\"],\"confidence\":0.86}",
+  "{\"itemName\":\"星火短剑\",\"subjectName\":\"火焰短剑\",\"objectType\":\"幻想武器\",\"identityDescription\":\"白色底上有一把黑线短剑，剑身有握柄和尖端，剑尖带红橙色火焰，左侧有两颗蓝色星点。\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":3,\"subjectArea\":3,\"backgroundClean\":2,\"realPhoto\":3,\"focusLight\":2,\"interesting\":2},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3},{\"stat\":\"speed\",\"score\":1}],\"specialAffinity\":[\"dealDamageAttack\"],\"description\":\"短剑的星火沿着剑脊跳动，适合在塔里劈开暗影。\",\"reason\":\"主体=火焰短剑；证据=剑身握柄+红橙火焰；质量=线条清楚；倾向=攻击。\",\"tags\":[\"火焰\",\"短剑\"],\"confidence\":0.86}",
 ].join("\n");
 
 const statOrder = ["hp", "attack", "defense", "speed", "shield", "lifesteal", "regen"];
@@ -1859,7 +1878,6 @@ function prepareDrawingCanvas() {
 
 function openDrawingCanvasForSelectedSlot() {
   if (isCareerSummaryOpen() && state.careerSummary) {
-    requestCareerSummary(true);
     return;
   }
   const redrawPending = Boolean(state.lastPhoto && getPendingSourceMode() === "drawing");
@@ -2023,7 +2041,6 @@ function openPhotoPickerForSelectedSlot() {
     return;
   }
   if (isCareerSummaryOpen() && state.careerSummary) {
-    requestCareerSummary(true);
     return;
   }
   if (isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || state.bossReward) {
@@ -2048,6 +2065,7 @@ function openPhotoPickerForSelectedSlot() {
 }
 
 function handlePhotoActionButtonClick() {
+  if (isCareerSummaryOpen() && state.careerSummary) return;
   if (state.lastPhoto && !isAnalyzingPhoto()) {
     if (getPendingSourceMode() === "drawing") {
       openDrawingCanvasForSelectedSlot();
@@ -2410,7 +2428,7 @@ async function downloadCareerSummaryImage() {
   const snapshot = summary.snapshot || buildCareerSnapshot();
   const outcome = getCareerSummaryOutcome(summary);
   const image = await makeCareerSummaryImage(summary, snapshot);
-  await saveImageDataUrl(image, `photo-hero-${outcome}-ending-${new Date().toISOString().slice(0, 10)}.png`, "塔史分享图已生成。", {
+  await saveImageDataUrl(image, `photo-hero-${outcome}-ending-${new Date().toISOString().slice(0, 10)}.png`, "塔史分享图已保存。", {
     fallbackCaption: outcome === "defeat" ? "战败塔史分享图" : "通关塔史分享图",
   });
 }
@@ -3002,14 +3020,23 @@ async function testVisionApi() {
     return;
   }
 
+  const unsupportedModelMessage = getUnsupportedVisionModelMessage(config);
+  if (unsupportedModelMessage) {
+    setChatResult(unsupportedModelMessage, true, "unsupported");
+    addLog("图文模型测试失败。");
+    render();
+    return;
+  }
+
   saveConfig(false);
   els.testChatBtn.disabled = true;
   setChatResult("正在测试图文模型...");
 
   try {
     const content = await callVisionText(config, makeVisionTestImage());
-    setChatResult(formatVisionTestResult(content), false);
-    addLog("图文模型测试成功。");
+    const result = formatVisionTestResult(content);
+    setChatResult(result.message, result.isError);
+    addLog(result.isError ? "图文模型测试失败。" : "图文模型测试成功。");
   } catch (error) {
     setChatResult(normalizeAnalyzeError(error), true);
     addLog("图文模型测试失败。");
@@ -3032,16 +3059,7 @@ async function callVisionText(config, image) {
       },
       {
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: "请识别图片文字，只回复一句中文，格式为“图文模型测试成功：图片里写着……”。不要解释。",
-          },
-          {
-            type: "image_url",
-            image_url: { url: image, detail: modelImageDetail },
-          },
-        ],
+        content: makeVisionUserContent(config, "请识别图片文字，只回复一句中文，格式为“图文模型测试成功：图片里写着……”。不要解释。", [image]),
       },
     ],
   });
@@ -3071,15 +3089,17 @@ async function callVisionText(config, image) {
 
 function formatVisionTestResult(content) {
   const text = normalizeModelContent(content);
-  if (!text) return "模型返回为空。";
+  if (!text) return { message: "模型返回为空。", isError: true };
 
   const lines = text
     .split(/\r?\n+/)
     .map(cleanModelDisplayLine)
     .filter(Boolean);
+  const hasImageText = (line) => /(?:VISION\s*OK|照片勇者|画图勇者)/i.test(line);
+  const looksLikeReasoning = (line) => /(?:首先|用户要求|格式为|不要解释|步骤|编号|Markdown|我需要|应该|因此|最终回答)/i.test(line);
   let successIndex = -1;
   for (let index = lines.length - 1; index >= 0; index -= 1) {
-    if (lines[index].includes("图文模型测试成功")) {
+    if (lines[index].includes("图文模型测试成功") && hasImageText(lines[index]) && !looksLikeReasoning(lines[index])) {
       successIndex = index;
       break;
     }
@@ -3087,22 +3107,30 @@ function formatVisionTestResult(content) {
 
   if (successIndex >= 0) {
     const successLine = lines[successIndex];
-    if (/图片|写着|VISION OK|照片勇者/i.test(successLine)) {
-      return shortenText(successLine.replace(/\s+/g, " "), 120);
+    if (/图片|写着|VISION OK|照片勇者|画图勇者/i.test(successLine)) {
+      return { message: shortenText(successLine.replace(/\s+/g, " "), 120), isError: false };
     }
 
     const imageLine = lines
       .slice(Math.max(0, successIndex - 4), successIndex)
       .reverse()
-      .find((line) => /图片|写着|VISION OK|照片勇者/i.test(line) && !/分析|要求|步骤|构建|检查/.test(line));
+      .find((line) => hasImageText(line) && !looksLikeReasoning(line));
     if (imageLine) {
-      return shortenText(`图文模型测试成功：${imageLine}`.replace(/\s+/g, " "), 120);
+      return { message: shortenText(`图文模型测试成功：${imageLine}`.replace(/\s+/g, " "), 120), isError: false };
     }
 
-    return shortenText(successLine.replace(/\s+/g, " "), 120);
+    return { message: shortenText(successLine.replace(/\s+/g, " "), 120), isError: false };
   }
 
-  return shortenText(lines.join(" ").replace(/\s+/g, " "), 120);
+  const imageLine = [...lines].reverse().find((line) => hasImageText(line) && !looksLikeReasoning(line));
+  if (imageLine) {
+    return { message: shortenText(`图文模型测试成功：图片里写着 ${imageLine}`.replace(/\s+/g, " "), 120), isError: false };
+  }
+
+  return {
+    message: "模型有返回，但没有识别出测试图里的“照片勇者 / VISION OK”。请换成真正支持图片输入的模型。",
+    isError: true,
+  };
 }
 
 function cleanModelDisplayLine(line) {
@@ -3132,6 +3160,19 @@ function getPhotoApiConfigHint() {
   const missing = getMissingConfigFields(getConfigFromInputs());
   if (!missing.length) return "";
   return `先点右上角鉴定，配置 API，点亮${getPendingSourceMode() === "drawing" ? "画作" : "照片"}鉴定。`;
+}
+
+function isXiaomiConfig(config) {
+  const preset = String(config?.presetId || "").toLowerCase();
+  const baseUrl = String(config?.baseUrl || "").toLowerCase();
+  return preset === "xiaomi" || baseUrl.includes("xiaomimimo.com");
+}
+
+function getUnsupportedVisionModelMessage(config) {
+  if (isXiaomiConfig(config) && !XIAOMI_VISION_MODEL_VALUES.includes(String(config?.model || ""))) {
+    return `当前小米模型 ${config.model || ""} 不支持图片输入；请切换到 mimo-v2.5 或 mimo-v2-omni。`;
+  }
+  return "";
 }
 
 async function analyzePhoto() {
@@ -3164,6 +3205,14 @@ async function analyzePhoto() {
     const message = getPhotoApiConfigHint();
     showLootError(message);
     addLog(message);
+    render();
+    return;
+  }
+
+  const unsupportedModelMessage = getUnsupportedVisionModelMessage(config);
+  if (unsupportedModelMessage) {
+    showLootError(unsupportedModelMessage);
+    addLog(unsupportedModelMessage);
     render();
     return;
   }
@@ -3212,6 +3261,7 @@ async function analyzePhoto() {
 
   const timing = createAppraisalTiming(appraisalImage);
   state.lastAppraisalTiming = timing;
+  state.lootError = "";
   setBusy("鉴定中...");
   render();
   try {
@@ -3247,9 +3297,8 @@ async function analyzePhoto() {
   } catch (error) {
     if (request.id !== state.analysisRequest?.id && isAbortError(error)) return;
     const message = normalizeAnalyzeError(error);
-    showLootError(message);
+    showRetryableAppraisalError(message);
     addLog(`鉴定失败：${message}（${getResourceName()}未消耗）`);
-    clearPendingPhoto();
   } finally {
     if (request.id === state.analysisRequest?.id) {
       finishAppraisalTiming(timing);
@@ -3273,7 +3322,8 @@ function normalizeAnalyzeError(error) {
   if (
     message.includes("unknown variant `image_url`") ||
     message.includes("expected `text`") ||
-    message.toLowerCase().includes("image_url")
+    message.toLowerCase().includes("image_url") ||
+    /no endpoints found that support image input/i.test(message)
   ) {
     return "当前接口没有接收图片，请换成支持图文输入的模型。";
   }
@@ -3313,6 +3363,13 @@ function isInvalidAppraisalItem(item) {
 function showLootError(message) {
   state.latestItem = null;
   state.lootError = message;
+}
+
+function showRetryableAppraisalError(message) {
+  showLootError(message);
+  if (state.lastPhoto) {
+    state.infoMode = "item";
+  }
 }
 
 function clearPendingPhoto(options = {}) {
@@ -3364,9 +3421,8 @@ function cancelAnalyzePhoto() {
   request.controller.abort();
   finishAnalysisRequest(request.id);
   const message = `已取消鉴定，${getResourceName()}未消耗。`;
-  showLootError(message);
+  showRetryableAppraisalError(message);
   addLog(message);
-  clearPendingPhoto();
   setBusy("");
   saveGame();
   render();
@@ -3427,16 +3483,7 @@ async function analyzeDirectly(config, image, options = {}) {
       },
       {
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: prompt,
-          },
-          {
-            type: "image_url",
-            image_url: { url: image, detail: modelImageDetail },
-          },
-        ],
+        content: makeVisionUserContent(config, prompt, [image]),
       },
     ],
   });
@@ -3495,9 +3542,7 @@ async function compareIdentifiedObjects(config, currentItem, knownItem, signal =
       {
         role: "user",
         content: [
-          { type: "text", text: prompt },
-          { type: "image_url", image_url: { url: knownItem.appraisalImage || knownItem.image, detail: modelImageDetail } },
-          { type: "image_url", image_url: { url: currentItem.appraisalImage || currentItem.image, detail: modelImageDetail } },
+          ...makeVisionUserContent(config, prompt, [knownItem.appraisalImage || knownItem.image, currentItem.appraisalImage || currentItem.image]),
         ],
       },
     ],
@@ -3529,8 +3574,32 @@ async function compareIdentifiedObjects(config, currentItem, knownItem, signal =
   return sameObject && confidence >= 0.65;
 }
 
+function makeImageUrlContentPart(image) {
+  return {
+    type: "image_url",
+    image_url: { url: image, detail: modelImageDetail },
+  };
+}
+
+function makeVisionUserContent(config, text, images = []) {
+  const textPart = { type: "text", text };
+  const imageParts = images.filter(Boolean).map(makeImageUrlContentPart);
+  return isXiaomiConfig(config)
+    ? [...imageParts, textPart]
+    : [textPart, ...imageParts];
+}
+
 function withProviderRequestOptions(config, body) {
   const next = { ...body };
+  if (isXiaomiConfig(config)) {
+    if (next.max_tokens != null && next.max_completion_tokens == null) {
+      next.max_completion_tokens = next.max_tokens;
+      delete next.max_tokens;
+    }
+    next.thinking = { type: "disabled" };
+    delete next.enable_thinking;
+    return next;
+  }
   if (shouldDisableThinking(config)) {
     next.enable_thinking = false;
     next.thinking = { type: "disabled" };
@@ -3559,7 +3628,11 @@ function buildModelHeaders(config) {
     "Content-Type": "application/json",
   };
   if (!isExperienceConfig(config) && config.apiKey) {
-    headers.Authorization = `Bearer ${config.apiKey}`;
+    if (isXiaomiConfig(config)) {
+      headers["api-key"] = config.apiKey;
+    } else {
+      headers.Authorization = `Bearer ${config.apiKey}`;
+    }
   }
   return headers;
 }
@@ -4133,12 +4206,12 @@ function normalizeStringList(input) {
 function normalizePhotoQuality(input) {
   const safe = input && typeof input === "object" ? input : {};
   return {
-    clarity: clampInt(safe.clarity ?? safe.clear ?? safe.subjectClear ?? safe["清晰度"] ?? safe["主体清楚"], 0, 3),
-    subjectArea: clampInt(safe.subjectArea ?? safe.area ?? safe.subjectSize ?? safe["主体占比"], 0, 3),
-    backgroundClean: clampInt(safe.backgroundClean ?? safe.cleanBackground ?? safe.background ?? safe["背景干净"], 0, 2),
-    realPhoto: clampInt(safe.realPhoto ?? safe.realism ?? safe.lifeLike ?? safe["实拍感"] ?? safe["现实感"], 0, 3),
-    focusLight: clampInt(safe.focusLight ?? safe.light ?? safe.lighting ?? safe.focus ?? safe["光线对焦"], 0, 2),
-    interesting: clampInt(safe.interesting ?? safe.fun ?? safe.charm ?? safe["有趣"], 0, 2),
+    clarity: clampInt(safe.clarity ?? safe.clear ?? safe.subjectClear ?? safe.subjectRecognizable ?? safe.recognizability ?? safe["清晰度"] ?? safe["主体清楚"] ?? safe["主体可识别性"] ?? safe["可识别性"], 0, 3),
+    subjectArea: clampInt(safe.subjectArea ?? safe.area ?? safe.subjectSize ?? safe.subjectCompleteness ?? safe["主体占比"] ?? safe["主体完整度"], 0, 3),
+    backgroundClean: clampInt(safe.backgroundClean ?? safe.cleanBackground ?? safe.background ?? safe.noiseControl ?? safe["背景干净"] ?? safe["杂线干扰"], 0, 2),
+    realPhoto: clampInt(safe.realPhoto ?? safe.realism ?? safe.lifeLike ?? safe.drawingIntent ?? safe.completion ?? safe.finish ?? safe["实拍感"] ?? safe["现实感"] ?? safe["绘制意图"] ?? safe["完成度"], 0, 3),
+    focusLight: clampInt(safe.focusLight ?? safe.light ?? safe.lighting ?? safe.focus ?? safe.lineColor ?? safe.lineQuality ?? safe.colorUse ?? safe["光线对焦"] ?? safe["线条配色"] ?? safe["线条质量"] ?? safe["配色"], 0, 2),
+    interesting: clampInt(safe.interesting ?? safe.fun ?? safe.charm ?? safe.aesthetic ?? safe.beauty ?? safe.creativity ?? safe["有趣"] ?? safe["美观"] ?? safe["美观程度"] ?? safe["创意"], 0, 2),
   };
 }
 
@@ -4522,7 +4595,9 @@ function hasDefenseSemanticText(text) {
 }
 
 function hasAttackSemanticText(text) {
-  return /(?:工具|武器|敲|打|锤|棒|棍|剑|短剑|长剑|斧|弓|箭|魔杖|法杖|枪|长枪|短枪|矛|戟|砖|石|球|键盘|鼠标|笔|刀|剪|针|钩|刺|尖|刃|爪|牙|火焰|星火|雷电|闪电|爆炸|攻击|冲击|震动|声波|音箱|音响|喇叭|运动|飞行|展翅|风车|旋转|数字|显示屏|勺|叉|筷|餐具|tool|weapon|hit|hammer|club|sword|axe|bow|arrow|wand|spear|lance|pike|brick|stone|ball|keyboard|mouse|pen|knife|scissor|needle|hook|sharp|claw|tooth|fire|lightning|explosion|attack|impact|speaker|sport|fly|wing|windmill|rotate|screen|spoon|fork|chopstick|tableware|cutlery)/i.test(String(text || ""));
+  const source = String(text || "");
+  return hasMagicWandVisualEvidenceText(source)
+    || /(?:工具|武器|敲|打|锤|棒|棍|剑|短剑|长剑|斧|弓|箭|枪|长枪|短枪|矛|戟|砖|石|球|键盘|鼠标|笔|刀|剪|针|钩|刺|尖|刃|爪|牙|火焰|星火|雷电|闪电|爆炸|攻击|冲击|震动|声波|音箱|音响|喇叭|运动|飞行|展翅|风车|旋转|数字|显示屏|勺|叉|筷|餐具|tool|weapon|hit|hammer|club|sword|axe|bow|arrow|spear|lance|pike|brick|stone|ball|keyboard|mouse|pen|knife|scissor|needle|hook|sharp|claw|tooth|fire|lightning|explosion|attack|impact|speaker|sport|fly|wing|windmill|rotate|screen|spoon|fork|chopstick|tableware|cutlery)/i.test(source);
 }
 
 function isSharpToolSemanticText(text) {
@@ -4694,7 +4769,7 @@ function receiveItem(item, message) {
     : `${message} 获得 ${fullItem.itemName}。`;
   if (addInventoryItem(fullItem, rewardText, targetSlot)) {
     if (!fullItem.tooLarge) {
-      recordGlobalGameMetric("Equipment", 1);
+      recordGlobalGameMetric(getEquipmentStatsMetric(fullItem), 1);
       recordGlobalAppraisalPlayer();
     }
     state.tutorial.photoStarted = true;
@@ -4702,6 +4777,10 @@ function receiveItem(item, message) {
     saveGame();
     render();
   }
+}
+
+function getEquipmentStatsMetric(item) {
+  return normalizeHeroMode(item?.sourceMode || "photo") === "drawing" ? "DrawingEquipment" : "PhotoEquipment";
 }
 
 async function findDuplicateIdentifiedItem(item, config = null, signal = null) {
@@ -5271,6 +5350,7 @@ function lockBattleStartDefenseBreak(enemies = getActiveBattleEnemies(), battleS
   if (!battleSpecial) return;
   const breakCount = getAliveTraitEnemies(enemies).filter((enemy) => hasTrait(enemy, "defenseBreakAura")).length;
   battleSpecial.defenseBreakSourceCount = breakCount;
+  battleSpecial.defenseBreakRatio = getEnemyDefenseBreakRatioForCount(breakCount);
   battleSpecial.defenseBreakBase = breakCount > 0
     ? Math.max(0, getPlayerBattleStats(battleSpecial).def || 0)
     : 0;
@@ -6087,6 +6167,22 @@ function recordBattleKillStats(result, battle) {
   if (result === "defeat") return;
   const defeatedCount = Array.isArray(battle.defeatedIds) ? battle.defeatedIds.length : 0;
   if (defeatedCount > 0) recordGlobalGameMetric("Kills", defeatedCount);
+  const bossKillCount = countBossKillsInBattle(battle);
+  if (bossKillCount > 0) recordGlobalGameMetric("BossKills", bossKillCount);
+}
+
+function countBossKillsInBattle(battle) {
+  const defeatedIds = Array.isArray(battle?.defeatedIds) ? battle.defeatedIds : [];
+  const defeatedTypes = Array.isArray(battle?.defeatedTypes) ? battle.defeatedTypes : [];
+  let count = 0;
+  for (let index = 0; index < Math.max(defeatedIds.length, defeatedTypes.length); index += 1) {
+    const type = String(defeatedTypes[index] || "");
+    const id = String(defeatedIds[index] || "");
+    if (isBossMonsterType(type) || [...bossMonsterKeys].some((bossKey) => id.includes(bossKey))) {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 function applyFormBattleEndEffects(result, battle) {
@@ -6542,7 +6638,7 @@ async function requestCareerSummary(force = false) {
     if (!state.careerSummary) state.careerSummary = buildLocalCareerSummary(outcome);
     state.careerSummary.status = "local";
     state.careerSummary.outcome = outcome;
-    state.careerSummary.note = "配置图文模型后，可以重新生成更有个性的塔史。";
+    state.careerSummary.note = "";
     saveGame();
     render();
     return;
@@ -6554,7 +6650,7 @@ async function requestCareerSummary(force = false) {
     status: "loading",
     outcome,
     snapshot,
-    note: "正在请大模型誊写塔史。",
+    note: "塔内书记官正在誊写塔史。",
   };
   render();
 
@@ -6576,7 +6672,7 @@ async function requestCareerSummary(force = false) {
     }, 45000, "塔史总结");
     if (state.careerSummaryRequest !== request) return;
     const text = sanitizeCareerSummaryText(readModelText(response.payload));
-    if (!response.response.ok || !text) throw new Error("模型没有返回可用的塔史。");
+    if (!response.response.ok || !text) throw new Error("塔史暂未写成。");
     state.careerSummary = {
       status: "ai",
       outcome,
@@ -6591,7 +6687,7 @@ async function requestCareerSummary(force = false) {
     state.careerSummary = {
       ...fallback,
       status: "error",
-      note: `${error?.message || "塔史生成失败"} 当前显示本地塔史。`,
+      note: "塔史暂未写成，当前显示塔内旧册。",
     };
   } finally {
     if (state.careerSummaryRequest === request) state.careerSummaryRequest = null;
@@ -6677,6 +6773,7 @@ function sanitizeCareerSummaryText(text) {
     .replace(/^\s*(?:[-*•·]\s*)+/gm, "")
     .replace(/^\s*\d+[.)、]\s*/gm, "")
     .replace(/^\s*(?:标题|题目|短标题)\s*[:：]\s*/gmi, "")
+    .replace(/\bAI\s*/gi, "")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim()
@@ -6701,7 +6798,7 @@ function getCareerSummaryParagraphs(summary) {
     .map((line) => line.trim())
     .filter(Boolean);
   const fallbackTitle = isDefeatCareerSummary(summary) ? "止步旧塔" : "塔顶旧闻";
-  const savedTitle = cleanText(summary?.title, fallbackTitle, 18);
+  const savedTitle = cleanText(String(summary?.title || "").replace(/\bAI\s*/gi, ""), fallbackTitle, 18);
   const extractedTitle = extractCareerSummaryTitle(summary?.text || "");
   const useExtractedTitle = Boolean(extractedTitle && (summary?.status === "ai" || !summary?.title));
   const title = useExtractedTitle ? extractedTitle : savedTitle;
@@ -7378,6 +7475,7 @@ function addCurrentFormKill(count = 1) {
     const newStats = getPlayerStats();
     adjustHeroResourcesAfterStatChange(oldStats, newStats, oldShield);
     addBattleDetail(`${form.label}形态进化为${getHeroFormDisplayName(form)}。`);
+    recordGlobalGameMetric("SuperForms", 1);
     return true;
   }
   return false;
@@ -7405,16 +7503,24 @@ function createDefaultGlobalStats() {
     totalUv: 0,
     totalGames: 0,
     totalKills: 0,
+    totalBossKills: 0,
     totalAppraisals: 0,
     totalEquipment: 0,
+    totalPhotoEquipment: 0,
+    totalDrawingEquipment: 0,
+    totalSuperForms: 0,
     totalFloors: 0,
     totalClears: 0,
     todayPv: 0,
     todayUv: 0,
     todayGames: 0,
     todayKills: 0,
+    todayBossKills: 0,
     todayAppraisals: 0,
     todayEquipment: 0,
+    todayPhotoEquipment: 0,
+    todayDrawingEquipment: 0,
+    todaySuperForms: 0,
     todayFloors: 0,
     todayClears: 0,
   };
@@ -7422,21 +7528,31 @@ function createDefaultGlobalStats() {
 
 function normalizeGlobalStats(input) {
   const source = input && typeof input === "object" ? input : {};
+  const totalPhotoEquipment = clampInt(source.totalPhotoEquipment ?? source.totalEquipment, 0, 99999999);
+  const todayPhotoEquipment = clampInt(source.todayPhotoEquipment ?? source.todayEquipment, 0, 99999999);
   return {
     totalPv: clampInt(source.totalPv, 0, 99999999),
     totalUv: clampInt(source.totalUv, 0, 99999999),
     totalGames: clampInt(source.totalGames, 0, 99999999),
     totalKills: clampInt(source.totalKills, 0, 99999999),
+    totalBossKills: clampInt(source.totalBossKills, 0, 99999999),
     totalAppraisals: clampInt(source.totalAppraisals, 0, 99999999),
-    totalEquipment: clampInt(source.totalEquipment, 0, 99999999),
+    totalEquipment: totalPhotoEquipment,
+    totalPhotoEquipment,
+    totalDrawingEquipment: clampInt(source.totalDrawingEquipment, 0, 99999999),
+    totalSuperForms: clampInt(source.totalSuperForms, 0, 99999999),
     totalFloors: clampInt(source.totalFloors, 0, 99999999),
     totalClears: clampInt(source.totalClears, 0, 99999999),
     todayPv: clampInt(source.todayPv, 0, 99999999),
     todayUv: clampInt(source.todayUv, 0, 99999999),
     todayGames: clampInt(source.todayGames, 0, 99999999),
     todayKills: clampInt(source.todayKills, 0, 99999999),
+    todayBossKills: clampInt(source.todayBossKills, 0, 99999999),
     todayAppraisals: clampInt(source.todayAppraisals, 0, 99999999),
-    todayEquipment: clampInt(source.todayEquipment, 0, 99999999),
+    todayEquipment: todayPhotoEquipment,
+    todayPhotoEquipment,
+    todayDrawingEquipment: clampInt(source.todayDrawingEquipment, 0, 99999999),
+    todaySuperForms: clampInt(source.todaySuperForms, 0, 99999999),
     todayFloors: clampInt(source.todayFloors, 0, 99999999),
     todayClears: clampInt(source.todayClears, 0, 99999999),
   };
@@ -7583,8 +7699,11 @@ async function refreshGlobalStats() {
   const dailyUv = makeDailyCounterId(STATS_COUNTER_IDS.dailyUvPrefix, today);
   const dailyGames = makeDailyCounterId(STATS_COUNTER_IDS.dailyGamesPrefix, today);
   const dailyKills = makeDailyCounterId(STATS_COUNTER_IDS.dailyKillsPrefix, today);
+  const dailyBossKills = makeDailyCounterId(STATS_COUNTER_IDS.dailyBossKillsPrefix, today);
   const dailyAppraisals = makeDailyCounterId(STATS_COUNTER_IDS.dailyAppraisalsPrefix, today);
-  const dailyEquipment = makeDailyCounterId(STATS_COUNTER_IDS.dailyEquipmentPrefix, today);
+  const dailyPhotoEquipment = makeDailyCounterId(STATS_COUNTER_IDS.dailyPhotoEquipmentPrefix, today);
+  const dailyDrawingEquipment = makeDailyCounterId(STATS_COUNTER_IDS.dailyDrawingEquipmentPrefix, today);
+  const dailySuperForms = makeDailyCounterId(STATS_COUNTER_IDS.dailySuperFormsPrefix, today);
   const dailyFloors = makeDailyCounterId(STATS_COUNTER_IDS.dailyFloorsPrefix, today);
   const dailyClears = makeDailyCounterId(STATS_COUNTER_IDS.dailyClearsPrefix, today);
   const counters = await fetchStatsCounters([
@@ -7592,16 +7711,22 @@ async function refreshGlobalStats() {
     STATS_COUNTER_IDS.totalUv,
     STATS_COUNTER_IDS.totalGames,
     STATS_COUNTER_IDS.totalKills,
+    STATS_COUNTER_IDS.totalBossKills,
     STATS_COUNTER_IDS.totalAppraisals,
-    STATS_COUNTER_IDS.totalEquipment,
+    STATS_COUNTER_IDS.totalPhotoEquipment,
+    STATS_COUNTER_IDS.totalDrawingEquipment,
+    STATS_COUNTER_IDS.totalSuperForms,
     STATS_COUNTER_IDS.totalFloors,
     STATS_COUNTER_IDS.totalClears,
     dailyPv,
     dailyUv,
     dailyGames,
     dailyKills,
+    dailyBossKills,
     dailyAppraisals,
-    dailyEquipment,
+    dailyPhotoEquipment,
+    dailyDrawingEquipment,
+    dailySuperForms,
     dailyFloors,
     dailyClears,
   ]);
@@ -7610,16 +7735,24 @@ async function refreshGlobalStats() {
     totalUv: counters[STATS_COUNTER_IDS.totalUv],
     totalGames: counters[STATS_COUNTER_IDS.totalGames],
     totalKills: counters[STATS_COUNTER_IDS.totalKills],
+    totalBossKills: counters[STATS_COUNTER_IDS.totalBossKills],
     totalAppraisals: counters[STATS_COUNTER_IDS.totalAppraisals],
-    totalEquipment: counters[STATS_COUNTER_IDS.totalEquipment],
+    totalEquipment: counters[STATS_COUNTER_IDS.totalPhotoEquipment],
+    totalPhotoEquipment: counters[STATS_COUNTER_IDS.totalPhotoEquipment],
+    totalDrawingEquipment: counters[STATS_COUNTER_IDS.totalDrawingEquipment],
+    totalSuperForms: counters[STATS_COUNTER_IDS.totalSuperForms],
     totalFloors: counters[STATS_COUNTER_IDS.totalFloors],
     totalClears: counters[STATS_COUNTER_IDS.totalClears],
     todayPv: counters[dailyPv],
     todayUv: counters[dailyUv],
     todayGames: counters[dailyGames],
     todayKills: counters[dailyKills],
+    todayBossKills: counters[dailyBossKills],
     todayAppraisals: counters[dailyAppraisals],
-    todayEquipment: counters[dailyEquipment],
+    todayEquipment: counters[dailyPhotoEquipment],
+    todayPhotoEquipment: counters[dailyPhotoEquipment],
+    todayDrawingEquipment: counters[dailyDrawingEquipment],
+    todaySuperForms: counters[dailySuperForms],
     todayFloors: counters[dailyFloors],
     todayClears: counters[dailyClears],
   });
@@ -7689,8 +7822,11 @@ function renderGlobalStatsPanel() {
       title: "冒险",
       items: [
         ["击杀", stats.totalKills, stats.todayKills],
+        ["击杀Boss", stats.totalBossKills, stats.todayBossKills],
         ["鉴定", stats.totalAppraisals, stats.todayAppraisals],
-        ["装备", stats.totalEquipment, stats.todayEquipment],
+        ["照片装备", stats.totalPhotoEquipment, stats.todayPhotoEquipment],
+        ["画图装备", stats.totalDrawingEquipment, stats.todayDrawingEquipment],
+        ["超级形态", stats.totalSuperForms, stats.todaySuperForms],
         ["爬塔层数", stats.totalFloors, stats.todayFloors],
       ],
     },
@@ -8309,7 +8445,7 @@ function getEnemyDefenseBreakRatio(enemies = []) {
 function getEnemyDefenseBreakPenalty(enemies = [], battleSpecial = createDefaultBattleSpecial(), fallbackBase = 0) {
   const liveCount = getEnemyDefenseBreakSourceCount(enemies);
   const lockedCount = clampInt(battleSpecial?.defenseBreakSourceCount, 0, 99);
-  const breakCount = lockedCount > 0 ? Math.min(liveCount, lockedCount) : liveCount;
+  const breakCount = lockedCount > 0 ? lockedCount : liveCount;
   const ratio = getEnemyDefenseBreakRatioForCount(breakCount);
   if (ratio <= 0) return 0;
   const lockedBase = Number.isFinite(battleSpecial?.defenseBreakBase) && battleSpecial.defenseBreakBase > 0;
@@ -8851,6 +8987,20 @@ function makePhotoStatEvidenceText({ itemName, subjectName, objectType, sizeClas
   return [primaryText, identityDescription].filter(Boolean).join(" ");
 }
 
+function isGenericDrawingObjectType(text = "") {
+  return /^(?:幻想武器|神秘武器|武器|幻想装备|神秘装备|魔法装备|装备概念|符号|图案|主体类型)$/.test(stripDrawingMediumWords(text));
+}
+
+function makeDrawingStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) {
+  const visualEvidence = stripDrawingMediumWords(identityDescription || "");
+  const safeObjectType = isGenericDrawingObjectType(objectType) && !hasDrawingWeaponVisualEvidenceText(visualEvidence)
+    ? ""
+    : objectType;
+  const primaryText = [itemName, subjectName, safeObjectType, sizeClass].filter(Boolean).join(" ");
+  if (primaryText && hasPhotoStatSemanticText(primaryText)) return primaryText;
+  return [primaryText, visualEvidence].filter(Boolean).join(" ");
+}
+
 function stripDrawingMediumWords(text = "") {
   return String(text || "")
     .replace(/这[幅张](?:画作|画|图画|图)/g, "这件装备")
@@ -8868,7 +9018,7 @@ function stripDrawingMediumWords(text = "") {
 }
 
 function isGenericDrawingName(text = "") {
-  return /^(?:神秘|未知|装备|物品|主体|道具|小道具|幻想|概念|符号|图案|装备概念)?$/.test(String(text || "").trim());
+  return /^(?:神秘|未知|装备|物品|主体|道具|小道具|幻想|概念|符号|图案|装备概念|幻想装备|幻想武器|神秘装备|神秘武器|魔法装备|神器)?$/.test(String(text || "").trim());
 }
 
 function cleanDrawingName(value, fallback, maxLength = 18) {
@@ -8887,12 +9037,74 @@ function cleanDrawingDescription(value, fallback, itemName) {
     .replace(/^\s*这件装备?装备/, "这件装备")
     .replace(/^\s*这件$/, "")
     .trim();
+  const name = cleanDrawingName(itemName, fallback, 18);
+  const hasUnsupportedWeaponDescription = /(?:魔杖|法杖|魔法棒|武器|短剑|长剑|剑|刀|弓|箭|枪|矛|锤)/.test(text)
+    && !/(?:魔杖|法杖|魔法棒|武器|短剑|长剑|剑|刀|弓|箭|枪|矛|锤)/.test(name);
+  if (hasUnsupportedWeaponDescription) {
+    text = `${name}带着清晰的主体轮廓，可以被带进魔塔。`;
+  }
   if (!text || /^由.*鉴定/.test(text)) {
-    const name = cleanDrawingName(itemName, fallback, 18);
     text = `${name}带着清晰的装备轮廓，可以被带进魔塔。`;
   }
   if (text && !/[。！？.!?]$/.test(text)) text += "。";
   return cleanText(text, "由想象凝成的装备。", 72);
+}
+
+function hasMagicWandNameText(text = "") {
+  return /(?:魔杖|法杖|魔法棒|星杖|wand|staff)/i.test(String(text || ""));
+}
+
+function hasDrawingWeaponNameText(text = "") {
+  return /(?:剑|短剑|长剑|刀|斧|弓|箭|枪|矛|锤|魔杖|法杖|魔法棒|sword|blade|axe|bow|arrow|spear|hammer|wand|staff)/i.test(String(text || ""));
+}
+
+function hasMagicWandVisualEvidenceText(text = "") {
+  const source = String(text || "");
+  return /(?:长柄|长杆|杖身|手柄|握柄|棒状|杆状|棍状|顶端.*(?:星|宝石|水晶|圆球)|(?:星形|宝石|水晶|圆球).*(?:顶端|尖端)|rod|handle|orb|staff|wand)/i.test(source);
+}
+
+function hasDrawingWeaponVisualEvidenceText(text = "") {
+  const source = String(text || "");
+  return hasMagicWandVisualEvidenceText(source)
+    || /(?:剑身|剑尖|刀身|刀刃|刃口|锋刃|握柄|手柄|弓弦|箭头|箭羽|斧刃|枪尖|矛尖|锤头|尖刺|爪|牙|sword|blade|edge|handle|bowstring|arrowhead|axe blade|spear tip|spike|claw|fang)/i.test(source);
+}
+
+function inferDrawingNameFromVisualEvidence(text = "") {
+  const source = stripDrawingMediumWords(text);
+  if (/盾|护盾|屏障|保护罩|十字|shield|barrier/i.test(source)) return /圆|环|circle|round/i.test(source) ? "守护圆盾" : "守护盾牌";
+  if (hasMagicWandVisualEvidenceText(source)) return /星|star/i.test(source) ? "星纹魔杖" : "符石法杖";
+  if (/剑身|剑尖|短剑|长剑|握柄|sword/i.test(source)) return "短剑";
+  if (/刀身|刀刃|刃口|blade|knife/i.test(source)) return "锋刃短刀";
+  if (/弓弦|弓|箭头|箭羽|bow|arrow/i.test(source)) return "风箭徽记";
+  if (/斧刃|斧|axe/i.test(source)) return "战斧徽记";
+  if (/枪尖|矛尖|spear/i.test(source)) return "长枪徽记";
+  if (/爪|牙|尖牙|claw|fang/i.test(source)) return "尖牙坠饰";
+  if (/翅|羽|翼|wing|feather/i.test(source)) return "风羽徽记";
+  if (/闪电|雷|电|lightning/i.test(source)) return "雷纹徽记";
+  if (/火|火焰|flame|fire/i.test(source)) return "火焰徽记";
+  if (/水|水滴|泉|蓝色液滴|spring|water/i.test(source)) return "泉水护符";
+  if (/草|叶|花|新芽|plant|leaf|flower/i.test(source)) return "新芽护符";
+  if (/爱心|心形|红心|heart/i.test(source)) return "爱心护符";
+  if (/眼|眼睛|瞳|eye/i.test(source)) return "凝视徽记";
+  if (/齿轮|机械|机器人|robot|gear/i.test(source)) return "齿轮徽记";
+  if (/笑脸|脸|表情|smile|face/i.test(source)) return "笑脸徽记";
+  if (/星|星形|star/i.test(source)) return "星纹护符";
+  if (/圆|圈|环|circle|round|ring/i.test(source)) return "圆环护符";
+  if (/方|矩形|方块|square|block/i.test(source)) return "石板护符";
+  return "符纹护符";
+}
+
+function refineDrawingNameWithVisualEvidence(name, subjectName, objectType, identityDescription) {
+  const cleanName = cleanDrawingName(name, subjectName, 18);
+  const visualEvidence = stripDrawingMediumWords(identityDescription || "");
+  if (!visualEvidence) return cleanName;
+  const nameText = [cleanName, subjectName, objectType].filter(Boolean).join(" ");
+  const unsupportedMagicWand = hasMagicWandNameText(nameText) && !hasMagicWandVisualEvidenceText(visualEvidence);
+  const unsupportedWeapon = hasDrawingWeaponNameText(nameText) && !hasDrawingWeaponVisualEvidenceText(visualEvidence);
+  if (unsupportedMagicWand || unsupportedWeapon || isGenericDrawingName(cleanName)) {
+    return cleanText(inferDrawingNameFromVisualEvidence(visualEvidence), "符纹护符", 18);
+  }
+  return cleanName;
 }
 
 function balanceItem(item, image = "") {
@@ -8901,8 +9113,8 @@ function balanceItem(item, image = "") {
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
   const rawItemName = cleanText(safe.itemName, sourceMode === "drawing" ? "幻想装备" : "照片装备", 30);
   const rawSubjectName = cleanText(safe.subjectName, rawItemName, 30);
-  const itemName = sourceMode === "drawing" ? cleanDrawingName(rawItemName, rawSubjectName, 18) : cleanText(rawItemName, "照片装备", 18);
-  const subjectName = sourceMode === "drawing" ? cleanDrawingName(rawSubjectName, itemName, 18) : cleanText(rawSubjectName, itemName, 18);
+  let itemName = sourceMode === "drawing" ? cleanDrawingName(rawItemName, rawSubjectName, 18) : cleanText(rawItemName, "照片装备", 18);
+  let subjectName = sourceMode === "drawing" ? cleanDrawingName(rawSubjectName, itemName, 18) : cleanText(rawSubjectName, itemName, 18);
   const tags = normalizeStringList(safe.tags);
   const rawObjectType = cleanText(safe.objectType, "", 30);
   const objectType = sourceMode === "drawing"
@@ -8916,6 +9128,10 @@ function balanceItem(item, image = "") {
   const specialAffinity = normalizeSpecialEffects(safe.specialAffinity || []);
   const preserveSettledOutput = Boolean(safe.skipSpecialRoll);
   const identityDescription = cleanText(safe.identityDescription || safe.identity_description || safe.appearance || safe.objectIdentity || "", "", 160);
+  if (sourceMode === "drawing") {
+    itemName = refineDrawingNameWithVisualEvidence(itemName, subjectName, objectType, identityDescription);
+    subjectName = refineDrawingNameWithVisualEvidence(subjectName, itemName, objectType, identityDescription);
+  }
   const displayDescription = sourceMode === "drawing"
     ? cleanDrawingDescription(safe.description || reason, reason, itemName)
     : cleanText(safe.description || reason, "由照片鉴定出的装备。", 72);
@@ -8938,7 +9154,9 @@ function balanceItem(item, image = "") {
     : preserveSettledOutput && Number.isFinite(safe.value)
       ? Math.max(0, safe.value)
       : calculatePhotoItemValue(safe, semanticText);
-  const objectStatEvidenceText = makePhotoStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) || itemName;
+  const objectStatEvidenceText = sourceMode === "drawing"
+    ? makeDrawingStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) || itemName
+    : makePhotoStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) || itemName;
   if (!noEffect) {
     requestedValue = preserveSettledOutput
       ? requestedValue
@@ -8951,7 +9169,7 @@ function balanceItem(item, image = "") {
   }
   const specialEffects = noEffect || virtualPenalty.suppressSpecial
     ? []
-    : choosePhotoSpecialEffects({ ...safe, itemName, objectType, reason, tags, description: semanticText, ignoreDirectSpecialEffects: semanticSchema && !preserveSettledOutput }, image, requestedValue)
+    : choosePhotoSpecialEffects({ ...safe, itemName, objectType, reason, tags, description: sourceMode === "drawing" ? objectStatEvidenceText : semanticText, ignoreDirectSpecialEffects: semanticSchema && !preserveSettledOutput }, image, requestedValue)
       .filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue);
   const specialValue = calculateSpecialEffectsValue(specialEffects);
   const statBudget = Math.max(0, requestedValue - specialValue);
@@ -9315,35 +9533,39 @@ function calculatePhotoQualityScore(photoQuality, semanticText = "") {
 function calculateDrawingQualityScore(photoQuality, semanticText = "") {
   const quality = normalizePhotoQuality(photoQuality);
   const text = String(semanticText || "");
-  const blankLike = /空白|无主体|随机涂鸦|无法辨认|不能辨认|看不出|乱线|blank|scribble|unrecognizable/i.test(text);
+  const blankLike = /空白|无主体|随机涂鸦|随机线条|无法辨认|不能辨认|看不出|乱线|没有明确|blank|scribble|unrecognizable/i.test(text);
+  const hasConcept = hasDrawingEquipmentConceptText(text) || hasPhotoStatSemanticText(text);
+  const recognizable = quality.clarity >= 2 && quality.subjectArea >= 1;
   if (blankLike && quality.clarity <= 1) return Math.max(0, Math.min(3, calculatePhotoQualityTotal(quality)));
 
-  const hasConcept = hasDrawingEquipmentConceptText(text) || hasPhotoStatSemanticText(text);
   let score = Math.round(
-    (quality.clarity * 2.2)
-    + (quality.subjectArea * 1.6)
-    + (quality.backgroundClean * 0.7)
-    + (quality.realPhoto * 1.0)
-    + (quality.focusLight * 1.2)
-    + (quality.interesting * 1.5),
+    (quality.clarity * 2.0)
+    + (quality.subjectArea * 1.15)
+    + (quality.backgroundClean * 0.55)
+    + (quality.realPhoto * 1.25)
+    + (quality.focusLight * 1.25)
+    + (quality.interesting * 1.35),
   );
 
-  if (hasConcept) score += 1;
-  if (hasConcept && quality.clarity >= 3 && quality.subjectArea >= 2) score += 1;
-  if (quality.interesting >= 2 && hasConcept) score += 1;
+  if (hasConcept && recognizable) score += 1;
+  if (hasConcept && quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 2) score += 1;
+  if (hasConcept && quality.focusLight >= 2 && quality.interesting >= 1) score += 1;
+  if (quality.interesting >= 2 && quality.realPhoto >= 2 && recognizable) score += 1;
 
   if (quality.clarity <= 1) score -= 3;
   if (quality.subjectArea <= 1) score -= 2;
-  if (quality.focusLight <= 0 && quality.realPhoto <= 1) score -= 1;
+  if (quality.realPhoto <= 1) score -= 1;
+  if (quality.focusLight <= 0) score -= 1;
   if (!hasConcept) score = Math.min(score, quality.interesting >= 2 ? 10 : 8);
-  if (blankLike) score -= 4;
+  if (blankLike) score -= 5;
 
-  if (quality.clarity <= 0 || quality.subjectArea <= 0) score = Math.min(score, 4);
-  else if (quality.clarity <= 1) score = Math.min(score, 8);
-  else if (quality.subjectArea <= 1) score = Math.min(score, 11);
-  if (quality.clarity >= 3 && quality.subjectArea >= 2 && hasConcept && quality.interesting >= 1) {
-    score = Math.max(score, 12);
-  }
+  if (quality.clarity <= 0 || quality.subjectArea <= 0) score = Math.min(score, 3);
+  else if (quality.clarity <= 1) score = Math.min(score, 7);
+  else if (quality.subjectArea <= 1) score = Math.min(score, 10);
+  if (quality.realPhoto <= 1 && quality.focusLight <= 0) score = Math.min(score, 9);
+  if (quality.interesting <= 0 && quality.realPhoto <= 2) score = Math.min(score, 12);
+  if (quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 2 && quality.focusLight >= 1 && hasConcept) score = Math.max(score, 11);
+  if (quality.clarity >= 3 && quality.subjectArea >= 3 && quality.realPhoto >= 3 && quality.focusLight >= 2 && quality.interesting >= 2 && hasConcept) score = Math.max(score, 14);
   return Math.max(0, Math.min(15, score));
 }
 
@@ -9724,7 +9946,7 @@ function getSpecialEffectDefinitions(effectKeys) {
 function inferPreferredStats(name) {
   const text = String(name || "");
   if (/爱心|心形|生命核心|能量核心|heart|life core/i.test(text)) return ["hp", "regen", "shield"];
-  if (/火焰|星火|雷电|闪电|爆炸|剑|短剑|长剑|斧|弓|箭|魔杖|法杖|爪|牙|fire|lightning|explosion|sword|axe|bow|arrow|wand|claw|fang/i.test(text)) return ["attack", "speed", "lifesteal"];
+  if (hasMagicWandVisualEvidenceText(text) || /火焰|星火|雷电|闪电|爆炸|剑|短剑|长剑|斧|弓|箭|爪|牙|fire|lightning|explosion|sword|axe|bow|arrow|claw|fang/i.test(text)) return ["attack", "speed", "lifesteal"];
   if (/盾|护盾|铠|甲|堡垒|屏障|结界|龟壳|龙鳞|shield|armor|barrier|shell|scale/i.test(text)) return ["shield", "defense", "hp"];
   if (/风|疾风|羽|羽翼|翅|靴|轮|飞|箭头|wind|feather|wing|boot|wheel|fly|arrow/i.test(text)) return ["speed", "attack", "regen"];
   if (/泉|水|草|药|光|治愈|净化|spring|water|grass|medicine|light|heal/i.test(text)) return ["regen", "hp", "defense"];
@@ -10557,7 +10779,7 @@ function renderEquipmentDetail() {
       : state.pendingCropRect && !isPendingDrawing
       ? apiHint || "鉴定台会看向圈定的主体。"
       : state.lootError
-      ? `${state.lootError} 可以重新鉴定。`
+      ? `${formatLootErrorMessage(state.lootError)}\n${pendingLabel}还在，可以重新鉴定。`
       : apiHint
       ? apiHint
       : state.filmRolls >= 1
@@ -10723,7 +10945,7 @@ function renderCareerSummaryPanel() {
   els.equipmentDetail.dataset.outcome = outcome;
   els.equipmentDetail.classList.add("is-actionable", "career-summary-panel");
   els.equipmentDetailName.textContent = summary.status === "loading"
-    ? "正在生成塔史"
+    ? "正在誊写塔史"
     : outcome === "defeat"
       ? "战败塔史"
       : "塔顶塔史";
@@ -10731,10 +10953,10 @@ function renderCareerSummaryPanel() {
   els.equipmentDetailStats.hidden = true;
   els.equipmentDetailDesc.innerHTML = renderCareerSummaryCard(summary, snapshot);
   els.equipmentActions.hidden = false;
-  els.photoActionBtn.hidden = false;
-  els.photoActionBtn.disabled = Boolean(state.careerSummaryRequest);
-  els.photoActionBtn.textContent = state.careerSummaryRequest ? "生成中" : "重新生成";
-  els.photoActionBtn.setAttribute("aria-label", "重新生成塔史");
+  els.photoActionBtn.hidden = true;
+  els.photoActionBtn.disabled = true;
+  els.photoActionBtn.textContent = "";
+  els.photoActionBtn.removeAttribute("aria-label");
   els.analyzePhotoBtn.hidden = false;
   els.analyzePhotoBtn.disabled = Boolean(state.careerSummaryRequest);
   els.analyzePhotoBtn.textContent = "保存图片";
@@ -10813,10 +11035,10 @@ function renderCareerEquipmentGallery(snapshot) {
 
 function getCareerSummaryStatusText(summary) {
   const isDefeat = isDefeatCareerSummary(summary);
-  if (summary?.status === "ai") return isDefeat ? "AI 残页" : "AI 塔史";
+  if (summary?.status === "ai") return isDefeat ? "旧塔残页" : "塔顶旧史";
   if (summary?.status === "loading") return "正在誊写塔史";
-  if (summary?.status === "error") return isDefeat ? "本地残页 · 模型生成失败" : "本地塔史 · 模型生成失败";
-  return isDefeat ? "本地残页" : "本地塔史";
+  if (summary?.status === "error") return isDefeat ? "旧塔残页 · 抄录未成" : "塔内旧史 · 抄录未成";
+  return isDefeat ? "旧塔残页" : "塔内旧史";
 }
 
 function formatCareerAbilityLine(snapshot) {
@@ -12172,9 +12394,14 @@ window.__photoHeroTestHooks = {
     state.infoMode = "item";
     render();
   },
-  setPendingPhotoForTest(image) {
+  showRetryableAppraisalErrorForTest(message) {
+    showRetryableAppraisalError(message || "模型没有按鉴定台要求返回结果。");
+    render();
+  },
+  setPendingPhotoForTest(image, options = {}) {
     if (isIntroFloor()) this.enterTowerForTest({ silent: true });
     state.lastPhoto = image || "";
+    state.pendingSourceMode = normalizeHeroMode(options.sourceMode || state.playMode);
     state.pendingCropRect = null;
     state.cropMode = false;
     state.cropDrag = null;
