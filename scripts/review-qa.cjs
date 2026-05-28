@@ -67,6 +67,9 @@ async function collectScenario(page, name, action = async () => {}) {
       detailText: document.querySelector("#equipmentDetail")?.innerText || "",
       enemyText: document.querySelector("#enemyField")?.innerText || "",
       infoText: document.querySelector(".info-panel")?.innerText || "",
+      playerManualText: Array.from(document.querySelectorAll('.info-page[data-info-page="about"], .info-page[data-info-page="photo"], .info-page[data-info-page="battle"]'))
+        .map((node) => node.textContent || "")
+        .join("\n"),
       activeInfoTab: document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "",
       statCardCount: document.querySelectorAll(".global-stat").length,
       todayStatCount: Array.from(document.querySelectorAll(".global-stat em")).filter((node) => /^今日 /.test(node.textContent.trim())).length,
@@ -82,6 +85,7 @@ async function collectScenario(page, name, action = async () => {}) {
       introFlow: window.__reviewIntroFlow || null,
       drawingMode: window.__reviewDrawingMode || null,
       appraisalRetry: window.__reviewAppraisalRetry || null,
+      reappraisal: window.__reviewReappraisal || null,
       modeSwitchEquivalence: window.__reviewModeSwitchEquivalence || null,
       itemStory: window.__reviewItemStory || null,
       itemTypography: window.__reviewItemTypography || null,
@@ -197,7 +201,8 @@ function assertScenario(name, metrics) {
   }
   if (name === "mobile-fresh") {
     if (metrics.state.floor !== 0) failures.push(`${name}: fresh game should start at intro floor 0, got ${metrics.state.floor}`);
-    if (!metrics.visibleButtons.includes("进入魔塔")) failures.push(`${name}: missing intro enter-tower button`);
+    if (!metrics.visibleButtons.includes("全部选择")) failures.push(`${name}: missing intro all-select prompt button`);
+    if (metrics.visibleButtons.includes("进入魔塔")) failures.push(`${name}: enter-tower button should appear only after all intro films are selected`);
     if (metrics.visibleButtons.includes("绕过")) failures.push(`${name}: intro floor should not show bypass`);
     if (!/塔门前|石台|三卷胶卷/.test(metrics.detailText)) failures.push(`${name}: intro detail should explain the tower-door film rolls, got ${metrics.detailText}`);
     if (!/拍照/.test(metrics.enemyText) || !/鉴定台/.test(metrics.enemyText) || !/战斗/.test(metrics.enemyText)) failures.push(`${name}: intro reward cards should show in-world onboarding copy, got ${metrics.enemyText}`);
@@ -210,10 +215,10 @@ function assertScenario(name, metrics) {
     const result = metrics.introFlow || {};
     if (result.initialFloor !== 0) failures.push(`${name}: should start on floor 0, got ${JSON.stringify(result)}`);
     if (result.initialBgm !== "opening") failures.push(`${name}: intro should use opening BGM, got ${JSON.stringify(result)}`);
-    if (result.enterEnabledBeforeAll !== false) failures.push(`${name}: enter button should stay disabled before all three films are selected, got ${JSON.stringify(result)}`);
-    if (result.afterCancelCount !== 2 || result.enterEnabledAfterCancel !== false) failures.push(`${name}: intro cards should allow canceling a selected film, got ${JSON.stringify(result)}`);
+    if (result.enterEnabledBeforeAll !== true || result.primaryTextBeforeAll !== "全部选择" || result.promptBeforeAll !== true) failures.push(`${name}: intro action should prompt all-select before all three films are selected, got ${JSON.stringify(result)}`);
+    if (result.afterCancelCount !== 2 || result.enterEnabledAfterCancel !== true || result.primaryTextAfterCancel !== "全部选择" || result.promptAfterCancel !== true) failures.push(`${name}: intro cards should allow canceling a selected film and return to all-select prompt, got ${JSON.stringify(result)}`);
     if (result.reorderedBadges?.join(",") !== "1,2") failures.push(`${name}: intro card badges should re-number after cancel, got ${JSON.stringify(result)}`);
-    if (result.selectedCount !== 3 || result.enterEnabledAfterAll !== true) failures.push(`${name}: all three intro film cards should enable tower entry, got ${JSON.stringify(result)}`);
+    if (result.selectedCount !== 3 || result.enterEnabledAfterAll !== true || result.primaryTextAfterAll !== "进入魔塔" || result.promptAfterAll !== false) failures.push(`${name}: all three intro film cards should switch the action to tower entry, got ${JSON.stringify(result)}`);
     if (result.finalBadges?.join(",") !== "1,3,2") failures.push(`${name}: intro card badges should preserve click order after reselecting, got ${JSON.stringify(result)}`);
     if (!result.equalCardHeights) failures.push(`${name}: intro cards should keep stable equal heights, got ${JSON.stringify(result)}`);
     if (result.afterFloor !== 1 || result.afterFilmCount !== 3) failures.push(`${name}: entering tower should move to floor 1 with 3 films, got ${JSON.stringify(result)}`);
@@ -247,6 +252,21 @@ function assertScenario(name, metrics) {
     if (!/画作还在/.test(result.detailAfterFailure || "") || !/重新鉴定/.test(result.detailAfterFailure || "")) failures.push(`${name}: detail copy should tell the player the drawing is retained and retryable, got ${result.detailAfterFailure}`);
     if (result.requestCountAfterRetry !== 2) failures.push(`${name}: clicking retry should send another appraisal request, got ${JSON.stringify(result)}`);
     if (!result.pendingAfterRetry || result.pendingSourceModeAfterRetry !== "drawing") failures.push(`${name}: failed retry should still keep the drawing input, got ${JSON.stringify(result)}`);
+  }
+  if (name === "reappraisal") {
+    const result = metrics.reappraisal || {};
+    if (result.buttonText !== "重鉴定" || !result.buttonEnabled) failures.push(`${name}: selected photo equipment should expose an enabled reappraisal button, got ${JSON.stringify(result)}`);
+    if (result.requestCount !== 1) failures.push(`${name}: reappraisal should send exactly one model request, got ${JSON.stringify(result)}`);
+    if (result.busyButtonText !== "取消重鉴定" || !result.busyButtonEnabled) failures.push(`${name}: in-flight reappraisal should expose an enabled cancel button, got ${JSON.stringify(result)}`);
+    if (result.filmBefore !== 2 || result.filmAfter !== 1) failures.push(`${name}: successful reappraisal should consume exactly one film/canvas use, got ${JSON.stringify(result)}`);
+    if (result.slotCountBefore !== result.slotCountAfter || result.slotCountAfter !== 1) failures.push(`${name}: reappraisal should replace the selected slot instead of adding a new item, got ${JSON.stringify(result)}`);
+    if (!result.sameSlot || result.oldId === result.newId || result.oldName === result.newName) failures.push(`${name}: reappraisal should replace the same slot with a new item identity, got ${JSON.stringify(result)}`);
+    if (!result.newPhotoKeyIsReroll || result.newPhotoKey === result.oldPhotoKey) failures.push(`${name}: reappraisal should assign a reroll duplicate key, got ${JSON.stringify(result)}`);
+    if (result.duplicateByOldKey || result.duplicateByNewKey?.id !== result.newId) failures.push(`${name}: reappraisal duplicate checks should ignore the old source but recognize the new reroll item, got ${JSON.stringify(result)}`);
+    if ((result.newScore || 0) < 18 || (result.newScore || 0) > 26) failures.push(`${name}: reappraisal should use the current appraisal value range, got ${JSON.stringify(result)}`);
+    if (!result.reappraisedFromOld || !result.reappraisedAt) failures.push(`${name}: reappraised item should keep source metadata, got ${JSON.stringify(result)}`);
+    if (!result.promptHadRerollHint) failures.push(`${name}: reappraisal prompt should tell the model to judge independently, got ${JSON.stringify(result)}`);
+    if (!result.detailShowsNewItem) failures.push(`${name}: equipment detail should show the newly reappraised item, got ${JSON.stringify(result)}`);
   }
   if (name === "mode-switch-equivalence") {
     const result = metrics.modeSwitchEquivalence || {};
@@ -497,14 +517,14 @@ function assertScenario(name, metrics) {
     if (specials.comboBaseAtk !== 4 || specials.comboBattleAtk !== 5 || specials.comboAtkReadout?.base !== "4" || specials.comboAtkReadout?.delta !== "+1" || specials.comboAtkReadout?.deltaKind !== "positive") {
       failures.push(`${name}: temporary attack should render as base plus green delta without changing base stats, got ${JSON.stringify({ base: specials.comboBaseAtk, battle: specials.comboBattleAtk, readout: specials.comboAtkReadout })}`);
     }
-    if (specials.zeroHeroDamage !== 0 || specials.zeroAttackAfterHit !== 1 || specials.zeroHpAfterHeroStrike !== 64 || specials.zeroDefenseAfterMonster !== 1 || specials.zeroHpAfterMonster !== 68) {
+    if (specials.zeroHeroDamage !== 0 || specials.zeroAttackAfterHit !== 1 || specials.zeroHpAfterHeroStrike !== 64 || specials.zeroDefenseAfterMonster !== 1 || specials.zeroHpAfterMonster !== 70) {
       failures.push(`${name}: attack/defense/regen/lifesteal should trigger from actions even at zero damage, got ${JSON.stringify(specials)}`);
     }
     if (specials.sweepActionAttack !== 1 || specials.sweepActionHp !== 56) {
       failures.push(`${name}: sweep should not count as extra attack action for attack gain/lifesteal, got ${JSON.stringify(specials)}`);
     }
     const megaDefense = specials.megaDefenseState || {};
-    if (megaDefense.immuneUsed !== 2 || megaDefense.defenseSpecial !== 1 || megaDefense.hp !== 44) {
+    if (megaDefense.immuneUsed !== 2 || megaDefense.defenseSpecial !== 1 || megaDefense.hp !== 41) {
       failures.push(`${name}: mega defense immunity should still count as a defended action, got ${JSON.stringify(megaDefense)}`);
     }
     if (specials.heavyStrikeHp !== 1 || specials.heavyStrikeValue !== 9) {
@@ -512,6 +532,9 @@ function assertScenario(name, metrics) {
     }
     if (specials.bloodrageAtk !== 8 || specials.bloodrageReadout?.base !== "4" || specials.bloodrageReadout?.delta !== "+4") {
       failures.push(`${name}: bloodrage should add attack from missing HP without changing base attack, got ${JSON.stringify({ atk: specials.bloodrageAtk, readout: specials.bloodrageReadout })}`);
+    }
+    if (specials.attackCapState?.attack !== 5 || specials.attackCapState?.leftBadge !== "" || specials.attackCapState?.rightBadge !== "+5") {
+      failures.push(`${name}: capped attack stack should stop showing a cooldown countdown and keep the +5 value badge, got ${JSON.stringify(specials.attackCapState)}`);
     }
   }
   if (name === "linked-traits") {
@@ -525,8 +548,8 @@ function assertScenario(name, metrics) {
     if (!traits.warcryApplied || !traits.warcryRemoved || traits.warcryClockAfterDeath !== 0.5) {
       failures.push(`${name}: warrior warcry should be a live aura only, got ${JSON.stringify({ base: traits.warriorBaseState, live: traits.warriorLiveState, after: traits.warriorAfterDeathState, clock: traits.warcryClockAfterDeath })}`);
     }
-    if (traits.wizardSingleDef !== 5 || traits.wizardTempDefAfterHit !== 6 || traits.wizardBaseDefAfterHit !== 10) {
-      failures.push(`${name}: one wizard should lock the opening defense penalty and preserve later temp defense as a delta, got ${JSON.stringify({ single: traits.wizardSingleDef, afterHit: traits.wizardTempDefAfterHit, base: traits.wizardBaseDefAfterHit })}`);
+    if (traits.wizardSingleDef !== 5 || traits.wizardTempDefBeforeThird !== 5 || traits.wizardTempDefAfterHit !== 6 || traits.wizardBaseDefAfterHit !== 10) {
+      failures.push(`${name}: one wizard should lock the opening defense penalty and trigger temp defense only on the third hit, got ${JSON.stringify({ single: traits.wizardSingleDef, beforeThird: traits.wizardTempDefBeforeThird, afterHit: traits.wizardTempDefAfterHit, base: traits.wizardBaseDefAfterHit })}`);
     }
     const wizardReadout = traits.wizardStatReadout || {};
     if (wizardReadout.base !== "10" || wizardReadout.delta !== "-4" || wizardReadout.deltaKind !== "negative") {
@@ -534,7 +557,10 @@ function assertScenario(name, metrics) {
     }
     if (traits.wizardDef !== 0) failures.push(`${name}: two wizards should reduce hero defense to 0, got ${traits.wizardDef}`);
     if (traits.wizardTempDefAtCap !== 10 || traits.wizardDefenseSpecialAtCap !== 5 || traits.wizardCapReadout?.base !== "10" || traits.wizardCapReadout?.delta !== "") {
-      failures.push(`${name}: temporary defense should only offset the locked wizard penalty up to neutral, got ${JSON.stringify({ def: traits.wizardTempDefAtCap, readout: traits.wizardCapReadout, special: traits.wizardDefenseSpecialAtCap })}`);
+      failures.push(`${name}: temporary defense should stack to its own cap and can neutralize a -5 wizard penalty exactly, got ${JSON.stringify({ def: traits.wizardTempDefAtCap, readout: traits.wizardCapReadout, special: traits.wizardDefenseSpecialAtCap })}`);
+    }
+    if (traits.wizardSmallPenaltyDefAtCap !== 7 || traits.wizardSmallPenaltySpecialAtCap !== 5 || traits.wizardSmallPenaltyReadout?.base !== "5" || traits.wizardSmallPenaltyReadout?.delta !== "+2" || traits.wizardSmallPenaltyReadout?.deltaKind !== "positive") {
+      failures.push(`${name}: temporary defense cap must not be reduced to the wizard penalty amount, got ${JSON.stringify({ def: traits.wizardSmallPenaltyDefAtCap, readout: traits.wizardSmallPenaltyReadout, special: traits.wizardSmallPenaltySpecialAtCap })}`);
     }
     if (traits.wizardAfterOneDeathDef !== 0 || traits.wizardAfterDeathDef !== 0) {
       failures.push(`${name}: wizard defense break should stay locked after wizard death, got ${JSON.stringify({ one: traits.wizardAfterOneDeathDef, all: traits.wizardAfterDeathDef })}`);
@@ -564,6 +590,12 @@ function assertScenario(name, metrics) {
     }
     if (traits.octopusEqualDefenseEstimate !== "损失 -0" || traits.octopusEqualDefenseEstimateState !== "safe") {
       failures.push(`${name}: octopus estimate should use real max HP, not theoretical buffer HP, got ${JSON.stringify(traits.octopusEqualDefenseEstimateStateInfo)}`);
+    }
+    if (traits.octopusLethalEstimate !== "会倒下" || traits.octopusLethalEstimateState !== "danger") {
+      failures.push(`${name}: octopus estimate should warn when giant damage is lethal, got ${JSON.stringify(traits.octopusLethalStateInfo)}`);
+    }
+    if (traits.octopusAfterHpKillEstimate !== "损失 -8" || traits.octopusAfterHpKillEstimateState !== "safe") {
+      failures.push(`${name}: octopus estimate should include real max-HP gains from previous simulated kills without counting theoretical buffer, got ${JSON.stringify(traits.octopusAfterHpKillStateInfo)}`);
     }
     if (traits.octopusSpeed !== 2) failures.push(`${name}: octopus speed should be 2, got ${traits.octopusSpeed}`);
     if (traits.demonPromotionAtk !== 19 || traits.demonPromotionDef !== 9 || traits.dragonSpeedAfterAttack !== 4) {
@@ -608,6 +640,9 @@ function assertScenario(name, metrics) {
     if (bestiary.afterNormalNext?.group !== "normal" || bestiary.afterNormalNext?.pageText !== `2 / ${bestiary.normalPages}` || JSON.stringify(bestiary.afterNormalNext?.monsterKeys) === JSON.stringify(bestiary.initial?.monsterKeys)) {
       failures.push(`${name}: normal next page should advance to a different multi-card page, got ${JSON.stringify(bestiary)}`);
     }
+    for (const [pageName, pageState] of Object.entries({ initial: bestiary.initial, boss: bestiary.bossStart, npc: bestiary.npcStart, affix: bestiary.affixStart })) {
+      if ((pageState?.truncationCount || 0) > 0) failures.push(`${name}: ${pageName} bestiary page should not use ellipsis/clamped text, got ${JSON.stringify(pageState)}`);
+    }
     if (bestiary.bossStart?.group !== "boss" || !bestiary.bossStart?.monsterKeys?.includes("skeletonCaptain") || (bestiary.bossStart?.cardCount || 0) < 2 || bestiary.bossStart?.pageText !== `1 / ${bestiary.bossPages}`) {
       failures.push(`${name}: boss group should start on a compact boss page, got ${JSON.stringify(bestiary)}`);
     }
@@ -615,10 +650,10 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: boss pagination should reach a final page containing demon, got ${JSON.stringify(bestiary)}`);
     }
     if (!bestiary.hasDetailPortrait) failures.push(`${name}: selected monster detail should show portrait, got ${JSON.stringify(bestiary)}`);
-    if (!/魔王/.test(bestiary.detailText || "") || !/第40层最终 Boss/.test(bestiary.detailText || "") || !/晋升/.test(bestiary.detailText || "")) {
+    if (!/魔王/.test(bestiary.detailText || "") || !/第40层塔顶魔王/.test(bestiary.detailText || "") || !/晋升/.test(bestiary.detailText || "")) {
       failures.push(`${name}: demon detail should show name, floor pattern, and trait detail, got ${JSON.stringify(bestiary)}`);
     }
-    if (bestiary.affixStart?.group !== "affix" || (bestiary.affixStart?.affixCardCount || 0) < 2 || !/触发/.test(bestiary.affixDetailText || "") || !/权重/.test(bestiary.affixDetailText || "") || !/显示/.test(bestiary.affixDetailText || "")) {
+    if (bestiary.affixStart?.group !== "affix" || (bestiary.affixStart?.affixCardCount || 0) < 2 || !/时机/.test(bestiary.affixDetailText || "") || !/价值/.test(bestiary.affixDetailText || "") || !/战中/.test(bestiary.affixDetailText || "")) {
       failures.push(`${name}: affix group should show multiple detailed affix cards, got ${JSON.stringify(bestiary)}`);
     }
     if (bestiary.npcStart?.group !== "npc" || (bestiary.npcStart?.npcCardCount || 0) !== 4 || !bestiary.npcStart?.npcKeys?.includes("elder") || !bestiary.npcStart?.npcKeys?.includes("princess") || !bestiary.npcHasPortrait) {
@@ -649,8 +684,11 @@ function assertScenario(name, metrics) {
     if (hidden.hidden1?.npcCardHeight > hidden.hidden1?.maxGuardCardHeight + 8) {
       failures.push(`${name}: hidden NPC card height should stay aligned with guard cards, got ${JSON.stringify(hidden.hidden1)}`);
     }
-    if (hidden.hidden1?.beforeAllSelectedText !== "选齐三张" || hidden.hidden1?.afterAllSelectedText !== "解救") {
+    if (hidden.hidden1?.beforeAllSelectedText !== "全部选择" || hidden.hidden1?.afterAllSelectedText !== "解救") {
       failures.push(`${name}: hidden battle button should require all three selected cards, got ${JSON.stringify(hidden.hidden1)}`);
+    }
+    if (!hidden.hidden1Timeout?.resolved || hidden.hidden1Timeout?.rescued || hidden.hidden1Timeout?.returnFloor !== 10 || hidden.hidden1Timeout?.result !== "enemy-fled" || !/解救失败/.test(hidden.hidden1Timeout?.summary || "")) {
+      failures.push(`${name}: hidden timeout should return to the queued floor and mark rescue failed, got ${JSON.stringify(hidden.hidden1Timeout)}`);
     }
     if (!hidden.hidden3Reward?.rescued || hidden.hidden3Reward?.atkDelta !== 1 || hidden.hidden3Reward?.defDelta !== 1 || hidden.hidden3Reward?.speedDelta !== 1 || hidden.hidden3Reward?.returnFloor !== 22) {
       failures.push(`${name}: hidden3 rescue should grant gem stats and return to the queued floor, got ${JSON.stringify(hidden.hidden3Reward)}`);
@@ -737,28 +775,31 @@ function assertScenario(name, metrics) {
     if (bossRetreat.afterRetreatVisible) failures.push(`${name}: reward boss pre-battle state should not show retreat after retreat`);
   }
   if (name === "mobile-info") {
-    if (metrics.activeInfoTab !== "about") failures.push(`${name}: info panel should open on about/stat tab`);
-    if (!metrics.visibleButtons.includes("作者/统计")) failures.push(`${name}: missing author/stat tab`);
+    if (metrics.activeInfoTab !== "about") failures.push(`${name}: info panel should open on outside/trail tab`);
+    if (!metrics.visibleButtons.includes("塔外")) failures.push(`${name}: missing outside tab`);
     if (!metrics.visibleButtons.includes("冒险手册") || metrics.visibleButtons.includes("游戏信息")) failures.push(`${name}: top info button should be 冒险手册, got ${JSON.stringify(metrics.visibleButtons)}`);
     if (!metrics.visibleButtons.includes("拍照/画图")) failures.push(`${name}: missing photo/drawing tab`);
     if (!metrics.visibleButtons.includes("战斗")) failures.push(`${name}: missing battle tab`);
-    if (!/全站统计/.test(metrics.infoText)) failures.push(`${name}: missing global stats title`);
+    if (!/勇者足迹/.test(metrics.infoText)) failures.push(`${name}: missing player-facing global stats title`);
     if (metrics.infoCards?.hasHeaderTitle) failures.push(`${name}: info panel should not keep a separate 冒险手册 header row, got ${JSON.stringify(metrics.infoCards)}`);
     if (metrics.infoCards?.photoSelectedIndex !== 1 || metrics.infoCards?.battleSelectedIndex !== 2) failures.push(`${name}: clicked photo/battle info cards should become selected, got ${JSON.stringify(metrics.infoCards)}`);
     if (metrics.infoCards?.photoSelectedCount !== 1 || metrics.infoCards?.battleSelectedCount !== 1) failures.push(`${name}: exactly one selectable card per info page should be active, got ${JSON.stringify(metrics.infoCards)}`);
     if (!metrics.infoCards?.photoCardsClickable || !metrics.infoCards?.battleCardsClickable) failures.push(`${name}: photo/battle info cards should be keyboard/click selectable, got ${JSON.stringify(metrics.infoCards)}`);
-    if (!/作者其他游戏/.test(metrics.infoText)) failures.push(`${name}: missing other games block`);
+    if (!/另一段冒险/.test(metrics.infoText)) failures.push(`${name}: missing other games block`);
+    const manualPlayerPages = metrics.playerManualText || "";
+    if (/素材来源|魔塔50层|抹茶旦旦/.test(manualPlayerPages)) failures.push(`${name}: material source copy should stay out of the in-game manual, got ${manualPlayerPages}`);
+    if (/\bAI\b|API(?:\s*Key)?|接口|模型名|图文模型|开发者|说明书|教程/.test(manualPlayerPages)) failures.push(`${name}: player manual should avoid developer/API/manual wording, got ${manualPlayerPages}`);
     for (const label of ["访问", "访客", "游玩", "通关", "击杀", "击杀Boss", "鉴定", "照片装备", "画图装备", "超级形态", "爬塔层数"]) {
       if (!metrics.statLabels.includes(label)) failures.push(`${name}: missing stat label ${label}`);
     }
     if (!metrics.groupQr.loaded || !metrics.groupQr.src.includes("xiaohongshu-group-qr.jpg")) failures.push(`${name}: Xiaohongshu QR image did not load`);
     if (!metrics.groupQr.square) failures.push(`${name}: Xiaohongshu QR image should be square`);
-    if (metrics.groupQr.text !== "加入小红书游戏群") failures.push(`${name}: Xiaohongshu QR copy should be 加入小红书游戏群`);
-    if (!/项目地址（求个star⭐）/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing compact project link copy`);
-    if (!/小红书交流帖（求点赞❤️）/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing compact Xiaohongshu post copy`);
-    if (/github\.com\/kw66\/photo-hero|打开帖子|小红书帖子（求点赞）/.test(metrics.groupQr.linksText || "")) failures.push(`${name}: author block still exposes old link text`);
-    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "项目地址（求个star⭐）" && link.href.includes("github.com/kw66/photo-hero"))) failures.push(`${name}: project label should link to GitHub`);
-    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "小红书交流帖（求点赞❤️）" && link.href.includes("xhslink.com/o/17XFWimxM94"))) failures.push(`${name}: Xiaohongshu label should link to post`);
+    if (metrics.groupQr.text !== "加入塔外营地") failures.push(`${name}: Xiaohongshu QR copy should be 加入塔外营地`);
+    if (!/项目页查看更新记录/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing compact project link copy`);
+    if (!/交流帖分享你的装备/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing compact Xiaohongshu post copy`);
+    if (/github\.com\/kw66\/photo-hero|打开帖子|小红书帖子|求个|求点赞|作者\/统计|全站统计/.test(metrics.groupQr.linksText || "")) failures.push(`${name}: author block still exposes old/manual link text`);
+    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "项目页查看更新记录" && link.href.includes("github.com/kw66/photo-hero"))) failures.push(`${name}: project label should link to GitHub`);
+    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "交流帖分享你的装备" && link.href.includes("xhslink.com/o/17XFWimxM94"))) failures.push(`${name}: Xiaohongshu label should link to post`);
     if (!metrics.groupQr.rightSide) failures.push(`${name}: Xiaohongshu QR should sit on the right side of author block`);
     if (metrics.statLabels.includes("装备")) failures.push(`${name}: old generic equipment stat label should be split into photo/drawing equipment`);
     if (metrics.statCardCount !== 11) failures.push(`${name}: expected 11 global stat cards, got ${metrics.statCardCount}`);
@@ -873,6 +914,24 @@ function assertScenario(name, metrics) {
         failures.push(`${name}: greedy stats at ${film} film expected ${JSON.stringify(stats)}, got ${JSON.stringify(actual)}`);
       }
     }
+    const badgeKey = (entry) => `${entry.stat}:${entry.text}`;
+    const attackBadges = (formChecks.formBattleBadges?.attack?.badges || []).map(badgeKey);
+    if (!attackBadges.includes("attack:+3") || !attackBadges.includes("defense:-1")) {
+      failures.push(`${name}: attack form battle avatar should show attack gain and defense loss, got ${JSON.stringify(formChecks.formBattleBadges?.attack)}`);
+    }
+    const angryBadges = (formChecks.formBattleBadges?.angry?.badges || []).map(badgeKey);
+    if (!angryBadges.includes("attack:+5") || !angryBadges.includes("defense:+5")) {
+      failures.push(`${name}: angry form battle avatar should show both red attack and blue defense gains, got ${JSON.stringify(formChecks.formBattleBadges?.angry)}`);
+    }
+    const greedyBadges = (formChecks.formBattleBadges?.greedy?.badges || []).map(badgeKey);
+    if (!greedyBadges.includes("attack:+1") || !greedyBadges.includes("defense:+1") || !greedyBadges.includes("speed:+1")) {
+      failures.push(`${name}: greedy form battle avatar should show carried-film attack/defense/speed gains, got ${JSON.stringify(formChecks.formBattleBadges?.greedy)}`);
+    }
+    for (const [formId, state] of Object.entries(formChecks.formBattleBadges || {})) {
+      if (!state?.rightAligned || !state?.topStacked) {
+        failures.push(`${name}: ${formId} form battle badges should stack on the avatar's far right, got ${JSON.stringify(state)}`);
+      }
+    }
   }
   return failures;
 }
@@ -895,6 +954,8 @@ function assertScenario(name, metrics) {
         initialFloor: state.floor,
         initialBgm: state.audio?.bgmKey || "",
         enterEnabledBeforeAll: !document.querySelector("#attackBtn")?.disabled,
+        primaryTextBeforeAll: document.querySelector("#attackBtn")?.textContent?.trim() || "",
+        promptBeforeAll: Boolean(document.querySelector("#attackBtn")?.classList.contains("is-choice-prompt")),
         selectedCount: state.introRewardSelectedIds?.length || 0,
       };
     });
@@ -904,7 +965,11 @@ function assertScenario(name, metrics) {
     await page.locator(".intro-reward-card").nth(1).click();
     await page.waitForFunction(() => {
       const state = JSON.parse(window.render_game_to_text());
-      return (state.introRewardSelectedIds || []).length === 2 && document.querySelector("#attackBtn")?.disabled;
+      const button = document.querySelector("#attackBtn");
+      return (state.introRewardSelectedIds || []).length === 2
+        && button?.textContent?.trim() === "全部选择"
+        && button?.classList.contains("is-choice-prompt")
+        && !button?.disabled;
     }, null, { timeout: 3000 });
     await page.evaluate(() => {
       const state = JSON.parse(window.render_game_to_text());
@@ -914,6 +979,8 @@ function assertScenario(name, metrics) {
         ...window.__reviewIntroFlow,
         afterCancelCount: state.introRewardSelectedIds?.length || 0,
         enterEnabledAfterCancel: !document.querySelector("#attackBtn")?.disabled,
+        primaryTextAfterCancel: document.querySelector("#attackBtn")?.textContent?.trim() || "",
+        promptAfterCancel: Boolean(document.querySelector("#attackBtn")?.classList.contains("is-choice-prompt")),
         reorderedBadges: cards.map((card) => card.querySelector(".selection-badge")?.textContent?.trim() || "").filter(Boolean),
         equalCardHeights: new Set(heights).size === 1,
         cardHeights: heights,
@@ -922,7 +989,11 @@ function assertScenario(name, metrics) {
     await page.locator(".intro-reward-card").nth(1).click();
     await page.waitForFunction(() => {
       const state = JSON.parse(window.render_game_to_text());
-      return (state.introRewardSelectedIds || []).length === 3 && !document.querySelector("#attackBtn")?.disabled;
+      const button = document.querySelector("#attackBtn");
+      return (state.introRewardSelectedIds || []).length === 3
+        && button?.textContent?.trim() === "进入魔塔"
+        && !button?.classList.contains("is-choice-prompt")
+        && !button?.disabled;
     }, null, { timeout: 3000 });
     await page.evaluate(() => {
       const state = JSON.parse(window.render_game_to_text());
@@ -930,6 +1001,8 @@ function assertScenario(name, metrics) {
         ...window.__reviewIntroFlow,
         selectedCount: state.introRewardSelectedIds?.length || 0,
         enterEnabledAfterAll: !document.querySelector("#attackBtn")?.disabled,
+        primaryTextAfterAll: document.querySelector("#attackBtn")?.textContent?.trim() || "",
+        promptAfterAll: Boolean(document.querySelector("#attackBtn")?.classList.contains("is-choice-prompt")),
         finalBadges: Array.from(document.querySelectorAll(".intro-reward-card .selection-badge")).map((badge) => badge.textContent?.trim() || ""),
       };
     });
@@ -1109,6 +1182,152 @@ function assertScenario(name, metrics) {
         pendingSourceModeAfterRetry: state.pendingSourceMode,
       };
     }, requestCount);
+  });
+
+  scenarios.reappraisal = await collectScenario(desktop, "reappraisal", async (page) => {
+    let requestCount = 0;
+    let promptHadRerollHint = false;
+    await page.route("https://api.siliconflow.cn/v1/chat/completions", async (route) => {
+      requestCount += 1;
+      const body = route.request().postDataJSON();
+      const userContent = body?.messages?.find?.((message) => message.role === "user")?.content || [];
+      promptHadRerollHint = JSON.stringify(userContent).includes("重鉴定") && JSON.stringify(userContent).includes("重新独立观察");
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                itemName: "重铸水杯",
+                subjectName: "水杯",
+                objectType: "杯子",
+                identityDescription: "蓝色杯子，圆柱杯身，桌面近景，有真实接触阴影。",
+                sizeClass: "handheld",
+                isScene: false,
+                isEquipable: true,
+                photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 3, focusLight: 3, interesting: 2 },
+                statAffinity: [{ stat: "regen", score: 3 }, { stat: "hp", score: 2 }],
+                specialAffinity: [],
+                description: "杯身带着温和补给感。",
+                reason: "杯子主体清晰，适合作为补给装备。",
+                tags: ["杯子", "容器"],
+                confidence: 0.92,
+              }),
+            },
+          }],
+        }),
+      });
+    });
+    const sourceImage = await page.evaluate(async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 180;
+      canvas.height = 180;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#efe0c8";
+      ctx.fillRect(0, 0, 180, 180);
+      ctx.fillStyle = "#2e74b8";
+      ctx.fillRect(62, 36, 58, 88);
+      ctx.fillStyle = "#1d4f8f";
+      ctx.fillRect(70, 28, 42, 12);
+      ctx.fillStyle = "rgba(0,0,0,0.2)";
+      ctx.ellipse(91, 132, 48, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      return canvas.toDataURL("image/jpeg", 0.82);
+    });
+    await page.evaluate((image) => {
+      const hooks = window.__photoHeroTestHooks;
+      document.querySelector('[data-preset="siliconflow"]')?.click();
+      hooks.enterTowerForTest({ silent: true });
+      hooks.setRunRewards({ filmRolls: 2, filmShards: 0, photoValueMin: 18, photoValueMax: 26 });
+      const keyInput = document.querySelector("#apiKeyInput");
+      if (keyInput) {
+        keyInput.value = "test-key";
+        keyInput.dispatchEvent(new Event("input", { bubbles: true }));
+        keyInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      const oldKey = "img:oldcup";
+      hooks.addRawItem({
+        itemName: "旧水杯",
+        subjectName: "水杯",
+        objectType: "杯子",
+        value: 8,
+        stats: { hp: 8 },
+        sourceMode: "photo",
+        photoKey: oldKey,
+        sourcePhotoKey: oldKey,
+        image,
+        fullImage: image,
+        appraisalImage: image,
+        identityDescription: "蓝色杯子，圆柱杯身，桌面近景，有真实接触阴影。",
+        skipSpecialRoll: true,
+      });
+      hooks.state.selectedSlotIndex = 0;
+      hooks.state.infoMode = "item";
+      hooks.render();
+      const inventory = hooks.getInventoryForTest();
+      const selected = inventory[0] || {};
+      const button = document.querySelector("#analyzePhotoBtn");
+      window.__reviewReappraisal = {
+        buttonText: button?.textContent?.trim() || "",
+        buttonEnabled: Boolean(button && !button.hidden && !button.disabled),
+        filmBefore: JSON.parse(window.render_game_to_text()).player?.filmCount,
+        slotCountBefore: inventory.filter(Boolean).length,
+        oldId: selected.id || "",
+        oldName: selected.itemName || "",
+        oldPhotoKey: selected.photoKey || "",
+      };
+    }, sourceImage);
+    await page.click("#analyzePhotoBtn");
+    await page.waitForFunction(() => {
+      const hooks = window.__photoHeroTestHooks;
+      const button = document.querySelector("#analyzePhotoBtn");
+      return hooks.state.analysisRequest?.reappraisal
+        && button?.textContent?.trim() === "取消重鉴定"
+        && !button.disabled;
+    }, null, { timeout: 3000 });
+    const reappraisalBusyState = await page.evaluate(() => {
+      const button = document.querySelector("#analyzePhotoBtn");
+      return {
+        text: button?.textContent?.trim() || "",
+        enabled: Boolean(button && !button.hidden && !button.disabled),
+      };
+    });
+    await page.waitForFunction(() => {
+      const hooks = window.__photoHeroTestHooks;
+      const inventory = hooks.getInventoryForTest();
+      return !hooks.state.analysisRequest && inventory[0]?.itemName === "重铸水杯";
+    }, null, { timeout: 6000 });
+    await page.evaluate(({ count, promptHint, busyState }) => {
+      const hooks = window.__photoHeroTestHooks;
+      const state = JSON.parse(window.render_game_to_text());
+      const inventory = hooks.getInventoryForTest();
+      const selected = inventory[0] || {};
+      window.__reviewReappraisal = {
+        ...window.__reviewReappraisal,
+        requestCount: count,
+        promptHadRerollHint: promptHint,
+        busyButtonText: busyState.text,
+        busyButtonEnabled: busyState.enabled,
+        filmAfter: state.player?.filmCount,
+        slotCountAfter: inventory.filter(Boolean).length,
+        sameSlot: state.selectedSlotIndex === 0,
+        newId: selected.id || "",
+        newName: selected.itemName || "",
+        newPhotoKey: selected.photoKey || "",
+        newSourcePhotoKey: selected.sourcePhotoKey || "",
+        newPhotoKeyIsReroll: /^reroll:/i.test(selected.photoKey || "") && selected.photoKey === selected.sourcePhotoKey,
+        newScore: selected.score || 0,
+        rangeMin: hooks.getPhotoValueMappingForTest(15).min,
+        rangeMax: hooks.getPhotoValueMappingForTest(15).max,
+        duplicateByOldKey: hooks.findCurrentPhotoDuplicateForTest("img:oldcup", "img:oldcup", null),
+        duplicateByNewKey: hooks.findCurrentPhotoDuplicateForTest(selected.photoKey || "", selected.sourcePhotoKey || "", null),
+        reappraisedFromOld: selected.reappraisedFromId === window.__reviewReappraisal.oldId,
+        reappraisedAt: selected.reappraisedAt || 0,
+        detailShowsNewItem: /重铸水杯/.test(document.querySelector("#equipmentDetail")?.innerText || ""),
+      };
+    }, { count: requestCount, promptHint: promptHadRerollHint, busyState: reappraisalBusyState });
   });
 
   scenarios.modeSwitchEquivalence = await collectScenario(desktop, "mode-switch-equivalence", async (page) => {
@@ -1875,6 +2094,7 @@ function assertScenario(name, metrics) {
   scenarios.mobileFormEconomy = await collectScenario(mobile, "mobile-form-economy", async (page) => {
     await page.evaluate(async () => {
       const hooks = window.__photoHeroTestHooks;
+      hooks.renderHeroFormsForTest?.();
       const setMegaForm = (formId) => {
         hooks.setHeroForm(formId);
         hooks.setFormProgress({
@@ -1966,6 +2186,7 @@ function assertScenario(name, metrics) {
       hooks.resetGameForTest();
       hooks.setFormProgress({ hp: { kills: 10, level: 2 }, defense: { kills: 10, level: 2 } });
       hooks.setHeroForm("hp");
+      hooks.renderHeroFormsForTest?.();
       const hpEffectText = document.querySelector('.form-card[data-form-id="hp"] .form-copy')?.innerText || "";
       const hpMetaText = document.querySelector('.form-card[data-form-id="hp"] .form-card-meta')?.innerText || "";
       hooks.setHeroStats({ hp: 50 });
@@ -2058,6 +2279,7 @@ function assertScenario(name, metrics) {
       };
       hooks.resetGameForTest();
       setMegaForm("greedy");
+      hooks.renderHeroFormsForTest?.();
       const greedyDropBonus = JSON.parse(window.render_game_to_text()).player.form.filmDropBonus;
       const greedyMetaText = document.querySelector('.form-card[data-form-id="greedy"] .form-card-meta')?.innerText || "";
       const greedyStatsByFilm = {};
@@ -2073,7 +2295,50 @@ function assertScenario(name, metrics) {
         cards: Array.from(document.querySelectorAll(".form-card-meta strong")).map((node) => node.textContent.trim()),
         metaText: Array.from(document.querySelectorAll(".form-card-meta")).map((node) => node.textContent.trim()),
       };
-      window.__reviewFormEconomy = { shield, shieldAvatar, lifesteal, regenShield, hpKill, hpShared, hpSwitch, speedPreStrike, greedyDropBonus, greedyStatsByFilm, visibleFormLabels, hpEffectText, hpMetaText, greedyMetaText };
+      const readBattleBadgeProbe = async (formId, options = {}) => {
+        hooks.resetGameForTest();
+        hooks.setHeroForm(formId);
+        if (options.progress) hooks.setFormProgress({ [formId]: options.progress });
+        if (options.rewards) hooks.setRunRewards(options.rewards);
+        hooks.setEnemies([{
+          id: `badge-${formId}`,
+          testEnemy: true,
+          typeKey: "slime",
+          typeName: "史莱姆",
+          name: "史莱姆",
+          maxHp: 30,
+          hp: 30,
+          atk: 1,
+          def: 0,
+          speed: 1,
+          traits: [],
+        }]);
+        hooks.beginBattle(hooks.state.enemies);
+        hooks.render();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const card = document.querySelector(".hero-form-card");
+        const cardRect = card?.getBoundingClientRect();
+        const badges = Array.from(document.querySelectorAll(".hero-form-battle-badge")).map((node) => {
+          const rect = node.getBoundingClientRect();
+          return {
+            stat: node.dataset.stat || "",
+            text: node.textContent.trim(),
+            rightGap: cardRect ? Math.round(cardRect.right - rect.right) : 999,
+            top: cardRect ? Math.round(rect.top - cardRect.top) : 0,
+          };
+        });
+        return {
+          badges,
+          rightAligned: badges.length > 0 && badges.every((badge) => badge.rightGap >= 3 && badge.rightGap <= 9),
+          topStacked: badges.every((badge, index) => index === 0 || badge.top > badges[index - 1].top),
+        };
+      };
+      const formBattleBadges = {
+        attack: await readBattleBadgeProbe("attack"),
+        angry: await readBattleBadgeProbe("angry"),
+        greedy: await readBattleBadgeProbe("greedy", { progress: { kills: 10, level: 2 }, rewards: { filmRolls: 3, filmShards: 0 } }),
+      };
+      window.__reviewFormEconomy = { shield, shieldAvatar, lifesteal, regenShield, hpKill, hpShared, hpSwitch, speedPreStrike, greedyDropBonus, greedyStatsByFilm, visibleFormLabels, hpEffectText, hpMetaText, greedyMetaText, formBattleBadges };
     });
   });
 
@@ -2203,6 +2468,7 @@ function assertScenario(name, metrics) {
       const comboResults = hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
       hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       const activeSpecialKeys = hooks.getActiveSpecialsForTest().map((item) => item.key);
       const comboStrikeCount = comboResults.length;
       const comboShieldDamage = comboResults[0]?.shieldCrashDamage || 0;
@@ -2233,6 +2499,7 @@ function assertScenario(name, metrics) {
       const zeroHpAfterHeroStrike = hooks.state.player.hp;
       hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       const zeroDefenseAfterMonster = hooks.state.battleSpecial.defense;
       const zeroHpAfterMonster = hooks.state.player.hp;
 
@@ -2259,6 +2526,7 @@ function assertScenario(name, metrics) {
       hooks.selectEnemies(["immune-hit"]);
       hooks.beginBattle(hooks.state.enemies);
       hooks.state.player.hp = 40;
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       const megaDefenseState = {
@@ -2291,6 +2559,23 @@ function assertScenario(name, metrics) {
       hooks.render();
       const bloodrageReadout = JSON.parse(window.render_game_to_text()).player.statReadouts?.atk || {};
 
+      hooks.resetGameForTest();
+      hooks.addSpecialItem("dealDamageAttack", { itemName: "attack cap tester", description: "knife sharp", value: 15, stats: {}, specialAffinity: ["dealDamageAttack"] });
+      hooks.setHeroStats({ hp: 80, baseHp: 80, baseAtk: 1, baseDef: 1, baseShield: 0, shield: 0 });
+      hooks.setEnemies([{ ...makeEnemy("attack-cap-target", 999), def: 999, atk: 0 }]);
+      hooks.selectEnemies(["attack-cap-target"]);
+      hooks.beginBattle(hooks.state.enemies);
+      for (let i = 0; i < 10; i += 1) {
+        hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
+      }
+      hooks.render();
+      const attackCapSlot = document.querySelector(".equipment-slot.has-item");
+      const attackCapState = {
+        attack: hooks.state.battleSpecial.attack,
+        leftBadge: attackCapSlot?.querySelector(".slot-battle-badge-left")?.textContent?.trim() || "",
+        rightBadge: attackCapSlot?.querySelector(".slot-battle-badge-right")?.textContent?.trim() || "",
+      };
+
       window.__reviewGroupSpecials = {
         sweepLeftHp,
         sweepCenterHp,
@@ -2322,6 +2607,7 @@ function assertScenario(name, metrics) {
         heavyStrikeValue,
         bloodrageAtk,
         bloodrageReadout,
+        attackCapState,
       };
     });
   });
@@ -2411,17 +2697,30 @@ function assertScenario(name, metrics) {
       hooks.addSpecialItem("takeDamageDefense", { itemName: "阻击护壳测试", description: "shield shell protect", value: 15, stats: {}, specialAffinity: ["takeDamageDefense"] });
       hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["z0"]), 1);
       hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["z0"]), 1);
+      const wizardTempDefBeforeThird = hooks.getBattleStatsForTest(["z0"]).def;
+      hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["z0"]), 1);
       const wizardTempDefAfterHit = hooks.getBattleStatsForTest(["z0"]).def;
       const wizardBaseDefAfterHit = hooks.getPlayerStats().def;
       hooks.render();
       const wizardStatReadout = JSON.parse(window.render_game_to_text()).player.statReadouts?.def || {};
-      for (let i = 0; i < 10; i += 1) {
+      for (let i = 0; i < 12; i += 1) {
         hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["z0"]), 1);
       }
       const wizardTempDefAtCap = hooks.getBattleStatsForTest(["z0"]).def;
       const wizardDefenseSpecialAtCap = hooks.state.battleSpecial.defense;
       hooks.render();
       const wizardCapReadout = JSON.parse(window.render_game_to_text()).player.statReadouts?.def || {};
+
+      hooks.setHeroStats({ hp: 80, shield: 3, baseDef: 5, baseShield: 0 });
+      hooks.addSpecialItem("takeDamageDefense", { itemName: "small penalty guard tester", description: "shield shell protect", value: 15, stats: {}, specialAffinity: ["takeDamageDefense"] });
+      enemies = begin([baseEnemy("z-small", "wizard", { atk: 1 })]);
+      for (let i = 0; i < 15; i += 1) {
+        hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["z-small"]), 1);
+      }
+      const wizardSmallPenaltyDefAtCap = hooks.getBattleStatsForTest(["z-small"]).def;
+      const wizardSmallPenaltySpecialAtCap = hooks.state.battleSpecial.defense;
+      hooks.render();
+      const wizardSmallPenaltyReadout = JSON.parse(window.render_game_to_text()).player.statReadouts?.def || {};
 
       hooks.setHeroStats({ hp: 80, shield: 3, baseDef: 10, baseShield: 3 });
       enemies = begin([baseEnemy("z1", "wizard"), baseEnemy("z2", "wizard")]);
@@ -2480,6 +2779,13 @@ function assertScenario(name, metrics) {
       hooks.setFloor(25);
       hooks.setHeroStats({ hp: 110, baseHp: 80, baseAtk: 9, baseDef: 11, baseSpeed: 3, baseRegen: 1, baseShield: 4, baseLifesteal: 1, shield: 4 });
       const octopusEqualDefenseState = JSON.parse(window.render_game_to_text()).enemies[0] || {};
+      hooks.setHeroStats({ hp: 50, baseHp: 50, baseAtk: 1, baseDef: 0, baseSpeed: 1, baseRegen: 0, baseShield: 0, baseLifesteal: 0, shield: 0 });
+      const octopusLethalState = JSON.parse(window.render_game_to_text()).enemies[0] || {};
+      hooks.setHeroStats({ hp: 110, baseHp: 80, baseAtk: 10, baseDef: 0, baseSpeed: 20, baseRegen: 0, baseShield: 0, baseLifesteal: 0, shield: 0 });
+      hooks.addSpecialItem("killMaxHp", { itemName: "铸命章鱼预估测试", description: "seed growth trophy", value: 15, stats: {}, specialAffinity: ["killMaxHp"] });
+      hooks.setEnemies([baseEnemy("octopus-hp-scout", "slime", { hp: 1, def: 0, atk: 0, speed: 1 }), baseEnemy("octopus-after-hp", "octopus")]);
+      hooks.selectEnemies(["octopus-hp-scout", "octopus-after-hp"]);
+      const octopusAfterHpKillState = JSON.parse(window.render_game_to_text()).enemies.find((enemy) => enemy.id === "octopus-after-hp") || {};
 
       enemies = begin([baseEnemy("dm1", "demon")]);
       hooks.applyHeroDamageToEnemy(enemies[0], { atk: 20, def: 1, speed: 1, maxHp: 80, shield: 0, regen: 0, lifesteal: 0 });
@@ -2536,12 +2842,16 @@ function assertScenario(name, metrics) {
         warcryRemoved,
         warcryClockAfterDeath,
         wizardSingleDef,
+        wizardTempDefBeforeThird,
         wizardTempDefAfterHit,
         wizardBaseDefAfterHit,
         wizardStatReadout,
         wizardTempDefAtCap,
         wizardDefenseSpecialAtCap,
         wizardCapReadout,
+        wizardSmallPenaltyDefAtCap,
+        wizardSmallPenaltySpecialAtCap,
+        wizardSmallPenaltyReadout,
         wizardDef,
         wizardAfterOneDeathDef,
         wizardAfterDeathDef,
@@ -2568,6 +2878,20 @@ function assertScenario(name, metrics) {
           text: octopusEqualDefenseState.damageEstimate,
           state: octopusEqualDefenseState.damageEstimateState,
           displayAtk: octopusEqualDefenseState.displayAtk,
+        },
+        octopusLethalEstimate: octopusLethalState.damageEstimate,
+        octopusLethalEstimateState: octopusLethalState.damageEstimateState,
+        octopusLethalStateInfo: {
+          text: octopusLethalState.damageEstimate,
+          state: octopusLethalState.damageEstimateState,
+          displayAtk: octopusLethalState.displayAtk,
+        },
+        octopusAfterHpKillEstimate: octopusAfterHpKillState.damageEstimate,
+        octopusAfterHpKillEstimateState: octopusAfterHpKillState.damageEstimateState,
+        octopusAfterHpKillStateInfo: {
+          text: octopusAfterHpKillState.damageEstimate,
+          state: octopusAfterHpKillState.damageEstimateState,
+          displayAtk: octopusAfterHpKillState.displayAtk,
         },
         bossGrowthState: { demonPromotionState, dragonSpeedAfterAttack },
         demonPromotionState,
@@ -2632,6 +2956,14 @@ function assertScenario(name, metrics) {
       npcCardCount: document.querySelectorAll(".bestiary-npc-card").length,
       affixCardCount: document.querySelectorAll(".affix-card").length,
       pageText: document.querySelector(".bestiary-page-indicator")?.textContent.trim() || "",
+      truncationCount: Array.from(document.querySelectorAll("[data-bestiary-shell] .bestiary-card-head strong, [data-bestiary-shell] .bestiary-card-head em, [data-bestiary-shell] .bestiary-card-rules p span, [data-bestiary-shell] .bestiary-card-rules li span, [data-bestiary-shell] .affix-card p, [data-bestiary-shell] .affix-card dd"))
+        .filter((node) => {
+          const style = getComputedStyle(node);
+          const lineClamp = style.webkitLineClamp || "";
+          return style.textOverflow === "ellipsis"
+            || (lineClamp && lineClamp !== "none" && lineClamp !== "unset")
+            || (style.overflow === "hidden" && node.scrollWidth > node.clientWidth + 1);
+        }).length,
     }));
     const initial = await readPage();
     const initialAffixCardCount = await page.locator(".affix-card").count();
@@ -2765,11 +3097,35 @@ function assertScenario(name, metrics) {
 
       const hidden3Reward = await runHiddenRescue(3, 22);
       const hidden4Reward = await runHiddenRescue(4, 40);
+      const runHiddenTimeout = async (index, returnFloor) => {
+        hooks.resetGameForTest();
+        hooks.setHeroStats({ baseHp: 500, hp: 500, baseAtk: 1, baseDef: 200, baseSpeed: 1, baseShield: 0, shield: 0 });
+        hooks.enterHiddenLayerForTest(index, returnFloor);
+        hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));
+        hooks.beginBattle(hooks.state.enemies.filter((enemy) => !enemy.nonCombat));
+        if (hooks.state.currentBattle) hooks.state.currentBattle.roundLimit = 2;
+        for (let i = 0; i < 5 && hooks.state.currentBattle; i += 1) {
+          hooks.resolveBattleAction();
+        }
+        await wait(520);
+        const hiddenState = hooks.getHiddenLayerStateForTest();
+        const report = hooks.state.battleReports?.find((entry) => entry?.result === "enemy-fled") || {};
+        return {
+          resolved: Boolean(hiddenState.resolved?.[index]),
+          rescued: Boolean(hiddenState.rescued?.[index]),
+          current: hiddenState.current || null,
+          returnFloor: hooks.state.floor,
+          result: report.result || "",
+          summary: report.summary || "",
+        };
+      };
+      const hidden1Timeout = await runHiddenTimeout(1, 10);
 
       window.__reviewHiddenLayers = {
         triggers,
         triggersValid,
         hidden1,
+        hidden1Timeout,
         hidden3Reward,
         hidden4Reward,
       };

@@ -448,6 +448,22 @@ h3 {
   border-color: #5a625e;
 }
 
+.primary-button.is-choice-prompt,
+.primary-button.is-choice-prompt:hover:not(:disabled),
+.primary-button.is-choice-prompt:active:not(:disabled) {
+  border-color: color-mix(in srgb, var(--amber) 78%, #fff1be 22%);
+  background:
+    linear-gradient(180deg, #f0a13a 0%, #b96614 100%),
+    var(--amber);
+  color: #1a1007;
+  transform: none;
+  box-shadow:
+    inset 0 1px 0 rgb(255 241 190 / 36%),
+    0 0 0 2px color-mix(in srgb, var(--amber) 22%, transparent),
+    0 5px 10px rgb(0 0 0 / 28%),
+    0 2px 0 rgb(76 42 8 / 52%);
+}
+
 #testChatBtn {
   border-color: color-mix(in srgb, var(--amber) 68%, var(--ink));
   background:
@@ -614,7 +630,13 @@ h3 {
   position: absolute;
   top: 5px;
   left: 5px;
+  right: auto;
   z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: calc(100% - 10px);
   min-width: 36px;
   padding: 2px 5px;
   border: 1px solid color-mix(in srgb, var(--amber) 72%, #120b03 28%);
@@ -654,7 +676,7 @@ h3 {
 
 .hero-form-card .hero-form-battle-badge {
   inset: auto 5px auto auto;
-  top: 5px;
+  top: calc(5px + (var(--badge-index, 0) * 22px));
   right: 5px;
   bottom: auto;
   width: auto;
@@ -668,13 +690,23 @@ h3 {
 }
 
 .slot-battle-badge-left {
-  top: 4px;
-  left: 4px;
+  top: 1px;
+  left: 1px;
+  min-width: 22px;
+  height: 19px;
+  padding-inline: 4px;
 }
 
 .slot-battle-badge-right {
-  top: 4px;
-  right: 4px;
+  top: 1px;
+  right: 1px;
+  min-width: 22px;
+  max-width: calc(100% - 30px);
+  height: 19px;
+  padding-inline: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hero-form-battle-badge[data-stat="attack"],
@@ -1010,6 +1042,18 @@ dd {
   white-space: nowrap;
   text-shadow: none;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 14%), 0 1px 0 rgb(0 0 0 / 42%);
+  transition: border-color 140ms var(--ease-out-quart), background 140ms var(--ease-out-quart), color 140ms var(--ease-out-quart), transform 140ms var(--ease-out-quart);
+}
+
+.info-tab-button:hover,
+.info-tab-button:focus-visible {
+  border-color: color-mix(in srgb, var(--hero) 48%, var(--line-strong));
+  color: var(--ink);
+}
+
+.info-tab-button[data-info-tab="battle"],
+.info-tab-button[data-info-tab="bestiary"] {
+  min-width: calc(3em + 18px);
 }
 
 .info-tab-button[aria-selected="true"] {
@@ -3171,6 +3215,9 @@ dd {
 .secondary-area:has([data-secondary-panel="music"]:not([hidden])),
 .secondary-area:has([data-secondary-panel="info"]:not([hidden])) {
   max-height: calc(100% - 52px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (min-width: 981px) {
@@ -3363,16 +3410,26 @@ dd {
 
 .info-block {
   display: grid;
-  gap: 5px;
-  padding: 8px 9px;
-  border: 1px solid var(--panel-border-soft);
+  gap: 6px;
+  position: relative;
+  padding: 9px 10px 10px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--panel-border-soft) 84%, var(--line-strong));
   border-radius: 7px;
-  background: var(--panel-bg-raised);
+  background:
+    linear-gradient(90deg, rgb(255 250 240 / 6%) 0 2px, transparent 2px),
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-2) 68%, var(--field) 32%), var(--panel));
   transition: border-color 140ms var(--ease-out-quart), background 140ms var(--ease-out-quart), box-shadow 140ms var(--ease-out-quart), transform 140ms var(--ease-out-quart);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 1px 0 rgb(0 0 0 / 36%);
 }
 
 .info-block.hero-info-block {
-  background: var(--panel-bg-raised);
+  border-color: color-mix(in srgb, var(--amber) 28%, var(--panel-border-soft));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--amber) 48%, transparent) 0 2px, transparent 2px),
+    linear-gradient(180deg, color-mix(in srgb, var(--amber-soft) 22%, var(--panel-2) 78%), var(--panel));
 }
 
 .info-block[data-info-card="true"] {
@@ -3383,7 +3440,8 @@ dd {
 .info-block[data-info-card="true"]:hover {
   border-color: color-mix(in srgb, var(--hero) 46%, var(--line-strong));
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--hero-soft) 22%, var(--panel-2) 78%), var(--panel));
+    linear-gradient(90deg, color-mix(in srgb, var(--hero) 42%, transparent) 0 2px, transparent 2px),
+    linear-gradient(180deg, color-mix(in srgb, var(--hero-soft) 20%, var(--panel-2) 80%), var(--panel));
 }
 
 .info-block[data-info-card="true"]:focus-visible {
@@ -3394,10 +3452,11 @@ dd {
 .info-block.is-selected {
   border-color: color-mix(in srgb, var(--hero) 76%, var(--ink));
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--hero-soft) 42%, var(--panel-2) 58%), var(--panel));
+    linear-gradient(90deg, color-mix(in srgb, var(--hero) 86%, transparent) 0 3px, transparent 3px),
+    linear-gradient(180deg, color-mix(in srgb, var(--hero-soft) 36%, var(--panel-2) 64%), var(--panel));
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--hero) 24%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--hero) 34%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--hero) 34%, transparent),
     0 2px 0 rgb(0 0 0 / 34%);
 }
 
@@ -3407,13 +3466,15 @@ dd {
 
 .info-block h3 {
   color: var(--ink-soft);
-  font-size: 0.74rem;
+  font-family: var(--font-title);
+  font-size: 0.78rem;
+  font-weight: 950;
   line-height: 1.1;
 }
 
 .info-block p {
   color: color-mix(in srgb, var(--ink) 88%, var(--muted));
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   font-weight: 500;
   font-family: var(--font-reading);
   line-height: 1.52;
@@ -3721,9 +3782,11 @@ dd {
 }
 
 .affix-bestiary-head span {
-  color: var(--muted);
-  font-size: 0.68rem;
-  line-height: 1.35;
+  color: color-mix(in srgb, var(--ink) 78%, var(--muted));
+  font-family: var(--font-reading);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.38;
 }
 
 .affix-bestiary ul {
@@ -3805,7 +3868,8 @@ dd {
 .bestiary-card {
   min-width: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  align-content: start;
   gap: 7px;
   padding: 8px;
   border: 1px solid var(--panel-border-soft);
@@ -3865,10 +3929,11 @@ dd {
   color: var(--ink);
   font-size: 0.92rem;
   font-weight: 950;
-  line-height: 1.04;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.1;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .bestiary-card-head em {
@@ -3876,7 +3941,9 @@ dd {
   font-size: 0.62rem;
   font-style: normal;
   font-weight: 900;
-  line-height: 1;
+  line-height: 1.12;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .monster-portrait.bestiary-card-portrait {
@@ -3935,15 +4002,16 @@ dd {
 .bestiary-card-rules p b {
   color: var(--ink-soft);
   font-family: var(--font-title);
-  font-size: 0.62rem;
+  font-size: 0.64rem;
   line-height: 1;
 }
 
 .bestiary-card-rules p span {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  display: block;
+  overflow: visible;
+  -webkit-box-orient: initial;
+  -webkit-line-clamp: unset;
+  text-wrap: pretty;
 }
 
 .bestiary-card-rules ul {
@@ -3972,11 +4040,11 @@ dd {
 }
 
 .bestiary-card-rules li span {
-  color: var(--muted);
+  color: color-mix(in srgb, var(--ink) 72%, var(--muted));
   font-family: var(--font-reading);
-  font-size: 0.61rem;
+  font-size: 0.62rem;
   font-weight: 650;
-  line-height: 1.28;
+  line-height: 1.34;
 }
 
 .affix-bestiary {
@@ -4070,12 +4138,12 @@ dd {
 }
 
 .affix-card p {
-  min-height: 2.5em;
-  color: var(--ink);
+  min-height: 2.65em;
+  color: color-mix(in srgb, var(--ink) 88%, var(--muted));
   font-family: var(--font-reading);
-  font-size: 0.66rem;
+  font-size: 0.67rem;
   font-weight: 650;
-  line-height: 1.26;
+  line-height: 1.34;
 }
 
 .affix-card dl {
@@ -4103,11 +4171,11 @@ dd {
 }
 
 .affix-card dd {
-  color: var(--ink-soft);
-  font-size: 0.62rem;
-  font-weight: 900;
+  color: color-mix(in srgb, var(--ink) 78%, var(--muted));
+  font-size: 0.63rem;
+  font-weight: 850;
   font-family: var(--font-ui);
-  line-height: 1.18;
+  line-height: 1.24;
   overflow-wrap: anywhere;
 }
 
@@ -4116,7 +4184,9 @@ dd {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
   gap: 8px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--enemy-soft) 22%, var(--panel-2) 78%), var(--panel));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--enemy) 46%, transparent) 0 2px, transparent 2px),
+    linear-gradient(180deg, color-mix(in srgb, var(--enemy-soft) 20%, var(--panel-2) 80%), var(--panel));
 }
 
 .author-links {
@@ -4203,7 +4273,9 @@ dd {
 }
 
 .global-stats-block {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--green) 12%, var(--panel-2) 88%), var(--panel));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--green) 42%, transparent) 0 2px, transparent 2px),
+    linear-gradient(180deg, color-mix(in srgb, var(--green) 10%, var(--panel-2) 90%), var(--panel));
 }
 
 .global-stats-panel {
@@ -4218,7 +4290,8 @@ dd {
 
 .global-stat-group h4 {
   margin: 0;
-  color: color-mix(in srgb, var(--ink) 74%, var(--muted));
+  color: var(--ink-soft);
+  font-family: var(--font-title);
   font-size: 0.72rem;
   font-weight: 950;
   line-height: 1.1;
@@ -4243,9 +4316,9 @@ dd {
 }
 
 .global-stat span {
-  color: var(--muted);
-  font-size: 0.6rem;
-  font-weight: 850;
+  color: color-mix(in srgb, var(--ink) 64%, var(--muted));
+  font-size: 0.61rem;
+  font-weight: 900;
   line-height: 1;
 }
 
@@ -4971,6 +5044,11 @@ textarea {
     font-size: 0.65rem;
   }
 
+  .info-tab-button[data-info-tab="battle"],
+  .info-tab-button[data-info-tab="bestiary"] {
+    min-width: calc(3em + 12px);
+  }
+
   .info-panel .secondary-head .ghost-button {
     min-width: 44px;
     padding-inline: 6px;
@@ -5077,36 +5155,36 @@ textarea {
   }
 
   .bestiary-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
+    grid-template-columns: 1fr;
+    gap: 7px;
   }
 
   .bestiary-card {
-    gap: 5px;
-    padding: 6px;
+    gap: 6px;
+    padding: 7px;
     border-radius: 6px;
   }
 
   .bestiary-card-head {
-    grid-template-columns: 42px minmax(0, 1fr);
+    grid-template-columns: 46px minmax(0, 1fr);
     gap: 6px;
   }
 
   .monster-portrait.bestiary-card-portrait {
-    width: 42px;
-    height: 42px;
+    width: 46px;
+    height: 46px;
   }
 
   .bestiary-card-portrait .monster-sprite {
-    --sprite-size: 42px;
+    --sprite-size: 46px;
   }
 
   .bestiary-card-head strong {
-    font-size: 0.72rem;
+    font-size: 0.78rem;
   }
 
   .bestiary-card-head em {
-    font-size: 0.52rem;
+    font-size: 0.56rem;
   }
 
   .bestiary-card .bestiary-badge {
@@ -5135,13 +5213,13 @@ textarea {
   }
 
   .bestiary-card-rules p {
-    font-size: 0.56rem;
-    line-height: 1.24;
+    font-size: 0.62rem;
+    line-height: 1.3;
   }
 
   .bestiary-card-rules p b,
   .bestiary-card-rules li b {
-    font-size: 0.54rem;
+    font-size: 0.58rem;
   }
 
   .bestiary-card-rules li {
@@ -5149,8 +5227,8 @@ textarea {
   }
 
   .bestiary-card-rules li span {
-    font-size: 0.52rem;
-    line-height: 1.22;
+    font-size: 0.59rem;
+    line-height: 1.3;
   }
 
   .affix-bestiary {
@@ -5163,12 +5241,12 @@ textarea {
   }
 
   .affix-bestiary-head span {
-    font-size: 0.58rem;
+    font-size: 0.6rem;
   }
 
   .affix-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
+    grid-template-columns: 1fr;
+    gap: 7px;
   }
 
   .affix-card {
@@ -5178,7 +5256,16 @@ textarea {
 
   .affix-card-top {
     align-items: flex-start;
+    flex-wrap: wrap;
     gap: 4px;
+  }
+
+  .affix-card-top b {
+    white-space: normal;
+  }
+
+  .affix-card dl {
+    grid-template-columns: 1fr;
   }
 
   .affix-card-top b {
@@ -5259,7 +5346,7 @@ textarea {
   }
 
   .global-stat span {
-    font-size: 0.52rem;
+    font-size: 0.53rem;
   }
 
   .global-stat strong {
@@ -5368,7 +5455,8 @@ textarea {
 
   .hero-switch-badge {
     top: 4px;
-    right: 4px;
+    left: 4px;
+    right: auto;
     min-width: 32px;
     padding: 1px 4px;
     font-size: 0.58rem;

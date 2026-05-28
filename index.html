@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260528-info-card-select">
+    <link rel="stylesheet" href="./styles.css?v=20260529-drawing-gate">
   </head>
   <body>
     <main class="app-shell">
@@ -85,7 +85,7 @@
                 <div class="secondary-head">
                   <div class="info-head-actions">
                     <div class="info-tabs" role="tablist" aria-label="冒险手册分类">
-                      <button class="info-tab-button" type="button" data-info-tab="about" role="tab" aria-selected="true">作者/统计</button>
+                      <button class="info-tab-button" type="button" data-info-tab="about" role="tab" aria-selected="true">塔外</button>
                       <button class="info-tab-button" type="button" data-info-tab="photo" role="tab" aria-selected="false">拍照/画图</button>
                       <button class="info-tab-button" type="button" data-info-tab="battle" role="tab" aria-selected="false">战斗</button>
                       <button class="info-tab-button" type="button" data-info-tab="bestiary" role="tab" aria-selected="false">图鉴</button>
@@ -103,27 +103,23 @@
                             <p class="author-inline"><strong>作者</strong><a href="https://xhslink.com/m/A2DFslJF4mb" target="_blank" rel="noreferrer">落星峦</a></p>
                           </div>
                           <div class="project-social-card">
-                            <p><a href="https://github.com/kw66/photo-hero" target="_blank" rel="noreferrer"><span>项目地址</span><em>（求个star⭐）</em></a></p>
-                            <p><a href="http://xhslink.com/o/17XFWimxM94" target="_blank" rel="noreferrer"><span>小红书交流帖</span><em>（求点赞❤️）</em></a></p>
+                            <p><a href="https://github.com/kw66/photo-hero" target="_blank" rel="noreferrer"><span>项目页</span><em>查看更新记录</em></a></p>
+                            <p><a href="http://xhslink.com/o/17XFWimxM94" target="_blank" rel="noreferrer"><span>交流帖</span><em>分享你的装备</em></a></p>
                           </div>
                         </div>
                         <div class="group-qr" aria-label="小红书交流群二维码">
-                          <img src="./assets/info/xiaohongshu-group-qr.jpg" alt="照片勇者小红书交流群二维码">
-                          <span>加入小红书游戏群</span>
+                          <img id="groupQrImage" data-src="./assets/info/xiaohongshu-group-qr.jpg" alt="照片勇者小红书交流群二维码" loading="lazy" decoding="async">
+                          <span>加入塔外营地</span>
                         </div>
                       </article>
                       <article class="info-block wide-info global-stats-block">
-                        <h3>全站统计</h3>
+                        <h3>勇者足迹</h3>
                         <div id="globalStatsPanel" class="global-stats-panel" aria-live="polite"></div>
-                        <p class="global-stats-note" id="globalStatsStatus">统计加载中...</p>
+                        <p class="global-stats-note" id="globalStatsStatus">正在翻开塔外旧账...</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>作者其他游戏</h3>
+                        <h3>另一段冒险</h3>
                         <p><a href="https://kw66.github.io/PhD_Simulator/" target="_blank" rel="noreferrer">研究生模拟器 v1.0</a>：在导师、论文、实验和精神状态之间求生的校园文字模拟器。</p>
-                      </article>
-                      <article class="info-block wide-info">
-                        <h3>素材来源</h3>
-                        <p>怪物、物品、NPC 图片，以及音乐、音效素材来源于《魔塔50层》；勇者形态图片来源于表情包“抹茶旦旦”。当前项目为个人学习与原型迭代用途。</p>
                       </article>
                     </div>
                   </div>
@@ -131,20 +127,20 @@
                   <div class="info-page" data-info-page="photo" hidden>
                     <div class="info-grid">
                       <article class="info-block wide-info hero-info-block">
-                        <h3>拍照/画图装备</h3>
-                        <p>选择空装备格，消耗 1 张胶卷/画布，可以拍下身边小物，也可以打开画布手绘。鉴定完成后，主体会变成一件随身生效的装备。</p>
+                        <h3>让一格装备醒来</h3>
+                        <p>点空装备格，花 1 张胶卷或画布，把身边小物拍下来，或亲手画出一件东西。鉴定后，画面里的主角会醒成随身装备。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>让镜头靠近</h3>
-                        <p>拍照时把主体拍清楚，让它在画面里能被一眼认出。工具、杯子、玩具、文具、食物、装饰和小植物都可能醒出不同力量；桌面和房间背景没关系，别让它们盖过主角就好。</p>
+                        <h3>拍清主角</h3>
+                        <p>镜头靠近一点，让主体一眼能认出。工具、杯子、玩具、文具、食物、装饰和小植物都能带进塔里；桌面和房间只是背景，别让它们抢走画面。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>画布看主体</h3>
-                        <p>画图时线条、颜色和主体轮廓最重要。画得清楚、有特点、能猜出是什么，就更容易醒出贴合形状的属性；写在图里的文字不会替代画面本身。</p>
+                        <h3>画出轮廓</h3>
+                        <p>画图时先让主体站住：轮廓清楚、线条连贯、配色有区分，就更容易醒出贴合形状的力量。写在图里的字不会替你作证，塔只看画面。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>点亮鉴定</h3>
-                        <p>API Key、地址和模型名只保存在你的浏览器。照片或画布会先压缩，再交给你选择的图文模型鉴定；接口能在网页里直接工作，鉴定才会亮起。</p>
+                        <h3>点亮鉴定台</h3>
+                        <p>右上角的鉴定台点亮后，照片和画作才能被塔读懂。自己的密钥只留在本机浏览器里；按钮没亮时，先回鉴定台补好设置。</p>
                       </article>
                     </div>
                   </div>
@@ -152,37 +148,32 @@
                   <div class="info-page" data-info-page="battle" hidden>
                     <div class="info-grid">
                       <article class="info-block wide-info hero-info-block">
-                        <h3>选择这一层的敌人</h3>
-                        <p>普通楼层会出现 3 只怪。你可以只打一只稳稳拿胶卷，也可以多选几只一起打；选得越多，收益越多，风险也越高。不想打时，可以直接绕过这一层。</p>
+                        <h3>这一层先挑谁</h3>
+                        <p>普通楼层翻出 3 只怪。打一只最稳，多选会赚得更多，也更容易翻车；不想赌，就绕过这一层。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>看懂怪物卡</h3>
-                        <p>怪物卡上最重要的是攻、防、速、胶卷和预估损失。预估损失用来判断这场值不值得打；如果显示会倒下，说明勇者可能撑不到战斗结束。</p>
+                        <h3>先看损失</h3>
+                        <p>先看攻、防、速、胶卷和预估损失。牌上写着会倒下，就别指望勇者硬撑过去。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>勇者属性</h3>
-                        <p>攻击越高，打怪越快；防御越高，挨打越轻；速度越高，单位时间内出手越多。护盾每场战斗都会刷新，先替生命承伤；吸血在你进攻后回血，回复在你挨打后回血。</p>
+                        <h3>勇者的底气</h3>
+                        <p>攻击打得快，防御伤得轻，速度让你更常出手。同一刻双方都该行动时，勇者先动；护盾先挡刀，吸血和回复负责续命。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>怪物特性</h3>
-                        <p>怪物特性会改变战斗节奏：有的会无视防御，有的会压住吸血或回复，有的会清空护盾，有的会强化同场怪物。看到长特性时，先判断该速战速决，还是别拖进持久战。</p>
+                        <h3>别忽略特性</h3>
+                        <p>有些怪无视防御，有些压住吸血或回复，也有怪会清盾、叫帮手、越打越凶。看见长特性，先想清楚是速战速决，还是直接绕开。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>出手规则</h3>
-                        <p>战斗会自动连续结算。速度决定谁更常出手；同一时刻轮到双方时，勇者先动。连击会连续出手多次，横扫会把部分伤害扩散到旁边敌人。</p>
+                        <h3>塔门与强敌</h3>
+                        <p>魔塔共 40 层。第 10、20、30、40 层有守门者，不击败就上不去；第 25、35、38 层有可绕开的强敌。拖到极限能脱身，但奖励会留在塔里。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>塔门和 Boss</h3>
-                        <p>这座塔共有 40 层。第 10、20、30、40 层有门锁守卫拦路，打倒它们才能上楼；第 25、35、38 层藏着可绕开的强敌。强敌战拖到回合上限也能脱身，但拿不到击败奖励。</p>
+                        <h3>暗门里的求救声</h3>
+                        <p>每 10 层藏着一处暗门。第 5 层后，普通楼层里偶尔会有较强怪物守门；打倒它，下一层会先拐进隐藏层。隐藏层三张牌都点亮才能开战，只需击败两边看守；拖到极限会继续前进，但救援失败。救出公主后，再击败魔王才是真结局。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>隐藏层救援</h3>
-                        <p>每 10 层有一处隐藏层。第 5 层以后，普通楼层里会随机藏一只暗门触发怪；Boss 层和每层最弱的怪物不会被选中。击败触发怪后，下一层会先进入隐藏层。</p>
-                        <p>隐藏层有三张卡牌：左右是看守怪物，中间是待解救 NPC。三张都选中才能开战，只需要击败左右看守；也可以直接逃跑回到主塔。救出公主后，击败魔王才是真结局。</p>
-                      </article>
-                      <article class="info-block wide-info">
-                        <h3>胶卷、形态和奖励</h3>
-                        <p>胶卷就是下一次拍照装备的机会。普通怪通常给 0.1，单体 Boss 给 0.3；击败部分 Boss 后，还能从三张奖励牌里选一张。勇者头像可以切换形态，每种形态攒满 10 点经验后，会在战后进化。</p>
+                        <h3>胶卷、形态、奖励</h3>
+                        <p>胶卷和画布都是下一件装备的机会。普通怪通常掉 0.1，单体 Boss 掉 0.3；部分 Boss 倒下后还会翻奖励牌。形态满 10 点经验，会在战后进化。</p>
                       </article>
                     </div>
                   </div>
@@ -233,7 +224,7 @@
                 <p class="sound-now-playing" id="nowPlayingText">正在播放：塔内回声</p>
               </section>
 
-              <section class="config-panel secondary-content" id="configPanel" data-secondary-panel="config" aria-label="鉴定配置">
+              <section class="config-panel secondary-content" id="configPanel" data-secondary-panel="config" aria-label="鉴定配置" hidden>
                 <div class="secondary-head">
                   <div>
                     <h2>鉴定</h2>
@@ -358,6 +349,6 @@
       </section>
     </div>
 
-    <script defer src="./app.js?v=20260528-info-card-select"></script>
+    <script defer src="./app.js?v=20260529-drawing-gate"></script>
   </body>
 </html>

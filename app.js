@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
 };
 
 const pendingDuplicatePhotoKey = "pending";
+const reappraisalPhotoKeyPrefix = "reroll:";
 const STATS_COUNTER_RPC_URL = "https://ypefmpeekfucmarbbdov.supabase.co";
 const STATS_COUNTER_RPC_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwZWZtcGVla2Z1Y21hcmJiZG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NTA2NTYsImV4cCI6MjA4MTUyNjY1Nn0.XTOQNFuuwfu9nwDTnO9-NEqlzZnzdCVnEmYEJh0rXf8";
 const STATS_COUNTER_IDS = {
@@ -232,13 +233,13 @@ const hiddenLayerCount = 4;
 const bossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
 const highFilmBossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
 const bossBestiaryEntries = [
-  { floor: 10, key: "skeletonCaptain", kind: "gate", badge: "守门", appear: "第10层 Boss。击败后塔门开启，并从三张奖励牌里选一张。" },
-  { floor: 20, key: "vampire", kind: "gate", badge: "守门", appear: "第20层 Boss。击败后进入更深楼层，并从三张奖励牌里选一张。" },
-  { floor: 25, key: "octopus", kind: "reward", badge: "奖励", appear: "第25层奖励强敌。可以绕过；击败后从三张奖励牌里选一张。" },
-  { floor: 30, key: "knightCaptain", kind: "gate", badge: "守门", appear: "第30层 Boss。击败后塔门开启，并从三张奖励牌里选一张。" },
-  { floor: 35, key: "dragon", kind: "reward", badge: "奖励", appear: "第35层奖励强敌。可以绕过；击败后从三张奖励牌里选一张。" },
-  { floor: 38, key: "archmage", kind: "reward", badge: "奖励", appear: "第38层奖励强敌。可以绕过；击败后从三张奖励牌里选一张。" },
-  { floor: 40, key: "demon", kind: "final", badge: "最终", appear: "第40层最终 Boss。击败后本次登塔通关。" },
+  { floor: 10, key: "skeletonCaptain", kind: "gate", badge: "守门", appear: "第10层守门者。打倒后塔门开启，并翻出三张奖励牌。" },
+  { floor: 20, key: "vampire", kind: "gate", badge: "守门", appear: "第20层守门者。打倒后通往更深楼层，并翻出三张奖励牌。" },
+  { floor: 25, key: "octopus", kind: "reward", badge: "奖励", appear: "第25层盘踞的强敌。可以绕过；打倒后翻出三张奖励牌。" },
+  { floor: 30, key: "knightCaptain", kind: "gate", badge: "守门", appear: "第30层守门者。打倒后塔门开启，并翻出三张奖励牌。" },
+  { floor: 35, key: "dragon", kind: "reward", badge: "奖励", appear: "第35层盘踞的强敌。可以绕过；打倒后翻出三张奖励牌。" },
+  { floor: 38, key: "archmage", kind: "reward", badge: "奖励", appear: "第38层盘踞的强敌。可以绕过；打倒后翻出三张奖励牌。" },
+  { floor: 40, key: "demon", kind: "final", badge: "最终", appear: "第40层塔顶魔王。打倒后，本次登塔写入结局。" },
 ];
 
 const hiddenLayerConfigs = [
@@ -249,10 +250,10 @@ const hiddenLayerConfigs = [
     monsterLabel: "看守卫兵",
     npcKey: "elder",
     npcName: "老人",
-    npcRole: "被困老人",
+    npcRole: "迷路老人",
     rewardTitle: "形态经验 +2",
-    rewardText: "解救老人后，所有形态经验 +2。",
-    appear: "第5-9层的普通楼层里，会随机选中一只非最弱位怪物作为暗门触发怪。击败它后，下一层先进入隐藏1。",
+    rewardText: "救出老人后，所有形态经验 +2。",
+    appear: "第5-9层的普通楼层里，一只较强怪可能守着暗门。打倒它后，下一层会先进入隐藏1。",
   },
   {
     index: 2,
@@ -261,10 +262,10 @@ const hiddenLayerConfigs = [
     monsterLabel: "看守兽人",
     npcKey: "merchant",
     npcName: "商人",
-    npcRole: "被困商人",
+    npcRole: "走失商人",
     rewardTitle: "胶卷/画布 +2.0",
-    rewardText: "解救商人后，立刻获得 2.0 张胶卷/画布。",
-    appear: "第11-19层的普通楼层里，会随机选中一只非最弱位怪物作为暗门触发怪。击败它后，下一层先进入隐藏2。",
+    rewardText: "救出商人后，立刻获得 2.0 张胶卷/画布。",
+    appear: "第11-19层的普通楼层里，一只较强怪可能守着暗门。打倒它后，下一层会先进入隐藏2。",
   },
   {
     index: 3,
@@ -273,10 +274,10 @@ const hiddenLayerConfigs = [
     monsterLabel: "看守骑士",
     npcKey: "thief",
     npcName: "小偷",
-    npcRole: "被困小偷",
+    npcRole: "落难小偷",
     rewardTitle: "宝石：攻防速 +1",
-    rewardText: "解救小偷后，获得宝石，攻击、防御、速度各 +1。",
-    appear: "第21-29层的普通楼层里，会随机选中一只非最弱位怪物作为暗门触发怪。击败它后，下一层先进入隐藏3。",
+    rewardText: "救出小偷后，获得宝石，攻击、防御、速度各 +1。",
+    appear: "第21-29层的普通楼层里，一只较强怪可能守着暗门。打倒它后，下一层会先进入隐藏3。",
   },
   {
     index: 4,
@@ -285,10 +286,10 @@ const hiddenLayerConfigs = [
     monsterLabel: "看守剑士",
     npcKey: "princess",
     npcName: "公主",
-    npcRole: "被困公主",
+    npcRole: "塔中公主",
     rewardTitle: "生命回满，真结局开启",
-    rewardText: "解救公主后生命回满，并开启击败魔王后的真结局。",
-    appear: "第31-39层的普通楼层里，会随机选中一只非最弱位怪物作为暗门触发怪。击败它后，下一层先进入隐藏4。",
+    rewardText: "救出公主后生命回满，并开启击败魔王后的真结局。",
+    appear: "第31-39层的普通楼层里，一只较强怪可能守着暗门。打倒它后，下一层会先进入隐藏4。",
   },
 ];
 
@@ -326,8 +327,8 @@ const photoSpecialEffects = [
   { key: "killDefense", label: "淬甲", detail: "每击杀7怪防御+1", value: 16, kind: "killThreshold", threshold: 7, stat: "defense", amount: 1, displayStat: "defense" },
   { key: "killShield", label: "叠盾", detail: "每击杀3怪护盾+1", value: 14, kind: "killThreshold", threshold: 3, stat: "shield", amount: 1, displayStat: "shield" },
   { key: "killSpeed", label: "疾行", detail: "每击杀10怪速度+1", value: 16, kind: "killThreshold", threshold: 10, stat: "speed", amount: 1, displayStat: "speed" },
-  { key: "dealDamageAttack", label: "战意", detail: "每2次进攻临时攻击+1，最多+6", value: 15, kind: "cooldownStack", cooldownTrigger: "attack", cooldown: 2, stat: "attack", amount: 1, cap: 6, displayStat: "attack" },
-  { key: "takeDamageDefense", label: "固守", detail: "每2次受击临时防御+1，最多+6", value: 15, kind: "cooldownStack", cooldownTrigger: "hit", cooldown: 2, stat: "defense", amount: 1, cap: 6, displayStat: "defense" },
+  { key: "dealDamageAttack", label: "战意", detail: "每2次进攻临时攻击+1，最多+5", value: 15, kind: "cooldownStack", cooldownTrigger: "attack", cooldown: 2, stat: "attack", amount: 1, cap: 5, displayStat: "attack" },
+  { key: "takeDamageDefense", label: "固守", detail: "每3次受击临时防御+1，最多+5", value: 15, kind: "cooldownStack", cooldownTrigger: "hit", cooldown: 3, stat: "defense", amount: 1, cap: 5, displayStat: "defense" },
   { key: "killMaxHp", label: "铸命", detail: "每击杀1怪生命上限+3", value: 14, kind: "killPermanent", stat: "hp", amount: 3, displayStat: "hp" },
   { key: "killHpBoost", label: "回春", detail: "每击杀1怪生命+10", value: 14, kind: "killHeal", amount: 10, displayStat: "hp" },
   { key: "sweep", label: "横扫", detail: "每3次进攻触发100%伤害扩散", value: 15, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 3, spreadRatio: 1, displayStat: "attack", hideBattleValue: true },
@@ -443,14 +444,17 @@ const drawingIdentificationUserPrompt = [
   "识别规则：",
   "1. 分两步判断：先看线条/颜色/形状/构图，写清楚可见证据；再猜主体。不要先套魔杖、神器、幻想武器模板。",
   "2. 优先找最醒目、最完整、最像装备/道具/符号/生物部件/幻想概念的主体；忽略零散背景线条。",
-  "3. 盾、剑、靴子、翅膀、心形、火焰、星星、眼睛、机器人、怪物面具、可爱小图标都可以鉴定，只要主体可辨认；如果只是圆圈/方块/笑脸/爱心，按圆环、石板、徽记、护符这类形状装备处理，不要强行说成魔杖、飞刃或宝石。",
-  "4. 画出来的巨大物、怪物或生物默认按“装备概念/符号化部件”处理，不按现实尺寸判定 tooLarge；只有纯风景、整片天空、道路、房间这类没有道具主体的画面才 isScene=true。",
-  "5. 不要输出最终 value、最终 stats 或最终 specialEffects；本地规则会根据 photoQuality、statAffinity、specialAffinity 计算。",
-  "6. itemName、subjectName、objectType、description 面向玩家时不要出现 手绘、涂鸦、画作、画布、纸面、简笔画、线稿、草图、画出来的 这些媒介词；identityDescription 可以写线条、颜色和构图用于查重，但不要复述画面里的具体文字内容。",
-  "7. 忽略画面里写的字、标签和注释；不要因为玩家写了“神剑”“护盾”“回血”等词就按这些词命名或给属性。若文字和图形冲突，以图形为准。",
+  "3. 先给 recognition：unrecognizable=空白/乱线/看不出主体；simple_symbol=只有圆圈/方块/笑脸/爱心/星星等简单符号；recognizable_object=能认出火焰、叶子、翅膀、面具、齿轮等主体；clear_equipment=能看出明确装备结构。",
+  "4. 盾、剑、靴子、翅膀、心形、火焰、星星、眼睛、机器人、怪物面具、可爱小图标都可以鉴定，只要主体可辨认；如果只是圆圈/方块/笑脸/爱心，按圆环、石板、徽记、记号这类低阶形状装备处理，不要强行说成魔杖、飞刃、铁盾或宝石。",
+  "5. 盾必须看见盾面/边框/十字/把手/罩形边界等结构；剑刀必须看见刃部和握柄/尖端；魔杖必须看见长柄和杖头。只有颜色、保护感、酷炫感或玩家写字，都不能当结构证据。",
+  "6. 画出来的巨大物、怪物或生物默认按“装备概念/符号化部件”处理，不按现实尺寸判定 tooLarge；只有纯风景、整片天空、道路、房间这类没有道具主体的画面才 isScene=true。",
+  "7. 不要输出最终 value、最终 stats 或最终 specialEffects；本地规则会根据 photoQuality、statAffinity、specialAffinity 计算。",
+  "8. itemName、subjectName、objectType、description 面向玩家时不要出现 手绘、涂鸦、画作、画布、纸面、简笔画、线稿、草图、画出来的 这些媒介词；identityDescription 可以写线条、颜色和构图用于查重，但不要复述画面里的具体文字内容。",
+  "9. 忽略画面里写的字、标签和注释；不要因为玩家写了“神剑”“护盾”“回血”等词就按这些词命名或给属性。若文字和图形冲突，以图形为准。",
+  "10. 如果 recognition=unrecognizable，itemName 和 subjectName 用“未成形线团”或同级弱名，isEquipable=false，statAffinity=[]，specialAffinity=[]，confidence 不要高于 0.25。",
   "",
   "必须输出这个 JSON 结构，字段名使用英文：",
-  "{\"itemName\":\"短装备名\",\"subjectName\":\"画布主体\",\"objectType\":\"主体类型\",\"identityDescription\":\"用于判断是否同一幅画的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
+  "{\"itemName\":\"短装备名\",\"subjectName\":\"画布主体\",\"objectType\":\"主体类型\",\"recognition\":\"unrecognizable|simple_symbol|recognizable_object|clear_equipment\",\"visualEvidence\":[\"实际看见的结构\"],\"missingEvidence\":[\"若要叫盾/剑/魔杖还缺什么\"],\"effortQuality\":{\"lineControl\":0,\"colorUse\":0,\"completeness\":0,\"aesthetic\":0},\"identityDescription\":\"用于判断是否同一幅画的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
   "",
   "画作质量 photoQuality，必须主动拉开差距：",
   "clarity=主体可识别性 0-3：0空白/乱线；1只能猜大概；2能认出主体；3一眼能认出。",
@@ -658,7 +662,7 @@ const bgmPreloadOrder = [
 
 const introRewardOptions = [
   { id: "intro-film-1", title: "胶卷", effect: "+1.0 胶卷", desc: "点亮空装备格，按下拍照，把身边小物带进塔中。", icon: "boss-film-drop.png" },
-  { id: "intro-film-2", title: "胶卷", effect: "+1.0 胶卷", desc: "在鉴定台填好图文 API，按钮亮起后再鉴定照片。", icon: "boss-film-drop.png" },
+  { id: "intro-film-2", title: "胶卷", effect: "+1.0 胶卷", desc: "右上角点亮鉴定台，照片就能被塔读成装备。", icon: "boss-film-drop.png" },
   { id: "intro-film-3", title: "胶卷", effect: "+1.0 胶卷", desc: "入塔后点击怪物卡选定目标，按战斗夺回新的胶卷。", icon: "boss-film-drop.png" },
 ];
 
@@ -796,6 +800,7 @@ const els = {
   fileInput: byId("fileInput"),
   filmCountBadge: byId("filmCountBadge"),
   monsterBestiaryContent: byId("monsterBestiaryContent"),
+  groupQrImage: byId("groupQrImage"),
   configToggleBtn: byId("configToggleBtn"),
   configPanel: byId("configPanel"),
   secondaryArea: byId("secondaryArea"),
@@ -905,7 +910,7 @@ const state = {
   careerSummaryRequest: null,
   bossRewardDeck: null,
   globalStats: createDefaultGlobalStats(),
-  globalStatsStatus: "统计加载中...",
+  globalStatsStatus: "正在翻开塔外旧账...",
   audioUnlocked: false,
   audioLastPlayedAt: {},
   audioEvents: [],
@@ -929,16 +934,19 @@ const state = {
 
 let selectedBestiaryGroup = "normal";
 let bestiaryPageByGroup = { normal: 0, boss: 0, npc: 0, affix: 0 };
+let formGridRendered = false;
 
 loadConfig();
 loadSave();
-initGlobalStats();
 ensureEncounter();
 ensureInitialFloorNarrative();
 bindEvents();
 initializeInfoCardSelection();
 ensureBgmForGameState(true);
 render();
+window.setTimeout(() => {
+  initGlobalStats();
+}, 250);
 
 function normalizeHeroMode(mode) {
   return heroModes[mode]?.id || defaultHeroMode;
@@ -1905,6 +1913,10 @@ function bindEvents() {
       cancelAnalyzePhoto();
       return;
     }
+    if (canReappraiseSelectedItem()) {
+      reappraiseSelectedItem();
+      return;
+    }
     analyzePhoto();
   });
   els.pendingPhotoPreview.addEventListener("click", handlePendingPhotoPreviewClick);
@@ -1932,7 +1944,6 @@ function bindEvents() {
     });
   });
   bindDrawingCanvasEvents();
-  renderHeroForms();
 }
 
 function bindDrawingCanvasEvents() {
@@ -2900,7 +2911,11 @@ function toggleApiKeyVisibility() {
 function setSecondaryPanel(panelId) {
   const target = ["config", "forms", "info", "music"].includes(panelId) ? panelId : "";
   els.secondaryArea.classList.toggle("is-collapsed", !target);
-  if (target === "info") setInfoTab(getActiveInfoTab());
+  if (target === "forms") renderHeroForms({ force: true });
+  if (target === "info") {
+    loadInfoDeferredMedia();
+    setInfoTab(getActiveInfoTab());
+  }
   if (target === "music") renderAudioSettings();
 
   document.querySelectorAll(".secondary-content").forEach((panel) => {
@@ -2910,6 +2925,21 @@ function setSecondaryPanel(panelId) {
   document.querySelectorAll("[data-panel-target]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.panelTarget === target));
   });
+}
+
+function loadInfoDeferredMedia() {
+  const img = els.groupQrImage;
+  if (!img || img.src || !img.dataset.src) return;
+  img.src = img.dataset.src;
+}
+
+function isFormsPanelVisible() {
+  return Boolean(els.formGrid?.closest("[data-secondary-panel='forms']:not([hidden])"));
+}
+
+function refreshVisibleHeroForms() {
+  if (!isFormsPanelVisible()) return;
+  renderHeroForms({ force: true });
 }
 
 function toggleSecondaryPanel(panelId) {
@@ -2990,6 +3020,11 @@ function getBestiaryEntriesForGroup(group) {
 
 function getBestiaryPageSize(group) {
   const target = normalizeBestiaryGroup(group);
+  const viewportWidth = typeof window !== "undefined" && Number.isFinite(window.innerWidth)
+    ? window.innerWidth
+    : 1024;
+  if (viewportWidth <= 620) return target === "affix" ? 3 : 2;
+  if (viewportWidth <= 980) return target === "affix" ? 4 : 3;
   return target === "affix" ? 6 : 4;
 }
 
@@ -3110,13 +3145,13 @@ function renderNpcBestiaryCard(entry, page) {
         <div>
           <span class="bestiary-badge">${escapeHtml(config.label)}</span>
           <strong>${escapeHtml(config.npcName)}</strong>
-          <em>NPC · ${escapeHtml(config.npcRole)}</em>
+          <em>待救 · ${escapeHtml(config.npcRole)}</em>
         </div>
       </div>
       <div class="bestiary-card-rules">
         <p><b>出没</b><span>${escapeHtml(getNpcBestiaryAppearText(config))}</span></p>
         <ul>
-          <li><b>看守</b><span>${escapeHtml(config.monsterLabel)} ×2，选中三张卡牌后开战。</span></li>
+          <li><b>看守</b><span>${escapeHtml(config.monsterLabel)} ×2，三张卡牌全部点亮后开战。</span></li>
           <li><b>奖励</b><span>${escapeHtml(config.rewardText)}</span></li>
         </ul>
       </div>
@@ -3137,7 +3172,7 @@ function renderBestiaryCard(entry, page) {
           <span>${escapeHtml(getMonsterTraitDetail(trait))}</span>
         </li>
       `).join("")
-    : "<li><b>无特殊效果</b><span>只按基础攻防速和生命参与战斗。</span></li>";
+    : "<li><b>朴素</b><span>没有额外花招，主要看基础数值。</span></li>";
   return `
     <article class="bestiary-card${isBoss ? " is-boss" : ""}" data-selected-monster="${escapeHtml(entry.key)}" data-selected-group="${escapeHtml(entry.category)}">
       <div class="bestiary-card-head">
@@ -3168,7 +3203,7 @@ function renderAffixBestiary(entries, page) {
     <section class="affix-bestiary" aria-label="装备词条图鉴" data-selected-group="affix">
       <div class="affix-bestiary-head">
         <strong>装备词条</strong>
-        <span>每页 ${Math.min(page.pageSize, page.count)} 条，冷却和叠层均按本场战斗重新计算。</span>
+        <span>看装备在战斗里怎样醒来，倒计时和叠加都会随一场战斗重新开始。</span>
       </div>
       <div class="affix-card-grid">${rows}</div>
     </section>
@@ -3186,10 +3221,10 @@ function renderAffixBestiaryCard(effect) {
       </div>
       <p>${escapeHtml(effect.detail || effect.label)}</p>
       <dl>
-        <div><dt>触发</dt><dd>${escapeHtml(getAffixTriggerText(effect))}</dd></div>
-        <div><dt>范围</dt><dd>${escapeHtml(getAffixScopeText(effect))}</dd></div>
-        <div><dt>显示</dt><dd>${escapeHtml(getAffixDisplayText(effect))}</dd></div>
-        <div><dt>权重</dt><dd>${effect.value}</dd></div>
+        <div><dt>时机</dt><dd>${escapeHtml(getAffixTriggerText(effect))}</dd></div>
+        <div><dt>收益</dt><dd>${escapeHtml(getAffixScopeText(effect))}</dd></div>
+        <div><dt>战中</dt><dd>${escapeHtml(getAffixDisplayText(effect))}</dd></div>
+        <div><dt>价值</dt><dd>${effect.value}</dd></div>
       </dl>
     </article>
   `;
@@ -3212,7 +3247,7 @@ function getNpcBestiaryEntries() {
 }
 
 function getNpcBestiaryAppearText(config) {
-  return `${config.label}中间卡牌，击败左右看守即可解救。`;
+  return `${config.label}的中间卡牌。打倒两侧看守，就能把人带回主塔。`;
 }
 
 function getAffixTypeLabel(effect) {
@@ -3220,11 +3255,11 @@ function getAffixTypeLabel(effect) {
     case "killThreshold": return "击杀成长";
     case "killPermanent": return "永久成长";
     case "killHeal": return "击杀续航";
-    case "cooldownStack": return "叠层技能";
-    case "attackSkill": return "进攻技能";
-    case "hitSkill": return "受击技能";
-    case "killBattleTemp": return "击杀爆发";
-    case "missingHpAttack": return "被动技能";
+    case "cooldownStack": return "蓄势";
+    case "attackSkill": return "出手";
+    case "hitSkill": return "受击";
+    case "killBattleTemp": return "斩获";
+    case "missingHpAttack": return "逆境";
     default: return "特殊词条";
   }
 }
@@ -3243,56 +3278,56 @@ function getAffixTriggerText(effect) {
 }
 
 function getAffixScopeText(effect) {
-  if (!effect) return "按词条规则结算";
+  if (!effect) return "随词条生效";
   const stat = statLabels[effect.stat] || statLabels[effect.displayStat] || "属性";
   const amount = Math.max(0, Number(effect.amount) || 0);
   switch (effect.kind) {
     case "killThreshold":
-      return `跨战斗累计，${stat}+${amount || 1}`;
+      return `跨战斗累积，${stat}+${amount || 1}`;
     case "killPermanent":
-      return `永久提高，${stat}+${amount || 1}`;
+      return `永久成长，${stat}+${amount || 1}`;
     case "killHeal":
-      return `立即回复生命+${effect.amount || 0}`;
+      return `立刻回复生命+${effect.amount || 0}`;
     case "cooldownStack":
-      return `本场临时${stat}+${amount || 1}，最多+${effect.cap || 0}`;
+      return `本场${stat}+${amount || 1}，最多+${effect.cap || 0}`;
     case "killBattleTemp":
-      return `本场攻击/防御+${effect.amount || 0}`;
+      return `本场攻防+${effect.amount || 0}`;
     case "missingHpAttack":
-      return `按当前损血换算攻击+${effect.amount || 1}`;
+      return `生命越低，攻击越高`;
     case "attackSkill":
-      if (effect.spreadRatio) return "本次攻击向其他怪扩散100%伤害";
-      if (effect.strikeCount) return `本次进攻变为${effect.strikeCount}连击`;
-      if (effect.shieldDamageRatio) return "本次进攻附带当前护盾伤害";
+      if (effect.spreadRatio) return "这次攻击横扫同场敌人";
+      if (effect.strikeCount) return `这次进攻打出${effect.strikeCount}连击`;
+      if (effect.shieldDamageRatio) return "把当前护盾也砸进这次攻击";
       if (effect.multiplier && effect.stat === "lifesteal") return `${effect.multiplier}倍吸血`;
       if (effect.attackMultiplier) return `${effect.attackMultiplier}倍攻击重击`;
-      return "本次进攻额外生效";
+      return "这次进攻额外生效";
     case "hitSkill":
       if (effect.multiplier && effect.stat === "regen") return `${effect.multiplier}倍受击回复`;
-      return "本次受击额外生效";
+      return "这次受击额外生效";
     default:
-      return "按词条规则结算";
+      return "随词条生效";
   }
 }
 
 function getAffixDisplayText(effect) {
-  if (!effect) return "按词条显示";
+  if (!effect) return "战斗时亮起";
   const pieces = [];
-  if (effect.cooldown) pieces.push("左上倒计时");
-  if (effect.kind === "killBattleTemp") return "右上显示 +攻/+防";
-  if (effect.hideBattleValue) return pieces.length ? pieces.join("，") : "不显示数值";
+  if (effect.cooldown) pieces.push(effect.kind === "cooldownStack" ? "左上倒数，满层后收起" : "左上倒数");
+  if (effect.kind === "killBattleTemp") return "右上亮出攻防";
+  if (effect.hideBattleValue) return pieces.length ? pieces.join("，") : "不亮数值";
   const stat = statLabels[getBattleBadgeStat(effect)] || "数值";
   if (effect.kind === "killThreshold" || effect.kind === "killPermanent" || effect.kind === "killHeal" || effect.kind === "cooldownStack" || effect.kind === "missingHpAttack") {
-    pieces.push(`右上显示 +${stat}`);
+    pieces.push(`右上亮出+${stat}`);
   } else if (effect.key === "shieldCrashAttackDown") {
-    pieces.push("右上显示护盾伤害");
+    pieces.push("右上亮出盾击");
   } else if (effect.key === "regenMultiplier") {
-    pieces.push("右上累计回复");
+    pieces.push("右上记下回血");
   } else if (effect.key === "lifestealMultiplier") {
-    pieces.push("右上累计吸血");
+    pieces.push("右上记下吸血");
   } else if (effect.key === "heavyStrike") {
-    pieces.push("右上累计重击");
+    pieces.push("右上记下重击");
   }
-  return pieces.length ? pieces.join("，") : "战斗中按需显示";
+  return pieces.length ? pieces.join("，") : "战斗时亮起";
 }
 
 function renderMonsterSprite(typeKey, alt, extraClass = "") {
@@ -3342,33 +3377,33 @@ function getMonsterBestiaryEntry(typeKey) {
 
 function getNormalMonsterAppearText(entry, type) {
   const start = Math.max(1, entry.floor || 1);
-  if (entry.key === "slime") return "第1层起在普通楼层出现，前期最常见，也会在弱位池里保留较久。";
-  if (entry.tier >= 4) return `第${start}层起在普通楼层出现，通常进入后段强位池，适合先看预估损失再多选。`;
-  if (entry.tier >= 3) return `第${start}层起在普通楼层出现，中段开始混入三选怪物池。`;
-  return `第${start}层起在普通楼层出现，Boss 和奖励强敌楼层不会随机刷出。`;
+  if (entry.key === "slime") return "第1层起就会冒出来，前期最常见，后面也常在弱位凑数。";
+  if (entry.tier >= 4) return `第${start}层起开始露面，通常站在后段强位。想多选时，先看预估损失。`;
+  if (entry.tier >= 3) return `第${start}层起混入普通楼层，中段之后会更常撞见。`;
+  return `第${start}层起在普通楼层出现。Boss 层和奖励强敌层不会随机刷出它。`;
 }
 
 function getMonsterTraitDetail(trait) {
   const value = Number.isFinite(trait.value) ? trait.value : 0;
   switch (trait.type) {
-    case "regen": return `每次行动后回复 ${value} 点生命。`;
-    case "lifesteal": return `攻击命中后回复 ${value} 点生命。`;
-    case "noLifesteal": return "本场战斗压制勇者吸血，吸血属性不生效。";
-    case "magic": return "造成伤害时无视勇者防御，直接按攻击力结算。";
-    case "defenseBreakAura": return `战斗开场削减勇者当前防御的 ${value}%，巫师倒下后本场不会返还。`;
-    case "teamShield": return `开战时给同场怪物增加 ${value} 点护盾。`;
-    case "noRegen": return "本场战斗压制勇者回复，受击回复不生效。";
-    case "sturdy": return "如果勇者攻击过低，会把自身防御抬到接近勇者攻击。";
-    case "breakShield": return "战斗开场清空勇者当前护盾。";
-    case "giant": return "勇者生命上限越高，它的攻击越容易被拉高。";
+    case "regen": return `每次行动后回 ${value} 点生命。`;
+    case "lifesteal": return `攻击命中后回 ${value} 点生命。`;
+    case "noLifesteal": return "这场会压住勇者吸血，靠吸血续命会失灵。";
+    case "magic": return "伤害绕过防御，直接打在勇者身上。";
+    case "defenseBreakAura": return `开场削掉勇者当前防御的 ${value}%，巫师倒下后本场也不会返还。`;
+    case "teamShield": return `开战时给同场怪物套上 ${value} 点护盾。`;
+    case "noRegen": return "这场会压住勇者回复，挨打后的回血会失灵。";
+    case "sturdy": return "如果勇者攻击不够高，它会把防御抬到接近勇者攻击。";
+    case "breakShield": return "开场敲碎勇者当前护盾。";
+    case "giant": return "勇者生命上限越高，它越容易打出更高攻击。";
     case "speedUpOnAttack": return `每次攻击后速度 +${value || 1}，拖久会越来越快。`;
-    case "promotion": return "它攻击后涨防御，被攻击后涨攻击。";
-    case "multiHit": return `每次行动连续攻击 ${value || 2} 次。`;
-    case "teamWarcry": return `同场怪物获得攻击 +${trait.atk || 0}、防御 +${trait.def || 0}、速度 +${trait.speed || 0}。`;
-    case "summonMageOnAttack": return "攻击时如果场上有空位，会召唤一名法师。";
-    case "summonGuards": return "开战时召唤 2 名卫兵一起参战。";
+    case "promotion": return "它攻击后涨防御，被打后涨攻击。";
+    case "multiHit": return `每次行动连续攻击 ${value || 2} 下。`;
+    case "teamWarcry": return `同场怪物攻击 +${trait.atk || 0}、防御 +${trait.def || 0}、速度 +${trait.speed || 0}。`;
+    case "summonMageOnAttack": return "攻击时若场上有空位，会叫来一名法师。";
+    case "summonGuards": return "开战时叫来 2 名卫兵一起上场。";
     case "shield": return `自带 ${value} 点护盾。`;
-    default: return trait.text || "特殊规则会在战斗中生效。";
+    default: return trait.text || "进场后会改变战斗节奏。";
   }
 }
 
@@ -3719,6 +3754,48 @@ function getUnsupportedVisionModelMessage(config) {
   return "";
 }
 
+function getReappraisalImage(item) {
+  if (!item || !isPlayerCreatedEquipment(item)) return "";
+  return item.appraisalImage || item.fullImage || item.image || "";
+}
+
+async function getReappraisalAnalysisImage(item) {
+  if (!item || !isPlayerCreatedEquipment(item)) return "";
+  if (item.appraisalImage) return item.appraisalImage;
+  const sourceImage = item.fullImage || item.image || "";
+  const cropRect = normalizeCropRect(item.cropRect);
+  if (!sourceImage || !cropRect || !item.fullImage) return sourceImage;
+  try {
+    return await cropImageToDataUrl(item.fullImage, cropRect, analysisImageMaxEdge, analysisImageQuality);
+  } catch {
+    return sourceImage;
+  }
+}
+
+function isPlayerCreatedEquipment(item) {
+  if (!item || item.tooLarge) return false;
+  const mode = normalizeHeroMode(item.sourceMode || "photo");
+  return (mode === "photo" || mode === "drawing") && Boolean(item.fullImage || item.appraisalImage);
+}
+
+function canReappraiseSelectedItem() {
+  if (hasPendingPhoto() || isEquipmentLocked() || isAnalyzingPhoto()) return false;
+  return Boolean(getReappraisalImage(getSelectedInventoryItem()));
+}
+
+function prepareAppraisalConfig() {
+  const config = getConfigFromInputs();
+  if (getMissingConfigFields(config).length) {
+    return { ok: false, config, message: getPhotoApiConfigHint() };
+  }
+  const unsupportedModelMessage = getUnsupportedVisionModelMessage(config);
+  if (unsupportedModelMessage) return { ok: false, config, message: unsupportedModelMessage };
+  if (!isLikelyVisionModel(config)) {
+    return { ok: false, config, message: "当前模型看起来不支持图片输入；照片鉴定需要图文模型。" };
+  }
+  return { ok: true, config, message: "" };
+}
+
 async function analyzePhoto() {
   if (isPlayerDefeated() || state.bossReward) return;
   if (!state.lastPhoto) {
@@ -3744,32 +3821,15 @@ async function analyzePhoto() {
     return;
   }
 
-  const config = getConfigFromInputs();
-  if (getMissingConfigFields(config).length) {
-    const message = getPhotoApiConfigHint();
-    showLootError(message);
-    addLog(message);
+  const prepared = prepareAppraisalConfig();
+  if (!prepared.ok) {
+    showLootError(prepared.message);
+    addLog(prepared.message);
     render();
     return;
   }
 
-  const unsupportedModelMessage = getUnsupportedVisionModelMessage(config);
-  if (unsupportedModelMessage) {
-    showLootError(unsupportedModelMessage);
-    addLog(unsupportedModelMessage);
-    render();
-    return;
-  }
-
-  if (!isLikelyVisionModel(config)) {
-    const message =
-      "当前模型看起来不支持图片输入；照片鉴定需要图文模型。";
-    showLootError(message);
-    addLog("图片鉴定需要视觉模型。");
-    render();
-    return;
-  }
-
+  const config = prepared.config;
   saveConfig(false);
   const request = startAnalysisRequest();
   const sourceMode = getPendingSourceMode();
@@ -3843,6 +3903,100 @@ async function analyzePhoto() {
     const message = normalizeAnalyzeError(error);
     showRetryableAppraisalError(message);
     addLog(`鉴定失败：${message}（${getResourceName()}未消耗）`);
+  } finally {
+    if (request.id === state.analysisRequest?.id) {
+      finishAppraisalTiming(timing);
+      finishAnalysisRequest(request.id);
+      setBusy("");
+      render();
+    }
+  }
+}
+
+async function reappraiseSelectedItem() {
+  if (isPlayerDefeated() || state.bossReward || hasPendingPhoto()) return;
+  const slotIndex = getSelectedSlotIndex();
+  const originalItem = getInventoryItemAt(slotIndex);
+  const sourceImage = getReappraisalImage(originalItem);
+  if (!sourceImage) {
+    showInputNotice("只有照片/画图鉴定出的装备可以重鉴定。");
+    render();
+    return;
+  }
+  if (state.filmRolls < 1) {
+    const message = `${getResourceName()}不足。重鉴定会消耗 1 张${getResourceName()}。`;
+    showLootError(message);
+    addLog(message);
+    render();
+    return;
+  }
+  const prepared = prepareAppraisalConfig();
+  if (!prepared.ok) {
+    showLootError(prepared.message);
+    addLog(prepared.message);
+    render();
+    return;
+  }
+
+  const analysisImage = await getReappraisalAnalysisImage(originalItem);
+  if (!analysisImage) {
+    showInputNotice("没有找到这件装备的原始影像，无法重鉴定。");
+    render();
+    return;
+  }
+
+  const config = prepared.config;
+  saveConfig(false);
+  const request = startAnalysisRequest();
+  request.reappraisal = true;
+  const sourceMode = normalizeHeroMode(originalItem.sourceMode || state.playMode);
+  const timing = createAppraisalTiming(analysisImage);
+  state.lastAppraisalTiming = timing;
+  state.lootError = "";
+  setBusy("重鉴定中...");
+  render();
+  try {
+    const item = await measureAppraisalStage(timing, "apiMs", () => analyzeDirectly(config, analysisImage, {
+      signal: request.controller.signal,
+      timing,
+      cropped: Boolean(originalItem.cropRect),
+      sourceMode,
+      reappraise: true,
+    }));
+    if (request.id !== state.analysisRequest?.id) return;
+    const inventoryImage = originalItem.image || await measureAppraisalStage(timing, "inventoryResizeMs", () => makeInventoryImage(analysisImage));
+    if (request.id !== state.analysisRequest?.id) return;
+    const rerollKey = makeReappraisalPhotoKey(originalItem);
+    const balancedItem = measureAppraisalStageSync(timing, "balanceMs", () => balanceItem({
+      ...item,
+      sourceMode,
+      photoKey: rerollKey,
+      sourcePhotoKey: rerollKey,
+      cropRect: originalItem.cropRect || null,
+      appraisalImage: analysisImage,
+      fullImage: originalItem.fullImage || analysisImage,
+    }, inventoryImage));
+    balancedItem.image = inventoryImage;
+    balancedItem.fullImage = originalItem.fullImage || analysisImage;
+    balancedItem.appraisalImage = analysisImage;
+    balancedItem.photoKey = rerollKey;
+    balancedItem.sourcePhotoKey = rerollKey;
+    balancedItem.cropRect = originalItem.cropRect || null;
+    balancedItem.reappraisedFromId = originalItem.id || "";
+    balancedItem.reappraisedAt = Date.now();
+    const failureReason = getAppraisalFailureReason(balancedItem);
+    if (failureReason) {
+      throw new Error(failureReason);
+    }
+    if (!consumeFilm()) {
+      throw new Error(`${getResourceName()}不足，未完成重鉴定。`);
+    }
+    replaceInventoryItemAt(slotIndex, balancedItem, `重鉴定完成。${formatItemDisplayName(originalItem)} 变为 ${formatItemDisplayName(balancedItem)}。`);
+  } catch (error) {
+    if (request.id !== state.analysisRequest?.id && isAbortError(error)) return;
+    const message = normalizeAnalyzeError(error);
+    showLootError(message);
+    addLog(`重鉴定失败：${message}（${getResourceName()}未消耗）`);
   } finally {
     if (request.id === state.analysisRequest?.id) {
       finishAppraisalTiming(timing);
@@ -3962,9 +4116,12 @@ function finishAnalysisRequest(id = "") {
 function cancelAnalyzePhoto() {
   if (!state.analysisRequest) return;
   const request = state.analysisRequest;
+  const wasReappraisal = Boolean(request.reappraisal);
   request.controller.abort();
   finishAnalysisRequest(request.id);
-  const message = `已取消鉴定，${getResourceName()}未消耗。`;
+  const message = wasReappraisal
+    ? `已取消重鉴定，${getResourceName()}未消耗。`
+    : `已取消鉴定，${getResourceName()}未消耗。`;
   showRetryableAppraisalError(message);
   addLog(message);
   setBusy("");
@@ -4249,13 +4406,16 @@ function getIdentificationSystemPrompt(sourceMode = state.playMode) {
 }
 
 function getIdentificationPrompt(options = {}) {
+  const rerollHint = options.reappraise
+    ? "\n\n这是对一件已经装备的装备进行重鉴定。请重新独立观察这张图片，不要沿用旧装备的名称、属性或描述；允许因为模型随机性给出不同但仍贴合图像的判断。"
+    : "";
   if (normalizeHeroMode(options.sourceMode) === "drawing") {
-    return `${drawingIdentificationUserPrompt}\n\n当前本局本地结算的装备价值范围：${getPhotoValueMin()} 到 ${getPhotoValueMax()}。你仍然不要输出最终 value 或最终 stats，只需要按 rubric 输出质量分与倾向。`;
+    return `${drawingIdentificationUserPrompt}${rerollHint}\n\n当前本局本地结算的装备价值范围：${getPhotoValueMin()} 到 ${getPhotoValueMax()}。你仍然不要输出最终 value 或最终 stats，只需要按 rubric 输出质量分与倾向。`;
   }
   const cropHint = options.cropped
     ? "\n\n玩家已经圈定主体区域；请优先鉴定这块区域里的现实物体，不要因为画面被裁小、背景较少就判成商品图或素材图。"
     : "";
-  return `${photoIdentificationUserPrompt}${cropHint}\n\n当前本局本地结算的装备价值范围：${getPhotoValueMin()} 到 ${getPhotoValueMax()}。你仍然不要输出最终 value 或最终 stats，只需要按 rubric 输出质量分与倾向。`;
+  return `${photoIdentificationUserPrompt}${cropHint}${rerollHint}\n\n当前本局本地结算的装备价值范围：${getPhotoValueMin()} 到 ${getPhotoValueMax()}。你仍然不要输出最终 value 或最终 stats，只需要按 rubric 输出质量分与倾向。`;
 }
 
 function readModelText(payload, options = {}) {
@@ -4701,6 +4861,10 @@ function normalizeModelItem(raw) {
   const description = safe.description || safe.desc || safe["描述"] || reason;
   const identityDescription = safe.identityDescription || safe.identity_description || safe.appearance || safe.objectIdentity || safe["外观描述"] || safe["身份描述"];
   const specialEffects = safe.specialEffects || safe.special_effects || safe.effects || safe.special || safe.specialEffect || safe["特殊效果"] || safe["特效"];
+  const recognition = normalizeDrawingRecognition(safe.recognition || safe.drawingRecognition || safe.drawing_recognition || safe["识别等级"]);
+  const visualEvidence = normalizeDrawingEvidenceList(safe.visualEvidence || safe.visual_evidence || safe.evidence || safe["可见证据"]);
+  const missingEvidence = normalizeDrawingEvidenceList(safe.missingEvidence || safe.missing_evidence || safe["缺失证据"]);
+  const effortQuality = normalizeDrawingEffortQuality(safe.effortQuality || safe.effort_quality || safe["绘制质量"]);
   const cleanName = cleanText(itemName, "照片装备", 18);
   const rejected = parseBooleanLike(tooLarge);
   const sceneRejected = isScene === true || isOversizedSizeClass(sizeClass);
@@ -4735,6 +4899,10 @@ function normalizeModelItem(raw) {
     reason: cleanText(reason, "", 72),
     tags,
     confidence: clampNumber(safe.confidence ?? safe["置信度"], 0, 1),
+    recognition,
+    visualEvidence,
+    missingEvidence,
+    effortQuality,
   };
 }
 
@@ -5335,6 +5503,37 @@ function receiveItem(item, message) {
   }
 }
 
+function replaceInventoryItemAt(slotIndex, item, message) {
+  ensureInventorySlots();
+  const index = clampSlotIndex(slotIndex);
+  const oldItem = state.inventory[index];
+  if (!oldItem || !item) return false;
+  const fullItem = {
+    ...item,
+    id: makeId("item"),
+  };
+  state.latestItem = fullItem;
+  state.lootError = "";
+  const oldStats = getPlayerStats();
+  const oldShield = state.player.shield;
+  state.inventory[index] = fullItem;
+  state.selectedSlotIndex = index;
+  state.pendingPhotoSlotIndex = index;
+  state.selectedItemId = fullItem.id;
+  state.infoMode = "item";
+  const newStats = getPlayerStats();
+  state.player.hp = Math.min(state.player.hp, newStats.maxHp);
+  syncShieldAfterEquipmentChange(oldStats.shield, newStats.shield, oldShield);
+  addLog(message);
+  addBattleEvent(message, "item");
+  playSoundEffect("appraisalSuccess");
+  recordGlobalGameMetric(getEquipmentStatsMetric(fullItem), 1);
+  recordGlobalAppraisalPlayer();
+  saveGame();
+  render();
+  return true;
+}
+
 function getEquipmentStatsMetric(item) {
   return normalizeHeroMode(item?.sourceMode || "photo") === "drawing" ? "DrawingEquipment" : "PhotoEquipment";
 }
@@ -5422,8 +5621,21 @@ function makePhotoDuplicateKey(image) {
   const text = String(image || "").trim();
   if (!text) return "";
   if (text === pendingDuplicatePhotoKey) return pendingDuplicatePhotoKey;
+  if (text.startsWith(reappraisalPhotoKeyPrefix)) return text.toLowerCase();
   if (/^img:[a-z0-9]+$/i.test(text)) return text.toLowerCase();
   return `img:${fnv1aHash(text)}`;
+}
+
+function makeReappraisalPhotoKey(item) {
+  const seed = [
+    item?.id || "",
+    item?.photoKey || "",
+    item?.sourcePhotoKey || "",
+    item?.objectKey || "",
+    Date.now(),
+    Math.random().toString(36).slice(2),
+  ].join("|");
+  return `${reappraisalPhotoKeyPrefix}${fnv1aHash(seed)}`;
 }
 
 function makeObjectDuplicateKey(item) {
@@ -7140,7 +7352,7 @@ function getIntroRewards() {
     effect: "+1.0 画布",
     desc: [
       "点亮空装备格，打开画布，把你的简笔画带进塔中。",
-      "在鉴定台填好图文 API，按钮亮起后再鉴定画作。",
+      "右上角点亮鉴定台，画作就能被塔读成装备。",
       "入塔后点击怪物卡选定目标，按战斗夺回新的画布。",
     ][index] || modeText(option.desc),
   }));
@@ -7593,7 +7805,7 @@ function makeBattleSummary(result, battle, hpDelta) {
     const roundLimit = Number.isFinite(battle?.roundLimit) ? battle.roundLimit : getBattleRoundLimit(battle?.initialEnemyCount || 1);
     if (battle?.hiddenLayer) {
       const hiddenLabel = battle.hiddenLayer.label || `隐藏${battle.hiddenLayer.index || ""}`;
-      return `脱战 · ${hiddenLabel}拖满${roundLimit}回合后暗门松动，${lifeText}，获得：${lootText}。`;
+      return `脱战 · ${hiddenLabel}拖满${roundLimit}回合后暗门松动，勇者回到主塔继续前进，本次解救失败，${lifeText}，获得：${lootText}。`;
     }
     return `脱战 · 第${floor}层缠斗${roundLimit}回合后，敌人退回阴影，${lifeText}，获得：${lootText}。`;
   }
@@ -8422,7 +8634,7 @@ function getHiddenLayerFloorLabel(layer = getCurrentHiddenLayer()) {
 function getHiddenLayerNarrative(layer = getCurrentHiddenLayer()) {
   const config = getHiddenLayerConfig(layer);
   if (!config) return "";
-  return `${config.label}的暗门已经打开。${config.npcName}被押在中间，左右看守必须全部击败；选中三张卡牌才能开战，也可以直接逃离。`;
+  return `${config.label}的暗门已经打开。${config.npcName}被押在中间，左右看守必须全部击败；选中三张卡牌才能开战，也可以直接逃离。若拖到回合上限，会回到主塔继续前进，但本次解救失败。`;
 }
 
 function createDefaultFormProgress() {
@@ -8511,6 +8723,7 @@ function addCurrentFormKill(count = 1) {
     adjustHeroResourcesAfterStatChange(oldStats, newStats, oldShield);
     addBattleDetail(`${form.label}形态进化为${getHeroFormDisplayName(form)}。`);
     recordGlobalGameMetric("SuperForms", 1);
+    formGridRendered = false;
     return true;
   }
   return false;
@@ -8531,6 +8744,7 @@ function addAllFormExperience(count = 1) {
       progress.level = 2;
       upgraded.push(form);
       recordGlobalGameMetric("SuperForms", 1);
+      formGridRendered = false;
     }
   }
   if (upgraded.some((form) => form.id === state.player.formId)) {
@@ -8659,12 +8873,12 @@ async function initGlobalStats() {
     if (shouldRecordGlobalStats()) {
       await recordGlobalVisit();
     } else {
-      state.globalStatsStatus = "本地预览不计入全站统计。";
+      state.globalStatsStatus = "本地预览不会写进塔外旧账。";
     }
     await refreshGlobalStats();
   } catch (error) {
-    console.warn("全站统计初始化失败:", error);
-    state.globalStatsStatus = "统计加载失败，稍后会自动重试。";
+    console.warn("勇者足迹初始化失败:", error);
+    state.globalStatsStatus = "塔外旧账暂时翻不开，稍后会自动重试。";
     renderGlobalStatsPanel();
   }
 }
@@ -8766,7 +8980,7 @@ function recordGlobalAppraisalPlayerForTest(options = {}) {
   }).catch((error) => {
     appraisalPlayerRecordPending = false;
     console.warn("Failed to record global appraisal player:", error);
-    state.globalStatsStatus = "Appraisal stats sync failed.";
+    state.globalStatsStatus = "鉴定足迹暂时没有写入旧账。";
     renderGlobalStatsPanel();
     return { totalRecorded: false, dailyRecorded: false, skipped: false, error: true };
   });
@@ -8851,7 +9065,7 @@ async function refreshGlobalStats() {
     todayFloors: counters[dailyFloors],
     todayClears: counters[dailyClears],
   });
-  state.globalStatsStatus = "统计已更新。";
+  state.globalStatsStatus = "勇者足迹已记入旧账。";
   renderGlobalStatsPanel();
 }
 
@@ -9122,6 +9336,7 @@ function createBattleSimulation(enemies) {
     rounds: 0,
     defeatedCount: 0,
     formMaxHpGain: 0,
+    killMaxHpGain: 0,
     cooldowns: createSimSpecialCooldowns(),
   };
   applySimBattleStartEnemyAuras(sim, enemies);
@@ -9147,6 +9362,10 @@ function consumeSimCooldownTriggers(sim, trigger) {
     const { key, effect } = instance;
     if (!effect || effect.cooldownTrigger !== trigger) continue;
     const cooldown = getSpecialCooldown(effect);
+    if (isCooldownStackAtCap(effect, sim.battleSpecial)) {
+      sim.cooldowns[key] = cooldown;
+      continue;
+    }
     const current = Number.isFinite(sim.cooldowns?.[key]) ? sim.cooldowns[key] : cooldown;
     const next = Math.max(0, current - 1);
     if (next <= 0) {
@@ -9210,7 +9429,7 @@ function applySimBattleStartHeroEffects(sim, enemies = []) {
 }
 
 function getSimMaxHpBonus(sim) {
-  return sim.theoreticalBuffer || 0;
+  return (sim.theoreticalBuffer || 0) + (sim.formMaxHpGain || 0) + (sim.killMaxHpGain || 0);
 }
 
 function getSimActualMaxHp(stats, sim) {
@@ -9265,7 +9484,7 @@ function getSimActiveEnemies(sim, enemies) {
 function getSimBattleStats(sim, enemies) {
   const stats = getPlayerBaseStats();
   stats.maxHp += getSimMaxHpBonus(sim);
-  stats.realMaxHp = stats.maxHp;
+  stats.realMaxHp = getSimActualMaxHp(stats, sim);
   const delta = getPlayerBattleStatDelta(sim.battleSpecial, sim.hp, stats.maxHp);
   stats.atk += delta.atk;
   stats.def += delta.def;
@@ -9543,7 +9762,11 @@ function simulateFormKillEffects(sim, stats) {
   const heal = Math.max(0, config.killHeal || 0);
   if (maxHpGain > 0) sim.formMaxHpGain = (sim.formMaxHpGain || 0) + maxHpGain;
   if (maxHpGain > 0) sim.battleSpecial.formHp = (sim.battleSpecial.formHp || 0) + maxHpGain;
-  const nextStats = { ...stats, maxHp: (stats.maxHp || 0) + maxHpGain };
+  const nextStats = {
+    ...stats,
+    maxHp: (stats.maxHp || 0) + maxHpGain,
+    realMaxHp: (stats.realMaxHp || getSimActualMaxHp(stats, sim)) + maxHpGain,
+  };
   healSimHero(sim, nextStats, heal);
 }
 
@@ -9558,8 +9781,15 @@ function simulateKillSpecial(sim, stats) {
       sim.battleSpecial.peerlessDefense = (sim.battleSpecial.peerlessDefense || 0) + effect.amount;
     }
   }
-  void maxHpGain;
-  healSimHero(sim, stats, healGain);
+  if (maxHpGain > 0) sim.killMaxHpGain = (sim.killMaxHpGain || 0) + maxHpGain;
+  const nextStats = maxHpGain > 0
+    ? {
+      ...stats,
+      maxHp: (stats.maxHp || 0) + maxHpGain,
+      realMaxHp: (stats.realMaxHp || getSimActualMaxHp(stats, sim)) + maxHpGain,
+    }
+    : stats;
+  healSimHero(sim, nextStats, healGain);
 }
 
 function hasAnyActiveTrait(type) {
@@ -9978,8 +10208,10 @@ function setHeroForm(formId) {
   const newStats = getPlayerStats();
   adjustHeroResourcesAfterStatChange(oldStats, newStats, oldShield);
   syncShieldAfterEquipmentChange(oldStats.shield, newStats.shield, oldShield);
+  formGridRendered = false;
   saveGame();
   render();
+  refreshVisibleHeroForms();
 }
 
 function getItemSpecialStats(item) {
@@ -10055,6 +10287,10 @@ function consumeBattleCooldownTriggers(trigger) {
     const { effect, state: data } = instance;
     if (!effect || effect.cooldownTrigger !== trigger) continue;
     const cooldown = getSpecialCooldown(effect);
+    if (isCooldownStackAtCap(effect, state.battleSpecial)) {
+      data.cooldownRemaining = cooldown;
+      continue;
+    }
     if (!Number.isFinite(data.cooldownRemaining) || data.cooldownRemaining <= 0 || data.cooldownRemaining > cooldown) {
       data.cooldownRemaining = cooldown;
     }
@@ -10068,16 +10304,32 @@ function consumeBattleCooldownTriggers(trigger) {
   return triggered;
 }
 
+function getCooldownStackField(effect) {
+  const field = effect.stat === "defense" ? "defense" : effect.stat === "attack" ? "attack" : "";
+  return field;
+}
+
+function getCooldownStackCap(effect) {
+  if (!effect || effect.kind !== "cooldownStack") return 0;
+  const field = getCooldownStackField(effect);
+  if (!field) return 0;
+  return Math.max(0, effect.cap || 0);
+}
+
+function isCooldownStackAtCap(effect, battleSpecial = state.battleSpecial) {
+  if (!effect || effect.kind !== "cooldownStack") return false;
+  const field = getCooldownStackField(effect);
+  if (!field) return false;
+  const cap = getCooldownStackCap(effect, battleSpecial);
+  return cap <= 0 || Math.max(0, battleSpecial?.[field] || 0) >= cap;
+}
+
 function applyCooldownStackGain(instance, battleSpecial = state.battleSpecial, recordState = true) {
   const { effect, state: data } = instance || {};
   if (!effect || effect.kind !== "cooldownStack" || !effect.stat) return 0;
-  const field = effect.stat === "defense" ? "defense" : effect.stat === "attack" ? "attack" : "";
+  const field = getCooldownStackField(effect);
   if (!field) return 0;
-  let cap = Math.max(0, effect.cap || 0);
-  if (field === "defense") {
-    const defenseBreakCap = getEnemyDefenseBreakPenalty([], battleSpecial, battleSpecial?.defenseBreakBase || 0);
-    if (defenseBreakCap > 0) cap = Math.min(cap, defenseBreakCap);
-  }
+  const cap = getCooldownStackCap(effect, battleSpecial);
   const current = Math.max(0, battleSpecial[field] || 0);
   const gain = Math.min(Math.max(0, effect.amount || 0), Math.max(0, cap - current));
   if (gain <= 0) return 0;
@@ -10356,7 +10608,7 @@ function hasGemAccessoryVisualEvidenceText(text = "") {
 }
 
 function isWeakDrawingIdentityText(text = "") {
-  return /(?:空白|无主体|随机|乱线|线团|杂线|折线|斜线|线段|一条线|两条线|几条线|少线|草率|潦草|涂抹|看不出|无法辨认|不能辨认|难以辨认|勉强|不明确|不成形|只有颜色|简单轮廓|simple\s+line|scribble|unrecognizable|unclear|random\s+line)/i.test(String(text || ""));
+  return /(?:空白|无主体|随机|乱线|线团|杂线|折线|斜线|弧线|线段|一条线|两条线|几条线|少线|草率|潦草|粗糙|粗制|涂抹|乱涂|划痕|看不出|无法辨认|不能辨认|难以辨认|勉强|不明确|不成形|未成形|只有颜色|简单轮廓|simple\s+line|scribble|unrecognizable|unclear|random\s+line)/i.test(String(text || ""));
 }
 
 function isBareColorLineDrawingText(text = "") {
@@ -10367,6 +10619,9 @@ function isBareColorLineDrawingText(text = "") {
 
 function normalizeDrawingVisualEvidenceForRules(text = "") {
   let source = stripImageTextSemantics(stripDrawingMediumWords(text || ""));
+  if (!hasShieldVisualEvidenceText(source)) {
+    source = source.replace(/(?:盾牌|护盾|圆盾|方盾|盾|屏障|结界|保护罩|防护|保护|守护)/g, "");
+  }
   if (!hasMagicWandVisualEvidenceText(source)) {
     source = source.replace(/(?:魔杖|法杖|魔法棒|星杖)/g, "");
   }
@@ -10387,7 +10642,28 @@ function hasShieldNameText(text = "") {
 }
 
 function hasShieldVisualEvidenceText(text = "") {
-  return /(?:盾|盾牌|圆盾|护盾|屏障|保护罩|十字|圆形防护|shield|barrier|guard)/i.test(stripNegatedDrawingEvidence(stripImageTextSemantics(text)));
+  const source = stripNegatedDrawingEvidence(stripImageTextSemantics(text));
+  const shieldBody = /(?:盾牌|盾面|盾身|圆盾|方盾|手盾|shield)/i.test(source);
+  const shieldStructure = /(?:外圈|边框|描边|厚边|金属边|十字|纹章|把手|握柄|护手|盾面|rim|border|cross|handle)/i.test(source);
+  const barrierStructure = /(?:屏障|结界|保护罩|光罩|barrier)/i.test(source)
+    && /(?:边界|轮廓|环形|罩形|弧面|包围|包住|enclose|outline)/i.test(source);
+  return (shieldBody && shieldStructure) || barrierStructure;
+}
+
+function hasClearDrawingEquipmentVisualEvidenceText(text = "") {
+  const source = normalizeDrawingVisualEvidenceForRules(text || "");
+  return hasShoeVisualEvidenceText(source)
+    || hasDrawingWeaponVisualEvidenceText(source)
+    || hasShieldVisualEvidenceText(source)
+    || hasMagicWandVisualEvidenceText(source)
+    || hasGemAccessoryVisualEvidenceText(source);
+}
+
+function hasSimpleDrawingSymbolEvidenceText(text = "") {
+  const source = normalizeDrawingVisualEvidenceForRules(text || "");
+  if (!source || hasClearDrawingEquipmentVisualEvidenceText(source)) return false;
+  if (/(?:火|火焰|闪电|雷|水滴|叶|叶片|花|翅|羽翼|眼睛|齿轮|机器人|面具|爪|牙|flame|fire|lightning|droplet|leaf|flower|wing|eye|gear|robot|mask|claw|fang)/i.test(source)) return false;
+  return /(?:圆|圈|环|方|矩形|方块|星|星形|爱心|心形|红心|笑脸|表情|脸|简单符号|普通符号|circle|round|ring|square|block|star|heart|smile|face|simple\s+symbol)/i.test(source);
 }
 
 function isOffensiveBladeSemanticText(text = "") {
@@ -10420,9 +10696,10 @@ function refinePhotoNameWithObjectEvidence(name, subjectName, objectType, identi
 }
 
 function inferDrawingNameFromVisualEvidence(text = "") {
-  const source = stripNegatedDrawingEvidence(stripDrawingMediumWords(text));
+  const source = normalizeDrawingVisualEvidenceForRules(text);
+  if (isWeakDrawingIdentityText(source) && !hasStrongDrawingConceptText(source)) return "未成形线团";
   if (hasShoeVisualEvidenceText(source)) return /风|疾|闪电|lightning|wind/i.test(source) ? "风行短靴" : "旅者短靴";
-  if (/盾|护盾|屏障|保护罩|十字|shield|barrier/i.test(source)) return /圆|环|circle|round/i.test(source) ? "守护圆盾" : "守护盾牌";
+  if (hasShieldVisualEvidenceText(source)) return /圆|环|circle|round/i.test(source) ? "守护圆盾" : "守护盾牌";
   if (hasMagicWandVisualEvidenceText(source)) return /星|star/i.test(source) ? "星纹魔杖" : "符石法杖";
   if (/剑身|剑尖|短剑|长剑|握柄|sword/i.test(source)) return "短剑";
   if (/刀身|刀刃|刃口|blade|knife/i.test(source)) return "锋刃短刀";
@@ -10433,16 +10710,16 @@ function inferDrawingNameFromVisualEvidence(text = "") {
   if (/翅|羽|翼|wing|feather/i.test(source)) return "风羽徽记";
   if (/闪电|雷|电|lightning/i.test(source)) return "雷纹徽记";
   if (/火|火焰|flame|fire/i.test(source)) return "火焰徽记";
-  if (/水|水滴|泉|蓝色液滴|spring|water/i.test(source)) return "泉水护符";
-  if (/草|叶|花|新芽|plant|leaf|flower/i.test(source)) return "新芽护符";
-  if (/爱心|心形|红心|heart/i.test(source)) return "爱心护符";
+  if (/水|水滴|泉|蓝色液滴|spring|water/i.test(source)) return "泉水徽记";
+  if (/草|叶|花|新芽|plant|leaf|flower/i.test(source)) return "新芽徽记";
+  if (/爱心|心形|红心|heart/i.test(source)) return "爱心记号";
   if (/眼|眼睛|瞳|eye/i.test(source)) return "凝视徽记";
   if (/齿轮|机械|机器人|robot|gear/i.test(source)) return "齿轮徽记";
-  if (/笑脸|脸|表情|smile|face/i.test(source)) return "笑脸徽记";
-  if (/星|星形|star/i.test(source)) return "星纹护符";
-  if (/圆|圈|环|circle|round|ring/i.test(source)) return "圆环护符";
-  if (/方|矩形|方块|square|block/i.test(source)) return "石板护符";
-  return "符纹护符";
+  if (/笑脸|脸|表情|smile|face/i.test(source)) return "笑脸记号";
+  if (/星|星形|star/i.test(source)) return "星纹记号";
+  if (/圆|圈|环|circle|round|ring/i.test(source)) return "圆环记号";
+  if (/方|矩形|方块|square|block/i.test(source)) return "石板记号";
+  return "未成形线团";
 }
 
 function refineDrawingNameWithVisualEvidence(name, subjectName, objectType, identityDescription) {
@@ -10460,9 +10737,145 @@ function refineDrawingNameWithVisualEvidence(name, subjectName, objectType, iden
     && !hasGemAccessoryVisualEvidenceText(visualEvidence)
     && (hasShoeVisualEvidenceText(visualEvidence) || hasDrawingWeaponVisualEvidenceText(visualEvidence) || hasShieldVisualEvidenceText(visualEvidence) || isWeakDrawingIdentityText(visualEvidence));
   if (unsupportedMagicWand || unsupportedWeapon || unsupportedShield || unsupportedAccessory || isGenericDrawingName(cleanName)) {
-    return cleanText(inferDrawingNameFromVisualEvidence(visualEvidence), "符纹护符", 18);
+    return cleanText(inferDrawingNameFromVisualEvidence(visualEvidence), "未成形线团", 18);
   }
   return cleanName;
+}
+
+function normalizeDrawingEvidenceList(input) {
+  if (Array.isArray(input)) {
+    return input
+      .map((item) => typeof item === "string" ? item : item && typeof item === "object" ? Object.values(item).join(" ") : "")
+      .map((item) => cleanText(item, "", 48))
+      .filter(Boolean)
+      .slice(0, 6);
+  }
+  if (typeof input === "string") return normalizeStringList(input).map((item) => cleanText(item, "", 48)).slice(0, 6);
+  return [];
+}
+
+function normalizeDrawingRecognition(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return "";
+  if (/unrecognizable|unformed|random|scribble|unclear|无法|不能|看不出|未成形|不成形|乱线|无主体/.test(text)) return "unformed";
+  if (/simple[_\s-]?symbol|symbol|符号|简单|圆圈|方块|笑脸|爱心|星形/.test(text)) return "simple_symbol";
+  if (/clear[_\s-]?equipment|equipment|装备|武器|盾|靴|杖|clear/.test(text)) return "clear_equipment";
+  if (/recognizable|object|主体|可识别|能认出|物体|道具/.test(text)) return "recognizable_object";
+  return "";
+}
+
+function normalizeDrawingEffortQuality(input) {
+  const safe = input && typeof input === "object" ? input : {};
+  return {
+    lineControl: clampInt(safe.lineControl ?? safe.line_control ?? safe["线条控制"], 0, 3),
+    colorUse: clampInt(safe.colorUse ?? safe.color_use ?? safe["配色"], 0, 3),
+    completeness: clampInt(safe.completeness ?? safe["完成度"], 0, 3),
+    aesthetic: clampInt(safe.aesthetic ?? safe["美观"], 0, 3),
+  };
+}
+
+function getDrawingEvidenceText(input = {}) {
+  const visualEvidence = normalizeDrawingEvidenceList(input.visualEvidence || input.visual_evidence || input.evidence || input["可见证据"]).join(" ");
+  const missingEvidence = normalizeDrawingEvidenceList(input.missingEvidence || input.missing_evidence || input["缺失证据"]).join(" ");
+  return [
+    input.identityDescription || input.identity_description || input.appearance || input.objectIdentity,
+    visualEvidence,
+    input.reason,
+    input.analysis,
+    missingEvidence ? `缺少 ${missingEvidence}` : "",
+  ].filter(Boolean).join(" ");
+}
+
+function getDrawingRecognitionGate(input = {}) {
+  const quality = normalizePhotoQuality(input.photoQuality || {});
+  const evidenceText = getDrawingEvidenceText(input);
+  const normalizedEvidence = normalizeDrawingVisualEvidenceForRules(evidenceText);
+  const declared = normalizeDrawingRecognition(input.recognition || input.drawingRecognition || input.drawing_recognition || input["识别等级"]);
+  const confidence = Number(input.confidence);
+  const lowConfidence = Number.isFinite(confidence) && confidence > 0 && confidence < 0.32;
+  const clearEquipment = hasClearDrawingEquipmentVisualEvidenceText(normalizedEvidence);
+  const simpleSymbol = hasSimpleDrawingSymbolEvidenceText(normalizedEvidence);
+  const weakText = isWeakDrawingIdentityText(normalizedEvidence || evidenceText);
+  const weakQuality = quality.clarity <= 0
+    || quality.subjectArea <= 0
+    || (quality.clarity <= 1 && (quality.subjectArea <= 1 || quality.realPhoto <= 1 || quality.focusLight <= 0));
+  const bareLines = isBareColorLineDrawingText(normalizedEvidence || evidenceText);
+  const strongConcept = hasStrongDrawingConceptText(normalizedEvidence);
+
+  let level = "recognizable_object";
+  if (declared === "unformed" || lowConfidence || (weakText && !clearEquipment && !strongConcept && weakQuality) || (bareLines && quality.clarity <= 1 && quality.realPhoto <= 1)) {
+    level = "unformed";
+  } else if (clearEquipment && quality.clarity >= 2 && quality.subjectArea >= 1) {
+    level = "clear_equipment";
+  } else if (simpleSymbol || declared === "simple_symbol") {
+    level = "simple_symbol";
+  } else if (!strongConcept && !declared) {
+    level = weakText || weakQuality ? "unformed" : "simple_symbol";
+  }
+
+  return {
+    level,
+    declared,
+    evidenceText,
+    normalizedEvidence,
+    simpleSymbol,
+    clearEquipment,
+    strongConcept,
+    photoQuality: quality,
+  };
+}
+
+function getDrawingGateValueCap(gate) {
+  if (!gate) return getPhotoValueMax();
+  if (gate.level === "unformed") return 0;
+  if (gate.level === "simple_symbol") return Math.min(getPhotoValueMax(), 9);
+  return getPhotoValueMax();
+}
+
+function getDrawingGateScoreCap(gate) {
+  if (!gate) return 15;
+  if (gate.level === "unformed") return 3;
+  if (gate.level === "simple_symbol") return 8;
+  return 15;
+}
+
+function isDrawingGateSpecialAllowed(gate) {
+  return Boolean(gate && (gate.level === "clear_equipment" || gate.level === "recognizable_object"));
+}
+
+function getDrawingGateStatText(gate, fallback = "") {
+  if (!gate) return fallback;
+  return gate.normalizedEvidence || fallback;
+}
+
+function sanitizeDrawingStatAffinityForGate(statAffinity = [], gate, text = "") {
+  if (!gate || gate.level === "unformed") return [];
+  const source = String(text || "");
+  const allowedSimpleStats = new Set();
+  if (gate.level === "simple_symbol") {
+    if (hasStrongHpSemanticText(source)) allowedSimpleStats.add("hp");
+    if (hasStrongRegenSemanticText(source)) allowedSimpleStats.add("regen");
+    if (hasShieldVisualEvidenceText(source)) allowedSimpleStats.add("shield");
+    return normalizeStatAffinity(statAffinity)
+      .filter((item) => allowedSimpleStats.has(item.stat) && isModelStatAffinityAllowed(item.stat, source));
+  }
+  return sanitizeStatAffinityForSemantics(statAffinity, source);
+}
+
+function filterDrawingStatsForGate(stats, gate, text = "") {
+  const result = normalizeStats(stats, 20);
+  if (!gate) return result;
+  if (gate.level === "unformed") return normalizeStats({}, 20);
+  if (gate.level !== "simple_symbol") return result;
+  const source = String(text || "");
+  const allowed = new Set();
+  if (hasStrongHpSemanticText(source)) allowed.add("hp");
+  if (hasStrongRegenSemanticText(source)) allowed.add("regen");
+  if (hasShieldVisualEvidenceText(source)) allowed.add("shield");
+  for (const key of statOrder) {
+    if (!allowed.has(key)) result[key] = 0;
+  }
+  return result;
 }
 
 function balanceItem(item, image = "") {
@@ -10486,9 +10899,20 @@ function balanceItem(item, image = "") {
   const specialAffinity = normalizeSpecialEffects(safe.specialAffinity || []);
   const preserveSettledOutput = Boolean(safe.skipSpecialRoll);
   const identityDescription = cleanText(safe.identityDescription || safe.identity_description || safe.appearance || safe.objectIdentity || "", "", 160);
+  const drawingGate = sourceMode === "drawing" ? getDrawingRecognitionGate(safe) : null;
   if (sourceMode === "drawing") {
-    itemName = refineDrawingNameWithVisualEvidence(itemName, subjectName, objectType, identityDescription);
-    subjectName = refineDrawingNameWithVisualEvidence(subjectName, itemName, objectType, identityDescription);
+    const gateFallbackName = inferDrawingNameFromVisualEvidence(drawingGate?.normalizedEvidence || identityDescription);
+    if (drawingGate?.level === "unformed") {
+      itemName = gateFallbackName;
+      subjectName = gateFallbackName;
+    } else {
+      itemName = refineDrawingNameWithVisualEvidence(itemName, subjectName, objectType, identityDescription);
+      subjectName = refineDrawingNameWithVisualEvidence(subjectName, itemName, objectType, identityDescription);
+      if (drawingGate?.level === "simple_symbol" && (hasDrawingWeaponNameText(`${itemName} ${subjectName}`) || hasShieldNameText(`${itemName} ${subjectName}`) || hasMagicWandNameText(`${itemName} ${subjectName}`))) {
+        itemName = gateFallbackName;
+        subjectName = gateFallbackName;
+      }
+    }
   } else {
     itemName = refinePhotoNameWithObjectEvidence(itemName, subjectName, objectType, identityDescription);
     subjectName = refinePhotoNameWithObjectEvidence(subjectName, itemName, objectType, identityDescription);
@@ -10505,7 +10929,7 @@ function balanceItem(item, image = "") {
     ? safeIsScene || safeIsEquipable === false
     : safeTooLarge || safeIsScene || safeIsEquipable === false || isOversizedSizeClass(sizeClass);
   const tooLarge = sourceMode === "drawing"
-    ? Boolean(safeTooLarge || safeIsScene || safeIsEquipable === false)
+    ? Boolean(safeTooLarge || safeIsScene || safeIsEquipable === false || drawingGate?.level === "unformed")
     : shouldTreatAsTooLarge(itemName, rulesSemanticText, modelRejected);
   const virtualPenalty = sourceMode === "drawing"
     ? { level: "none", noEffect: false, cap: null, suppressSpecial: false, description: "" }
@@ -10528,11 +10952,17 @@ function balanceItem(item, image = "") {
     if (!preserveSettledOutput && Number.isFinite(virtualPenalty.cap)) {
       requestedValue = Math.min(requestedValue, mapLegacyPhotoValueCapToCurrentRange(virtualPenalty.cap));
     }
+    if (sourceMode === "drawing") {
+      requestedValue = Math.min(requestedValue, getDrawingGateValueCap(drawingGate));
+    }
   }
   let specialEffects = noEffect || virtualPenalty.suppressSpecial
     ? []
     : choosePhotoSpecialEffects({ ...safe, itemName, subjectName, objectType, reason, tags, description: sourceMode === "drawing" ? objectStatEvidenceText : semanticText, semanticTextOverride: objectStatEvidenceText, ignoreDirectSpecialEffects: semanticSchema && !preserveSettledOutput }, image, requestedValue)
       .filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue);
+  if (sourceMode === "drawing" && !isDrawingGateSpecialAllowed(drawingGate)) {
+    specialEffects = [];
+  }
   let specialValue = calculateSpecialEffectsValue(specialEffects);
   let statBudget = Math.max(0, requestedValue - specialValue);
   const targetValue = noEffect ? 0 : requestedValue;
@@ -10541,15 +10971,22 @@ function balanceItem(item, image = "") {
     && !isPolishedCommercialImageText(rulesSemanticText);
   const statSemanticText = usePhysicalCarrierStats
     ? makePhysicalCarrierStatText(semanticText)
-    : objectStatEvidenceText;
+    : sourceMode === "drawing"
+      ? getDrawingGateStatText(drawingGate, objectStatEvidenceText)
+      : objectStatEvidenceText;
   const statAffinityForAllocation = virtualPenalty.level === "ordinaryCap"
     ? []
-    : sanitizeStatAffinityForSemantics(safe.statAffinity, statSemanticText);
+    : sourceMode === "drawing"
+      ? sanitizeDrawingStatAffinityForGate(safe.statAffinity, drawingGate, statSemanticText)
+      : sanitizeStatAffinityForSemantics(safe.statAffinity, statSemanticText);
   let stats = noEffect
       ? normalizeStats({}, 20)
       : clampStatsToValue(allocateStatsForItem(semanticSchema || virtualPenalty.level === "ordinaryCap" ? {} : safe.stats || {}, statSemanticText, statBudget, statAffinityForAllocation), statBudget);
-  if (sourceMode === "drawing" && isWeakDrawingIdentityText(statSemanticText) && !hasStrongDrawingConceptText(statSemanticText)) {
+  if (sourceMode === "drawing" && (drawingGate?.level === "unformed" || (isWeakDrawingIdentityText(statSemanticText) && !hasStrongDrawingConceptText(statSemanticText)))) {
     stats = normalizeStats({}, 20);
+  }
+  if (sourceMode === "drawing") {
+    stats = filterDrawingStatsForGate(stats, drawingGate, statSemanticText);
   }
 
   let actualScore = calculateItemScore(stats, specialEffects);
@@ -10560,8 +10997,11 @@ function balanceItem(item, image = "") {
     stats = noEffect
       ? normalizeStats({}, 20)
       : clampStatsToValue(allocateStatsForItem(semanticSchema || virtualPenalty.level === "ordinaryCap" ? {} : safe.stats || {}, statSemanticText, statBudget, statAffinityForAllocation), statBudget);
-    if (sourceMode === "drawing" && isWeakDrawingIdentityText(statSemanticText) && !hasStrongDrawingConceptText(statSemanticText)) {
+    if (sourceMode === "drawing" && (drawingGate?.level === "unformed" || (isWeakDrawingIdentityText(statSemanticText) && !hasStrongDrawingConceptText(statSemanticText)))) {
       stats = normalizeStats({}, 20);
+    }
+    if (sourceMode === "drawing") {
+      stats = filterDrawingStatsForGate(stats, drawingGate, statSemanticText);
     }
     actualScore = calculateItemScore(stats, specialEffects);
   }
@@ -10580,7 +11020,7 @@ function balanceItem(item, image = "") {
     specialState: normalizeSpecialState(safe.specialState, specialEffects),
     description: noEffect
       ? sourceMode === "drawing"
-        ? "没有形成可鉴定的装备主体。"
+        ? "线条还没凝成能上阵的装备。"
         : virtualPenalty.description || "主体过大或主要是场景，无法提供属性。"
       : displayDescription,
     identityDescription,
@@ -10591,6 +11031,7 @@ function balanceItem(item, image = "") {
     statAffinity,
     specialAffinity,
     semanticAppraisal: semanticSchema,
+    drawingRecognition: drawingGate?.level || "",
     confidence: clampNumber(safe.confidence, 0, 1),
     photoKey: cleanText(safe.photoKey, "", 48),
     sourcePhotoKey: cleanText(safe.sourcePhotoKey, "", 48),
@@ -10631,6 +11072,8 @@ function normalizeInventoryItem(item) {
   normalized.objectKey = cleanText(item?.objectKey || balanced.objectKey || makeObjectDuplicateKey(normalized), "", 80);
   normalized.identityDescription = cleanText(item?.identityDescription || balanced.identityDescription, "", 160);
   normalized.appraisalImage = typeof item?.appraisalImage === "string" && item.appraisalImage ? item.appraisalImage : balanced.appraisalImage || "";
+  normalized.reappraisedFromId = cleanText(item?.reappraisedFromId || balanced.reappraisedFromId, "", 80);
+  normalized.reappraisedAt = Number.isFinite(item?.reappraisedAt) ? item.reappraisedAt : balanced.reappraisedAt || 0;
   delete normalized.healAmount;
   delete normalized.consumable;
   return normalized;
@@ -10744,6 +11187,12 @@ function calculatePhotoItemValue(item, semanticText = "") {
   if (max <= min) return min;
   let value = mapPhotoQualityScoreToValue(qualityScore);
   const cap = sourceMode === "drawing" ? max : getPhotoValueCapFromQuality(quality, semanticText);
+  const drawingGate = sourceMode === "drawing" ? getDrawingRecognitionGate(item) : null;
+  if (sourceMode === "drawing") {
+    const gateCap = getDrawingGateValueCap(drawingGate);
+    if (gateCap <= 0) return 0;
+    value = Math.min(value, gateCap);
+  }
   value = Math.min(value, cap);
   return Math.max(min, Math.min(max, value));
 }
@@ -10916,6 +11365,9 @@ function calculatePhotoQualityScore(photoQuality, semanticText = "") {
 
 function getDrawingQualityHardCap(quality, semanticText = "", strongConcept = false) {
   const text = String(semanticText || "");
+  const gate = getDrawingRecognitionGate({ photoQuality: quality, identityDescription: text, reason: text });
+  const gateCap = getDrawingGateScoreCap(gate);
+  if (gateCap <= 8) return gateCap;
   if (/空白|无主体|随机涂鸦|随机线条|无法辨认|不能辨认|看不出|乱线|没有明确|blank|scribble|unrecognizable/i.test(text)) {
     if (quality.clarity <= 1 || quality.subjectArea <= 1) return 3;
   }
@@ -10939,6 +11391,8 @@ function getDrawingQualityHardCap(quality, semanticText = "", strongConcept = fa
 function calculateDrawingQualityScore(photoQuality, semanticText = "") {
   const quality = normalizePhotoQuality(photoQuality);
   const text = String(semanticText || "");
+  const gate = getDrawingRecognitionGate({ photoQuality: quality, identityDescription: text, reason: text });
+  if (gate.level === "unformed") return Math.max(0, Math.min(3, calculatePhotoQualityTotal(quality)));
   const blankLike = /空白|无主体|随机涂鸦|随机线条|无法辨认|不能辨认|看不出|乱线|没有明确|blank|scribble|unrecognizable/i.test(text);
   const strongConcept = hasStrongDrawingConceptText(text);
   const hasConcept = strongConcept || (!isWeakDrawingIdentityText(text) && (hasDrawingEquipmentConceptText(text) || hasPhotoStatSemanticText(text)));
@@ -10973,6 +11427,7 @@ function calculateDrawingQualityScore(photoQuality, semanticText = "") {
   if (quality.interesting <= 0 && quality.realPhoto <= 2) score = Math.min(score, 12);
   if (quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 2 && quality.focusLight >= 1 && strongConcept) score = Math.max(score, 10);
   if (quality.clarity >= 3 && quality.subjectArea >= 3 && quality.realPhoto >= 3 && quality.focusLight >= 2 && quality.interesting >= 2 && strongConcept) score = Math.max(score, 14);
+  score = Math.min(score, getDrawingGateScoreCap(gate));
   score = Math.min(score, getDrawingQualityHardCap(quality, text, strongConcept));
   return Math.max(0, Math.min(15, score));
 }
@@ -11617,7 +12072,7 @@ function render(options = {}) {
     heroFormCard.classList.toggle("is-hit", Boolean(state.heroHitEffectUntil));
     renderHeroFormBattleBadge(heroFormCard, form);
   }
-  renderHeroForms();
+  updateHeroFormLabels(form);
 
   els.playerHpText.textContent = `${state.player.hp}/${stats.maxHp}`;
   els.playerHpBar.style.width = `${percent(state.player.hp, stats.maxHp)}%`;
@@ -11629,14 +12084,17 @@ function render(options = {}) {
   setStatReadout(els.playerLifesteal, stats.lifesteal, battleDelta.lifesteal);
   els.playerShield.textContent = `${state.player.shield}/${stats.shield}`;
 
+  const enemyDamageEstimates = getEnemyDamageEstimates();
   els.floorText.textContent = getFloorActionLabel(bossRewardPending);
-  renderEnemyField();
+  renderEnemyField(enemyDamageEstimates);
   const actionRow = els.attackBtn.closest(".floor-action-row");
   actionRow?.classList.toggle("is-reward-choice", bossRewardPending);
   actionRow?.classList.toggle("is-clear", state.gameClear);
   actionRow?.classList.toggle("can-flee", canFleeCurrentFloor());
   els.equipmentGrid.classList.remove("is-collapsed");
   const canStartBattle = canStartSelectedBattle();
+  const introReady = isIntroFloor() && hasSelectedAllIntroRewards();
+  let primaryNeedsSelection = false;
   els.attackBtn.hidden = false;
   els.attackBtn.textContent = state.gameClear
     ? "塔史结局"
@@ -11655,15 +12113,21 @@ function render(options = {}) {
         ? false
       : defeated || isBattleActionLocked() || Boolean(state.autoBattleTimer) || state.pendingFloorAdvance || Boolean(state.battleStartTimer);
   if (isIntroFloor()) {
-    els.attackBtn.textContent = "进入魔塔";
-    els.attackBtn.disabled = !hasSelectedAllIntroRewards();
+    els.attackBtn.textContent = introReady ? "进入魔塔" : "全部选择";
+    els.attackBtn.disabled = false;
+    primaryNeedsSelection = !introReady;
   }
   if (isHiddenLayerActive() && !state.gameClear && !defeated && !bossRewardPending) {
-    els.attackBtn.textContent = canStartBattle ? "解救" : "选齐三张";
+    els.attackBtn.textContent = canStartBattle ? "解救" : "全部选择";
+    primaryNeedsSelection = !canStartBattle;
+  } else if (!isIntroFloor() && !state.gameClear && !defeated && !bossRewardPending && !canStartBattle) {
+    primaryNeedsSelection = true;
   }
+  els.attackBtn.classList.toggle("is-choice-prompt", primaryNeedsSelection);
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
   els.attackBtn.setAttribute("aria-label", state.gameClear ? "查看塔史结局" : defeated && state.careerSummary ? "查看战败结局" : bossRewardPending ? "确认奖励牌" : "开始战斗");
-  if (isIntroFloor()) els.attackBtn.setAttribute("aria-label", "进入魔塔第一层");
+  if (isIntroFloor()) els.attackBtn.setAttribute("aria-label", introReady ? "进入魔塔第一层" : `全部选择三张${getResourceName()}`);
+  else if (primaryNeedsSelection) els.attackBtn.setAttribute("aria-label", isHiddenLayerActive() ? "全部选择隐藏层三张卡牌" : "选择怪物后开始战斗");
   els.battleSpeedBtn.hidden = bossRewardPending || state.gameClear || defeated || isIntroFloor();
   els.battleSpeedBtn.textContent = bossRewardPending ? "" : `×${getBattleSpeed()}`;
   els.battleSpeedBtn.setAttribute("aria-label", bossRewardPending ? "Boss 奖励选择阶段" : `切换战斗倍速，当前 ${getBattleSpeed()} 倍`);
@@ -11678,7 +12142,6 @@ function render(options = {}) {
   renderGlobalStatsPanel();
   renderEquipmentGrid();
   renderEquipmentDetail();
-  renderGameTextOnly();
 }
 
 function getFloorActionLabel(bossRewardPending = Boolean(state.bossReward)) {
@@ -11724,10 +12187,10 @@ function renderCameraStatus() {
   els.filmCountBadge.textContent = `${getResourceName()} ${formatFilmCount()}`;
 }
 
-function renderEnemyField() {
+function renderEnemyField(enemyDamageEstimates = null) {
   els.enemyField.innerHTML = "";
   els.enemyField.classList.toggle("is-intro-field", isIntroFloor());
-  const enemyDamageEstimates = getEnemyDamageEstimates();
+  const estimates = enemyDamageEstimates || getEnemyDamageEstimates();
   const shouldFlipIn = state.enemyFlipEncounterId === state.encounterId && !state.currentBattle && !state.autoBattleTimer;
 
   if (state.bossReward) {
@@ -11751,7 +12214,7 @@ function renderEnemyField() {
     const isSelected = selectionOrder > 0;
     const isFaceDown = state.enemyFaceDownIds.has(enemy.id);
     const isFlippingDown = state.enemyFlipDownIds.has(enemy.id);
-    const estimate = enemyDamageEstimates.get(enemy.id) || makeUnknownEstimate();
+    const estimate = estimates.get(enemy.id) || makeUnknownEstimate();
     const button = document.createElement("button");
     const isHit = Boolean(state.enemyHitEffectUntilById[enemy.id]) && !isFlippingDown && !isFaceDown;
     const isSingleBossCard = isBossRewardFloor(state.floor) && state.enemies.length === 1;
@@ -12167,6 +12630,12 @@ function formatBattleBadgeNumber(value) {
   return `+${amount}`;
 }
 
+function formatSignedBattleBadgeNumber(value) {
+  const amount = Math.trunc(Number(value) || 0);
+  if (amount === 0) return "";
+  return amount > 0 ? `+${amount}` : `${amount}`;
+}
+
 function getSpecialBattleValueForDisplay(item, instance) {
   const { effect, state: data } = instance || {};
   if (!effect || !data) return null;
@@ -12202,7 +12671,9 @@ function renderEquipmentSlotBattleBadges(item) {
   const activeInstances = getEquippedPhotoEffectInstances()
     .filter((instance) => instance.item?.id === item.id);
   if (!activeInstances.length) return "";
-  const cooldownInstance = activeInstances.find(({ effect }) => effect?.cooldownTrigger);
+  const cooldownInstance = activeInstances.find(({ effect }) =>
+    effect?.cooldownTrigger && !isCooldownStackAtCap(effect, state.battleSpecial)
+  );
   const left = cooldownInstance
     ? `<span class="slot-battle-badge slot-battle-badge-left">${clampInt(cooldownInstance.state.cooldownRemaining, 0, 99)}</span>`
     : "";
@@ -12215,27 +12686,34 @@ function renderEquipmentSlotBattleBadges(item) {
   return `${left}${right}`;
 }
 
-function getHeroFormBattleBadge(form = getHeroForm()) {
-  if (!state.currentBattle || !form) return null;
+function getHeroFormBattleBadges(form = getHeroForm()) {
+  if (!state.currentBattle || !form) return [];
   const config = getHeroFormLevelConfig(form);
-  if ((state.battleSpecial.formHp || 0) > 0) return { text: formatBattleBadgeNumber(state.battleSpecial.formHp), stat: "hp" };
-  if ((state.battleSpecial.formHeal || 0) > 0) return { text: formatBattleBadgeNumber(state.battleSpecial.formHeal), stat: "hp" };
+  const badges = [];
   const stats = normalizeSignedStats(config.stats || {}, 999);
-  const order = ["attack", "defense", "shield", "hp", "speed", "regen", "lifesteal"];
-  const key = order.find((stat) => (stats[stat] || 0) > 0);
-  return key ? { text: formatBattleBadgeNumber(stats[key]), stat: key } : null;
+  const filmStats = normalizeSignedStats(getHeroFormFilmStatBonus(form), 999);
+  const order = ["attack", "defense", "speed", "shield", "hp", "regen", "lifesteal"];
+  for (const stat of order) {
+    const value = (stats[stat] || 0) + (filmStats[stat] || 0);
+    if (value !== 0) badges.push({ text: formatSignedBattleBadgeNumber(value), stat });
+  }
+  if ((state.battleSpecial.formHp || 0) > 0) badges.push({ text: formatBattleBadgeNumber(state.battleSpecial.formHp), stat: "hp" });
+  if ((state.battleSpecial.formHeal || 0) > 0) badges.push({ text: formatBattleBadgeNumber(state.battleSpecial.formHeal), stat: "hp" });
+  return badges.filter((badge) => badge.text);
 }
 
 function renderHeroFormBattleBadge(card, form = getHeroForm()) {
   if (!card) return;
   card.querySelectorAll(".hero-form-battle-badge").forEach((node) => node.remove());
-  const badge = getHeroFormBattleBadge(form);
-  if (!badge?.text) return;
-  const node = document.createElement("span");
-  node.className = "hero-form-battle-badge";
-  node.dataset.stat = badge.stat;
-  node.textContent = badge.text;
-  card.append(node);
+  const badges = getHeroFormBattleBadges(form);
+  badges.forEach((badge, index) => {
+    const node = document.createElement("span");
+    node.className = "hero-form-battle-badge";
+    node.dataset.stat = badge.stat;
+    node.style.setProperty("--badge-index", String(index));
+    node.textContent = badge.text;
+    card.append(node);
+  });
 }
 
 function renderEquipmentGrid() {
@@ -12480,6 +12958,15 @@ function renderEquipmentDetail() {
     els.equipmentDetailImageBtn.hidden = false;
   }
   els.equipmentActions.hidden = false;
+  if (!state.gameClear) {
+    const reappraising = Boolean(state.analysisRequest?.reappraisal);
+    const canReappraise = Boolean(getReappraisalImage(selected));
+    els.analyzePhotoBtn.hidden = !canReappraise;
+    els.analyzePhotoBtn.disabled = reappraising ? false : locked || !canReappraise || state.filmRolls < 1 || Boolean(els.loadingState.textContent);
+    els.analyzePhotoBtn.textContent = reappraising ? "取消重鉴定" : "重鉴定";
+    els.analyzePhotoBtn.classList.toggle("is-cancel", reappraising);
+    els.analyzePhotoBtn.setAttribute("aria-label", reappraising ? "取消重鉴定" : `重鉴定${formatItemDisplayName(selected)}`);
+  }
   els.savePhotoBtn.hidden = false;
   els.savePhotoBtn.disabled = locked || !(selected.fullImage || selected.image);
   els.savePhotoBtn.textContent = "保存";
@@ -12664,12 +13151,19 @@ function getEmptySlotIconMarkup() {
   return isDrawingMode() ? getDrawingIconMarkup() : getCameraIconMarkup();
 }
 
-function renderHeroForms() {
+function updateHeroFormLabels(form = getHeroForm()) {
+  document.querySelectorAll("[data-form-label]").forEach((node) => {
+    node.textContent = getHeroFormDisplayName(form);
+  });
+}
+
+function renderHeroForms(options = {}) {
+  if (!els.formGrid) return;
+  if (formGridRendered && !options.force) return;
+  formGridRendered = true;
   els.formGrid.innerHTML = "";
   const currentForm = getHeroForm();
-  document.querySelectorAll("[data-form-label]").forEach((node) => {
-    node.textContent = getHeroFormDisplayName(currentForm);
-  });
+  updateHeroFormLabels(currentForm);
 
   for (const form of heroForms) {
     const level = getHeroFormLevel(form);
@@ -12692,6 +13186,8 @@ function renderHeroForms() {
     const img = document.createElement("img");
     img.src = getHeroFormImageUrl(form);
     img.alt = `${form.label}形态`;
+    img.loading = "lazy";
+    img.decoding = "async";
 
     const meta = document.createElement("div");
     meta.className = "form-card-meta";
@@ -12751,7 +13247,10 @@ function formatLootErrorMessage(message) {
   if (/没有形成可用属性|没有醒出力量|可用属性/.test(cleaned)) {
     return modeText("这张照片没有醒出力量。");
   }
-  if (/已取消鉴定/.test(cleaned)) {
+  if (/线条还没凝成|未成形线团|没有形成可鉴定/.test(cleaned)) {
+    return "线条还没凝成装备。";
+  }
+  if (/已取消(?:重)?鉴定/.test(cleaned)) {
     return "鉴定已经收回。";
   }
   if (/超时|没有响应/.test(cleaned)) {
@@ -12823,8 +13322,8 @@ function makeSettledItemDescription(item) {
   if (effects.includes("shieldCrashAttackDown")) return `${name}把护盾推到锋线前端，勇者出手时，盾面的旧光也会一起撞向敌人。`;
   if (effects.includes("sweep")) return `${name}被塔赋予横扫的名义，主目标被击中时，余劲会沿着阵列甩向左右。`;
   if (effects.includes("peerless")) return `${name}像一枚胜利刻痕，敌人倒下时，它会把本场战斗的攻防再往上推。`;
-  if (effects.includes("dealDamageAttack")) return `${name}越用越顺，塔纹会在每次进攻后加深，让下一次出手更狠。`;
-  if (effects.includes("takeDamageDefense")) return `${name}挨过撞击后会变得更硬，像把每次受击都铆进了临时甲片。`;
+  if (effects.includes("dealDamageAttack")) return `${name}越用越顺，每两次进攻后塔纹加深，让下一次出手更狠。`;
+  if (effects.includes("takeDamageDefense")) return `${name}每挨过三次撞击就会变得更硬，像把受击都铆进了临时甲片。`;
   if (effects.includes("killMaxHp")) return `${name}会收起倒下怪物留下的热气，把它们一点点写进生命上限。`;
   if (effects.includes("killHpBoost")) return `${name}懂得在胜利后回收余温，敌人倒下时，会替勇者补上一口气。`;
   if (stats.attack > 0 && stats.lifesteal > 0) return `塔把${name}认作一件贪利兵器，既能撕开敌人的影子，也能从进攻里追回生命。`;
@@ -13032,11 +13531,11 @@ function toggleBattleReport(id) {
   render();
 }
 
-function renderGameTextOnly() {
+function renderGameTextOnly(enemyDamageEstimates = null) {
   const equippedItems = getEquippedItems();
   const selectedEquipment = getSelectedInventoryItem();
   const selectedEquipmentImage = selectedEquipment?.fullImage || selectedEquipment?.image || "";
-  const enemyDamageEstimates = getEnemyDamageEstimates();
+  const estimates = enemyDamageEstimates || getEnemyDamageEstimates();
   const inventoryItems = state.inventory.filter(Boolean);
   const apiConfig = getConfigFromInputs();
   window.__photoHeroState = {
@@ -13116,8 +13615,8 @@ function renderGameTextOnly() {
       traits: enemy.traits?.map((trait) => trait.text || trait.type) || [],
       drop: formatEnemyFilmDrop(enemy),
       summoned: Boolean(enemy.summoned),
-      damageEstimate: enemyDamageEstimates.get(enemy.id)?.text || "",
-      damageEstimateState: enemyDamageEstimates.get(enemy.id)?.state || "",
+      damageEstimate: estimates.get(enemy.id)?.text || "",
+      damageEstimateState: estimates.get(enemy.id)?.state || "",
       selected: state.selectedEnemyIds.includes(enemy.id),
       selectionOrder: getEnemySelectionOrder(enemy.id),
       active: state.activeEnemyIds.includes(enemy.id),
@@ -13209,6 +13708,7 @@ function renderGameTextOnly() {
       details: entry.expanded ? entry.details : [],
     })),
   };
+  return window.__photoHeroState;
 }
 
 function readHeroStatReadouts() {
@@ -13640,12 +14140,15 @@ function makePlaceholderImage() {
   `);
 }
 
-window.render_game_to_text = () => JSON.stringify(window.__photoHeroState || {});
+window.render_game_to_text = () => JSON.stringify(renderGameTextOnly());
 window.advanceTime = () => render();
 window.__photoHeroTestHooks = {
   compressImage,
   makeInventoryImage,
   loadImage,
+  renderHeroFormsForTest() {
+    renderHeroForms({ force: true });
+  },
   addTestItem(input) {
     if (isIntroFloor()) this.enterTowerForTest({ silent: true });
     const item = balanceItem(input || {}, input?.image || makePlaceholderImage());
@@ -13923,13 +14426,16 @@ window.__photoHeroTestHooks = {
     const stats = getPlayerStats();
     state.player.hp = Math.min(state.player.hp, stats.maxHp);
     state.player.shield = Math.min(state.player.shield, stats.shield);
+    formGridRendered = false;
     saveGame();
     render();
+    refreshVisibleHeroForms();
   },
   addFormKills(count = 1) {
     const upgraded = addCurrentFormKill(count);
     saveGame();
     render();
+    refreshVisibleHeroForms();
     return upgraded;
   },
   getFormProgress() {
@@ -13972,6 +14478,8 @@ window.__photoHeroTestHooks = {
       photoKey: item.photoKey || "",
       sourcePhotoKey: item.sourcePhotoKey || "",
       cropRect: item.cropRect || null,
+      reappraisedFromId: item.reappraisedFromId || "",
+      reappraisedAt: item.reappraisedAt || 0,
     } : null));
   },
   resetGameForTest(options = {}) {

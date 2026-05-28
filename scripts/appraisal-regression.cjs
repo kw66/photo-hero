@@ -413,6 +413,114 @@ const cases = [
     ),
   },
   {
+    label: "model-hyped random lines become unformed",
+    input: {
+      sourceMode: "drawing",
+      itemName: "玄铁守护盾",
+      subjectName: "玄铁盾牌",
+      objectType: "防护装备",
+      recognition: "clear_equipment",
+      visualEvidence: ["蓝黑色乱线", "几条短线彼此断开"],
+      missingEvidence: ["没有盾面", "没有边框", "没有把手"],
+      identityDescription: "白色底上只有几条蓝黑色乱线和短折线，线段分散，无法看出盾面、边框、把手或完整主体。",
+      description: "玄铁守护盾厚重可靠。",
+      reason: "模型猜测为盾，但实际只有随机线条，缺少盾牌结构。",
+      tags: ["盾牌", "玄铁", "乱线"],
+      photoQuality: { clarity: 1, subjectArea: 1, backgroundClean: 1, realPhoto: 1, focusLight: 0, interesting: 2 },
+      statAffinity: [{ stat: "shield", score: 3 }, { stat: "defense", score: 3 }],
+      specialAffinity: ["killShield"],
+      confidence: 0.18,
+    },
+    expect: ({ item, renderedDescription, score }) => (
+      /未成形|线团/.test(item.itemName)
+      && !/盾|玄铁|守护/.test(item.itemName)
+      && !/盾|玄铁|守护/.test(renderedDescription)
+      && item.value === 0
+      && score === 0
+      && item.stats.shield === 0
+      && item.stats.defense === 0
+      && item.specialEffects.length === 0
+      && item.tooLarge === true
+    ),
+  },
+  {
+    label: "plain circle is not an iron shield",
+    input: {
+      sourceMode: "drawing",
+      itemName: "精钢圆盾",
+      subjectName: "圆盾",
+      objectType: "盾牌",
+      recognition: "simple_symbol",
+      visualEvidence: ["一个蓝色圆圈"],
+      missingEvidence: ["没有盾面边框", "没有十字", "没有把手"],
+      identityDescription: "中央只有一个蓝色圆圈，没有外圈边框、十字纹章、把手或厚盾面结构。",
+      description: "精钢圆盾能挡住冲击。",
+      reason: "主体=蓝色圆圈；模型想当盾，但缺少盾牌结构。",
+      tags: ["圆圈", "盾牌"],
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 1, focusLight: 1, interesting: 0 },
+      statAffinity: [{ stat: "shield", score: 3 }, { stat: "defense", score: 2 }],
+      specialAffinity: ["shieldCrashAttackDown"],
+      confidence: 0.62,
+    },
+    expect: ({ item, renderedDescription, score, quality }) => (
+      !/盾|精钢|铁/.test(item.itemName)
+      && !/盾|精钢|铁|挡住/.test(renderedDescription)
+      && item.value <= 9
+      && score <= 9
+      && quality.key === "common"
+      && item.stats.shield === 0
+      && item.stats.defense === 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
+    label: "structured round shield keeps shield",
+    input: {
+      sourceMode: "drawing",
+      itemName: "蓝纹圆盾",
+      subjectName: "圆盾",
+      objectType: "盾牌",
+      recognition: "clear_equipment",
+      visualEvidence: ["圆形盾面", "深蓝外圈边框", "白色十字纹章"],
+      identityDescription: "中央是圆形蓝色盾面，外圈有深蓝边框，盾面中央有白色十字纹章。",
+      description: "蓝纹圆盾把冷光压在盾面上。",
+      reason: "主体=圆盾；证据=盾面+外圈边框+十字；质量=结构清楚。",
+      tags: ["圆盾", "边框", "十字"],
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "shield", score: 3 }, { stat: "defense", score: 2 }],
+      confidence: 0.86,
+    },
+    expect: ({ item }) => /盾/.test(item.itemName) && (item.stats.shield > 0 || item.stats.defense > 0) && item.value >= 17,
+  },
+  {
+    label: "circle star is not a wand",
+    input: {
+      sourceMode: "drawing",
+      itemName: "星界魔杖",
+      subjectName: "魔杖",
+      objectType: "幻想武器",
+      recognition: "simple_symbol",
+      visualEvidence: ["黄色星形", "蓝色圆圈"],
+      missingEvidence: ["没有长柄", "没有杖身", "没有杖头连接"],
+      identityDescription: "画面里只有一个黄色星形和一个蓝色圆圈，没有长柄、杖身或连接到顶端的杖头结构。",
+      description: "星界魔杖释放星光。",
+      reason: "主体=星形和圆圈；缺少魔杖结构。",
+      tags: ["魔杖", "星形", "圆圈"],
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 1, focusLight: 1, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 3 }, { stat: "speed", score: 2 }],
+      specialAffinity: ["dealDamageAttack"],
+      confidence: 0.66,
+    },
+    expect: ({ item, renderedDescription, score }) => (
+      !/魔杖|法杖|武器/.test(item.itemName)
+      && !/魔杖|法杖|释放|武器/.test(renderedDescription)
+      && item.stats.attack === 0
+      && item.stats.speed === 0
+      && item.specialEffects.length === 0
+      && score <= 9
+    ),
+  },
+  {
     label: "rare drawing cannot keep special effect",
     input: {
       sourceMode: "drawing",
