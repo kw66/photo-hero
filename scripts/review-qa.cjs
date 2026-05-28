@@ -100,6 +100,7 @@ async function collectScenario(page, name, action = async () => {}) {
       bestiary: window.__reviewBestiary || null,
       hiddenLayers: window.__reviewHiddenLayers || null,
       apiConfig: window.__reviewApiConfig || null,
+      infoCards: window.__reviewInfoCards || null,
       monsterSprites: Array.from(document.querySelectorAll(".monster-sprite")).map((node) => {
         const style = getComputedStyle(node);
         const fallback = node.querySelector("img");
@@ -226,7 +227,7 @@ function assertScenario(name, metrics) {
   if (name === "drawing-mode") {
     const result = metrics.drawingMode || {};
     if (result.initialTitle !== "照片勇者" || result.afterTitle !== "画图勇者") failures.push(`${name}: title button should toggle from photo to drawing mode, got ${JSON.stringify(result)}`);
-    if (!result.modeButtonInsideTools || result.modeButtonInsideHeading || !result.modeButtonBeforeInfo) failures.push(`${name}: mode button should be in panel tools before 游戏信息, got ${JSON.stringify(result)}`);
+    if (!result.modeButtonInsideTools || result.modeButtonInsideHeading || !result.modeButtonBeforeInfo) failures.push(`${name}: mode button should be in panel tools before 冒险手册, got ${JSON.stringify(result)}`);
     if (result.playMode !== "drawing" || result.resourceName !== "画布") failures.push(`${name}: state should expose drawing mode and canvas resource, got ${JSON.stringify(result)}`);
     if (!/画布/.test(result.introText || "") || /胶卷/.test(result.introText || "")) failures.push(`${name}: intro copy should switch from film to canvas wording, got ${result.introText}`);
     if (!result.drawingEmptyIconCount) failures.push(`${name}: empty equipment slots should switch to drawing icons, got ${JSON.stringify(result)}`);
@@ -738,9 +739,14 @@ function assertScenario(name, metrics) {
   if (name === "mobile-info") {
     if (metrics.activeInfoTab !== "about") failures.push(`${name}: info panel should open on about/stat tab`);
     if (!metrics.visibleButtons.includes("作者/统计")) failures.push(`${name}: missing author/stat tab`);
-    if (!metrics.visibleButtons.includes("拍照")) failures.push(`${name}: missing photo tab`);
+    if (!metrics.visibleButtons.includes("冒险手册") || metrics.visibleButtons.includes("游戏信息")) failures.push(`${name}: top info button should be 冒险手册, got ${JSON.stringify(metrics.visibleButtons)}`);
+    if (!metrics.visibleButtons.includes("拍照/画图")) failures.push(`${name}: missing photo/drawing tab`);
     if (!metrics.visibleButtons.includes("战斗")) failures.push(`${name}: missing battle tab`);
     if (!/全站统计/.test(metrics.infoText)) failures.push(`${name}: missing global stats title`);
+    if (metrics.infoCards?.hasHeaderTitle) failures.push(`${name}: info panel should not keep a separate 冒险手册 header row, got ${JSON.stringify(metrics.infoCards)}`);
+    if (metrics.infoCards?.photoSelectedIndex !== 1 || metrics.infoCards?.battleSelectedIndex !== 2) failures.push(`${name}: clicked photo/battle info cards should become selected, got ${JSON.stringify(metrics.infoCards)}`);
+    if (metrics.infoCards?.photoSelectedCount !== 1 || metrics.infoCards?.battleSelectedCount !== 1) failures.push(`${name}: exactly one selectable card per info page should be active, got ${JSON.stringify(metrics.infoCards)}`);
+    if (!metrics.infoCards?.photoCardsClickable || !metrics.infoCards?.battleCardsClickable) failures.push(`${name}: photo/battle info cards should be keyboard/click selectable, got ${JSON.stringify(metrics.infoCards)}`);
     if (!/作者其他游戏/.test(metrics.infoText)) failures.push(`${name}: missing other games block`);
     for (const label of ["访问", "访客", "游玩", "通关", "击杀", "击杀Boss", "鉴定", "照片装备", "画图装备", "超级形态", "爬塔层数"]) {
       if (!metrics.statLabels.includes(label)) failures.push(`${name}: missing stat label ${label}`);
@@ -1546,6 +1552,31 @@ function assertScenario(name, metrics) {
       };
     });
     await page.click("#infoToggleBtn");
+    await page.click('[data-info-tab="photo"]');
+    await page.locator('.info-page[data-info-page="photo"] .info-block').nth(1).click();
+    await page.click('[data-info-tab="battle"]');
+    await page.locator('.info-page[data-info-page="battle"] .info-block').nth(2).click();
+    await page.evaluate(() => {
+      const selectedIndex = (tabId) => {
+        const cards = Array.from(document.querySelectorAll(`.info-page[data-info-page="${tabId}"] .info-block[data-info-card="true"]`));
+        return cards.findIndex((card) => card.classList.contains("is-selected"));
+      };
+      const selectedCount = (tabId) => document.querySelectorAll(`.info-page[data-info-page="${tabId}"] .info-block[data-info-card="true"].is-selected`).length;
+      const clickable = (tabId) => Array.from(document.querySelectorAll(`.info-page[data-info-page="${tabId}"] .info-block[data-info-card="true"]`))
+        .every((card) => card.getAttribute("role") === "button" && card.getAttribute("tabindex") === "0" && card.hasAttribute("aria-pressed"));
+      window.__reviewInfoCards = {
+        hasHeaderTitle: Boolean(document.querySelector(".info-panel .secondary-head h2")),
+        tabLabels: Array.from(document.querySelectorAll("[data-info-tab]")).map((button) => button.textContent.trim()),
+        infoButtonText: document.querySelector("#infoToggleBtn")?.textContent.trim() || "",
+        photoSelectedIndex: selectedIndex("photo"),
+        battleSelectedIndex: selectedIndex("battle"),
+        photoSelectedCount: selectedCount("photo"),
+        battleSelectedCount: selectedCount("battle"),
+        photoCardsClickable: clickable("photo"),
+        battleCardsClickable: clickable("battle"),
+      };
+    });
+    await page.click('[data-info-tab="about"]');
   });
 
   scenarios.mobileCareer = await collectScenario(mobile, "mobile-career", async (page) => {

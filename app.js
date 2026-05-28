@@ -336,8 +336,8 @@ const photoSpecialEffects = [
   { key: "shieldCrashAttackDown", label: "盾击", detail: "每2次进攻附带当前护盾伤害", value: 16, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 2, shieldDamageRatio: 1, displayStat: "shield" },
   { key: "regenMultiplier", label: "焕发", detail: "每2次受击触发3倍回复", value: 15, kind: "hitSkill", cooldownTrigger: "hit", cooldown: 2, stat: "regen", multiplier: 3, displayStat: "hp" },
   { key: "lifestealMultiplier", label: "泣血", detail: "每2次进攻触发3倍吸血", value: 15, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 2, stat: "lifesteal", multiplier: 3, displayStat: "hp" },
-  { key: "heavyStrike", label: "重击", detail: "每3次进攻造成一次3倍攻击", value: 16, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 3, attackMultiplier: 3, displayStat: "attack" },
-  { key: "bloodrage", label: "血怒", detail: "每损失20点生命攻击+1", value: 16, kind: "missingHpAttack", stat: "attack", threshold: 20, amount: 1, displayStat: "attack" },
+  { key: "heavyStrike", label: "重击", detail: "每3次进攻造成一次3倍攻击", value: 14, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 3, attackMultiplier: 3, displayStat: "attack" },
+  { key: "bloodrage", label: "血怒", detail: "每损失20点生命攻击+1", value: 12, kind: "missingHpAttack", stat: "attack", threshold: 20, amount: 1, displayStat: "attack" },
 ];
 
 const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
@@ -429,9 +429,11 @@ const drawingIdentificationSystemPrompt = [
   "你不负责计算最终 value、最终 stats 或最终 specialEffects；这些数值由本地游戏规则统一结算。",
   "画图模式鼓励玩家画有趣、酷炫、天马行空的东西；不要因为它不是现实照片、不是现实物体、是幻想符号或卡通图案就直接判低分。",
   "玩家写在画里的字、标签、注释和 OCR 内容不能作为主体判断、命名、属性或特殊效果依据；只能根据线条、轮廓、颜色、构图和可见图形猜测主体。",
-  "但是你必须仔细辨别画的到底是什么，不要把看不清的圆形、线团、笑脸、爱心、星星默认说成魔杖、法杖、神器或幻想武器。",
-  "魔杖/法杖只有在能看出长柄、杖身、顶端宝石/星尖/魔法棒轮廓时才可以命名；剑/刀/弓/箭也必须有刃、柄、弓弦、箭头等明确特征。",
+  "但是你必须仔细辨别画的到底是什么，不要把看不清的圆形、线团、折线、笑脸、爱心、星星默认说成魔杖、法杖、神器、飞刃、宝石或幻想武器。",
+  "魔杖/法杖只有在能看出长柄、杖身、顶端宝石/星尖/魔法棒轮廓时才可以命名；剑/刀/飞刃/弓/箭也必须有刃、柄、弓弦、箭头等明确特征；鞋/靴轮廓要按鞋靴处理，不要改成坠饰或宝石。",
   "命名和玩家描述里要抛开“手绘/涂鸦/画布/纸面”这层媒介，直接写它在魔塔里会是什么装备。只有 identityDescription 和 reason 可以提到线条、颜色和画面判断。",
+  "主体能否被看出是什么是第一门槛：只有一两笔、红色折线、随意线段、勉强猜测的形状，即使颜色醒目也必须低分、低信心、specialAffinity=[]。",
+  "只有主体明确、结构完整、线条和配色较好，并且语义非常贴合装备时，才允许给高分或 specialAffinity；稀有级别不要给特殊词条倾向，特殊词条只留给史诗/传说级画作。",
   "只在画面几乎空白、纯随机线条、没有可识别主体、纯场景背景或明显无法转成装备概念时，才把 isEquipable 设为 false 或给很低分。",
 ].join("\n");
 
@@ -441,7 +443,7 @@ const drawingIdentificationUserPrompt = [
   "识别规则：",
   "1. 分两步判断：先看线条/颜色/形状/构图，写清楚可见证据；再猜主体。不要先套魔杖、神器、幻想武器模板。",
   "2. 优先找最醒目、最完整、最像装备/道具/符号/生物部件/幻想概念的主体；忽略零散背景线条。",
-  "3. 盾、剑、翅膀、心形、火焰、星星、眼睛、机器人、怪物面具、可爱小图标都可以鉴定，只要主体可辨认；如果只是圆圈/方块/笑脸/爱心，按圆环、石板、徽记、护符这类形状装备处理，不要强行说成魔杖。",
+  "3. 盾、剑、靴子、翅膀、心形、火焰、星星、眼睛、机器人、怪物面具、可爱小图标都可以鉴定，只要主体可辨认；如果只是圆圈/方块/笑脸/爱心，按圆环、石板、徽记、护符这类形状装备处理，不要强行说成魔杖、飞刃或宝石。",
   "4. 画出来的巨大物、怪物或生物默认按“装备概念/符号化部件”处理，不按现实尺寸判定 tooLarge；只有纯风景、整片天空、道路、房间这类没有道具主体的画面才 isScene=true。",
   "5. 不要输出最终 value、最终 stats 或最终 specialEffects；本地规则会根据 photoQuality、statAffinity、specialAffinity 计算。",
   "6. itemName、subjectName、objectType、description 面向玩家时不要出现 手绘、涂鸦、画作、画布、纸面、简笔画、线稿、草图、画出来的 这些媒介词；identityDescription 可以写线条、颜色和构图用于查重，但不要复述画面里的具体文字内容。",
@@ -457,13 +459,14 @@ const drawingIdentificationUserPrompt = [
   "realPhoto=绘制意图和完成度 0-3：0随机痕迹；1草率少线；2轮廓完整；3有细节或完成感。这里不是现实实拍感。",
   "focusLight=线条和配色控制 0-2：0线条断裂混乱或颜色干扰；1线条/颜色基本可读；2线条稳定、配色帮助识别。",
   "interesting=美观/创意/装备吸引力 0-2：0普通或无设计；1有一点造型；2美观、酷炫或有趣。",
-  "质量参考：乱线/空白 0-3；勉强可辨认 4-7；主体清楚但普通 8-11；线条配色较好、有明确装备联想 12-13；主体鲜明且美观/有创意 14-15。",
+  "质量参考：乱线/空白 0-3；只有一两笔或红色折线 3-5；勉强可辨认 4-7；主体清楚但简单普通 8-10；线条配色较好、有明确装备联想 11-13；主体鲜明、结构完整且美观/有创意 14-15。",
   "",
   "属性语义：",
   "statAffinity 只输出属性倾向，score 用 1-3，最大 3 项。可选 stat：hp、attack、defense、speed、shield、lifesteal、regen。",
   "属性必须跟画出来的主体强相关，不要为了让装备变强而乱配。attack=剑刃、刀、斧、弓箭、尖刺、爪牙、火焰、雷电、爆炸等进攻证据；defense=铠甲、墙、龟壳、厚重外壳；shield=盾牌、圆环屏障、保护罩；speed=翅膀、风、闪电、轮子、飞行、箭头、靴子；lifesteal=吸血、尖牙、血滴、黑暗抽取；regen=水、草、药、光、治愈、泉水；hp=生命、食物、果实、爱心、能量核心。",
-  "圆形/星形/笑脸/普通符号不要默认 attack；更常见是护符、徽记、圆环、屏障、生命或回复倾向。魔杖/法杖只有在长柄和杖头明确时才能给 attack 或特殊效果。",
+  "圆形/星形/笑脸/普通符号不要默认 attack；更常见是护符、徽记、圆环、屏障、生命或回复倾向。红色本身不等于吸血、血怒或武器；必须画出血滴、伤口、尖牙、刀刃、燃烧等更明确证据才给相关倾向。魔杖/法杖只有在长柄和杖头明确时才能给 attack 或特殊效果。",
   `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}：${effect.detail || effect.label}(价值${effect.value})`).join("；")}。`,
+  "specialAffinity 只在 photoQuality 接近 14-15、主体一眼可认、结构完整且属性语义非常强时输出；普通、勉强、简单线条或只有颜色/字面联想时必须输出 []。",
   "",
   "命名和描述：",
   "itemName 要具体、短、有画面感，像是在给真实装备命名，例如 星火短剑、蓝纹护符、龙鳞坠饰、笑脸圆盾、风羽靴、尖牙项链。只有确实画出长柄杖形，才可以叫星纹魔杖或法杖；不要叫 画作装备、神秘涂鸦、手绘短剑、万能魔杖、幻想武器。",
@@ -933,6 +936,7 @@ initGlobalStats();
 ensureEncounter();
 ensureInitialFloorNarrative();
 bindEvents();
+initializeInfoCardSelection();
 ensureBgmForGameState(true);
 render();
 
@@ -1817,6 +1821,15 @@ function bindEvents() {
 
   document.querySelectorAll("[data-info-tab]").forEach((button) => {
     button.addEventListener("click", () => setInfoTab(button.dataset.infoTab || "about"));
+  });
+
+  document.querySelectorAll(".info-page[data-info-page='photo'] .info-block, .info-page[data-info-page='battle'] .info-block").forEach((card) => {
+    card.addEventListener("click", () => selectInfoCard(card));
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      selectInfoCard(card);
+    });
   });
 
   els.monsterBestiaryContent?.addEventListener("click", (event) => {
@@ -2911,6 +2924,43 @@ function getActiveInfoTab() {
   return document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "about";
 }
 
+function initializeInfoCardSelection() {
+  ["photo", "battle"].forEach((tabId) => {
+    const page = document.querySelector(`.info-page[data-info-page="${tabId}"]`);
+    const cards = Array.from(page?.querySelectorAll(".info-block") || []);
+    cards.forEach((card) => {
+      card.dataset.infoCard = "true";
+      card.setAttribute("role", "button");
+      card.setAttribute("tabindex", "0");
+      card.setAttribute("aria-pressed", String(card.classList.contains("is-selected")));
+    });
+    if (!cards.some((card) => card.classList.contains("is-selected"))) {
+      selectInfoCard(cards[0], { focus: false });
+    }
+  });
+}
+
+function selectInfoCard(card, options = {}) {
+  if (!card || card.dataset.infoCard !== "true") return;
+  const page = card.closest("[data-info-page]");
+  if (!page) return;
+  page.querySelectorAll(".info-block[data-info-card='true']").forEach((item) => {
+    const active = item === card;
+    item.classList.toggle("is-selected", active);
+    item.setAttribute("aria-pressed", String(active));
+  });
+  if (options.focus) card.focus();
+}
+
+function ensureInfoPageSelection(tabId) {
+  if (tabId !== "photo" && tabId !== "battle") return;
+  const page = document.querySelector(`.info-page[data-info-page="${tabId}"]`);
+  const selected = page?.querySelector(".info-block[data-info-card='true'].is-selected");
+  if (!selected) {
+    selectInfoCard(page?.querySelector(".info-block[data-info-card='true']"), { focus: false });
+  }
+}
+
 function setInfoTab(tabId) {
   const target = ["about", "photo", "battle", "bestiary"].includes(tabId) ? tabId : "about";
   document.querySelectorAll("[data-info-tab]").forEach((button) => {
@@ -2923,6 +2973,7 @@ function setInfoTab(tabId) {
   if (target === "bestiary") {
     renderMonsterBestiary();
   }
+  ensureInfoPageSelection(target);
 }
 
 function normalizeBestiaryGroup(group) {
@@ -5047,6 +5098,17 @@ function hasDrawingEquipmentConceptText(text) {
     || /(?:装备|道具|护符|护身符|徽记|坠饰|项链|戒指|靴|披风|铠|甲|盾|剑|刃|刀|枪|矛|弓|箭|斧|锤|魔杖|法杖|宝石|水晶|符文|符号|核心|面具|齿轮|龙鳞|羽|翅|心形|爱心|药|泉|光|风|火|雷|血|牙|爪|explosion|rune|crystal|amulet|ring|boots|cloak|armor)/i.test(source);
 }
 
+function hasStrongDrawingConceptText(text) {
+  const source = normalizeDrawingVisualEvidenceForRules(text || "");
+  if (!source || isBareColorLineDrawingText(source)) return false;
+  if (/(?:无法辨认|不能辨认|看不出|没有明确主体|无主体|随机线条|乱线|不成形|unrecognizable|random\s+line)/i.test(source)) return false;
+  return hasShoeVisualEvidenceText(source)
+    || hasDrawingWeaponVisualEvidenceText(source)
+    || hasShieldVisualEvidenceText(source)
+    || hasGemAccessoryVisualEvidenceText(source)
+    || /(?:火焰|火苗|闪电|雷电|水滴|泉水|草叶|叶片|花朵|新芽|爱心|心形|星形|眼睛|瞳孔|齿轮|机器人|面具|羽翼|翅膀|羽毛|符文|护符|徽记|圆环|石板|核心|爪|牙|尖牙|flame|fire|lightning|droplet|spring|leaf|flower|heart|star|eye|gear|robot|mask|wing|feather|rune|amulet|emblem|core|claw|fang)/i.test(source);
+}
+
 function hasAirPurifierSemanticText(text) {
   return /(?:空气净化器|净化器|过滤器|滤芯|滤网|空气过滤|净化空气|清新空气|污浊空气|除尘|除味|除菌|防尘|空气清洁|air purifier|air filter|purify air|clean air)/i.test(String(text || ""));
 }
@@ -5107,7 +5169,7 @@ function hasSpeedSemanticText(text) {
 }
 
 function hasLifestealSemanticText(text) {
-  return /(?:吸血|吸附|抽取|红色|血|剑|短剑|长剑|剑刃|刀|剪|针|钩|刺|尖|刃|指甲刀|夹|钳|牙|爪|leech|blood|absorb|sword|dagger|knife|scissor|needle|hook|sharp|blade|claw|tooth|plier)/i.test(String(text || ""));
+  return /(?:吸血|吸附|抽取|血|剑|短剑|长剑|剑刃|刀|剪|针|钩|刺|尖|刃|指甲刀|夹|钳|牙|爪|leech|blood|absorb|sword|dagger|knife|scissor|needle|hook|sharp|blade|claw|tooth|plier)/i.test(String(text || ""));
 }
 
 function hasRegenSemanticText(text) {
@@ -10189,14 +10251,15 @@ function isGenericDrawingObjectType(text = "") {
 }
 
 function makeDrawingStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) {
-  const visualEvidence = stripImageTextSemantics(stripDrawingMediumWords(identityDescription || ""));
+  const visualEvidence = normalizeDrawingVisualEvidenceForRules(identityDescription || "");
   const safeObjectType = isGenericDrawingObjectType(objectType) && !hasDrawingWeaponVisualEvidenceText(visualEvidence)
     ? ""
     : objectType;
+  if (isWeakDrawingIdentityText(visualEvidence) && !hasStrongDrawingConceptText(visualEvidence)) return visualEvidence;
   if (visualEvidence && hasPhotoStatSemanticText(visualEvidence)) return visualEvidence;
-  const objectText = stripImageTextSemantics([subjectName, safeObjectType, sizeClass].filter(Boolean).join(" "));
+  const objectText = normalizeDrawingVisualEvidenceForRules([subjectName, safeObjectType, sizeClass].filter(Boolean).join(" "));
   if (objectText && hasPhotoStatSemanticText(objectText)) return objectText;
-  const primaryText = stripImageTextSemantics([itemName, subjectName, safeObjectType, sizeClass].filter(Boolean).join(" "));
+  const primaryText = normalizeDrawingVisualEvidenceForRules([itemName, subjectName, safeObjectType, sizeClass].filter(Boolean).join(" "));
   if (primaryText && hasPhotoStatSemanticText(primaryText)) return primaryText;
   return [primaryText, visualEvidence].filter(Boolean).join(" ");
 }
@@ -10238,9 +10301,11 @@ function cleanDrawingDescription(value, fallback, itemName) {
     .replace(/^\s*这件$/, "")
     .trim();
   const name = cleanDrawingName(itemName, fallback, 18);
-  const hasUnsupportedWeaponDescription = /(?:魔杖|法杖|魔法棒|武器|短剑|长剑|剑|刀|弓|箭|枪|矛|锤)/.test(text)
-    && !/(?:魔杖|法杖|魔法棒|武器|短剑|长剑|剑|刀|弓|箭|枪|矛|锤)/.test(name);
-  if (hasUnsupportedWeaponDescription) {
+  const unsupportedWeaponDescription = /(?:魔杖|法杖|魔法棒|武器|神器|神兵|飞刃|利刃|翼刃|短剑|长剑|剑|刀|刃|弓|箭|枪|矛|锤)/.test(text)
+    && !/(?:魔杖|法杖|魔法棒|武器|神器|神兵|飞刃|利刃|翼刃|短剑|长剑|剑|刀|刃|弓|箭|枪|矛|锤)/.test(name);
+  const unsupportedAccessoryDescription = /(?:宝石|水晶|翡翠|坠饰|吊坠|项链|戒指|饰品)/.test(text)
+    && !/(?:宝石|水晶|翡翠|坠饰|吊坠|项链|戒指|饰品)/.test(name);
+  if (unsupportedWeaponDescription || unsupportedAccessoryDescription) {
     text = `${name}带着清晰的主体轮廓，可以被带进魔塔。`;
   }
   if (!text || /^由.*鉴定/.test(text)) {
@@ -10255,18 +10320,66 @@ function hasMagicWandNameText(text = "") {
 }
 
 function hasDrawingWeaponNameText(text = "") {
-  return /(?:剑|短剑|长剑|刀|斧|弓|箭|枪|矛|锤|魔杖|法杖|魔法棒|sword|blade|axe|bow|arrow|spear|hammer|wand|staff)/i.test(String(text || ""));
+  return /(?:剑|短剑|长剑|刀|刃|飞刃|利刃|翼刃|斧|弓|箭|枪|矛|锤|武器|神器|神兵|魔杖|法杖|魔法棒|sword|blade|axe|bow|arrow|spear|hammer|weapon|wand|staff)/i.test(String(text || ""));
+}
+
+function stripNegatedDrawingEvidence(text = "") {
+  const featureWords = "长柄|长杆|杖身|棒状|杆状|棍状|顶端|宝石|水晶|圆球|剑身|剑尖|刀身|刀刃|刃口|锋刃|握柄|手柄|弓弦|箭头|箭羽|斧刃|枪尖|矛尖|锤头|尖刺|爪|牙|盾|护盾|屏障|鞋|靴|鞋底|鞋帮|鞋口|吊坠|项链|链条|戒指|翅膀|羽翼";
+  return String(text || "").replace(new RegExp(`(?:没有|无|缺少|看不出|不见|未画出|未形成|不是|没有明确)[^，。；,.]{0,24}(?:${featureWords})[^，。；,.]{0,12}`, "g"), "");
 }
 
 function hasMagicWandVisualEvidenceText(text = "") {
-  const source = String(text || "");
+  const source = stripNegatedDrawingEvidence(text);
   return /(?:长柄|长杆|杖身|棒状|杆状|棍状|顶端.*(?:星|宝石|水晶|圆球)|(?:星形|宝石|水晶|圆球).*(?:顶端|尖端)|rod|orb|staff|wand|magic\s+stick|long\s+handle)/i.test(source);
 }
 
 function hasDrawingWeaponVisualEvidenceText(text = "") {
-  const source = String(text || "");
+  const source = stripNegatedDrawingEvidence(text);
   return hasMagicWandVisualEvidenceText(source)
     || /(?:剑身|剑尖|刀身|刀刃|刃口|锋刃|握柄|手柄|弓弦|箭头|箭羽|斧刃|枪尖|矛尖|锤头|尖刺|爪|牙|sword|blade|edge|handle|bowstring|arrowhead|axe blade|spear tip|spike|claw|fang)/i.test(source);
+}
+
+function hasShoeNameText(text = "") {
+  return /(?:鞋|靴|短靴|长靴|拖鞋|鞋底|鞋帮|鞋口|boot|boots|shoe|shoes|slipper)/i.test(String(text || ""));
+}
+
+function hasShoeVisualEvidenceText(text = "") {
+  return /(?:鞋|靴|短靴|长靴|拖鞋|鞋底|鞋帮|鞋口|鞋面|脚踝|脚掌|足部|boot|boots|shoe|shoes|slipper|sole)/i.test(stripNegatedDrawingEvidence(stripImageTextSemantics(text)));
+}
+
+function hasGemAccessoryNameText(text = "") {
+  return /(?:宝石|水晶|翡翠|坠饰|吊坠|项链|戒指|饰品|gem|crystal|pendant|necklace|jewel|jewelry|ring)/i.test(String(text || ""));
+}
+
+function hasGemAccessoryVisualEvidenceText(text = "") {
+  return /(?:宝石|水晶|晶体|菱形|多面体|吊坠|项链|链条|挂坠|戒指|环形饰品|gem|crystal|pendant|necklace|jewel|ring)/i.test(stripNegatedDrawingEvidence(stripImageTextSemantics(text)));
+}
+
+function isWeakDrawingIdentityText(text = "") {
+  return /(?:空白|无主体|随机|乱线|线团|杂线|折线|斜线|线段|一条线|两条线|几条线|少线|草率|潦草|涂抹|看不出|无法辨认|不能辨认|难以辨认|勉强|不明确|不成形|只有颜色|简单轮廓|simple\s+line|scribble|unrecognizable|unclear|random\s+line)/i.test(String(text || ""));
+}
+
+function isBareColorLineDrawingText(text = "") {
+  const source = stripNegatedDrawingEvidence(text || "");
+  if (!/(?:线|线条|折线|斜线|弧线|线段|笔画|涂抹|划痕|stroke|line|scribble)/i.test(source)) return false;
+  return !/(?:鞋|靴|盾|剑身|剑尖|握柄|刀身|刀刃|弓弦|箭头|魔杖|法杖|杖身|长柄|火焰|闪电|翅膀|羽翼|爱心|心形|眼睛|齿轮|机器人|面具|水滴|叶片|花|星形|shoe|boot|shield|handle|blade|wand|staff|flame|lightning|wing|heart|eye|gear|robot|mask|droplet|leaf|star)/i.test(source);
+}
+
+function normalizeDrawingVisualEvidenceForRules(text = "") {
+  let source = stripImageTextSemantics(stripDrawingMediumWords(text || ""));
+  if (!hasMagicWandVisualEvidenceText(source)) {
+    source = source.replace(/(?:魔杖|法杖|魔法棒|星杖)/g, "");
+  }
+  if (!hasDrawingWeaponVisualEvidenceText(source)) {
+    source = source.replace(/(?:神剑|短剑|长剑|剑|刀|飞刃|利刃|翼刃|刃|武器|神器|神兵|弓箭?|箭|枪|矛|斧|锤)/g, "");
+  }
+  if (!hasGemAccessoryVisualEvidenceText(source)) {
+    source = source.replace(/(?:宝石|水晶|翡翠|坠饰|吊坠|项链|戒指|饰品)/g, "");
+  }
+  if (isBareColorLineDrawingText(source)) {
+    source = source.replace(/(?:红色|红|赤色|赤|飞|翼形|翼状|锋利|尖锐|攻击|吸血|血怒)/g, "");
+  }
+  return source.replace(/\s+/g, " ").trim();
 }
 
 function hasShieldNameText(text = "") {
@@ -10274,7 +10387,7 @@ function hasShieldNameText(text = "") {
 }
 
 function hasShieldVisualEvidenceText(text = "") {
-  return /(?:盾|盾牌|圆盾|护盾|屏障|保护罩|十字|圆形防护|shield|barrier|guard)/i.test(stripImageTextSemantics(text));
+  return /(?:盾|盾牌|圆盾|护盾|屏障|保护罩|十字|圆形防护|shield|barrier|guard)/i.test(stripNegatedDrawingEvidence(stripImageTextSemantics(text)));
 }
 
 function isOffensiveBladeSemanticText(text = "") {
@@ -10307,7 +10420,8 @@ function refinePhotoNameWithObjectEvidence(name, subjectName, objectType, identi
 }
 
 function inferDrawingNameFromVisualEvidence(text = "") {
-  const source = stripDrawingMediumWords(text);
+  const source = stripNegatedDrawingEvidence(stripDrawingMediumWords(text));
+  if (hasShoeVisualEvidenceText(source)) return /风|疾|闪电|lightning|wind/i.test(source) ? "风行短靴" : "旅者短靴";
   if (/盾|护盾|屏障|保护罩|十字|shield|barrier/i.test(source)) return /圆|环|circle|round/i.test(source) ? "守护圆盾" : "守护盾牌";
   if (hasMagicWandVisualEvidenceText(source)) return /星|star/i.test(source) ? "星纹魔杖" : "符石法杖";
   if (/剑身|剑尖|短剑|长剑|握柄|sword/i.test(source)) return "短剑";
@@ -10336,10 +10450,16 @@ function refineDrawingNameWithVisualEvidence(name, subjectName, objectType, iden
   const visualEvidence = stripImageTextSemantics(stripDrawingMediumWords(identityDescription || ""));
   if (!visualEvidence) return cleanName;
   const nameText = [cleanName, subjectName, objectType].filter(Boolean).join(" ");
+  if (hasShoeVisualEvidenceText(visualEvidence) && !hasShoeNameText(nameText)) {
+    return cleanText(inferDrawingNameFromVisualEvidence(visualEvidence), "旅者短靴", 18);
+  }
   const unsupportedMagicWand = hasMagicWandNameText(nameText) && !hasMagicWandVisualEvidenceText(visualEvidence);
   const unsupportedWeapon = hasDrawingWeaponNameText(nameText) && !hasDrawingWeaponVisualEvidenceText(visualEvidence);
   const unsupportedShield = hasShieldNameText(nameText) && !hasShieldVisualEvidenceText(visualEvidence);
-  if (unsupportedMagicWand || unsupportedWeapon || unsupportedShield || isGenericDrawingName(cleanName)) {
+  const unsupportedAccessory = hasGemAccessoryNameText(nameText)
+    && !hasGemAccessoryVisualEvidenceText(visualEvidence)
+    && (hasShoeVisualEvidenceText(visualEvidence) || hasDrawingWeaponVisualEvidenceText(visualEvidence) || hasShieldVisualEvidenceText(visualEvidence) || isWeakDrawingIdentityText(visualEvidence));
+  if (unsupportedMagicWand || unsupportedWeapon || unsupportedShield || unsupportedAccessory || isGenericDrawingName(cleanName)) {
     return cleanText(inferDrawingNameFromVisualEvidence(visualEvidence), "符纹护符", 18);
   }
   return cleanName;
@@ -10409,12 +10529,12 @@ function balanceItem(item, image = "") {
       requestedValue = Math.min(requestedValue, mapLegacyPhotoValueCapToCurrentRange(virtualPenalty.cap));
     }
   }
-  const specialEffects = noEffect || virtualPenalty.suppressSpecial
+  let specialEffects = noEffect || virtualPenalty.suppressSpecial
     ? []
     : choosePhotoSpecialEffects({ ...safe, itemName, subjectName, objectType, reason, tags, description: sourceMode === "drawing" ? objectStatEvidenceText : semanticText, semanticTextOverride: objectStatEvidenceText, ignoreDirectSpecialEffects: semanticSchema && !preserveSettledOutput }, image, requestedValue)
       .filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue);
-  const specialValue = calculateSpecialEffectsValue(specialEffects);
-  const statBudget = Math.max(0, requestedValue - specialValue);
+  let specialValue = calculateSpecialEffectsValue(specialEffects);
+  let statBudget = Math.max(0, requestedValue - specialValue);
   const targetValue = noEffect ? 0 : requestedValue;
   const usePhysicalCarrierStats = virtualPenalty.level === "ordinaryCap"
     && isPhysicalImageCarrierText(rulesSemanticText)
@@ -10425,11 +10545,26 @@ function balanceItem(item, image = "") {
   const statAffinityForAllocation = virtualPenalty.level === "ordinaryCap"
     ? []
     : sanitizeStatAffinityForSemantics(safe.statAffinity, statSemanticText);
-  const stats = noEffect
+  let stats = noEffect
       ? normalizeStats({}, 20)
       : clampStatsToValue(allocateStatsForItem(semanticSchema || virtualPenalty.level === "ordinaryCap" ? {} : safe.stats || {}, statSemanticText, statBudget, statAffinityForAllocation), statBudget);
+  if (sourceMode === "drawing" && isWeakDrawingIdentityText(statSemanticText) && !hasStrongDrawingConceptText(statSemanticText)) {
+    stats = normalizeStats({}, 20);
+  }
 
-  const actualScore = calculateItemScore(stats, specialEffects);
+  let actualScore = calculateItemScore(stats, specialEffects);
+  if (!preserveSettledOutput && specialEffects.length && getItemQuality(actualScore).key !== "epic" && getItemQuality(actualScore).key !== "legendary") {
+    specialEffects = [];
+    specialValue = 0;
+    statBudget = Math.max(0, requestedValue - specialValue);
+    stats = noEffect
+      ? normalizeStats({}, 20)
+      : clampStatsToValue(allocateStatsForItem(semanticSchema || virtualPenalty.level === "ordinaryCap" ? {} : safe.stats || {}, statSemanticText, statBudget, statAffinityForAllocation), statBudget);
+    if (sourceMode === "drawing" && isWeakDrawingIdentityText(statSemanticText) && !hasStrongDrawingConceptText(statSemanticText)) {
+      stats = normalizeStats({}, 20);
+    }
+    actualScore = calculateItemScore(stats, specialEffects);
+  }
   const balanced = {
     itemName,
     subjectName,
@@ -10779,11 +10914,34 @@ function calculatePhotoQualityScore(photoQuality, semanticText = "") {
   return inferFallbackQualityScore(semanticText);
 }
 
+function getDrawingQualityHardCap(quality, semanticText = "", strongConcept = false) {
+  const text = String(semanticText || "");
+  if (/空白|无主体|随机涂鸦|随机线条|无法辨认|不能辨认|看不出|乱线|没有明确|blank|scribble|unrecognizable/i.test(text)) {
+    if (quality.clarity <= 1 || quality.subjectArea <= 1) return 3;
+  }
+  if (quality.clarity <= 0 || quality.subjectArea <= 0) return 3;
+  if (isBareColorLineDrawingText(text) && quality.realPhoto <= 1) return 5;
+  if (quality.clarity <= 1) return 6;
+  if (quality.subjectArea <= 1) return 7;
+  if (quality.realPhoto <= 1) return 7;
+  if (quality.focusLight <= 0) return 8;
+  if (!strongConcept) return quality.clarity >= 3 && quality.realPhoto >= 2 && quality.focusLight >= 1 ? 10 : 8;
+  if (quality.interesting <= 0 && quality.realPhoto <= 2) return 9;
+  const epicReady = quality.clarity >= 3
+    && quality.subjectArea >= 2
+    && quality.realPhoto >= 3
+    && quality.focusLight >= 2
+    && quality.interesting >= 1
+    && strongConcept;
+  return epicReady ? 15 : 11;
+}
+
 function calculateDrawingQualityScore(photoQuality, semanticText = "") {
   const quality = normalizePhotoQuality(photoQuality);
   const text = String(semanticText || "");
   const blankLike = /空白|无主体|随机涂鸦|随机线条|无法辨认|不能辨认|看不出|乱线|没有明确|blank|scribble|unrecognizable/i.test(text);
-  const hasConcept = hasDrawingEquipmentConceptText(text) || hasPhotoStatSemanticText(text);
+  const strongConcept = hasStrongDrawingConceptText(text);
+  const hasConcept = strongConcept || (!isWeakDrawingIdentityText(text) && (hasDrawingEquipmentConceptText(text) || hasPhotoStatSemanticText(text)));
   const recognizable = quality.clarity >= 2 && quality.subjectArea >= 1;
   if (blankLike && quality.clarity <= 1) return Math.max(0, Math.min(3, calculatePhotoQualityTotal(quality)));
 
@@ -10805,7 +10963,7 @@ function calculateDrawingQualityScore(photoQuality, semanticText = "") {
   if (quality.subjectArea <= 1) score -= 2;
   if (quality.realPhoto <= 1) score -= 1;
   if (quality.focusLight <= 0) score -= 1;
-  if (!hasConcept) score = Math.min(score, quality.interesting >= 2 ? 10 : 8);
+  if (!hasConcept) score = Math.min(score, quality.interesting >= 2 ? 9 : 7);
   if (blankLike) score -= 5;
 
   if (quality.clarity <= 0 || quality.subjectArea <= 0) score = Math.min(score, 3);
@@ -10813,8 +10971,9 @@ function calculateDrawingQualityScore(photoQuality, semanticText = "") {
   else if (quality.subjectArea <= 1) score = Math.min(score, 10);
   if (quality.realPhoto <= 1 && quality.focusLight <= 0) score = Math.min(score, 9);
   if (quality.interesting <= 0 && quality.realPhoto <= 2) score = Math.min(score, 12);
-  if (quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 2 && quality.focusLight >= 1 && hasConcept) score = Math.max(score, 11);
-  if (quality.clarity >= 3 && quality.subjectArea >= 3 && quality.realPhoto >= 3 && quality.focusLight >= 2 && quality.interesting >= 2 && hasConcept) score = Math.max(score, 14);
+  if (quality.clarity >= 3 && quality.subjectArea >= 2 && quality.realPhoto >= 2 && quality.focusLight >= 1 && strongConcept) score = Math.max(score, 10);
+  if (quality.clarity >= 3 && quality.subjectArea >= 3 && quality.realPhoto >= 3 && quality.focusLight >= 2 && quality.interesting >= 2 && strongConcept) score = Math.max(score, 14);
+  score = Math.min(score, getDrawingQualityHardCap(quality, text, strongConcept));
   return Math.max(0, Math.min(15, score));
 }
 
@@ -11046,6 +11205,19 @@ function shouldConvertRemainingBudgetToHp(text, preferredKeys, currentStats, rem
   return false;
 }
 
+function canSpecialEffectReachEpicQuality(effectKey, valueBudget, item = {}) {
+  const effect = photoSpecialEffectMap.get(effectKey);
+  if (!effect || item.skipSpecialRoll) return true;
+  if (valueBudget < 17) return false;
+  if (effect.value >= 17) return true;
+  const semanticText = stripImageTextSemantics(item.semanticTextOverride || `${item.itemName || ""} ${item.subjectName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`);
+  const remaining = Math.max(0, valueBudget - effect.value);
+  if (remaining <= 0) return false;
+  const statAffinity = sanitizeStatAffinityForSemantics(item.statAffinity || item.stat_affinity || [], semanticText);
+  const potentialStats = allocateStatsForItem({}, semanticText, remaining, statAffinity);
+  return calculateItemScore(potentialStats, [effectKey]) >= 17;
+}
+
 function choosePhotoSpecialEffects(item, image, valueBudget) {
   const provided = item.ignoreDirectSpecialEffects
     ? []
@@ -11061,11 +11233,11 @@ function choosePhotoSpecialEffects(item, image, valueBudget) {
   const semanticText = stripImageTextSemantics(item.semanticTextOverride || `${item.itemName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`);
   const directAffinity = normalizeSpecialEffects(item.specialAffinity || item.special_affinity || item.specialCandidates);
   const inferredAffinity = inferSemanticSpecialEffects(semanticText);
-  const candidateKeys = [...new Set([...directAffinity, ...inferredAffinity])];
-  if (!candidateKeys.length) return [];
-  const eligible = [...new Set(candidateKeys)]
+  const makeEligible = (keys) => [...new Set(keys)]
     .map((key) => photoSpecialEffectMap.get(key))
     .filter((effect) => effect && isSpecialEffectSemanticallyAllowed(effect.key, item) && isPhotoSpecialEffectEligible(effect.key, valueBudget, item));
+  const directEligible = makeEligible(directAffinity);
+  const eligible = directEligible.length ? directEligible : makeEligible(inferredAffinity);
   if (!eligible.length) return [];
 
   if (qualityKey === "epic") {
@@ -11080,6 +11252,7 @@ function choosePhotoSpecialEffects(item, image, valueBudget) {
 function isPhotoSpecialEffectEligible(effectKey, valueBudget, item = {}) {
   const effect = photoSpecialEffectMap.get(effectKey);
   if (!effect || effect.value > valueBudget) return false;
+  if (!canSpecialEffectReachEpicQuality(effectKey, valueBudget, item)) return false;
   return true;
 }
 
@@ -11144,7 +11317,7 @@ function inferSemanticSpecialEffects(text) {
   if (/水|饮|咖啡|茶|奶|药|杯|瓶|清洁|净化|过滤|毛巾|纸巾|湿巾|充电|电池|补给|修复|water|drink|coffee|tea|milk|medicine|cup|bottle|clean|purify|filter|tissue|towel|battery|charger|repair/i.test(source)) {
     add("regenMultiplier");
   }
-  if (/剑|短剑|长剑|剑刃|刀|剪|针|钩|指甲刀|锥|刃|锯|尖|夹|钳|吸附|抽取|红色|血|sword|dagger|knife|scissor|needle|hook|clipper|blade|sharp|pliers|absorb|drain|red|blood/i.test(source)) {
+  if (/剑|短剑|长剑|剑刃|刀|剪|针|钩|指甲刀|锥|刃|锯|尖|夹|钳|吸附|抽取|血|sword|dagger|knife|scissor|needle|hook|clipper|blade|sharp|pliers|absorb|drain|blood/i.test(source)) {
     add("lifestealMultiplier");
   }
   if (/书|本|笔|尺|奖|证|牌|训练|练习|种子|植物|成长|学习|日记|笔记|book|pen|ruler|award|medal|train|practice|seed|plant|grow|study|note/i.test(source)) {
@@ -11157,7 +11330,7 @@ function inferSemanticSpecialEffects(text) {
     add("killHpBoost");
   }
   if (/重|锤|砸|硬|爆|暴|力量|heavy|critical|crit|smash|power/i.test(source)) add("heavyStrike");
-  if (/血|怒|红|伤|破损|裂|燃烧|危险|rage|blood|red|wound|broken|crack|burn/i.test(source)) add("bloodrage");
+  if (/血|怒|伤|破损|裂|燃烧|危险|rage|blood|wound|broken|crack|burn/i.test(source)) add("bloodrage");
   return effects;
 }
 
@@ -13776,6 +13949,9 @@ window.__photoHeroTestHooks = {
       itemName: active.item?.itemName || "",
       value: active.effect?.value || 0,
     }));
+  },
+  getSpecialEffectValueForTest(key) {
+    return photoSpecialEffectMap.get(key)?.value || 0;
   },
   getBattleStatsForTest(ids = state.activeEnemyIds) {
     return getBattleStats(ids);

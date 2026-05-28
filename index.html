@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260528-bestiary-npc-affix">
+    <link rel="stylesheet" href="./styles.css?v=20260528-info-card-select">
   </head>
   <body>
     <main class="app-shell">
@@ -14,7 +14,7 @@
             <div class="zone-head hero-head">
               <div class="panel-tools" aria-label="面板工具">
                 <button class="tool-button mode-title-button" id="gameModeBtn" type="button" aria-label="切换勇者模式">照片勇者</button>
-                <button class="tool-button info-button" id="infoToggleBtn" type="button" data-panel-target="info" aria-pressed="false">游戏信息</button>
+                <button class="tool-button info-button" id="infoToggleBtn" type="button" data-panel-target="info" aria-pressed="false">冒险手册</button>
                 <button class="tool-button music-button" id="musicToggleBtn" type="button" data-panel-target="music" aria-pressed="false" aria-label="音效设置" title="音效设置">音效</button>
                 <button class="tool-button api-config-button" id="configToggleBtn" type="button" data-panel-target="config" data-state="missing" aria-pressed="false">鉴定 <span class="api-state-icon" aria-hidden="true"></span></button>
                 <button class="ghost-button" id="resetGameBtn" type="button">重开</button>
@@ -81,15 +81,12 @@
             </section>
 
             <section class="secondary-area is-collapsed" id="secondaryArea" aria-label="次要面板">
-              <section class="info-panel secondary-content" data-secondary-panel="info" aria-label="游戏信息" hidden>
+              <section class="info-panel secondary-content" data-secondary-panel="info" aria-label="冒险手册" hidden>
                 <div class="secondary-head">
-                  <div>
-                    <h2>冒险手册</h2>
-                  </div>
                   <div class="info-head-actions">
-                    <div class="info-tabs" role="tablist" aria-label="游戏信息分类">
+                    <div class="info-tabs" role="tablist" aria-label="冒险手册分类">
                       <button class="info-tab-button" type="button" data-info-tab="about" role="tab" aria-selected="true">作者/统计</button>
-                      <button class="info-tab-button" type="button" data-info-tab="photo" role="tab" aria-selected="false">拍照</button>
+                      <button class="info-tab-button" type="button" data-info-tab="photo" role="tab" aria-selected="false">拍照/画图</button>
                       <button class="info-tab-button" type="button" data-info-tab="battle" role="tab" aria-selected="false">战斗</button>
                       <button class="info-tab-button" type="button" data-info-tab="bestiary" role="tab" aria-selected="false">图鉴</button>
                     </div>
@@ -130,20 +127,20 @@
                   <div class="info-page" data-info-page="photo" hidden>
                     <div class="info-grid">
                       <article class="info-block wide-info hero-info-block">
-                        <h3>拍下身边物品</h3>
-                        <p>选择空装备格，消耗 1 张胶卷拍照。鉴定完成后，照片里的主体会变成一件随身生效的装备。</p>
+                        <h3>拍照/画图装备</h3>
+                        <p>选择空装备格，消耗 1 张胶卷/画布，可以拍下身边小物，也可以打开画布手绘。鉴定完成后，主体会变成一件随身生效的装备。</p>
                       </article>
                       <article class="info-block wide-info">
                         <h3>让镜头靠近</h3>
-                        <p>把主体拍清楚，让它在画面里能被一眼认出。工具、杯子、玩具、文具、食物、装饰和小植物都可能醒出不同力量；桌面和房间背景没关系，别让它们盖过主角就好。</p>
+                        <p>拍照时把主体拍清楚，让它在画面里能被一眼认出。工具、杯子、玩具、文具、食物、装饰和小植物都可能醒出不同力量；桌面和房间背景没关系，别让它们盖过主角就好。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>工坊认真实物</h3>
-                        <p>影像工坊更相信真实镜头：桌面道具、手边物品、奇怪摆件都会被认真鉴定。屏幕里的图、远处风景和巨大场景只会留下很弱的影子；卡片、屏幕和贴纸会按它们本身唤醒。</p>
+                        <h3>画布看主体</h3>
+                        <p>画图时线条、颜色和主体轮廓最重要。画得清楚、有特点、能猜出是什么，就更容易醒出贴合形状的属性；写在图里的文字不会替代画面本身。</p>
                       </article>
                       <article class="info-block wide-info">
                         <h3>点亮鉴定</h3>
-                        <p>API Key、地址和模型名只保存在你的浏览器。照片会先压缩，再交给你选择的图文模型鉴定；接口能在网页里直接工作，鉴定才会亮起。</p>
+                        <p>API Key、地址和模型名只保存在你的浏览器。照片或画布会先压缩，再交给你选择的图文模型鉴定；接口能在网页里直接工作，鉴定才会亮起。</p>
                       </article>
                     </div>
                   </div>
@@ -357,6 +354,6 @@
       </section>
     </div>
 
-    <script defer src="./app.js?v=20260528-bestiary-npc-affix"></script>
+    <script defer src="./app.js?v=20260528-info-card-select"></script>
   </body>
 </html>

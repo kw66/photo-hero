@@ -73,20 +73,20 @@ const cases = [
     expect: ({ item, renderedDescription }) => item.stats.regen > 0 && /回复|恢复|被打后/.test(renderedDescription),
   },
   {
-    label: "legendary can roll special effect",
+    label: "legendary can roll special effect when final score stays epic",
     input: {
-      itemName: "传奇风扇",
-      subjectName: "风扇",
-      objectType: "桌面电器",
-      description: "风扇带来旋转气流。",
-      reason: "主体=风扇；倾向=速度",
-      tags: ["风扇", "旋转"],
+      itemName: "传奇战锤",
+      subjectName: "战锤",
+      objectType: "重型工具",
+      description: "战锤带来沉重的爆发力。",
+      reason: "主体=战锤；倾向=攻击重击",
+      tags: ["战锤", "沉重"],
       value: 21,
       photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 2 },
-      statAffinity: [{ stat: "speed", score: 3 }],
-      specialAffinity: ["doubleStrikeSpeedDown"],
+      statAffinity: [{ stat: "attack", score: 3 }],
+      specialAffinity: ["heavyStrike"],
     },
-    expect: ({ item }) => item.specialEffects.length === 1,
+    expect: ({ item, score, quality }) => item.specialEffects.length === 1 && score >= 17 && (quality.key === "epic" || quality.key === "legendary"),
   },
   {
     label: "epic can stay without special effect",
@@ -362,6 +362,100 @@ const cases = [
     expect: ({ item }) => /魔杖|法杖/.test(item.itemName) && item.stats.attack > 0,
   },
   {
+    label: "simple drawing boot stays boot and common",
+    input: {
+      sourceMode: "drawing",
+      itemName: "翡翠坠饰",
+      subjectName: "绿色短靴轮廓",
+      objectType: "饰品",
+      identityDescription: "白色底上有绿色短靴轮廓，鞋底和鞋口可见，主体能看出像靴子，但线条很少、轮廓简单。",
+      description: "翡翠坠饰带着轻快的绿色光泽。",
+      reason: "主体=绿色短靴；证据=鞋底和鞋口；质量=简单少线；倾向=速度。",
+      tags: ["短靴", "绿色"],
+      photoQuality: { clarity: 2, subjectArea: 2, backgroundClean: 2, realPhoto: 1, focusLight: 1, interesting: 0 },
+      statAffinity: [{ stat: "speed", score: 3 }, { stat: "attack", score: 1 }],
+      specialAffinity: ["doubleStrikeSpeedDown"],
+    },
+    expect: ({ item, renderedDescription, score, quality }) => (
+      /靴|鞋/.test(item.itemName)
+      && !/翡翠|宝石|坠饰|吊坠/.test(item.itemName)
+      && !/翡翠|宝石|坠饰|吊坠/.test(renderedDescription)
+      && item.specialEffects.length === 0
+      && item.stats.attack === 0
+      && item.stats.speed > 0
+      && score < 13
+      && quality.key === "common"
+    ),
+  },
+  {
+    label: "red angular scribble is not flying blade",
+    input: {
+      sourceMode: "drawing",
+      itemName: "赤翼飞刃",
+      subjectName: "红色飞刃",
+      objectType: "幻想武器",
+      identityDescription: "白色底上只有一条红色折线和一小段短斜线，线段彼此断开，未形成刀刃、握柄、箭头或完整翅膀轮廓。",
+      description: "赤翼飞刃像一道准备切开的红光。",
+      reason: "主体=红色折线；证据=线条很少且断裂；质量=难以辨认；倾向=攻击。",
+      tags: ["红色", "飞刃", "折线"],
+      photoQuality: { clarity: 1, subjectArea: 1, backgroundClean: 2, realPhoto: 1, focusLight: 0, interesting: 0 },
+      statAffinity: [{ stat: "attack", score: 3 }, { stat: "lifesteal", score: 2 }, { stat: "speed", score: 1 }],
+      specialAffinity: ["doubleStrikeSpeedDown", "bloodrage"],
+    },
+    expect: ({ item, renderedDescription, score, quality }) => (
+      !/飞刃|利刃|翼刃|剑|刀|武器|神器/.test(item.itemName)
+      && !/飞刃|利刃|翼刃|剑|刀|武器|神器/.test(renderedDescription)
+      && item.specialEffects.length === 0
+      && item.stats.attack === 0
+      && item.stats.lifesteal === 0
+      && score <= 6
+      && quality.key === "common"
+    ),
+  },
+  {
+    label: "rare drawing cannot keep special effect",
+    input: {
+      sourceMode: "drawing",
+      itemName: "红色短剑",
+      subjectName: "红色短剑",
+      objectType: "幻想武器",
+      identityDescription: "中央有红色短剑轮廓，剑身和握柄可见，但整体比较简单。",
+      description: "红色短剑带着一点进攻感。",
+      reason: "主体=红色短剑；证据=剑身+握柄；质量=普通；倾向=攻击。",
+      tags: ["短剑", "红色"],
+      value: 16,
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 2, focusLight: 1, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 3 }],
+      specialAffinity: ["heavyStrike"],
+    },
+    expect: ({ item, score, quality }) => (
+      item.specialEffects.length === 0
+      && score < 17
+      && quality.key !== "epic"
+      && quality.key !== "legendary"
+    ),
+  },
+  {
+    label: "epic drawing special must finish as epic",
+    input: {
+      sourceMode: "drawing",
+      itemName: "爆裂战锤",
+      subjectName: "爆裂战锤",
+      objectType: "重型武器",
+      identityDescription: "中央有一把战锤，锤头很大，短柄清楚，周围有爆裂火花。",
+      description: "爆裂战锤的锤头压着火花。",
+      reason: "主体=战锤；证据=大锤头+短柄+爆裂火花；质量=完整；倾向=攻击重击。",
+      tags: ["战锤", "爆裂"],
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "attack", score: 3 }, { stat: "defense", score: 1 }],
+      specialAffinity: ["heavyStrike"],
+    },
+    expect: ({ item, score, quality }) => (
+      item.specialEffects.length === 0
+      || (score >= 17 && (quality.key === "epic" || quality.key === "legendary"))
+    ),
+  },
+  {
     label: "fan keeps speed",
     input: {
       itemName: "白色小风扇",
@@ -576,6 +670,10 @@ const cases = [
       shieldWithSpecialScore: score(shieldWithSpecial),
       shieldWithSpecialQuality: quality(shieldWithSpecial),
     };
+    const specialValues = {
+      heavyStrike: hooks.getSpecialEffectValueForTest?.("heavyStrike"),
+      bloodrage: hooks.getSpecialEffectValueForTest?.("bloodrage"),
+    };
     return {
       activeSpecial: activeSpecial || null,
       hp: hooks.getHeroStateForTest?.()?.hp,
@@ -583,6 +681,7 @@ const cases = [
       itemCount: hooks.getInventoryForTest?.()?.filter(Boolean).length || 0,
       valueMapping,
       shieldEconomy,
+      specialValues,
     };
   });
   await browser.close();
@@ -617,6 +716,9 @@ const cases = [
   }
   if (runtimeChecks.shieldEconomy?.shieldWithSpecialScore !== 20 || runtimeChecks.shieldEconomy?.shieldWithSpecialQuality !== "epic") {
     failures.push({ label: "special effect value should still count toward shield item quality", shieldEconomy: runtimeChecks.shieldEconomy });
+  }
+  if (runtimeChecks.specialValues?.heavyStrike !== 14 || runtimeChecks.specialValues?.bloodrage !== 12) {
+    failures.push({ label: "heavyStrike/bloodrage special values should match tuning", specialValues: runtimeChecks.specialValues });
   }
   if (errors.length) failures.push({ label: "console errors", errors });
 
