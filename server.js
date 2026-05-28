@@ -8,10 +8,13 @@ const port = Number(process.env.PORT || 3000);
 const experienceUpstreamBaseUrl = process.env.PHOTO_HERO_EXPERIENCE_BASE_URL || "https://api.siliconflow.cn/v1";
 export const experienceModel = "Qwen/Qwen3.5-35B-A3B";
 const experienceTimeoutMs = 45000;
-const experienceMaxBodyBytes = 7 * 1024 * 1024;
+const experienceMaxBodyBytes = 4 * 1024 * 1024;
+const experienceMaxImageBytes = Math.floor(2.5 * 1024 * 1024);
+const experienceMaxConcurrent = 3;
 const experienceRateLimitWindowMs = 10 * 60 * 1000;
 const experienceRateLimitMax = Number(process.env.PHOTO_HERO_EXPERIENCE_RATE_LIMIT || 20);
 const experienceVisitors = new Map();
+let experienceInFlight = 0;
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -110,7 +113,13 @@ export async function handleExperienceProxy(req, res) {
     return;
   }
 
+  if (experienceInFlight >= experienceMaxConcurrent) {
+    sendJson(res, 429, { error: { message: "公共鉴定台繁忙，请稍后再试或使用自己的 API。" } });
+    return;
+  }
+
   try {
+    experienceInFlight += 1;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), experienceTimeoutMs);
     const upstream = await fetch(buildUpstreamChatUrl(), {
@@ -131,6 +140,8 @@ export async function handleExperienceProxy(req, res) {
   } catch (error) {
     const message = error?.name === "AbortError" ? "体验接口请求超时，请稍后再试。" : "体验接口转发失败，请稍后再试。";
     sendJson(res, 502, { error: { message } });
+  } finally {
+    experienceInFlight = Math.max(0, experienceInFlight - 1);
   }
 }
 
@@ -164,9 +175,25 @@ function hasImageInput(messages) {
 
 function contentHasImage(content) {
   if (Array.isArray(content)) {
-    return content.some((part) => part?.type === "image_url" && typeof part?.image_url?.url === "string");
+    return content.some((part) => {
+      if (part?.type !== "image_url" || typeof part?.image_url?.url !== "string") return false;
+      const bytes = estimateImageDataUrlBytes(part.image_url.url);
+      if (bytes > experienceMaxImageBytes) {
+        throw Object.assign(new Error("图片请求过大，请换一张更小的照片。"), { status: 413 });
+      }
+      return bytes > 0;
+    });
   }
   return false;
+}
+
+function estimateImageDataUrlBytes(value) {
+  const match = /^data:image\/(?:jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(value || ""));
+  if (!match) return 0;
+  const base64 = match[1].replace(/\s+/g, "");
+  if (!base64) return 0;
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
 }
 
 function clampNumber(value, min, max, fallback) {

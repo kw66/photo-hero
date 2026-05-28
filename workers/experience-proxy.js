@@ -1,11 +1,14 @@
 const experienceModel = "Qwen/Qwen3.5-35B-A3B";
 const upstreamBaseUrl = "https://api.siliconflow.cn/v1";
 const timeoutMs = 45000;
-const maxBodyBytes = 7 * 1024 * 1024;
+const maxBodyBytes = 4 * 1024 * 1024;
+const maxImageBytes = Math.floor(2.5 * 1024 * 1024);
+const maxConcurrent = 3;
 const rateLimitWindowMs = 10 * 60 * 1000;
 const rateLimitMax = 20;
 
 const visitorBuckets = new Map();
+let inFlight = 0;
 
 export default {
   async fetch(request, env) {
@@ -42,7 +45,12 @@ export async function handleExperienceRequest(request, env = {}) {
     return jsonResponse({ error: { message: error.message || "请求格式不正确。" } }, error.status || 400);
   }
 
+  if (inFlight >= maxConcurrent) {
+    return jsonResponse({ error: { message: "公共鉴定台繁忙，请稍后再试或使用自己的 API。" } }, 429);
+  }
+
   try {
+    inFlight += 1;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const upstream = await fetch(buildUpstreamChatUrl(), {
@@ -62,6 +70,8 @@ export async function handleExperienceRequest(request, env = {}) {
   } catch (error) {
     const message = error?.name === "AbortError" ? "体验接口请求超时，请稍后再试。" : "体验接口转发失败，请稍后再试。";
     return jsonResponse({ error: { message } }, 502);
+  } finally {
+    inFlight = Math.max(0, inFlight - 1);
   }
 }
 
@@ -107,7 +117,23 @@ function hasImageInput(messages) {
 
 function contentHasImage(content) {
   if (!Array.isArray(content)) return false;
-  return content.some((part) => part?.type === "image_url" && typeof part?.image_url?.url === "string");
+  return content.some((part) => {
+    if (part?.type !== "image_url" || typeof part?.image_url?.url !== "string") return false;
+    const bytes = estimateImageDataUrlBytes(part.image_url.url);
+    if (bytes > maxImageBytes) {
+      throw Object.assign(new Error("图片请求过大，请换一张更小的照片。"), { status: 413 });
+    }
+    return bytes > 0;
+  });
+}
+
+function estimateImageDataUrlBytes(value) {
+  const match = /^data:image\/(?:jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(value || ""));
+  if (!match) return 0;
+  const base64 = match[1].replace(/\s+/g, "");
+  if (!base64) return 0;
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
 }
 
 function buildUpstreamChatUrl() {

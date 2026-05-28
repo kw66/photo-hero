@@ -51,7 +51,7 @@ const SILICONFLOW_MODELS = [
   { value: "Qwen/Qwen3.5-122B-A10B" },
 ];
 
-const defaultApiPresetId = "siliconflow";
+const defaultApiPresetId = "experience";
 const experienceModelName = "Qwen/Qwen3.5-35B-A3B";
 const experienceApiKeyMask = "••••••••••••••••••••••••";
 const experienceWorkerBaseUrl = "https://photo-hero-experience.1092043672.workers.dev";
@@ -87,11 +87,10 @@ const MICU_MODELS = [
 const API_PRESETS = {
   experience: {
     label: "体验",
-    hidden: true,
     baseUrl: experienceProxyBaseUrl,
     model: experienceModelName,
     models: [{ value: experienceModelName }],
-    note: "体验模式使用内置代理转发到硅基流动，只能用于本游戏的图片鉴定；地址、模型和 Key 都已锁定。",
+    note: "体验模式免配置，使用公共鉴定台；公共额度有限，繁忙或失败时可切到自定义 API。",
     links: [],
     supportsVision: true,
     lockedKey: true,

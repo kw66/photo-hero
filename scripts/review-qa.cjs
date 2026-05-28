@@ -574,15 +574,18 @@ function assertScenario(name, metrics) {
   }
   if (name === "api-config") {
     const api = metrics.apiConfig || {};
-    if (api.visiblePresets?.includes("experience")) failures.push(`${name}: hidden experience preset should not be visible, got ${JSON.stringify(api)}`);
-    if (api.visiblePresets?.join(",") !== "siliconflow,xiaomi,zhipu,micu,custom") failures.push(`${name}: visible preset order should be SiliconFlow, Xiaomi, Zhipu, Micu, Custom, got ${JSON.stringify(api)}`);
-    if (api.visiblePresetLabels?.join(",") !== "硅基流动,小米,智谱,米醋,自定义") failures.push(`${name}: visible preset labels changed unexpectedly, got ${JSON.stringify(api)}`);
-    if (api.defaultPreset !== "siliconflow") failures.push(`${name}: default preset should stay siliconflow while experience is hidden, got ${JSON.stringify(api)}`);
-    if (api.defaultModel !== "Qwen/Qwen3.6-35B-A3B") failures.push(`${name}: default SiliconFlow model changed unexpectedly, got ${JSON.stringify(api)}`);
-    if (api.defaultBaseUrl !== "https://api.siliconflow.cn/v1") failures.push(`${name}: default base URL should stay SiliconFlow direct API, got ${JSON.stringify(api)}`);
-    if (api.defaultKeyLocked || api.defaultToggleHidden || api.defaultModelDisabled) failures.push(`${name}: visible default preset should remain editable/key-viewable, got ${JSON.stringify(api)}`);
-    if (api.defaultReady) failures.push(`${name}: default direct API should still require the player's own key, got ${JSON.stringify(api)}`);
-    if (api.afterToggleType !== "text" || api.afterToggleValue !== api.defaultKeyValue) failures.push(`${name}: eye toggle should work for the visible default preset, got ${JSON.stringify(api)}`);
+    if (api.visiblePresets?.join(",") !== "experience,siliconflow,xiaomi,zhipu,micu,custom") failures.push(`${name}: visible preset order should be Experience, SiliconFlow, Xiaomi, Zhipu, Micu, Custom, got ${JSON.stringify(api)}`);
+    if (api.visiblePresetLabels?.join(",") !== "体验,硅基流动,小米,智谱,米醋,自定义") failures.push(`${name}: visible preset labels changed unexpectedly, got ${JSON.stringify(api)}`);
+    if (api.defaultPreset !== "experience") failures.push(`${name}: default preset should be experience, got ${JSON.stringify(api)}`);
+    if (api.defaultModel !== "Qwen/Qwen3.5-35B-A3B") failures.push(`${name}: default experience model changed unexpectedly, got ${JSON.stringify(api)}`);
+    if (!/\/api\/experience$|workers\.dev$/.test(api.defaultBaseUrl || "")) failures.push(`${name}: default base URL should use the experience proxy, got ${JSON.stringify(api)}`);
+    if (!api.defaultKeyLocked || !api.defaultToggleHidden || !api.defaultModelDisabled || !api.defaultHasMaskedKey) failures.push(`${name}: experience preset should lock and mask key/model controls, got ${JSON.stringify(api)}`);
+    if (!api.defaultReady) failures.push(`${name}: experience preset should be ready without player key, got ${JSON.stringify(api)}`);
+    if (api.defaultStoredKey) failures.push(`${name}: experience preset should not store an API key, got ${JSON.stringify(api)}`);
+    if (api.afterToggleType !== "password" || api.afterToggleValue !== api.defaultKeyValue) failures.push(`${name}: hidden key toggle should not reveal the experience key mask, got ${JSON.stringify(api)}`);
+    if (!api.defaultExperienceRequestSeen || api.defaultExperienceUsesAuthorizationHeader || !api.defaultExperienceBodyHasImage) {
+      failures.push(`${name}: experience browser request should use proxy without Authorization and include an image, got ${JSON.stringify(api)}`);
+    }
     if (api.xiaomiPreset !== "xiaomi" || api.xiaomiBaseUrl !== "https://api.xiaomimimo.com/v1") failures.push(`${name}: Xiaomi preset should use the requested base URL, got ${JSON.stringify(api)}`);
     if (api.xiaomiModel !== "mimo-v2.5") failures.push(`${name}: Xiaomi preset should default to mimo-v2.5, got ${JSON.stringify(api)}`);
     if (api.xiaomiModelOptions?.join(",") !== "mimo-v2.5,mimo-v2-omni") failures.push(`${name}: Xiaomi model dropdown should contain only supported vision models, got ${JSON.stringify(api)}`);
@@ -950,6 +953,7 @@ function assertScenario(name, metrics) {
     await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).playMode === "drawing", null, { timeout: 3000 });
     await page.evaluate((image) => {
       const hooks = window.__photoHeroTestHooks;
+      document.querySelector('[data-preset="siliconflow"]')?.click();
       hooks.enterTowerForTest({ silent: true });
       hooks.setRunRewards({ filmRolls: 3, filmShards: 0 });
       hooks.setPendingPhotoForTest(image, { sourceMode: "drawing" });
@@ -2462,6 +2466,40 @@ function assertScenario(name, metrics) {
         afterToggleValue: keyInput?.value || "",
       };
     });
+    let defaultExperienceRequest = null;
+    await page.route(/\/api\/experience\/chat\/completions$|photo-hero-experience\.[^/]+\.workers\.dev\/chat\/completions$/, async (route) => {
+      const request = route.request();
+      defaultExperienceRequest = {
+        headers: request.headers(),
+        body: request.postDataJSON(),
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ choices: [{ message: { content: "图文模型测试成功：图片里写着照片勇者和 VISION OK。" } }] }),
+      });
+    });
+    await page.click("#testChatBtn");
+    for (let i = 0; i < 30 && !defaultExperienceRequest; i += 1) {
+      await page.waitForTimeout(100);
+    }
+    await page.evaluate((request) => {
+      const body = request?.body || {};
+      const hasImage = (body.messages || []).some((message) => (
+        Array.isArray(message.content)
+        && message.content.some((part) => (
+          part?.type === "image_url"
+          && /^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(part.image_url?.url || "")
+        ))
+      ));
+      window.__reviewApiConfig = {
+        ...window.__reviewApiConfig,
+        defaultExperienceRequestSeen: Boolean(request),
+        defaultExperienceUsesAuthorizationHeader: Boolean(request?.headers?.authorization),
+        defaultExperienceBodyHasImage: hasImage,
+      };
+    }, defaultExperienceRequest);
+
     let xiaomiRequest = null;
     await page.route("https://api.xiaomimimo.com/v1/chat/completions", async (route) => {
       const request = route.request();
