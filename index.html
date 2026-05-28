@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260528-experience-entry">
+    <link rel="stylesheet" href="./styles.css?v=20260528-experience-simple">
   </head>
   <body>
     <main class="app-shell">
@@ -222,7 +222,7 @@
                 <p class="sound-now-playing" id="nowPlayingText">正在播放：塔内回声</p>
               </section>
 
-              <section class="config-panel secondary-content" data-secondary-panel="config" aria-label="鉴定配置">
+              <section class="config-panel secondary-content" id="configPanel" data-secondary-panel="config" aria-label="鉴定配置">
                 <div class="secondary-head">
                   <div>
                     <h2>鉴定</h2>
@@ -230,7 +230,7 @@
                   <button class="ghost-button" type="button" data-panel-target="none">收起</button>
                 </div>
 
-                <p class="config-intro">照片装备需要图文大模型 API 才能鉴定。填写服务商的 API Base URL、API Key 和模型名后，游戏会把压缩后的照片交给模型识别；Key 只保存在你的本地浏览器。</p>
+                <p class="config-intro">默认体验免配置，直接使用公共鉴定台。切换到其它服务商或自定义时，再填写地址、模型和 Key；Key 只保存在你的本地浏览器。</p>
 
                 <div class="preset-row" aria-label="模型预设">
                   <button class="preset-button" type="button" data-preset="experience">体验</button>
@@ -272,7 +272,7 @@
                   </label>
                 </div>
 
-                <p class="privacy-note">照片鉴定需要模型支持图片输入和浏览器 CORS。图片会自动压缩，模型参数使用游戏内置默认值。</p>
+                <p class="privacy-note">图片会自动压缩，模型参数使用游戏内置默认值。自定义接口仍需支持图片输入和浏览器 CORS。</p>
                 <div class="config-actions">
                   <button class="secondary-button" id="saveConfigBtn" type="button">保存配置</button>
                   <button class="primary-button" id="testChatBtn" type="button">测试图文模型</button>
@@ -347,6 +347,6 @@
       </section>
     </div>
 
-    <script defer src="./app.js?v=20260528-experience-entry"></script>
+    <script defer src="./app.js?v=20260528-experience-simple"></script>
   </body>
 </html>

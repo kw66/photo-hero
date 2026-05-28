@@ -3603,6 +3603,11 @@ dd {
   margin-top: var(--space-3);
 }
 
+.config-panel.is-experience-config .config-grid,
+.config-panel.is-experience-config #saveConfigBtn {
+  display: none;
+}
+
 .wide-field {
   grid-column: span 2;
 }

@@ -723,6 +723,7 @@ const els = {
   fileInput: byId("fileInput"),
   filmCountBadge: byId("filmCountBadge"),
   configToggleBtn: byId("configToggleBtn"),
+  configPanel: byId("configPanel"),
   secondaryArea: byId("secondaryArea"),
   presetNote: byId("presetNote"),
   providerLinks: byId("providerLinks"),
@@ -2842,6 +2843,7 @@ function applyPreset(presetId, persist = false) {
 
   const preset = API_PRESETS[targetPresetId] || API_PRESETS.custom;
   const isCustom = targetPresetId === "custom";
+  const isExperience = targetPresetId === "experience";
   const isLockedKey = Boolean(preset.lockedKey);
   const selectedModel = isCustom ? customDraft.model : preset.model;
 
@@ -2855,6 +2857,7 @@ function applyPreset(presetId, persist = false) {
   els.apiKeyInput.value = isLockedKey ? experienceApiKeyMask : providerApiKeys[targetPresetId] || "";
   els.apiKeyInput.type = "password";
   renderModelOptions(preset, selectedModel);
+  els.configPanel?.classList.toggle("is-experience-config", isExperience);
 
   els.baseUrlInput.readOnly = !isCustom;
   els.baseUrlInput.classList.toggle("is-locked", !isCustom);
@@ -2914,14 +2917,18 @@ function renderProviderLinks(preset) {
   els.providerLinks.innerHTML = "";
 
   if (!preset.links?.length) {
+    if (preset.lockedKey) {
+      els.providerLinks.hidden = true;
+      return;
+    }
     const hint = document.createElement("span");
-    hint.textContent = preset.lockedKey
-      ? "体验模式免配置，公共额度有限；如遇繁忙或失败，可切到自定义使用自己的 API。"
-      : "自定义接口请优先使用服务商官网提供的 API Key 和文档。";
+    hint.textContent = "自定义接口请优先使用服务商官网提供的 API Key 和文档。";
     els.providerLinks.append(hint);
+    els.providerLinks.hidden = false;
     return;
   }
 
+  els.providerLinks.hidden = false;
   for (const link of preset.links) {
     const anchor = document.createElement("a");
     anchor.href = link.url;

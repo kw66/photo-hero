@@ -580,6 +580,9 @@ function assertScenario(name, metrics) {
     if (api.defaultModel !== "Qwen/Qwen3.5-35B-A3B") failures.push(`${name}: default experience model changed unexpectedly, got ${JSON.stringify(api)}`);
     if (!/\/api\/experience$|workers\.dev$/.test(api.defaultBaseUrl || "")) failures.push(`${name}: default base URL should use the experience proxy, got ${JSON.stringify(api)}`);
     if (!api.defaultKeyLocked || !api.defaultToggleHidden || !api.defaultModelDisabled || !api.defaultHasMaskedKey) failures.push(`${name}: experience preset should lock and mask key/model controls, got ${JSON.stringify(api)}`);
+    if (!api.defaultConfigPanelExperience || !api.defaultConfigGridHidden || api.defaultBaseUrlVisible || api.defaultModelVisible || api.defaultApiKeyVisible || api.defaultSaveVisible) {
+      failures.push(`${name}: experience preset should hide URL/model/key/save controls, got ${JSON.stringify(api)}`);
+    }
     if (!api.defaultReady) failures.push(`${name}: experience preset should be ready without player key, got ${JSON.stringify(api)}`);
     if (api.defaultStoredKey) failures.push(`${name}: experience preset should not store an API key, got ${JSON.stringify(api)}`);
     if (api.afterToggleType !== "password" || api.afterToggleValue !== api.defaultKeyValue) failures.push(`${name}: hidden key toggle should not reveal the experience key mask, got ${JSON.stringify(api)}`);
@@ -587,6 +590,9 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: experience browser request should use proxy without Authorization and include an image, got ${JSON.stringify(api)}`);
     }
     if (api.xiaomiPreset !== "xiaomi" || api.xiaomiBaseUrl !== "https://api.xiaomimimo.com/v1") failures.push(`${name}: Xiaomi preset should use the requested base URL, got ${JSON.stringify(api)}`);
+    if (api.xiaomiConfigPanelExperience || api.xiaomiConfigGridHidden || !api.xiaomiBaseUrlVisible || !api.xiaomiModelVisible || !api.xiaomiApiKeyVisible || !api.xiaomiSaveVisible) {
+      failures.push(`${name}: non-experience presets should show URL/model/key/save controls, got ${JSON.stringify(api)}`);
+    }
     if (api.xiaomiModel !== "mimo-v2.5") failures.push(`${name}: Xiaomi preset should default to mimo-v2.5, got ${JSON.stringify(api)}`);
     if (api.xiaomiModelOptions?.join(",") !== "mimo-v2.5,mimo-v2-omni") failures.push(`${name}: Xiaomi model dropdown should contain only supported vision models, got ${JSON.stringify(api)}`);
     if (!/mimo-v2\.5-pro/.test(api.xiaomiNote || "")) failures.push(`${name}: Xiaomi note should explain mimo-v2.5-pro is not a vision model, got ${JSON.stringify(api)}`);
@@ -2442,6 +2448,9 @@ function assertScenario(name, metrics) {
       const toggle = document.querySelector("#toggleKeyBtn");
       const modelInput = document.querySelector("#modelInput");
       const baseUrlInput = document.querySelector("#baseUrlInput");
+      const configPanel = document.querySelector("#configPanel");
+      const configGrid = document.querySelector(".config-grid");
+      const saveButton = document.querySelector("#saveConfigBtn");
       window.__reviewApiConfig = {
         visiblePresets: Array.from(document.querySelectorAll(".preset-button")).map((button) => button.dataset.preset || ""),
         visiblePresetLabels: Array.from(document.querySelectorAll(".preset-button")).map((button) => button.textContent?.trim() || ""),
@@ -2455,6 +2464,12 @@ function assertScenario(name, metrics) {
         defaultHasMaskedKey: /^•+$/.test(keyInput?.value || ""),
         defaultKeyValue: keyInput?.value || "",
         defaultStoredKey: readStoredConfig().apiKey || "",
+        defaultConfigPanelExperience: Boolean(configPanel?.classList.contains("is-experience-config")),
+        defaultConfigGridHidden: window.getComputedStyle(configGrid).display === "none",
+        defaultBaseUrlVisible: Boolean(baseUrlInput?.offsetParent),
+        defaultModelVisible: Boolean(modelInput?.offsetParent),
+        defaultApiKeyVisible: Boolean(keyInput?.offsetParent),
+        defaultSaveVisible: Boolean(saveButton?.offsetParent),
       };
     });
     await page.evaluate(() => {
@@ -2517,6 +2532,11 @@ function assertScenario(name, metrics) {
     await page.evaluate(() => {
       const state = JSON.parse(window.render_game_to_text());
       const modelInput = document.querySelector("#modelInput");
+      const baseUrlInput = document.querySelector("#baseUrlInput");
+      const keyInput = document.querySelector("#apiKeyInput");
+      const configPanel = document.querySelector("#configPanel");
+      const configGrid = document.querySelector(".config-grid");
+      const saveButton = document.querySelector("#saveConfigBtn");
       window.__reviewApiConfig = {
         ...window.__reviewApiConfig,
         xiaomiPreset: state.api?.presetId || "",
@@ -2525,6 +2545,12 @@ function assertScenario(name, metrics) {
         xiaomiModelOptions: Array.from(modelInput?.options || []).map((option) => option.value || ""),
         xiaomiNote: document.querySelector("#presetNote")?.innerText || "",
         xiaomiLinksText: document.querySelector("#providerLinks")?.innerText || "",
+        xiaomiConfigPanelExperience: Boolean(configPanel?.classList.contains("is-experience-config")),
+        xiaomiConfigGridHidden: window.getComputedStyle(configGrid).display === "none",
+        xiaomiBaseUrlVisible: Boolean(baseUrlInput?.offsetParent),
+        xiaomiModelVisible: Boolean(modelInput?.offsetParent),
+        xiaomiApiKeyVisible: Boolean(keyInput?.offsetParent),
+        xiaomiSaveVisible: Boolean(saveButton?.offsetParent),
       };
     });
     await page.fill("#apiKeyInput", "sk-xiaomi-test");
