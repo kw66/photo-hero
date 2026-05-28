@@ -592,7 +592,7 @@ h3 {
 .hero-switch-badge {
   position: absolute;
   top: 5px;
-  right: 5px;
+  left: 5px;
   z-index: 2;
   min-width: 36px;
   padding: 2px 5px;
@@ -606,6 +606,93 @@ h3 {
   line-height: 1.1;
   box-shadow: 0 2px 0 rgb(23 19 15 / 18%);
   pointer-events: none;
+}
+
+.hero-form-battle-badge,
+.slot-battle-badge {
+  position: absolute;
+  z-index: 5;
+  min-width: 26px;
+  height: 21px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 5px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 999px;
+  background: rgb(6 8 8 / 84%);
+  color: #fffaf0;
+  font-size: 0.68rem;
+  font-weight: 950;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 80%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 14%),
+    0 2px 0 rgb(0 0 0 / 42%);
+  pointer-events: none;
+}
+
+.hero-form-card .hero-form-battle-badge {
+  inset: auto 5px auto auto;
+  top: 5px;
+  right: 5px;
+  bottom: auto;
+  width: auto;
+  min-height: 0;
+  padding: 0 5px;
+  background: rgb(6 8 8 / 84%);
+  font-size: 0.68rem;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.slot-battle-badge-left {
+  top: 4px;
+  left: 4px;
+}
+
+.slot-battle-badge-right {
+  top: 4px;
+  right: 4px;
+}
+
+.hero-form-battle-badge[data-stat="attack"],
+.hero-form-battle-badge[data-stat="lifesteal"],
+.slot-battle-badge[data-stat="attack"],
+.slot-battle-badge[data-stat="lifesteal"] {
+  color: #ff746b;
+  border-color: rgb(255 116 107 / 58%);
+  box-shadow: 0 0 8px rgb(255 75 62 / 34%), inset 0 1px 0 rgb(255 255 255 / 12%);
+}
+
+.hero-form-battle-badge[data-stat="defense"],
+.slot-battle-badge[data-stat="defense"] {
+  color: #7db8ff;
+  border-color: rgb(125 184 255 / 60%);
+  box-shadow: 0 0 8px rgb(65 132 224 / 32%), inset 0 1px 0 rgb(255 255 255 / 12%);
+}
+
+.hero-form-battle-badge[data-stat="shield"],
+.slot-battle-badge[data-stat="shield"] {
+  color: #fffef4;
+  border-color: rgb(255 254 244 / 62%);
+  box-shadow: 0 0 8px rgb(255 255 255 / 28%), inset 0 1px 0 rgb(255 255 255 / 16%);
+}
+
+.hero-form-battle-badge[data-stat="hp"],
+.hero-form-battle-badge[data-stat="regen"],
+.slot-battle-badge[data-stat="hp"],
+.slot-battle-badge[data-stat="regen"] {
+  color: #7be58d;
+  border-color: rgb(123 229 141 / 60%);
+  box-shadow: 0 0 8px rgb(72 206 91 / 32%), inset 0 1px 0 rgb(255 255 255 / 12%);
+}
+
+.hero-form-battle-badge[data-stat="speed"],
+.slot-battle-badge[data-stat="speed"] {
+  color: #ffd36d;
+  border-color: rgb(255 211 109 / 60%);
+  box-shadow: 0 0 8px rgb(255 190 58 / 30%), inset 0 1px 0 rgb(255 255 255 / 12%);
 }
 
 .avatar-ring {
@@ -3495,6 +3582,95 @@ dd {
   font-size: 0.66rem;
   font-weight: 700;
   line-height: 1.36;
+}
+
+.affix-bestiary {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--amber) 34%, var(--panel-border));
+  border-radius: 7px;
+  background: rgb(6 8 8 / 46%);
+}
+
+.affix-bestiary-head {
+  display: grid;
+  gap: 2px;
+}
+
+.affix-bestiary-head strong {
+  color: #fffaf0;
+  font-size: 0.86rem;
+}
+
+.affix-bestiary-head span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.affix-bestiary ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.affix-bestiary li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 7px;
+  border: 1px solid color-mix(in srgb, var(--line) 74%, transparent);
+  border-radius: 6px;
+  background: rgb(15 19 18 / 72%);
+}
+
+.affix-bestiary b {
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.affix-bestiary b[data-stat="attack"],
+.affix-bestiary b[data-stat="lifesteal"] {
+  color: #ff746b;
+}
+
+.affix-bestiary b[data-stat="defense"] {
+  color: #7db8ff;
+}
+
+.affix-bestiary b[data-stat="shield"] {
+  color: #fffef4;
+}
+
+.affix-bestiary b[data-stat="hp"],
+.affix-bestiary b[data-stat="regen"] {
+  color: #7be58d;
+}
+
+.affix-bestiary b[data-stat="speed"] {
+  color: #ffd36d;
+}
+
+.affix-bestiary span {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 0.7rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.affix-bestiary em {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .author-qr-card {

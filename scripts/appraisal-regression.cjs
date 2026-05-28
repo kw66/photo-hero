@@ -171,6 +171,85 @@ const cases = [
     ),
   },
   {
+    label: "sword rejects defensive stat and kill-defense special",
+    input: {
+      sourceMode: "drawing",
+      itemName: "水晶长剑",
+      subjectName: "长剑",
+      objectType: "幻想武器",
+      identityDescription: "白色底上有一把黑线长剑，剑身细长，剑尖和握柄清楚，中央有蓝色水晶纹路。",
+      description: "水晶长剑像一件能稳住防线的装备。",
+      reason: "主体=长剑；模型误给防御成长。",
+      tags: ["长剑", "水晶", "防御"],
+      value: 22,
+      stats: { defense: 1, shield: 1 },
+      specialEffects: ["killDefense"],
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "defense", score: 3 }, { stat: "shield", score: 2 }],
+      specialAffinity: ["killDefense"],
+      skipSpecialRoll: true,
+    },
+    expect: ({ item, renderedDescription }) => (
+      item.stats.defense === 0
+      && item.stats.shield === 0
+      && !item.specialEffects.includes("killDefense")
+      && !item.specialEffects.includes("killShield")
+      && !item.specialEffects.includes("takeDamageDefense")
+      && !item.specialEffects.includes("shieldCrashAttackDown")
+      && (item.stats.attack > 0 || item.stats.speed > 0 || item.stats.lifesteal > 0 || item.specialEffects.includes("dealDamageAttack"))
+      && !/防线|防御|护盾|护板|小盾/.test(renderedDescription)
+    ),
+  },
+  {
+    label: "drawing ignores handwritten label text",
+    input: {
+      sourceMode: "drawing",
+      itemName: "神盾",
+      subjectName: "手写神盾",
+      objectType: "防护道具",
+      identityDescription: "白色画布中央是一把黑线短剑，剑身和握柄清楚，旁边写着“神盾”。",
+      description: "这幅画里的神盾可以挡住冲击。",
+      reason: "文字写着神盾，但图形主体是短剑。",
+      tags: ["神盾", "文字", "短剑"],
+      value: 20,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "shield", score: 3 }, { stat: "defense", score: 2 }],
+      specialAffinity: ["killShield"],
+      skipSpecialRoll: true,
+    },
+    expect: ({ item }) => (
+      /剑|刀/.test(item.itemName)
+      && !/神盾|护盾|盾牌/.test(item.itemName)
+      && item.stats.attack > 0
+      && item.stats.defense === 0
+      && item.stats.shield === 0
+      && !item.specialEffects.includes("killShield")
+    ),
+  },
+  {
+    label: "photo ignores printed text when subject is another object",
+    input: {
+      itemName: "神剑水杯",
+      subjectName: "水杯",
+      objectType: "杯子",
+      identityDescription: "玩家实拍的白色水杯主体清楚，放在桌面上，有真实阴影，杯身印着“神剑”两个字。",
+      description: "杯身文字像一把神剑。",
+      reason: "主体=水杯；文字写着神剑。",
+      tags: ["水杯", "神剑", "文字"],
+      value: 16,
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 1, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 3 }],
+      specialAffinity: ["dealDamageAttack"],
+      skipSpecialRoll: true,
+    },
+    expect: ({ item }) => (
+      !/剑/.test(item.itemName)
+      && item.stats.attack === 0
+      && !item.specialEffects.includes("dealDamageAttack")
+      && (item.stats.regen > 0 || item.stats.shield > 0 || item.stats.hp > 0)
+    ),
+  },
+  {
     label: "drawing shield removes hand drawn wording and keeps shield defense",
     input: {
       sourceMode: "drawing",
@@ -490,6 +569,8 @@ const cases = [
     const shieldEconomy = {
       shieldFourScore: score({ stats: { shield: 4 }, skipSpecialRoll: true }),
       shieldFourQuality: quality({ stats: { shield: 4 }, skipSpecialRoll: true }),
+      shieldFiveScore: score({ stats: { shield: 5 }, skipSpecialRoll: true }),
+      shieldFiveQuality: quality({ stats: { shield: 5 }, skipSpecialRoll: true }),
       rawValueShieldScore: score(rawValueShield),
       rawValueShieldQuality: quality(rawValueShield),
       shieldWithSpecialScore: score(shieldWithSpecial),
@@ -525,13 +606,16 @@ const cases = [
   if (runtimeChecks.valueMapping?.low?.mappedValue !== 8 || runtimeChecks.valueMapping?.mid?.mappedValue !== 17 || runtimeChecks.valueMapping?.high?.mappedValue !== 26) {
     failures.push({ label: "photo score should linearly map to current value range", valueMapping: runtimeChecks.valueMapping });
   }
-  if (runtimeChecks.shieldEconomy?.shieldFourScore !== 16 || runtimeChecks.shieldEconomy?.shieldFourQuality !== "rare") {
-    failures.push({ label: "shield +4 should not be epic without extra power", shieldEconomy: runtimeChecks.shieldEconomy });
+  if (runtimeChecks.shieldEconomy?.shieldFourScore !== 12 || runtimeChecks.shieldEconomy?.shieldFourQuality !== "common") {
+    failures.push({ label: "shield +4 should score with weight 3", shieldEconomy: runtimeChecks.shieldEconomy });
   }
-  if (runtimeChecks.shieldEconomy?.rawValueShieldScore !== 8 || runtimeChecks.shieldEconomy?.rawValueShieldQuality !== "common") {
+  if (runtimeChecks.shieldEconomy?.shieldFiveScore !== 15 || runtimeChecks.shieldEconomy?.shieldFiveQuality !== "rare") {
+    failures.push({ label: "shield +5 should be rare after shield weight change", shieldEconomy: runtimeChecks.shieldEconomy });
+  }
+  if (runtimeChecks.shieldEconomy?.rawValueShieldScore !== 6 || runtimeChecks.shieldEconomy?.rawValueShieldQuality !== "common") {
     failures.push({ label: "raw value should not turn shield +2 into legendary", shieldEconomy: runtimeChecks.shieldEconomy });
   }
-  if (runtimeChecks.shieldEconomy?.shieldWithSpecialScore !== 22 || runtimeChecks.shieldEconomy?.shieldWithSpecialQuality !== "legendary") {
+  if (runtimeChecks.shieldEconomy?.shieldWithSpecialScore !== 20 || runtimeChecks.shieldEconomy?.shieldWithSpecialQuality !== "epic") {
     failures.push({ label: "special effect value should still count toward shield item quality", shieldEconomy: runtimeChecks.shieldEconomy });
   }
   if (errors.length) failures.push({ label: "console errors", errors });

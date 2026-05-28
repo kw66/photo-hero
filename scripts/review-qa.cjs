@@ -381,14 +381,17 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: quality dismantle refunds should be 0.3/0.5/0.7/0.9, got ${JSON.stringify(refunds)}`);
     }
     const scoredItems = item.scoredItems || {};
-    if (scoredItems.shieldFourScore !== 16 || scoredItems.shieldFourQuality !== "rare") {
-      failures.push(`${name}: shield +4 should score as rare actual power, got ${JSON.stringify(scoredItems)}`);
+    if (scoredItems.shieldFourScore !== 12 || scoredItems.shieldFourQuality !== "common") {
+      failures.push(`${name}: shield +4 should score with weight 3, got ${JSON.stringify(scoredItems)}`);
+    }
+    if (scoredItems.shieldFiveScore !== 15 || scoredItems.shieldFiveQuality !== "rare") {
+      failures.push(`${name}: shield +5 should score as rare actual power, got ${JSON.stringify(scoredItems)}`);
     }
     if (scoredItems.shieldOnlyValue >= 21 && scoredItems.shieldOnlyScore < 21 && scoredItems.shieldOnlyQuality === "legendary") {
       failures.push(`${name}: shield-only item quality should not use raw photo value, got ${JSON.stringify(scoredItems)}`);
     }
-    if (scoredItems.shieldWithSpecialScore !== 22 || scoredItems.shieldWithSpecialQuality !== "legendary") {
-      failures.push(`${name}: meaningful special effects should still lift shield items to legendary, got ${JSON.stringify(scoredItems)}`);
+    if (scoredItems.shieldWithSpecialScore !== 20 || scoredItems.shieldWithSpecialQuality !== "epic") {
+      failures.push(`${name}: meaningful special effects should lift shield items to epic, got ${JSON.stringify(scoredItems)}`);
     }
   }
   if (name === "mobile-save-fallback") {
@@ -466,11 +469,11 @@ function assertScenario(name, metrics) {
   }
   if (name === "group-specials") {
     const specials = metrics.groupSpecials || {};
-    if (specials.sweepLeftHp !== 2 || specials.sweepCenterHp !== 0 || specials.sweepRightHp !== 2) {
+    if (specials.sweepLeftHp !== 0 || specials.sweepCenterHp !== 0 || specials.sweepRightHp !== 0) {
       failures.push(`${name}: sweep should still hit neighbors when center is killed, got ${JSON.stringify(specials)}`);
     }
     const visualSweepState = specials.visualSweepState || {};
-    if (visualSweepState["visual-left"] !== 2 || visualSweepState["visual-center"] !== 0 || visualSweepState["visual-right"] !== 2 || visualSweepState["visual-far"] !== 4) {
+    if (visualSweepState["visual-left"] !== 0 || visualSweepState["visual-center"] !== 0 || visualSweepState["visual-right"] !== 0 || visualSweepState["visual-far"] !== 4) {
       failures.push(`${name}: sweep should use visual card position, not selected attack order, got ${JSON.stringify(visualSweepState)}`);
     }
     if (specials.peerlessBaseAtk !== 4 || specials.peerlessBaseDef !== 1 || specials.peerlessAtk !== 7 || specials.peerlessDef !== 4) {
@@ -486,21 +489,27 @@ function assertScenario(name, metrics) {
     if ((activeKeys.filter((key) => key === "dealDamageAttack").length) !== 1) {
       failures.push(`${name}: same passive key should only activate once, got ${JSON.stringify(activeKeys)}`);
     }
-    if (specials.comboStrikeCount !== 2 || specials.comboShieldDamage !== 10 || specials.comboAttackAfterHit !== 2 || specials.comboDefenseAfterHit !== 1) {
-      failures.push(`${name}: combo passives should interact in one battle, got ${JSON.stringify(specials)}`);
+    if (specials.comboStrikeCount !== 2 || specials.comboShieldDamage !== 10 || specials.comboAttackAfterHit !== 1 || specials.comboDefenseAfterHit !== 1) {
+      failures.push(`${name}: combo skills should interact after their cooldown counts, got ${JSON.stringify(specials)}`);
     }
-    if (specials.comboBaseAtk !== -1 || specials.comboBattleAtk !== 1 || specials.comboAtkReadout?.base !== "-1" || specials.comboAtkReadout?.delta !== "+2" || specials.comboAtkReadout?.deltaKind !== "positive") {
+    if (specials.comboBaseAtk !== 4 || specials.comboBattleAtk !== 5 || specials.comboAtkReadout?.base !== "4" || specials.comboAtkReadout?.delta !== "+1" || specials.comboAtkReadout?.deltaKind !== "positive") {
       failures.push(`${name}: temporary attack should render as base plus green delta without changing base stats, got ${JSON.stringify({ base: specials.comboBaseAtk, battle: specials.comboBattleAtk, readout: specials.comboAtkReadout })}`);
     }
-    if (specials.zeroHeroDamage !== 0 || specials.zeroAttackAfterHit !== 1 || specials.zeroHpAfterHeroStrike !== 62 || specials.zeroDefenseAfterMonster !== 1 || specials.zeroHpAfterMonster !== 64) {
+    if (specials.zeroHeroDamage !== 0 || specials.zeroAttackAfterHit !== 1 || specials.zeroHpAfterHeroStrike !== 64 || specials.zeroDefenseAfterMonster !== 1 || specials.zeroHpAfterMonster !== 68) {
       failures.push(`${name}: attack/defense/regen/lifesteal should trigger from actions even at zero damage, got ${JSON.stringify(specials)}`);
     }
-    if (specials.sweepActionAttack !== 1 || specials.sweepActionHp !== 52) {
+    if (specials.sweepActionAttack !== 1 || specials.sweepActionHp !== 56) {
       failures.push(`${name}: sweep should not count as extra attack action for attack gain/lifesteal, got ${JSON.stringify(specials)}`);
     }
     const megaDefense = specials.megaDefenseState || {};
-    if (megaDefense.immuneUsed !== 1 || megaDefense.defenseSpecial !== 1 || megaDefense.hp !== 42) {
+    if (megaDefense.immuneUsed !== 2 || megaDefense.defenseSpecial !== 1 || megaDefense.hp !== 44) {
       failures.push(`${name}: mega defense immunity should still count as a defended action, got ${JSON.stringify(megaDefense)}`);
+    }
+    if (specials.heavyStrikeHp !== 1 || specials.heavyStrikeValue !== 9) {
+      failures.push(`${name}: heavy strike should fire on the third attack and record the 3x attack damage, got ${JSON.stringify(specials)}`);
+    }
+    if (specials.bloodrageAtk !== 8 || specials.bloodrageReadout?.base !== "4" || specials.bloodrageReadout?.delta !== "+4") {
+      failures.push(`${name}: bloodrage should add attack from missing HP without changing base attack, got ${JSON.stringify({ atk: specials.bloodrageAtk, readout: specials.bloodrageReadout })}`);
     }
   }
   if (name === "linked-traits") {
@@ -567,7 +576,7 @@ function assertScenario(name, metrics) {
     if (traits.knightDamageWithGuards !== 17 || traits.knightDamageAfterGuardDeath !== 17) {
       failures.push(`${name}: knight captain should not reduce damage through guards, got ${JSON.stringify(traits.knightState)}`);
     }
-    if (traits.shieldCrashGolemHp !== 5) failures.push(`${name}: shield crash should add current shield damage against sturdy enemies, got hp ${traits.shieldCrashGolemHp}`);
+    if (traits.shieldCrashGolemHp !== 0) failures.push(`${name}: shield crash should trigger on the second attack and add current shield damage against sturdy enemies, got hp ${traits.shieldCrashGolemHp}`);
   }
   if (name === "panel-toggle") {
     const panel = metrics.panelToggle || {};
@@ -770,8 +779,8 @@ function assertScenario(name, metrics) {
     if (formChecks.hpSwitch?.attackHp !== 30 || formChecks.hpSwitch?.backHp !== 60 || formChecks.hpSwitch?.lowForm !== "hp" || formChecks.hpSwitch?.lowHp !== 20 || formChecks.hpSwitch?.megaAttackHp !== 30 || formChecks.hpSwitch?.megaBackHp !== 70 || formChecks.hpSwitch?.megaLowForm !== "hp") {
       failures.push(`${name}: switching away from HP form should preserve missing HP and block lethal max-HP loss, got ${JSON.stringify(formChecks.hpSwitch)}`);
     }
-    if (formChecks.speedPreStrike?.hp !== 3 || formChecks.speedPreStrike?.attackBonus !== 2 || formChecks.speedPreStrike?.hpAfter !== 52 || formChecks.speedPreStrike?.heroClock === Infinity) {
-      failures.push(`${name}: mega speed pre-strike should trigger double strike/action effects before clock setup, got ${JSON.stringify(formChecks.speedPreStrike)}`);
+    if (formChecks.speedPreStrike?.hp !== 5 || formChecks.speedPreStrike?.attackBonus !== 0 || formChecks.speedPreStrike?.hpAfter !== 51 || formChecks.speedPreStrike?.heroClock === Infinity) {
+      failures.push(`${name}: mega speed pre-strike should not trigger cooldown skills before clock setup, got ${JSON.stringify(formChecks.speedPreStrike)}`);
     }
     if (formChecks.greedyDropBonus !== 0.1) failures.push(`${name}: mega greedy should keep film drop +0.1`);
     const visibleLabels = formChecks.visibleFormLabels || {};
@@ -1660,6 +1669,8 @@ function assertScenario(name, metrics) {
       const scoredItems = {
         shieldFourScore: hooks.scoreItemForTest?.({ stats: { shield: 4 }, skipSpecialRoll: true }),
         shieldFourQuality: hooks.getItemQualityForTest?.(hooks.scoreItemForTest?.({ stats: { shield: 4 }, skipSpecialRoll: true }) || 0)?.key,
+        shieldFiveScore: hooks.scoreItemForTest?.({ stats: { shield: 5 }, skipSpecialRoll: true }),
+        shieldFiveQuality: hooks.getItemQualityForTest?.(hooks.scoreItemForTest?.({ stats: { shield: 5 }, skipSpecialRoll: true }) || 0)?.key,
         shieldOnlyValue: shieldOnly.value,
         shieldOnlyScore: hooks.scoreItemForTest?.(shieldOnly),
         shieldOnlyQuality: hooks.getItemQualityForTest?.(hooks.scoreItemForTest?.(shieldOnly) || 0)?.key,
@@ -1677,9 +1688,9 @@ function assertScenario(name, metrics) {
         scoredItems,
         refunds: {
           common: hooks.getDismantleFilmReturnForTest(makeItem({ shield: 2 })),
-          rare: hooks.getDismantleFilmReturnForTest(makeItem({ shield: 4 })),
+          rare: hooks.getDismantleFilmReturnForTest(makeItem({ shield: 5 })),
           epic: hooks.getDismantleFilmReturnForTest(makeItem({ shield: 1 }, ["killShield"])),
-          legendary: hooks.getDismantleFilmReturnForTest(makeItem({ shield: 2 }, ["killShield"])),
+          legendary: hooks.getDismantleFilmReturnForTest(makeItem({ shield: 3 }, ["killShield"])),
         },
       };
     });
@@ -2048,9 +2059,11 @@ function assertScenario(name, metrics) {
         traits: [],
       });
       hooks.addSpecialItem("sweep", { itemName: "横扫测试刷", value: 15, stats: {}, specialAffinity: ["sweep"] });
-      hooks.setEnemies([makeEnemy("left"), makeEnemy("center"), makeEnemy("right")]);
+      hooks.setEnemies([makeEnemy("left"), makeEnemy("center", 12), makeEnemy("right")]);
       hooks.selectEnemies(["left", "center", "right"]);
       hooks.beginBattle(hooks.state.enemies);
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
       hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
       const sweepLeftHp = hooks.state.enemies.find((enemy) => enemy.id === "left")?.hp;
       const sweepCenterHp = hooks.state.enemies.find((enemy) => enemy.id === "center")?.hp;
@@ -2058,9 +2071,11 @@ function assertScenario(name, metrics) {
 
       hooks.resetGameForTest();
       hooks.addSpecialItem("sweep", { itemName: "横扫测试刷", value: 15, stats: {}, specialAffinity: ["sweep"] });
-      hooks.setEnemies([makeEnemy("visual-left"), makeEnemy("visual-center"), makeEnemy("visual-right"), makeEnemy("visual-far")]);
+      hooks.setEnemies([makeEnemy("visual-left"), makeEnemy("visual-center", 12), makeEnemy("visual-right"), makeEnemy("visual-far")]);
       hooks.selectEnemies(["visual-center", "visual-far", "visual-left", "visual-right"]);
       hooks.beginBattle(hooks.state.selectedEnemyIds.map((id) => hooks.state.enemies.find((enemy) => enemy.id === id)).filter(Boolean));
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
       hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
       const visualSweepState = Object.fromEntries(hooks.state.enemies.map((enemy) => [enemy.id, enemy.hp]));
 
@@ -2089,7 +2104,9 @@ function assertScenario(name, metrics) {
       hooks.selectEnemies(["combo-target"]);
       hooks.setHeroStats({ baseShield: 10, hp: 80 });
       hooks.beginBattle(hooks.state.enemies);
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
       const comboResults = hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       const activeSpecialKeys = hooks.getActiveSpecialsForTest().map((item) => item.key);
       const comboStrikeCount = comboResults.length;
@@ -2115,9 +2132,11 @@ function assertScenario(name, metrics) {
       hooks.selectEnemies(["zero-action-target"]);
       hooks.beginBattle(hooks.state.enemies);
       hooks.state.player.hp = 60;
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
       const zeroHeroResults = hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
       const zeroAttackAfterHit = hooks.state.battleSpecial.attack;
       const zeroHpAfterHeroStrike = hooks.state.player.hp;
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       const zeroDefenseAfterMonster = hooks.state.battleSpecial.defense;
       const zeroHpAfterMonster = hooks.state.player.hp;
@@ -2125,11 +2144,13 @@ function assertScenario(name, metrics) {
       hooks.resetGameForTest();
       hooks.addSpecialItem("sweep", { itemName: "wide sweep brush", description: "wide sweep brush", value: 15, stats: {}, specialAffinity: ["sweep"] });
       hooks.addSpecialItem("dealDamageAttack", { itemName: "sharp knife tester", description: "knife sharp", value: 15, stats: {}, specialAffinity: ["dealDamageAttack"] });
-      hooks.setEnemies([makeEnemy("sweep-left", 20), makeEnemy("sweep-center", 4), makeEnemy("sweep-right", 20)]);
+      hooks.setEnemies([makeEnemy("sweep-left", 20), makeEnemy("sweep-center", 20), makeEnemy("sweep-right", 20)]);
       hooks.selectEnemies(["sweep-left", "sweep-center", "sweep-right"]);
       hooks.setHeroStats({ hp: 70, baseHp: 80, baseAtk: 4, baseShield: 0, baseLifesteal: 2, shield: 0 });
       hooks.beginBattle(hooks.state.enemies);
       hooks.state.player.hp = 50;
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
       hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
       const sweepActionAttack = hooks.state.battleSpecial.attack;
       const sweepActionHp = hooks.state.player.hp;
@@ -2144,11 +2165,37 @@ function assertScenario(name, metrics) {
       hooks.beginBattle(hooks.state.enemies);
       hooks.state.player.hp = 40;
       hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
       const megaDefenseState = {
         hp: hooks.state.player.hp,
         defenseSpecial: hooks.state.battleSpecial.defense,
         immuneUsed: hooks.state.battleSpecial.damageImmuneUsed,
       };
+
+      hooks.resetGameForTest();
+      hooks.addSpecialItem("heavyStrike", { itemName: "heavy hammer tester", description: "heavy hammer smash", value: 16, stats: {}, specialAffinity: ["heavyStrike"] });
+      hooks.setHeroStats({ baseAtk: 3, baseShield: 0, shield: 0, hp: 80 });
+      hooks.setEnemies([makeEnemy("heavy-target", 16)]);
+      hooks.selectEnemies(["heavy-target"]);
+      hooks.beginBattle(hooks.state.enemies);
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[0], "attack");
+      const heavyStrikeHp = hooks.state.enemies[0]?.hp;
+      const heavyStrikeValue = hooks.state.inventory
+        .flatMap((item) => item ? Object.values(item.specialState || {}) : [])
+        .reduce((sum, data) => sum + (data.battleValue || 0), 0);
+
+      hooks.resetGameForTest();
+      hooks.addSpecialItem("bloodrage", { itemName: "blood rage tester", description: "red broken rage", value: 16, stats: {}, specialAffinity: ["bloodrage"] });
+      hooks.setHeroStats({ baseHp: 100, hp: 40, baseAtk: 4 });
+      hooks.setEnemies([makeEnemy("bloodrage-target", 20)]);
+      hooks.selectEnemies(["bloodrage-target"]);
+      hooks.beginBattle(hooks.state.enemies);
+      const bloodrageAtk = hooks.getBattleStatsForTest().atk;
+      hooks.render();
+      const bloodrageReadout = JSON.parse(window.render_game_to_text()).player.statReadouts?.atk || {};
+
       window.__reviewGroupSpecials = {
         sweepLeftHp,
         sweepCenterHp,
@@ -2176,6 +2223,10 @@ function assertScenario(name, metrics) {
         sweepActionAttack,
         sweepActionHp,
         megaDefenseState,
+        heavyStrikeHp,
+        heavyStrikeValue,
+        bloodrageAtk,
+        bloodrageReadout,
       };
     });
   });
@@ -2259,15 +2310,17 @@ function assertScenario(name, metrics) {
         && warriorAfterDeathState[2].atk === 6 && warriorAfterDeathState[2].def === 0 && warriorAfterDeathState[2].speed === 2;
 
       hooks.setHeroStats({ hp: 80, shield: 3, baseDef: 10, baseShield: 0 });
+      hooks.addSpecialItem("takeDamageDefense", { itemName: "wizard guard tester", description: "shield shell protect", value: 15, stats: {}, specialAffinity: ["takeDamageDefense"] });
       enemies = begin([baseEnemy("z0", "wizard")]);
       const wizardSingleDef = hooks.getBattleStatsForTest(enemies.map((enemy) => enemy.id)).def;
       hooks.addSpecialItem("takeDamageDefense", { itemName: "阻击护壳测试", description: "shield shell protect", value: 15, stats: {}, specialAffinity: ["takeDamageDefense"] });
+      hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["z0"]), 1);
       hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["z0"]), 1);
       const wizardTempDefAfterHit = hooks.getBattleStatsForTest(["z0"]).def;
       const wizardBaseDefAfterHit = hooks.getPlayerStats().def;
       hooks.render();
       const wizardStatReadout = JSON.parse(window.render_game_to_text()).player.statReadouts?.def || {};
-      for (let i = 0; i < 4; i += 1) {
+      for (let i = 0; i < 10; i += 1) {
         hooks.resolveMonsterStrike(enemies[0], hooks.getBattleStatsForTest(["z0"]), 1);
       }
       const wizardTempDefAtCap = hooks.getBattleStatsForTest(["z0"]).def;
@@ -2369,9 +2422,10 @@ function assertScenario(name, metrics) {
 
       hooks.resetGameForTest();
       hooks.addSpecialItem("shieldCrashAttackDown", { itemName: "护盾撞击测试", value: 16, stats: {} });
-      hooks.setHeroStats({ shield: hooks.getPlayerStats().shield });
+      hooks.setHeroStats({ baseShield: 10, shield: 10 });
       enemies = begin([baseEnemy("go2", "golem")]);
-      hooks.applyHeroDamageToEnemy(enemies[0], hooks.getBattleStatsForTest(["go2"]));
+      hooks.resolveHeroStrikeAgainstEnemy(enemies[0], "attack");
+      hooks.resolveHeroStrikeAgainstEnemy(enemies[0], "attack");
       const shieldCrashGolemHp = enemies[0].hp;
 
       window.__reviewLinkedTraits = {
@@ -2621,6 +2675,7 @@ function assertScenario(name, metrics) {
     for (let i = 0; i < 30 && !xiaomiRequest; i += 1) {
       await page.waitForTimeout(100);
     }
+    await page.waitForFunction(() => !/正在测试/.test(document.querySelector("#chatResult")?.innerText || ""), null, { timeout: 3000 }).catch(() => {});
     await page.evaluate((request) => {
       const body = request?.body || {};
       const content = body.messages?.find?.((message) => message.role === "user")?.content || [];
@@ -2842,6 +2897,9 @@ function assertScenario(name, metrics) {
 
       hooks.addSpecialItem("sweep", { itemName: "横扫音叉", value: 20, stats: { attack: 0 } });
       setupBattle(["se-left", "se-center", "se-right"]);
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
+      hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
+      hooks.clearAudioEvents();
       hooks.resolveHeroStrikeAgainstEnemy(hooks.state.enemies[1], "attack");
       const sweepBattleHits = count("battleHit");
       const sweepEnemyHitCount = Object.keys(hooks.state.enemyHitEffectUntilById || {}).length;
