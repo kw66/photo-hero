@@ -981,13 +981,26 @@ const state = {
 let selectedBestiaryGroup = "normal";
 let bestiaryPageByGroup = { normal: 0, boss: 0, npc: 0, affix: 0 };
 let formGridRendered = false;
+let bootTipIndex = 0;
+let bootTipTimer = null;
+
+const bootTips = [
+  "点空装备格，拍下身边小物，它会变成随身装备。",
+  "画图勇者只看线条、轮廓和颜色，写字不会替你作证。",
+  "普通楼层可以只挑一只怪，也可以多选怪物换更多胶卷。",
+  "牌上写着会倒下，就先别硬冲。",
+  "胶卷和画布随时等价切换，已经生成的装备不会改变。",
+  "隐藏层要三张牌都点亮，战斗才会开始。",
+  "救出公主后打败最终强敌，结局会不同。",
+];
 
 bootstrapGame();
 
 async function bootstrapGame() {
   bootPreloadState.active = true;
   bootPreloadState.startedAt = Date.now();
-  setBootProgress("检查塔内图像...", 0, 1);
+  startBootTips();
+  setBootProgress("检查冒险图像...", 0, 1);
   try {
     await preloadBootResources();
   } catch (error) {
@@ -1019,7 +1032,7 @@ async function preloadBootResources() {
   bootPreloadState.expected = imageUrls.length + sfxKeys.length + criticalBgmKeys.length;
   bootPreloadState.completed = 0;
   bootPreloadState.failures = [];
-  setBootProgress("预加载塔内图像...", 0, bootPreloadState.expected || 1);
+  setBootProgress("预加载冒险图像...", 0, bootPreloadState.expected || 1);
 
   const jobs = [
     ...imageUrls.map((url) => () => preloadImageAsset(url, bootImagePreloadTimeoutMs)),
@@ -1083,10 +1096,28 @@ async function runBootPreloadJobs(jobs, concurrency = 4) {
 function getBootProgressLabel() {
   const done = bootPreloadState.completed;
   const imageDone = Math.min(done, bootPreloadState.imageKeys.length);
-  if (imageDone < bootPreloadState.imageKeys.length) return "预加载塔内图像...";
+  if (imageDone < bootPreloadState.imageKeys.length) return "预加载冒险图像...";
   const sfxDone = Math.min(Math.max(done - bootPreloadState.imageKeys.length, 0), bootPreloadState.sfxKeys.length);
   if (sfxDone < bootPreloadState.sfxKeys.length) return "预加载打击音效...";
   return "预加载前段音乐...";
+}
+
+function startBootTips() {
+  setBootTip(0);
+  if (bootTipTimer) window.clearInterval(bootTipTimer);
+  bootTipTimer = window.setInterval(() => {
+    setBootTip(bootTipIndex + 1);
+  }, 2400);
+}
+
+function setBootTip(nextIndex) {
+  const tip = document.getElementById("bootTipText");
+  if (!tip || !bootTips.length) return;
+  bootTipIndex = ((nextIndex % bootTips.length) + bootTips.length) % bootTips.length;
+  tip.classList.remove("is-visible");
+  tip.textContent = bootTips[bootTipIndex];
+  void tip.offsetWidth;
+  tip.classList.add("is-visible");
 }
 
 function setBootProgress(label, done, total) {
@@ -1097,7 +1128,7 @@ function setBootProgress(label, done, total) {
   const count = document.getElementById("bootProgressCount");
   const percentValue = total > 0 ? clampNumber(done / total, 0, 1) * 100 : 100;
   const percentText = `${Math.round(percentValue)}%`;
-  if (text) text.textContent = label || "正在装填塔内资源...";
+  if (text) text.textContent = label || "正在装填冒险资源...";
   if (bar) bar.style.setProperty("--boot-progress", percentText);
   if (count) count.textContent = percentText;
 }
@@ -1105,7 +1136,11 @@ function setBootProgress(label, done, total) {
 function finishBootLoader() {
   bootPreloadState.active = false;
   bootPreloadState.finishedAt = Date.now();
-  setBootProgress("资源已就绪，进入魔塔。", 1, 1);
+  if (bootTipTimer) {
+    window.clearInterval(bootTipTimer);
+    bootTipTimer = null;
+  }
+  setBootProgress("资源已就绪，开始冒险。", 1, 1);
   document.body.classList.remove("is-booting");
   const loader = document.getElementById("bootLoader");
   if (!loader) return;

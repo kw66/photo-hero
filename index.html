@@ -4,14 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260529-appraisal-battle-unlock">
+    <link rel="stylesheet" href="./styles.css?v=20260529-boot-tips">
   </head>
   <body class="is-booting">
     <div class="boot-loader" id="bootLoader" role="status" aria-live="polite" aria-label="资源加载中">
       <div class="boot-loader-panel">
-        <span class="boot-loader-eyebrow">魔塔入口</span>
-        <strong>正在装填塔内资源</strong>
+        <span class="boot-loader-eyebrow">照片勇者</span>
+        <strong>正在装填冒险资源</strong>
         <p id="bootProgressText">检查图像、音效和前段音乐...</p>
+        <div class="boot-tip" aria-live="polite">
+          <span class="boot-tip-label">勇者贴士</span>
+          <span class="boot-tip-text is-visible" id="bootTipText">点空装备格，拍下身边小物，它会变成随身装备。</span>
+        </div>
         <div class="boot-progress" aria-hidden="true">
           <span id="bootProgressBar"></span>
         </div>
@@ -360,6 +364,6 @@
       </section>
     </div>
 
-    <script defer src="./app.js?v=20260529-appraisal-battle-unlock"></script>
+    <script defer src="./app.js?v=20260529-boot-tips"></script>
   </body>
 </html>

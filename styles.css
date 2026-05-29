@@ -229,7 +229,7 @@ body.is-booting .app-shell {
 
 .boot-loader-panel {
   width: min(420px, 100%);
-  padding: 18px;
+  padding: 18px 18px 16px;
   border: 1px solid color-mix(in srgb, var(--panel-border) 82%, #f8f6ed 18%);
   border-radius: 8px;
   background:
@@ -261,11 +261,51 @@ body.is-booting .app-shell {
 }
 
 .boot-loader p {
-  min-height: 2.6em;
-  margin: 10px 0 12px;
+  min-height: 1.35em;
+  margin: 10px 0 10px;
   color: var(--ink-soft);
   font-family: var(--font-reading);
   font-size: 0.96rem;
+}
+
+.boot-tip {
+  min-height: 58px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 7%), rgb(0 0 0 / 24%)),
+    rgb(10 14 13 / 72%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 10%),
+    0 8px 18px rgb(0 0 0 / 20%);
+  animation: bootTipCardDrift 3.4s ease-in-out infinite;
+}
+
+.boot-tip-label {
+  display: block;
+  color: color-mix(in srgb, var(--amber) 84%, #ffffff 16%);
+  font-family: var(--font-title);
+  font-size: 0.74rem;
+  line-height: 1;
+  text-shadow: var(--stone-text-shadow);
+}
+
+.boot-tip-text {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink);
+  font-family: var(--font-reading);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  text-wrap: balance;
+  opacity: 0;
+  transform: translateY(7px);
+}
+
+.boot-tip-text.is-visible {
+  animation: bootTipFloat 580ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
 }
 
 .boot-progress {
@@ -296,6 +336,27 @@ body.is-booting .app-shell {
   margin-top: 8px;
   text-align: right;
   color: var(--ink-soft);
+}
+
+@keyframes bootTipFloat {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bootTipCardDrift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
 }
 
 .app-shell {
