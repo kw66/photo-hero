@@ -150,6 +150,71 @@ const cases = [
     expect: ({ item }) => item.stats.hp === 0 && (item.stats.attack > 0 || item.stats.defense > 0 || item.stats.shield > 0),
   },
   {
+    label: "drawing mouse stays mouse instead of amulet or shield",
+    input: {
+      sourceMode: "drawing",
+      itemName: "符石护符",
+      subjectName: "护符",
+      objectType: "幻想道具",
+      objectiveAssessment: "客观评价：一个上圆下窄的封闭轮廓，中间横线分出左右按键，顶部中央有滚轮，主体完整。",
+      subjectCandidates: [
+        { name: "鼠标", category: "电脑外设", evidence: ["圆角外轮廓", "左右按键分割线", "中间滚轮"], missing: ["没有线缆"], confidence: 0.9 },
+        { name: "护符", category: "幻想道具", evidence: ["轮廓较圆"], missing: ["没有吊环或符号结构"], confidence: 0.2 },
+      ],
+      recognizedSubject: "鼠标",
+      recognition: "recognizable_object",
+      visualEvidence: ["圆角外轮廓", "左右按键分割线", "中间滚轮"],
+      identityDescription: "白色底上有一个黑线鼠标轮廓，顶部圆、底部略窄，中间有滚轮和按键分割线。",
+      description: "符石护符在塔里压住敌人的视线。",
+      reason: "主体=鼠标；证据=按键分割线和滚轮；模型误命名为护符。",
+      tags: ["鼠标", "外设"],
+      value: 14,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "shield", score: 3 }, { stat: "speed", score: 2 }],
+      specialAffinity: ["shieldCrashAttackDown"],
+    },
+    expect: ({ item, renderedDescription }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /鼠标/.test(item.itemName)
+      && !/护符|盾|魔杖|法杖|神器/.test(item.itemName)
+      && !/护符|盾牌|魔杖|法杖|神器/.test(renderedDescription)
+      && item.stats.lifesteal === 0
+      && item.specialEffects.length === 0
+      && !item.specialEffects.includes("heavyStrike")
+    ),
+  },
+  {
+    label: "drawing backpack and microphone preserve open-vocabulary subject",
+    input: {
+      sourceMode: "drawing",
+      itemName: "圣音法杖",
+      subjectName: "话筒",
+      objectType: "麦克风",
+      objectiveAssessment: "客观评价：上方是椭圆网格头，下方接一条短柄，像手持话筒；旁边没有杖头宝石。",
+      subjectCandidates: [
+        { name: "话筒", category: "音频设备", evidence: ["椭圆网格头", "短柄"], missing: [], confidence: 0.88 },
+        { name: "法杖", category: "魔法装备", evidence: ["有柄"], missing: ["没有杖头宝石或长杆"], confidence: 0.18 },
+      ],
+      recognizedSubject: "话筒",
+      recognition: "recognizable_object",
+      visualEvidence: ["椭圆网格头", "短柄"],
+      identityDescription: "黑线画出一支话筒，上方椭圆网格头，下方短柄。",
+      description: "圣音法杖把声音压成一道塔光。",
+      reason: "主体=话筒；不是法杖。",
+      tags: ["话筒", "声音"],
+      value: 13,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 2 }, { stat: "regen", score: 1 }],
+      specialAffinity: [],
+    },
+    expect: ({ item }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /话筒/.test(item.itemName)
+      && !/法杖|魔杖|神器/.test(item.itemName)
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
     label: "drawing umbrella stays an umbrella instead of a shield",
     input: {
       sourceMode: "drawing",
@@ -993,6 +1058,30 @@ const cases = [
     ),
   },
   {
+    label: "photo bow is identified before any oversize rejection",
+    input: {
+      itemName: "长弓",
+      subjectName: "弓箭",
+      objectType: "手持器具",
+      identityDescription: "照片主体是一把弓箭，弓身、弓弦和箭头清楚可见，属于可搬动器具，不是车辆或建筑。",
+      description: "长弓的弧线适合在塔里拉开距离。",
+      reason: "主体=弓箭；尺寸=手持；质量=清晰；倾向=攻击。",
+      tags: ["弓箭", "弓弦", "箭头"],
+      value: 14,
+      tooLarge: true,
+      isEquipable: false,
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 3 }, { stat: "speed", score: 1 }],
+    },
+    expect: ({ item }) => (
+      /弓|箭/.test(item.itemName)
+      && !item.tooLarge
+      && item.isEquipable
+      && item.value > 0
+      && (item.stats.attack > 0 || item.stats.speed > 0)
+    ),
+  },
+  {
     label: "real gaming mouse remains valid equipment",
     input: {
       itemName: "雷蛇游戏鼠标",
@@ -1175,6 +1264,41 @@ const cases = [
       heavyStrike: hooks.getSpecialEffectValueForTest?.("heavyStrike"),
       bloodrage: hooks.getSpecialEffectValueForTest?.("bloodrage"),
     };
+    const parsedRecognizedMouse = hooks.parseModelTextForTest?.(JSON.stringify({
+      itemName: "符石护符",
+      subjectName: "护符",
+      objectType: "幻想道具",
+      objectiveAssessment: "客观评价：一个上圆下窄的封闭轮廓，中间横线分出左右按键，顶部中央有滚轮，主体完整。",
+      subjectCandidates: [
+        { name: "鼠标", category: "电脑外设", evidence: ["圆角外轮廓", "左右按键分割线", "中间滚轮"], missing: ["没有线缆"], confidence: 0.9 },
+        { name: "护符", category: "幻想道具", evidence: ["轮廓较圆"], missing: ["没有吊环"], confidence: 0.2 },
+      ],
+      recognizedSubject: "鼠标",
+      recognition: "recognizable_object",
+      visualEvidence: ["圆角外轮廓", "左右按键分割线", "中间滚轮"],
+      identityDescription: "白色底上有一个黑线鼠标轮廓，顶部圆、底部略窄，中间有滚轮和按键分割线。",
+      description: "符石护符在塔里压住敌人的视线。",
+      reason: "主体=鼠标；证据=按键分割线和滚轮；模型误命名为护符。",
+      tags: ["鼠标", "外设"],
+      value: 14,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "shield", score: 3 }, { stat: "speed", score: 2 }],
+      specialAffinity: ["shieldCrashAttackDown"],
+    }), { sourceMode: "drawing" });
+    const parsedPhotoBow = hooks.parseModelTextForTest?.(JSON.stringify({
+      itemName: "长弓",
+      subjectName: "弓箭",
+      objectType: "手持器具",
+      identityDescription: "照片主体是一把弓箭，弓身、弓弦和箭头清楚可见，属于可搬动器具，不是车辆或建筑。",
+      description: "长弓的弧线适合在塔里拉开距离。",
+      reason: "主体=弓箭；尺寸=手持；质量=清晰；倾向=攻击。",
+      tags: ["弓箭", "弓弦", "箭头"],
+      value: 14,
+      tooLarge: true,
+      isEquipable: false,
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 3 }, { stat: "speed", score: 1 }],
+    }), { sourceMode: "photo" });
     return {
       activeSpecial: activeSpecial || null,
       hp: hooks.getHeroStateForTest?.()?.hp,
@@ -1183,6 +1307,19 @@ const cases = [
       valueMapping,
       shieldEconomy,
       specialValues,
+      parsedRecognizedMouse: parsedRecognizedMouse ? {
+        itemName: parsedRecognizedMouse.itemName,
+        value: parsedRecognizedMouse.value,
+        specialEffects: parsedRecognizedMouse.specialEffects,
+        drawingRecognition: parsedRecognizedMouse.drawingRecognition,
+      } : null,
+      parsedPhotoBow: parsedPhotoBow ? {
+        itemName: parsedPhotoBow.itemName,
+        tooLarge: parsedPhotoBow.tooLarge,
+        isEquipable: parsedPhotoBow.isEquipable,
+        value: parsedPhotoBow.value,
+        stats: parsedPhotoBow.stats,
+      } : null,
     };
   });
   await browser.close();
@@ -1220,6 +1357,12 @@ const cases = [
   }
   if (runtimeChecks.specialValues?.heavyStrike !== 14 || runtimeChecks.specialValues?.bloodrage !== 12) {
     failures.push({ label: "heavyStrike/bloodrage special values should match tuning", specialValues: runtimeChecks.specialValues });
+  }
+  if (!/鼠标/.test(runtimeChecks.parsedRecognizedMouse?.itemName || "") || /护符|盾|魔杖/.test(runtimeChecks.parsedRecognizedMouse?.itemName || "") || runtimeChecks.parsedRecognizedMouse?.specialEffects?.length) {
+    failures.push({ label: "normalized model output should preserve drawing recognizedSubject", parsedRecognizedMouse: runtimeChecks.parsedRecognizedMouse });
+  }
+  if (!/弓|箭/.test(runtimeChecks.parsedPhotoBow?.itemName || "") || runtimeChecks.parsedPhotoBow?.tooLarge || !runtimeChecks.parsedPhotoBow?.isEquipable || runtimeChecks.parsedPhotoBow?.value <= 0) {
+    failures.push({ label: "normalized model output should correct portable bow oversize rejection", parsedPhotoBow: runtimeChecks.parsedPhotoBow });
   }
   if (errors.length) failures.push({ label: "console errors", errors });
 

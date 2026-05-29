@@ -260,7 +260,8 @@ function assertScenario(name, metrics) {
     if (!result.pendingAfterFailure || result.pendingSourceModeAfterFailure !== "drawing") failures.push(`${name}: failed drawing appraisal should keep the pending drawing input, got ${JSON.stringify(result)}`);
     if (result.filmAfterFailure !== result.filmBeforeFailure) failures.push(`${name}: failed appraisal should not consume canvas/film, got ${JSON.stringify(result)}`);
     if (!result.retryButtonEnabled || result.retryButtonText !== "鉴定") failures.push(`${name}: retry button should stay enabled after failure, got ${JSON.stringify(result)}`);
-    if (!/画作还在/.test(result.detailAfterFailure || "") || !/重新鉴定/.test(result.detailAfterFailure || "")) failures.push(`${name}: detail copy should tell the player the drawing is retained and retryable, got ${result.detailAfterFailure}`);
+    if (!/画作还在/.test(result.detailAfterFailure || "") || !/重新鉴定/.test(result.detailAfterFailure || "") || !/选怪战斗/.test(result.detailAfterFailure || "")) failures.push(`${name}: detail copy should tell the player the drawing is retained, retryable, and non-blocking, got ${result.detailAfterFailure}`);
+    if (!result.enemySelectionAfterFailure || result.attackEnabledAfterFailure !== true || result.attackTextAfterFailure !== "战斗") failures.push(`${name}: failed appraisal should not block selecting enemies and fighting, got ${JSON.stringify(result)}`);
     if (result.requestCountAfterRetry !== 2) failures.push(`${name}: clicking retry should send another appraisal request, got ${JSON.stringify(result)}`);
     if (!result.pendingAfterRetry || result.pendingSourceModeAfterRetry !== "drawing") failures.push(`${name}: failed retry should still keep the drawing input, got ${JSON.stringify(result)}`);
   }
@@ -792,7 +793,7 @@ function assertScenario(name, metrics) {
   }
   if (name === "mobile-info") {
     if (metrics.activeInfoTab !== "about") failures.push(`${name}: info panel should open on outside/trail tab`);
-    if (!metrics.visibleButtons.includes("塔外")) failures.push(`${name}: missing outside tab`);
+    if (!metrics.visibleButtons.includes("作者")) failures.push(`${name}: missing author tab`);
     if (!metrics.visibleButtons.includes("冒险手册") || metrics.visibleButtons.includes("游戏信息")) failures.push(`${name}: top info button should be 冒险手册, got ${JSON.stringify(metrics.visibleButtons)}`);
     if (!metrics.visibleButtons.includes("拍照/画图")) failures.push(`${name}: missing photo/drawing tab`);
     if (!metrics.visibleButtons.includes("战斗")) failures.push(`${name}: missing battle tab`);
@@ -810,7 +811,7 @@ function assertScenario(name, metrics) {
     }
     if (!metrics.groupQr.loaded || !metrics.groupQr.src.includes("xiaohongshu-group-qr.jpg")) failures.push(`${name}: Xiaohongshu QR image did not load`);
     if (!metrics.groupQr.square) failures.push(`${name}: Xiaohongshu QR image should be square`);
-    if (metrics.groupQr.text !== "加入塔外营地") failures.push(`${name}: Xiaohongshu QR copy should be 加入塔外营地`);
+    if (metrics.groupQr.text !== "加入小红书交流群") failures.push(`${name}: Xiaohongshu QR copy should be 加入小红书交流群`);
     if (!/项目页查看更新记录/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing compact project link copy`);
     if (!/交流帖分享你的装备/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing compact Xiaohongshu post copy`);
     if (/github\.com\/kw66\/photo-hero|打开帖子|小红书帖子|求个|求点赞|作者\/统计|全站统计/.test(metrics.groupQr.linksText || "")) failures.push(`${name}: author block still exposes old/manual link text`);
@@ -1179,6 +1180,17 @@ function assertScenario(name, metrics) {
         retryButtonEnabled: Boolean(retryButton && !retryButton.hidden && !retryButton.disabled),
         retryButtonText: retryButton?.textContent?.trim() || "",
         detailAfterFailure: document.querySelector("#equipmentDetail")?.innerText || "",
+      };
+    });
+    await page.locator(".enemy-select-card").first().click();
+    await page.evaluate(() => {
+      const state = JSON.parse(window.render_game_to_text());
+      const attackButton = document.querySelector("#attackBtn");
+      window.__reviewAppraisalRetry = {
+        ...window.__reviewAppraisalRetry,
+        enemySelectionAfterFailure: state.selectedEnemyCount,
+        attackEnabledAfterFailure: Boolean(attackButton && !attackButton.disabled),
+        attackTextAfterFailure: attackButton?.textContent?.trim() || "",
       };
     });
     await page.click("#analyzePhotoBtn");

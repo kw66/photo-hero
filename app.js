@@ -343,8 +343,8 @@ const photoSpecialEffects = [
 
 const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
 
-const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|袋|钱包|卡包|鞋|拖鞋|滑板|风扇|音箱|音响|喇叭|橡皮|橡皮擦|胶带|刷|梳|钥匙|钥匙扣|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物|毛巾|纸巾|湿巾|电池|灯|勺|叉|筷|盘|碗|玩偶|娃娃|徽章|挂件/i;
-const everydayDrawingObjectPattern = /雨伞|伞面|伞柄|伞骨|折伞|中性笔|圆珠笔|签字笔|铅笔|钢笔|马克笔|水笔|笔杆|笔尖|笔帽|汤勺|勺子|勺头|勺柄|汤匙|叉子|筷子|筷|碗|盘子|盘|杯子|水杯|矿泉水|水瓶|饮料瓶|瓶子|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|西瓜|水果|果实|面包|糖果|饼干|饭团|钥匙|锁|手机|笔记本电脑|笔记本|电脑|平板|屏幕|相机|眼镜|橡皮|尺子|书本|书|本子|毛巾|纸巾|电池|灯泡|遥控器|耳机|鼠标|键盘|风扇|玩具|模型|摆件|挂件|umbrella|pen|pencil|spoon|fork|chopstick|bowl|plate|mineral water|water bottle|cup|bottle|apple|banana|orange|pear|fruit|bread|candy|cookie|key|phone|laptop|computer|tablet|screen|camera|glasses|eraser|ruler|book|towel|battery|lamp|remote|mouse|keyboard|fan|toy|model/i;
+const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|弓箭|弓|箭|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|袋|钱包|卡包|鞋|拖鞋|滑板|风扇|音箱|音响|喇叭|橡皮|橡皮擦|胶带|刷|梳|钥匙|钥匙扣|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物|毛巾|纸巾|湿巾|电池|灯|勺|叉|筷|盘|碗|玩偶|娃娃|徽章|挂件/i;
+const everydayDrawingObjectPattern = /雨伞|伞面|伞柄|伞骨|折伞|中性笔|圆珠笔|签字笔|铅笔|钢笔|马克笔|水笔|笔杆|笔尖|笔帽|汤勺|勺子|勺头|勺柄|汤匙|叉子|筷子|筷|碗|盘子|盘|杯子|水杯|矿泉水|水瓶|饮料瓶|瓶子|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|西瓜|水果|果实|面包|糖果|饼干|饭团|钥匙|锁|手机|笔记本电脑|笔记本|电脑|平板|屏幕|相机|眼镜|橡皮|尺子|书包|背包|话筒|麦克风|麦|书本|书|本子|记事本|笔记本|毛巾|纸巾|电池|灯泡|遥控器|耳机|鼠标|键盘|风扇|玩具|模型|摆件|挂件|umbrella|pen|pencil|spoon|fork|chopstick|bowl|plate|mineral water|water bottle|cup|bottle|apple|banana|orange|pear|fruit|bread|candy|cookie|key|phone|laptop|computer|tablet|screen|camera|glasses|eraser|ruler|backpack|bag|microphone|mic|notebook|book|towel|battery|lamp|remote|mouse|keyboard|fan|toy|model/i;
 const oversizedScenePattern = /汽车|车辆|公交|火车|飞机|船|房|楼|建筑|天空|风景|街道|道路|公路|山|海|河|湖|森林|荒原|全景|远景|大型家具|床|沙发|衣柜|冰箱|洗衣机|大面积背景/i;
 const explicitOversizePattern = /比人.{0,8}(大|高)|比一个人.{0,8}(大|高)|尺寸.{0,8}(超过|大于|高于).{0,4}人|人.{0,4}(还要)?大|巨大|无法搬动|不能搬动|主要是.{0,6}(场景|背景)|大面积背景/i;
 
@@ -368,6 +368,7 @@ const photoIdentificationUserPrompt = [
   "2. 手持、口袋、桌面、可搬动小物都 isEquipable=true；普通、破旧、包装、贴纸、玩具、模型、小型植物、石头、叶片、装饰物都可以。",
   "3. 真实汽车、公交、火车、飞机、船、整栋建筑、整间房、床、沙发、冰箱、道路、天空、山海河湖等人尺寸以上主体 isEquipable=false。",
   "4. 大背景中有明确前景小物时，鉴定前景小物；大范围、室内、桌面杂物、远构图只轻微影响 subjectArea/backgroundClean，不要直接判成网图或虚拟图。",
+  "4b. 即使主体过大或不能装备，也必须先客观识别它是什么，并写清 itemName、subjectName、objectType 和 identityDescription；不能因为太大就跳过主体判断。",
   "5. 网图/截图不自动无效；正常拍摄的现实实物仍按实物鉴定。游戏界面、游戏装备卡图、AI 渲染、动画、插画、原画、透明素材、白底电商图、精修宣传图才低 realPhoto。",
   "6. 纸质卡片、贴纸、包装、海报、屏幕载体按载体本身鉴定，不把里面的幻想武器、角色或游戏道具当实物；通常低 photoQuality、低 statAffinity、specialAffinity=[]。",
   "7. 玩具、模型、手办、摆件、道具、纸板/塑料/金属小物可鉴定；但孤立黑白底、抠图、商品图、素材图、渲染图只能低 realPhoto、低分、无特殊效果。",
@@ -425,15 +426,16 @@ const photoIdentificationUserPrompt = [
 ].join("\n");
 
 const drawingIdentificationSystemPrompt = [
-  "你是《画图勇者》的涂鸦装备鉴定器。输入是一张玩家随手画的涂鸦/手绘图，你要先观察线条、颜色、形状和构图，再猜测它最像什么装备、道具、符号或部件。",
+  "你是《画图勇者》的简笔画鉴定器。输入是一张玩家画的简笔画/手绘图，你的第一任务是客观识别图形主体，第二任务才是把已识别主体转成装备素材。",
   "你必须只输出一个 JSON 对象，不要 Markdown，不要代码块，不要额外解释。",
   "第一字符必须是 {，最后一个字符必须是 }。",
   "你不负责计算最终 value、最终 stats 或最终 specialEffects；这些数值由本地游戏规则统一结算。",
-  "必须先做客观画面评价，再做主体识别。客观评价只写实际看见的线条数量、闭合轮廓、关键部件、缺失部件和完成度，不要先套装备名或幻想设定。",
+  "必须先做客观画面评价，再开放词表识别主体。客观评价只写实际看见的线条数量、闭合轮廓、关键部件、缺失部件和完成度，不要先套装备名或幻想设定。",
+  "识别主体时不要局限在武器、防具和魔法道具。日常用品、电子外设、办公用品、食物、容器、玩具、符号、动物部件、幻想部件都可以是主体；像什么就说什么。",
   "如果客观评价显示只有一两笔、单条弧线/斜线、松散螺旋、随手乱线，或者缺少目标物的关键结构，就必须按无法识别主体处理，不能硬猜成雨伞、翅膀、盾、剑、魔杖或神器。",
   "画图模式鼓励玩家画有趣、酷炫、天马行空的东西；不要因为它不是现实照片、不是现实物体、是幻想符号或卡通图案就直接判低分。",
-  "画图模式也支持现实世界和日常用品。若线条明显像苹果、香蕉、雨伞、笔、汤勺、杯子、钥匙、手机等，就诚实识别成该物品，不要强行改成剑、盾、魔杖或神器。",
-  "你可以给清楚主体加一点装备感前缀，例如 雷纹手机、旧铁汤勺、风纹雨伞；但名称和主体类别必须保真，手机仍然叫手机，雨伞仍然叫伞，汤勺仍然叫勺，不能换成法杖、盾牌、神剑或护符。",
+  "画图模式也支持现实世界和日常用品。若线条明显像鼠标、键盘、话筒、记事本、书包、苹果、香蕉、雨伞、笔、汤勺、杯子、钥匙、手机等，就诚实识别成该物品，不要强行改成剑、盾、魔杖、护符或神器。",
+  "你可以给清楚主体加一点装备感前缀，例如 雷纹鼠标、旧铁汤勺、风纹雨伞；但名称和主体类别必须保真，鼠标仍然叫鼠标，手机仍然叫手机，雨伞仍然叫伞，汤勺仍然叫勺，不能换成法杖、盾牌、神剑或护符。",
   "玩家写在画里的字、标签、注释和 OCR 内容不能作为主体判断、命名、属性或特殊效果依据；只能根据线条、轮廓、颜色、构图和可见图形猜测主体。",
   "但是你必须仔细辨别画的到底是什么，不要把看不清的圆形、线团、折线、笑脸、爱心、星星默认说成魔杖、法杖、神器、飞刃、宝石或幻想武器。",
   "魔杖/法杖只有在能看出长柄、杖身、顶端宝石/星尖/魔法棒轮廓时才可以命名；剑/刀/飞刃/弓/箭也必须有刃、柄、弓弦、箭头等明确特征；鞋/靴轮廓要按鞋靴处理，不要改成坠饰或宝石。",
@@ -447,11 +449,11 @@ const drawingIdentificationUserPrompt = [
   "鉴定这张玩家涂鸦/手绘图里的一个主要主体，生成《画图勇者》装备素材 JSON。",
   "",
   "识别规则：",
-  "1. 分两步判断：先写 objectiveAssessment，客观评价线条数量、是否有闭合轮廓、关键部件、缺失部件、完成度；再给 recognition 和主体名称。不要先套魔杖、神器、幻想武器模板。",
-  "2. 优先找最醒目、最完整、最像装备/道具/符号/生物部件/幻想概念或现实小物的主体；忽略零散背景线条。",
-  "3. 先给 recognition：unrecognizable=空白/乱线/看不出主体；simple_symbol=只有圆圈/方块/笑脸/爱心/星星等简单符号；recognizable_object=能认出苹果、香蕉、雨伞、笔、汤勺、火焰、叶子、翅膀、面具、齿轮等主体；clear_equipment=能看出明确装备结构。若只有单条弧线、单条斜线、两三条松散交叉线、G形/螺旋线，必须是 unrecognizable。",
-  "4. 现实小物和日常用品可以直接作为装备素材：苹果/香蕉就是水果，雨伞就是雨伞，笔就是笔，汤勺就是汤勺。不要为了显得厉害而把它们改名成剑、盾、魔杖、护符或神器。",
-  "4b. 命名可以有一两个酷炫前缀，但必须保留主体类别词，例如 雷纹手机、旧铁汤勺、寒风雨伞、星点香蕉；不要把手机叫法杖，把雨伞叫盾牌，把汤勺叫圣杯，把水果叫宝石。",
+  "1. 分三步判断：先写 objectiveAssessment，客观评价线条数量、是否有闭合轮廓、关键部件、缺失部件、完成度；再写 subjectCandidates，列出 2-4 个可能主体及证据、缺失证据、置信度；最后选最可信的 recognizedSubject。不要先套魔杖、神器、幻想武器模板。",
+  "2. subjectCandidates 必须是开放词表，不要只在武器防具里选。现实小物、电子外设、办公用品、食物、容器、玩具、符号、幻想部件都可以入选；如果像鼠标，就候选鼠标，而不是护符或盾。",
+  "3. 先给 recognition：unrecognizable=空白/乱线/看不出主体；simple_symbol=只有圆圈/方块/笑脸/爱心/星星等简单符号；recognizable_object=能认出鼠标、键盘、话筒、记事本、书包、苹果、香蕉、雨伞、笔、汤勺、火焰、叶子、翅膀、面具、齿轮等主体；clear_equipment=能看出明确装备结构。若只有单条弧线、单条斜线、两三条松散交叉线、G形/螺旋线，必须是 unrecognizable。",
+  "4. 现实小物和日常用品可以直接作为装备素材：鼠标就是鼠标，键盘就是键盘，记事本就是记事本，苹果/香蕉就是水果，雨伞就是雨伞，笔就是笔，汤勺就是汤勺。不要为了显得厉害而把它们改名成剑、盾、魔杖、护符或神器。",
+  "4b. 命名可以有一两个酷炫前缀，但必须保留主体类别词，例如 雷纹鼠标、旧铁汤勺、寒风雨伞、星点香蕉；不要把鼠标叫护符，把手机叫法杖，把雨伞叫盾牌，把汤勺叫圣杯，把水果叫宝石。",
   "5. 盾、剑、靴子、翅膀、心形、火焰、星星、眼睛、机器人、怪物面具、可爱小图标都可以鉴定，只要主体可辨认；如果只是圆圈/方块/笑脸/爱心，按圆环、石板、徽记、记号这类低阶形状装备处理，不要强行说成魔杖、飞刃、铁盾或宝石。",
   "6. 盾必须看见盾面/边框/十字/把手/罩形边界等结构；剑刀必须看见刃部和握柄/尖端；魔杖必须同时看见长柄和杖头；雨伞必须看见伞面加伞柄/伞骨；翅膀必须看见成对翼形、羽片层次或翼膜结构。只有一条弧线、颜色、保护感、速度感、酷炫感或玩家写字，都不能当结构证据。",
   "7. 画出来的巨大物、怪物或生物默认按“装备概念/符号化部件”处理，不按现实尺寸判定 tooLarge；只有纯风景、整片天空、道路、房间这类没有道具主体的画面才 isScene=true。",
@@ -461,7 +463,7 @@ const drawingIdentificationUserPrompt = [
   "11. 如果 recognition=unrecognizable，itemName 和 subjectName 用“未成形线团”或同级弱名，isEquipable=false，statAffinity=[]，specialAffinity=[]，confidence 不要高于 0.25。",
   "",
   "必须输出这个 JSON 结构，字段名使用英文：",
-  "{\"itemName\":\"短装备名\",\"subjectName\":\"画布主体\",\"objectType\":\"主体类型\",\"objectiveAssessment\":\"客观评价：线条数量、闭合轮廓、关键部件、缺失部件、完成度\",\"recognition\":\"unrecognizable|simple_symbol|recognizable_object|clear_equipment\",\"visualEvidence\":[\"实际看见的结构\"],\"missingEvidence\":[\"若要叫盾/剑/魔杖/雨伞/翅膀还缺什么\"],\"effortQuality\":{\"lineControl\":0,\"colorUse\":0,\"completeness\":0,\"aesthetic\":0},\"identityDescription\":\"用于判断是否同一幅画的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
+  "{\"itemName\":\"短装备名\",\"subjectName\":\"画布主体\",\"objectType\":\"主体类型\",\"objectiveAssessment\":\"客观评价：线条数量、闭合轮廓、关键部件、缺失部件、完成度\",\"subjectCandidates\":[{\"name\":\"候选主体\",\"category\":\"主体类别\",\"evidence\":[\"实际看见的结构\"],\"missing\":[\"缺失结构\"],\"confidence\":0.0}],\"recognizedSubject\":\"最终识别主体\",\"recognition\":\"unrecognizable|simple_symbol|recognizable_object|clear_equipment\",\"visualEvidence\":[\"实际看见的结构\"],\"missingEvidence\":[\"若要叫盾/剑/魔杖/雨伞/翅膀还缺什么\"],\"effortQuality\":{\"lineControl\":0,\"colorUse\":0,\"completeness\":0,\"aesthetic\":0},\"identityDescription\":\"用于判断是否同一幅画的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
   "",
   "画作质量 photoQuality，必须主动拉开差距：",
   "clarity=主体可识别性 0-3：0空白/乱线；1只能猜大概；2能认出主体；3一眼能认出。",
@@ -481,12 +483,12 @@ const drawingIdentificationUserPrompt = [
   "specialAffinity 只在 photoQuality 接近 14-15、主体一眼可认、结构完整且属性语义非常强时输出；普通、勉强、简单线条或只有颜色/字面联想时必须输出 []。",
   "",
   "命名和描述：",
-  "itemName 要具体、短、有画面感，像是在给真实装备命名，例如 星火短剑、蓝纹护符、龙鳞坠饰、笑脸圆盾、风羽靴、尖牙项链。只有确实画出长柄杖形，才可以叫星纹魔杖或法杖；不要叫 画作装备、神秘涂鸦、手绘短剑、万能魔杖、幻想武器。",
+  "itemName 要具体、短、有画面感，像是在给装备命名，例如 雷纹鼠标、星火短剑、旧铁汤勺、寒风雨伞、风羽靴、尖牙项链。日常用品必须保留主体类别词；只有确实画出长柄杖形，才可以叫星纹魔杖或法杖；不要叫 画作装备、神秘涂鸦、手绘短剑、万能魔杖、幻想武器。",
   "description 用一句中文写成装备味道，可以比照片模式更有想象力，但不要直接承诺最终数值或战斗效果，也不要说这是一幅画或纸上的东西。",
   "reason 只写一句内部依据，格式尽量像：主体=火焰短剑；证据=黑线剑身+红橙火焰；质量=线条清楚；倾向=攻击。",
   "",
   "输出示例：",
-  "{\"itemName\":\"星火短剑\",\"subjectName\":\"火焰短剑\",\"objectType\":\"幻想武器\",\"identityDescription\":\"白色底上有一把黑线短剑，剑身有握柄和尖端，剑尖带红橙色火焰，左侧有两颗蓝色星点。\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":3,\"subjectArea\":3,\"backgroundClean\":2,\"realPhoto\":3,\"focusLight\":2,\"interesting\":2},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3},{\"stat\":\"speed\",\"score\":1}],\"specialAffinity\":[\"dealDamageAttack\"],\"description\":\"短剑的星火沿着剑脊跳动，适合在塔里劈开暗影。\",\"reason\":\"主体=火焰短剑；证据=剑身握柄+红橙火焰；质量=线条清楚；倾向=攻击。\",\"tags\":[\"火焰\",\"短剑\"],\"confidence\":0.86}",
+  "{\"itemName\":\"雷纹鼠标\",\"subjectName\":\"鼠标\",\"objectType\":\"电脑外设\",\"objectiveAssessment\":\"客观评价：一个上圆下窄的封闭轮廓，中间横线分出按键，顶部有滚轮，主体完整。\",\"subjectCandidates\":[{\"name\":\"鼠标\",\"category\":\"电脑外设\",\"evidence\":[\"圆角外轮廓\",\"左右按键分割线\",\"中间滚轮\"],\"missing\":[\"没有线缆但不影响识别\"],\"confidence\":0.9},{\"name\":\"护符\",\"category\":\"幻想道具\",\"evidence\":[\"外轮廓较圆\"],\"missing\":[\"没有吊环或符号结构\"],\"confidence\":0.2}],\"recognizedSubject\":\"鼠标\",\"recognition\":\"recognizable_object\",\"visualEvidence\":[\"圆角外轮廓\",\"按键分割线\",\"滚轮\"],\"missingEvidence\":[],\"identityDescription\":\"白色底上有黑线鼠标轮廓，顶部圆、底部略窄，中间画出滚轮和按键分割线。\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":3,\"subjectArea\":3,\"backgroundClean\":2,\"realPhoto\":3,\"focusLight\":2,\"interesting\":1},\"statAffinity\":[{\"stat\":\"speed\",\"score\":2},{\"stat\":\"attack\",\"score\":1}],\"specialAffinity\":[],\"description\":\"雷纹鼠标贴在掌心，像一枚能牵动塔风的小外设。\",\"reason\":\"主体=鼠标；证据=按键分割线+滚轮；质量=线条清楚；倾向=速度。\",\"tags\":[\"鼠标\",\"外设\"],\"confidence\":0.9}",
 ].join("\n");
 
 const statOrder = ["hp", "attack", "defense", "speed", "shield", "lifesteal", "regen"];
@@ -4420,7 +4422,10 @@ function getAppraisalFailureReason(item) {
     return `${name}的影像气息太虚，没能凝成装备。`;
   }
   if (item.tooLarge || item.isEquipable === false) {
-    return `${name}太难装进行囊。`;
+    if (item.sourceMode === "drawing" || item.drawingRecognition === "unformed") {
+      return `${name}还没有明确主体。`;
+    }
+    return `${name}主体已经看清，但尺寸太大，带不进塔。`;
   }
   if (getItemEffectValue(item) <= 0) {
     return `${name}没有形成可用属性。`;
@@ -5244,11 +5249,23 @@ function normalizeModelItem(raw) {
   const recognition = normalizeDrawingRecognition(safe.recognition || safe.drawingRecognition || safe.drawing_recognition || safe["识别等级"]);
   const visualEvidence = normalizeDrawingEvidenceList(safe.visualEvidence || safe.visual_evidence || safe.evidence || safe["可见证据"]);
   const missingEvidence = normalizeDrawingEvidenceList(safe.missingEvidence || safe.missing_evidence || safe["缺失证据"]);
+  const subjectCandidates = normalizeDrawingSubjectCandidates(safe.subjectCandidates || safe.subject_candidates || safe.candidates || safe["候选主体"]);
+  const recognizedSubject = getRecognizedSubjectText(safe);
   const effortQuality = normalizeDrawingEffortQuality(safe.effortQuality || safe.effort_quality || safe["绘制质量"]);
   const cleanName = cleanText(itemName, "照片装备", 18);
   const rejected = parseBooleanLike(tooLarge);
   const sceneRejected = isScene === true || isOversizedSizeClass(sizeClass);
-  const contextText = [cleanName, subjectName, objectType, sizeClass, description, reason, tags.join(" ")].filter(Boolean).join(" ");
+  const contextText = [
+    cleanName,
+    subjectName,
+    objectType,
+    recognizedSubject,
+    sizeClass,
+    description,
+    reason,
+    tags.join(" "),
+    subjectCandidates.map((candidate) => [candidate.name, candidate.category, ...candidate.evidence].filter(Boolean).join(" ")).join(" "),
+  ].filter(Boolean).join(" ");
   const modelRejectsEquipment = rejected || sceneRejected || isScene === true || isEquipable === false;
   const correctedTooLarge = shouldTreatAsTooLarge(cleanName, contextText, modelRejectsEquipment);
   return {
@@ -5277,6 +5294,8 @@ function normalizeModelItem(raw) {
     description: cleanText(description, "由照片鉴定出的装备。", 72),
     identityDescription: cleanText(identityDescription, "", 160),
     objectiveAssessment: cleanText(objectiveAssessment, "", 160),
+    recognizedSubject,
+    subjectCandidates,
     reason: cleanText(reason, "", 72),
     tags,
     confidence: clampNumber(safe.confidence ?? safe["置信度"], 0, 1),
@@ -6352,7 +6371,7 @@ function canFleeCurrentFloor() {
 function canBypassCurrentFloor() {
   if (state.gameClear || state.bossReward || isCareerSummaryOpen()) return false;
   if (isPlayerDefeated() || state.currentBattle || state.autoBattleTimer || state.battleStartTimer || state.pendingFloorAdvance) return false;
-  if (isEquipmentLocked() || hasPendingPhoto()) return false;
+  if (isEquipmentLocked() || hasBlockingPendingPhoto()) return false;
   if (isIntroFloor()) return false;
   if (isHiddenLayerActive()) return true;
   return !isBossFloor(state.floor);
@@ -6361,7 +6380,7 @@ function canBypassCurrentFloor() {
 function canRetreatCurrentBattle() {
   if (state.gameClear || state.bossReward || isCareerSummaryOpen()) return false;
   if (isPlayerDefeated() || !state.currentBattle) return false;
-  if (state.battleStartTimer || state.pendingFloorAdvance || hasPendingPhoto() || isAnalyzingPhoto()) return false;
+  if (state.battleStartTimer || state.pendingFloorAdvance || hasBlockingPendingPhoto() || isAnalyzingPhoto()) return false;
   return true;
 }
 
@@ -8271,7 +8290,7 @@ function canSelectEquipmentSlot(index) {
 }
 
 function isBattleActionLocked() {
-  return hasPendingPhoto() || Boolean(state.bossReward) || (isIntroFloor() && !hasSelectedAllIntroRewards());
+  return hasBlockingPendingPhoto() || Boolean(state.bossReward) || (isIntroFloor() && !hasSelectedAllIntroRewards());
 }
 
 function makeBattleClock(stats, enemies) {
@@ -10887,6 +10906,10 @@ function hasImageTextMarkerText(text = "") {
   return /(?:写着|写有|写了|印着|印有|文字|手写字|标签|标注|字样|OCR|text|label|caption|reads)/i.test(String(text || ""));
 }
 
+function getRecognizedSubjectText(input = {}) {
+  return cleanText(input.recognizedSubject || input.recognized_subject || input.finalSubject || input.final_subject || input["最终识别主体"] || "", "", 24);
+}
+
 function makePhotoStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) {
   const objectText = stripImageTextSemantics([subjectName, objectType, sizeClass].filter(Boolean).join(" "));
   if (objectText && hasPhotoStatSemanticText(objectText)) return objectText;
@@ -10944,6 +10967,10 @@ function cleanDrawingName(value, fallback, maxLength = 18) {
   return cleanText(picked, "幻想装备", maxLength);
 }
 
+function isDailySubjectNameText(text = "") {
+  return Boolean(getEverydayDrawingCategoryKeyword(text));
+}
+
 function cleanDrawingDescription(value, fallback, itemName) {
   let text = stripDrawingMediumWords(stripImageTextSemantics(cleanText(value, "", 96)))
     .replace(/媒介|载体/g, "")
@@ -10955,7 +10982,14 @@ function cleanDrawingDescription(value, fallback, itemName) {
     && !/(?:魔杖|法杖|魔法棒|武器|神器|神兵|飞刃|利刃|翼刃|短剑|长剑|剑|刀|刃|弓|箭|枪|矛|锤)/.test(name);
   const unsupportedAccessoryDescription = /(?:宝石|水晶|翡翠|坠饰|吊坠|项链|戒指|饰品)/.test(text)
     && !/(?:宝石|水晶|翡翠|坠饰|吊坠|项链|戒指|饰品)/.test(name);
+  const dailyName = isDailySubjectNameText(name);
+  const fantasySwapDescription = dailyName
+    && /(?:护符|魔杖|法杖|魔法棒|神器|神剑|飞刃|圣杯|宝石|水晶|盾牌|圆盾)/.test(text)
+    && !new RegExp(getEverydayDrawingCategoryKeyword(name)).test(text);
   if (unsupportedWeaponDescription || unsupportedAccessoryDescription) {
+    text = `${name}带着清晰的主体轮廓，可以被带进魔塔。`;
+  }
+  if (fantasySwapDescription) {
     text = `${name}带着清晰的主体轮廓，可以被带进魔塔。`;
   }
   if (!text || /^由.*鉴定/.test(text)) {
@@ -10971,6 +11005,10 @@ function hasMagicWandNameText(text = "") {
 
 function hasDrawingWeaponNameText(text = "") {
   return /(?:剑|短剑|长剑|刀|刃|飞刃|利刃|翼刃|斧|弓|箭|枪|矛|锤|武器|神器|神兵|魔杖|法杖|魔法棒|sword|blade|axe|bow|arrow|spear|hammer|weapon|wand|staff)/i.test(String(text || ""));
+}
+
+function hasDailyDrawingSubjectNameText(text = "") {
+  return /(?:键盘|鼠标|话筒|麦克风|书包|背包|记事本|笔记本|手机|电脑|平板|风扇|雨伞|汤勺|勺子|杯|瓶|水|苹果|香蕉|橙子|梨|笔|尺|书本|书|本子|相机|眼镜|橡皮|电池|灯|玩具|模型|摆件|挂件|keyboard|mouse|microphone|mic|backpack|notebook|phone|computer|tablet|fan|umbrella|spoon|cup|bottle|water|apple|banana|pen|book|camera|glasses|battery|lamp|toy|model)/i.test(String(text || ""));
 }
 
 function stripNegatedDrawingEvidence(text = "") {
@@ -11074,6 +11112,8 @@ function inferEverydayDrawingNameFromText(text = "") {
   if (/屏幕|screen/i.test(source)) return "屏幕";
   if (/键盘|keyboard/i.test(source)) return "键盘";
   if (/鼠标|mouse/i.test(source)) return "鼠标";
+  if (/话筒|麦克风|麦\b|microphone|mic/i.test(source)) return "话筒";
+  if (/书包|背包|双肩包|backpack/i.test(source)) return "书包";
   if (/(?:雨伞|伞面|伞柄|伞骨|折伞|umbrella)/i.test(source) && hasUmbrellaVisualEvidenceText(source)) return /黑|black/i.test(source) ? "黑伞" : "雨伞";
   if (/中性笔|签字笔|水笔|pen/i.test(source)) return "中性笔";
   if (/铅笔|pencil/i.test(source)) return "铅笔";
@@ -11098,6 +11138,7 @@ function inferEverydayDrawingNameFromText(text = "") {
   if (/眼镜|glasses/i.test(source)) return "眼镜";
   if (/橡皮|eraser/i.test(source)) return "橡皮";
   if (/尺子|直尺|ruler/i.test(source)) return "尺子";
+  if (/记事本|笔记本|notebook/i.test(source)) return "记事本";
   if (/书本|书|本子|book/i.test(source)) return "书本";
   if (/毛巾|towel/i.test(source)) return "毛巾";
   if (/纸巾|tissue/i.test(source)) return "纸巾";
@@ -11139,6 +11180,9 @@ function getEverydayDrawingCategoryKeyword(text = "") {
   if (/风扇/.test(name)) return "风扇";
   if (/键盘/.test(name)) return "键盘";
   if (/鼠标/.test(name)) return "鼠标";
+  if (/话筒/.test(name)) return "话筒";
+  if (/书包/.test(name)) return "书包";
+  if (/记事本/.test(name)) return "本";
   return name;
 }
 
@@ -11164,6 +11208,9 @@ function normalizeDrawingVisualEvidenceForRules(text = "") {
   }
   if (!hasDrawingWeaponVisualEvidenceText(source)) {
     source = source.replace(/(?:神剑|短剑|长剑|剑|刀|飞刃|利刃|翼刃|刃|武器|神器|神兵|弓箭?|箭|枪|矛|斧|锤)/g, "");
+  }
+  if (hasDailyDrawingSubjectNameText(source) && !/(?:弓弦|箭头|箭羽|弓身|剑身|剑尖|刀身|刀刃|握柄|手柄|bowstring|arrowhead|blade|handle)/i.test(source)) {
+    source = source.replace(/(?:护符|魔杖|法杖|魔法棒|圣杯|神剑|短剑|长剑|盾牌|圆盾|神器|神兵|宝石|水晶|飞刃|利刃|翼刃)/g, "");
   }
   if (!hasGemAccessoryVisualEvidenceText(source)) {
     source = source.replace(/(?:宝石|水晶|翡翠|坠饰|吊坠|项链|戒指|饰品)/g, "");
@@ -11195,6 +11242,7 @@ function hasShieldVisualEvidenceText(text = "") {
 
 function hasClearDrawingEquipmentVisualEvidenceText(text = "") {
   const source = normalizeDrawingVisualEvidenceForRules(text || "");
+  if (isEverydayDrawingObjectText(source) && !/(?:盾牌|盾面|盾身|圆盾|方盾|手盾|剑身|剑尖|刀身|刀刃|刃口|弓弦|箭头|箭羽|斧刃|枪尖|矛尖|锤头|魔杖|法杖|杖身|杖头|鞋底|鞋帮|鞋口|宝石|水晶|吊坠|项链|戒指|shield|sword|blade|bowstring|arrowhead|wand|staff|boot|shoe|gem|crystal|pendant)/i.test(source)) return false;
   return hasShoeVisualEvidenceText(source)
     || hasDrawingWeaponVisualEvidenceText(source)
     || hasShieldVisualEvidenceText(source)
@@ -11225,6 +11273,8 @@ function objectEvidenceSupportsNameCategory(name, evidence) {
   const evidenceText = stripImageTextSemantics(evidence || "");
   const everydayKeyword = getEverydayDrawingCategoryKeyword(evidenceText);
   if (everydayKeyword && !nameText.includes(everydayKeyword)) return false;
+  if (hasDailyDrawingSubjectNameText(evidenceText) && !hasDailyDrawingSubjectNameText(nameText)) return false;
+  if (/弓箭|弓|箭/.test(nameText) && /弓箭|弓弦|箭头|箭羽|弓身|bow|arrow/i.test(evidenceText)) return true;
   if (hasUmbrellaNameText(nameText)) return hasUmbrellaVisualEvidenceText(evidenceText);
   if (hasWingNameText(nameText)) return hasWingVisualEvidenceText(evidenceText);
   if (isOffensiveBladeSemanticText(nameText)) return isOffensiveBladeSemanticText(evidenceText) || hasDrawingWeaponVisualEvidenceText(evidenceText);
@@ -11300,6 +11350,17 @@ function refineDrawingNameWithVisualEvidence(name, subjectName, objectType, iden
   return cleanName;
 }
 
+function refineDrawingNameWithRecognizedSubject(name, subjectName, objectType, recognizedSubject, fallbackEvidence = "") {
+  const recognized = cleanDrawingName(recognizedSubject, "", 18);
+  if (!recognized || isGenericDrawingName(recognized)) return name;
+  const evidenceText = [recognized, subjectName, objectType, fallbackEvidence].filter(Boolean).join(" ");
+  const keyword = getEverydayDrawingCategoryKeyword(evidenceText);
+  if (keyword && !String(name || "").includes(keyword)) {
+    return recognized.includes(keyword) ? recognized : cleanText(`${recognized}${keyword}`, recognized, 18);
+  }
+  return name;
+}
+
 function normalizeDrawingEvidenceList(input) {
   if (Array.isArray(input)) {
     return input
@@ -11335,8 +11396,19 @@ function normalizeDrawingEffortQuality(input) {
 function getDrawingEvidenceText(input = {}) {
   const visualEvidence = normalizeDrawingEvidenceList(input.visualEvidence || input.visual_evidence || input.evidence || input["可见证据"]).join(" ");
   const missingEvidence = normalizeDrawingEvidenceList(input.missingEvidence || input.missing_evidence || input["缺失证据"]).join(" ");
+  const subjectCandidates = normalizeDrawingSubjectCandidates(input.subjectCandidates || input.subject_candidates || input.candidates || input["候选主体"]);
+  const candidateText = subjectCandidates
+    .map((candidate) => [
+      candidate.name,
+      candidate.category,
+      ...candidate.evidence,
+      candidate.missing.length ? `缺少 ${candidate.missing.join(" ")}` : "",
+    ].filter(Boolean).join(" "))
+    .join(" ");
   return [
     input.objectiveAssessment || input.objective_assessment || input.visualAssessment || input.visual_assessment || input["客观评价"] || input["画面评价"],
+    input.recognizedSubject || input.recognized_subject || input.finalSubject || input.final_subject || input["最终识别主体"],
+    candidateText,
     input.identityDescription || input.identity_description || input.appearance || input.objectIdentity,
     visualEvidence,
     input.reason,
@@ -11347,6 +11419,7 @@ function getDrawingEvidenceText(input = {}) {
 
 function getDrawingRecognitionGate(input = {}) {
   const quality = normalizePhotoQuality(input.photoQuality || {});
+  const subjectCandidates = normalizeDrawingSubjectCandidates(input.subjectCandidates || input.subject_candidates || input.candidates || input["候选主体"]);
   const evidenceText = getDrawingEvidenceText(input);
   const normalizedEvidence = normalizeDrawingVisualEvidenceForRules(evidenceText);
   const declared = normalizeDrawingRecognition(input.recognition || input.drawingRecognition || input.drawing_recognition || input["识别等级"]);
@@ -11355,6 +11428,9 @@ function getDrawingRecognitionGate(input = {}) {
   const clearEquipment = hasClearDrawingEquipmentVisualEvidenceText(normalizedEvidence);
   const simpleSymbol = hasSimpleDrawingSymbolEvidenceText(normalizedEvidence);
   const weakText = isWeakDrawingIdentityText(normalizedEvidence || evidenceText);
+  const dailyObject = isEverydayDrawingObjectText(normalizedEvidence)
+    || isDailySubjectNameText(getRecognizedSubjectText(input))
+    || isDailySubjectNameText(input.subjectName || input.subject_name || input["主体名称"] || "");
   const strongConcept = hasStrongDrawingConceptText(normalizedEvidence);
   const weakQuality = quality.clarity <= 0
     || quality.subjectArea <= 0
@@ -11368,7 +11444,7 @@ function getDrawingRecognitionGate(input = {}) {
   let level = "recognizable_object";
   if (declared === "unformed" || lowConfidence || looseLines || (weakText && !clearEquipment && !strongConcept && weakQuality) || (bareLines && quality.clarity <= 1 && quality.realPhoto <= 1)) {
     level = "unformed";
-  } else if (clearEquipment && quality.clarity >= 2 && quality.subjectArea >= 1) {
+  } else if (clearEquipment && !dailyObject && quality.clarity >= 2 && quality.subjectArea >= 1) {
     level = "clear_equipment";
   } else if (simpleSymbol || declared === "simple_symbol") {
     level = "simple_symbol";
@@ -11381,12 +11457,33 @@ function getDrawingRecognitionGate(input = {}) {
     declared,
     evidenceText,
     normalizedEvidence,
+    subjectCandidates,
     simpleSymbol,
     clearEquipment,
     strongConcept,
     looseLines,
     photoQuality: quality,
   };
+}
+
+function normalizeDrawingSubjectCandidates(input) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((candidate) => {
+      if (typeof candidate === "string") {
+        return { name: cleanText(candidate, "", 24), category: "", evidence: [], missing: [], confidence: 0 };
+      }
+      if (!candidate || typeof candidate !== "object") return null;
+      return {
+        name: cleanText(candidate.name || candidate.subject || candidate["名称"] || candidate["主体"] || "", "", 24),
+        category: cleanText(candidate.category || candidate.type || candidate["类别"] || "", "", 24),
+        evidence: normalizeDrawingEvidenceList(candidate.evidence || candidate.visualEvidence || candidate["证据"]),
+        missing: normalizeDrawingEvidenceList(candidate.missing || candidate.missingEvidence || candidate["缺失"]),
+        confidence: clampNumber(candidate.confidence ?? candidate.score ?? candidate["置信度"], 0, 1),
+      };
+    })
+    .filter((candidate) => candidate && candidate.name)
+    .slice(0, 4);
 }
 
 function getDrawingGateValueCap(gate) {
@@ -11410,6 +11507,14 @@ function isDrawingGateSpecialAllowed(gate) {
 function getDrawingGateStatText(gate, fallback = "") {
   if (!gate) return fallback;
   return gate.normalizedEvidence || fallback;
+}
+
+function shouldAllowRetryablePendingPhotoForBattle() {
+  return Boolean(state.lastPhoto && state.lootError && !isAnalyzingPhoto());
+}
+
+function hasBlockingPendingPhoto() {
+  return hasPendingPhoto() && !shouldAllowRetryablePendingPhotoForBattle();
 }
 
 function sanitizeDrawingStatAffinityForGate(statAffinity = [], gate, text = "") {
@@ -11464,10 +11569,11 @@ function balanceItem(item, image = "") {
   const semanticSchema = getRawSemanticFlag(safe);
   const photoQuality = normalizePhotoQuality(safe.photoQuality || {});
   const statAffinity = normalizeStatAffinity(safe.statAffinity || []);
-  const specialAffinity = normalizeSpecialEffects(safe.specialAffinity || []);
+  let specialAffinity = normalizeSpecialEffects(safe.specialAffinity || []);
   const preserveSettledOutput = Boolean(safe.skipSpecialRoll);
   const identityDescription = cleanText(safe.identityDescription || safe.identity_description || safe.appearance || safe.objectIdentity || "", "", 160);
   const objectiveAssessment = cleanText(safe.objectiveAssessment || safe.objective_assessment || safe.visualAssessment || safe.visual_assessment || safe["客观评价"] || safe["画面评价"] || "", "", 160);
+  const recognizedSubject = getRecognizedSubjectText(safe);
   const drawingGate = sourceMode === "drawing" ? getDrawingRecognitionGate(safe) : null;
   if (sourceMode === "drawing") {
     const gateFallbackName = inferDrawingNameFromVisualEvidence(drawingGate?.normalizedEvidence || identityDescription);
@@ -11477,6 +11583,8 @@ function balanceItem(item, image = "") {
     } else {
       itemName = refineDrawingNameWithVisualEvidence(itemName, subjectName, objectType, identityDescription);
       subjectName = refineDrawingNameWithVisualEvidence(subjectName, itemName, objectType, identityDescription);
+      itemName = refineDrawingNameWithRecognizedSubject(itemName, subjectName, objectType, recognizedSubject, drawingGate?.normalizedEvidence || identityDescription);
+      subjectName = refineDrawingNameWithRecognizedSubject(subjectName, itemName, objectType, recognizedSubject, drawingGate?.normalizedEvidence || identityDescription);
       if (drawingGate?.level === "simple_symbol" && (hasDrawingWeaponNameText(`${itemName} ${subjectName}`) || hasShieldNameText(`${itemName} ${subjectName}`) || hasMagicWandNameText(`${itemName} ${subjectName}`))) {
         itemName = gateFallbackName;
         subjectName = gateFallbackName;
@@ -11490,17 +11598,27 @@ function balanceItem(item, image = "") {
     ? cleanDrawingDescription(safe.description || reason, reason, itemName)
     : cleanText(hasImageTextMarkerText(`${safe.description || ""} ${reason}`) ? "" : safe.description || reason, "由照片鉴定出的装备。", 72);
   const unformedDrawingSubject = sourceMode === "drawing" && isUnformedDrawingSubjectText(`${itemName} ${subjectName}`);
-  const semanticText = [itemName, subjectName, objectType, sizeClass, identityDescription, displayDescription, reason, tags.join(" ")].filter(Boolean).join(" ");
+  const semanticText = [itemName, subjectName, objectType, recognizedSubject, sizeClass, identityDescription, displayDescription, reason, tags.join(" ")].filter(Boolean).join(" ");
   const rulesSemanticText = stripImageTextSemantics(semanticText);
   const safeTooLarge = parseBooleanMaybe(safe.tooLarge) === true;
   const safeIsScene = parseBooleanMaybe(safe.isScene) === true;
   const safeIsEquipable = parseBooleanMaybe(safe.isEquipable);
+  const clearlyPortablePhotoSubject = sourceMode !== "drawing"
+    && (isDefinitelyPortableEquipmentText(rulesSemanticText) || isSmallEquipableNaturalText(rulesSemanticText) || hasClearRealSmallSubjectText(rulesSemanticText, photoQuality));
+  const clearlyEquipableDrawingSubject = sourceMode === "drawing"
+    && drawingGate?.level !== "unformed"
+    && (isDailySubjectNameText(`${itemName} ${subjectName}`) || hasStrongDrawingConceptText(drawingGate?.normalizedEvidence || rulesSemanticText));
+  const correctedIsEquipable = safeIsEquipable !== false || clearlyPortablePhotoSubject || clearlyEquipableDrawingSubject;
   const modelRejected = sourceMode === "drawing"
-    ? safeIsScene || safeIsEquipable === false
-    : safeTooLarge || safeIsScene || safeIsEquipable === false || isOversizedSizeClass(sizeClass);
+    ? safeIsScene || !correctedIsEquipable
+    : safeTooLarge || safeIsScene || !correctedIsEquipable || isOversizedSizeClass(sizeClass);
   const tooLarge = sourceMode === "drawing"
-    ? Boolean(safeTooLarge || safeIsScene || safeIsEquipable === false || drawingGate?.level === "unformed" || unformedDrawingSubject)
+    ? Boolean(safeTooLarge || safeIsScene || !correctedIsEquipable || drawingGate?.level === "unformed" || unformedDrawingSubject)
     : shouldTreatAsTooLarge(itemName, rulesSemanticText, modelRejected);
+  const drawingDailySubject = sourceMode === "drawing" && isDailySubjectNameText(`${itemName} ${subjectName}`);
+  if (drawingDailySubject && specialAffinity.length) {
+    specialAffinity = [];
+  }
   const virtualPenalty = sourceMode === "drawing"
     ? { level: "none", noEffect: false, cap: null, suppressSpecial: false, description: "" }
     : getVirtualImagePenalty(rulesSemanticText, photoQuality);
@@ -11530,7 +11648,7 @@ function balanceItem(item, image = "") {
     ? []
     : choosePhotoSpecialEffects({ ...safe, itemName, subjectName, objectType, reason, tags, description: sourceMode === "drawing" ? objectStatEvidenceText : semanticText, semanticTextOverride: objectStatEvidenceText, ignoreDirectSpecialEffects: semanticSchema && !preserveSettledOutput }, image, requestedValue)
       .filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue);
-  if (sourceMode === "drawing" && !isDrawingGateSpecialAllowed(drawingGate)) {
+  if (sourceMode === "drawing" && (!isDrawingGateSpecialAllowed(drawingGate) || drawingDailySubject)) {
     specialEffects = [];
   }
   let specialValue = calculateSpecialEffectsValue(specialEffects);
@@ -11581,7 +11699,7 @@ function balanceItem(item, image = "") {
     objectType,
     sizeClass,
     isScene: safeIsScene || (sourceMode !== "drawing" && isOversizedSizeClass(sizeClass)),
-    isEquipable: safeIsEquipable !== false && !noEffect,
+    isEquipable: correctedIsEquipable && !noEffect,
     rarity,
     value: targetValue,
     quality: getItemQuality(actualScore),
@@ -11596,6 +11714,7 @@ function balanceItem(item, image = "") {
     identityDescription,
     objectiveAssessment,
     reason,
+    recognizedSubject,
     tags,
     photoQuality,
     photoQualityScore: semanticSchema ? (sourceMode === "drawing" ? calculateDrawingQualityScore(photoQuality, rulesSemanticText) : calculatePhotoQualityScore(photoQuality, rulesSemanticText)) : null,
@@ -13433,7 +13552,7 @@ function renderEquipmentDetail() {
       : state.pendingCropRect && !isPendingDrawing
       ? apiHint || "鉴定台会看向圈定的主体。"
       : state.lootError
-      ? `${formatLootErrorMessage(state.lootError)}\n${pendingLabel}还在，可以重新鉴定。`
+      ? `${formatLootErrorMessage(state.lootError)}\n${pendingLabel}还在，可以重新鉴定；也可以先选怪战斗。`
       : apiHint
       ? apiHint
       : state.filmRolls >= 1
@@ -13822,14 +13941,14 @@ function formatLootErrorMessage(message) {
   if (/网图|截图|虚拟装备|没有转化|气息太虚/.test(cleaned)) {
     return "这道影像太虚，没能凝成装备。";
   }
-  if (/无法作为装备|太难装进行囊|主体过大|主要是场景/.test(cleaned)) {
-    return "这件东西太难装进行囊。";
+  if (/还没有明确主体|无法识别主体|线条还没凝成|未成形线团|没有形成可鉴定/.test(cleaned)) {
+    return "无法识别主体，暂时不能形成装备。";
+  }
+  if (/无法作为装备|太难装进行囊|主体过大|主要是场景|尺寸太大|带不进塔/.test(cleaned)) {
+    return "主体已经看清，但尺寸太大，带不进塔。";
   }
   if (/没有形成可用属性|没有醒出力量|可用属性/.test(cleaned)) {
     return modeText("这张照片没有形成可用装备。");
-  }
-  if (/无法识别主体|线条还没凝成|未成形线团|没有形成可鉴定/.test(cleaned)) {
-    return "无法识别主体，暂时不能形成装备。";
   }
   if (/已取消(?:重)?鉴定/.test(cleaned)) {
     return "鉴定已经收回。";
@@ -15139,8 +15258,8 @@ window.__photoHeroTestHooks = {
     const item = await analyzeDirectly(config, image);
     return balanceItem(item, makePlaceholderImage());
   },
-  parseModelTextForTest(text) {
-    return balanceItem(extractJson(text, null), makePlaceholderImage());
+  parseModelTextForTest(text, options = {}) {
+    return balanceItem({ ...extractJson(text, null), ...(options || {}) }, makePlaceholderImage());
   },
   renderItemDescriptionForTest(item) {
     return renderItemDescription(item);
