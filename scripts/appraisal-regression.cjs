@@ -501,6 +501,41 @@ const cases = [
     expect: ({ item, score }) => /未成形/.test(item.itemName) && score === 0 && item.tooLarge,
   },
   {
+    label: "drawing name-only spoon cannot rescue unformed line",
+    input: {
+      sourceMode: "drawing",
+      itemName: "汤勺",
+      subjectName: "汤勺",
+      objectType: "餐具",
+      recognizedSubject: "汤勺",
+      recognition: "unrecognizable",
+      visualEvidence: ["一条直线"],
+      objectiveAssessment: "只有一条黑色直线，没有勺头、勺柄或餐具轮廓，无法识别主体。",
+      subjectCandidates: [
+        { name: "汤勺", category: "餐具", evidence: ["一条直线"], missing: ["勺头", "勺柄", "完整轮廓"], confidence: 0.92 },
+      ],
+      missingEvidence: ["没有勺头", "没有勺柄", "没有完整轮廓"],
+      identityDescription: "画面只有单独一条黑线。",
+      description: "模型猜成汤勺，但画面没有可识别主体。",
+      reason: "名称是猜测，视觉证据不足。",
+      tags: ["汤勺", "线条"],
+      value: 18,
+      stats: { hp: 18, attack: 2, defense: 1, speed: 1, shield: 2, lifesteal: 1, regen: 1 },
+      photoQuality: { clarity: 0, subjectArea: 0, backgroundClean: 2, realPhoto: 1, focusLight: 0, interesting: 0 },
+      statAffinity: [{ stat: "regen", score: 3 }, { stat: "defense", score: 2 }],
+      specialAffinity: ["killHpBoost"],
+      confidence: 0.9,
+    },
+    expect: ({ item, score }) => (
+      /未成形/.test(item.itemName)
+      && score === 0
+      && item.value === 0
+      && item.tooLarge
+      && item.specialEffects.length === 0
+      && Object.values(item.stats).every((value) => value === 0)
+    ),
+  },
+  {
     label: "one-stroke loop is not a wing item",
     input: {
       sourceMode: "drawing",

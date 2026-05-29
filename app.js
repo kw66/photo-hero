@@ -11700,15 +11700,29 @@ function getDrawingRecognitionGate(input = {}) {
     && !clearEquipment
     && !simpleSymbol
     && !strongConcept;
-  const nameOnlyEvidenceAllowed = !weakText && !bareLines && !looseLines && !/(?:无法识别|不能辨认|看不出|没有明确主体|无主体)/i.test(normalizedEvidence || evidenceText);
-  const evidenceDailyObject = isEverydayDrawingObjectText(normalizedEvidence) || isDailySubjectNameText(recognizedSubject);
+  const clearNegativeEvidence = /(?:无法识别|不能辨认|看不出|没有明确主体|无主体)/i.test(normalizedEvidence || evidenceText);
+  const nameOnlyEvidenceAllowed = !weakText && !bareLines && !looseLines && !clearNegativeEvidence;
+  const evidenceDailyObject = isEverydayDrawingObjectText(normalizedEvidence);
   const subjectNameDailyObject = isDailySubjectNameText(input.itemName || input.item_name || input["装备名"] || "")
     || isDailySubjectNameText(input.subjectName || input.subject_name || input["主体名称"] || "");
-  const dailyObject = evidenceDailyObject || (subjectNameDailyObject && nameOnlyEvidenceAllowed);
+  const recognizedDailyObject = isDailySubjectNameText(recognizedSubject);
+  const candidateEvidenceText = subjectCandidates
+    .map((candidate) => candidate.evidence.join(" "))
+    .filter(Boolean)
+    .join(" ");
+  const candidateVisualEvidence = isEverydayDrawingObjectText(candidateEvidenceText)
+    || hasDrawingPartStructureEvidenceText(candidateEvidenceText)
+    || hasClearDrawingEquipmentVisualEvidenceText(candidateEvidenceText)
+    || hasFormedAbstractDrawingEvidenceText(candidateEvidenceText);
+  const formedAbstract = hasFormedAbstractDrawingEvidenceText(evidenceText) || hasFormedAbstractDrawingEvidenceText(normalizedEvidence);
+  const visualPositiveEvidence = clearEquipment || simpleSymbol || evidenceDailyObject || strongConcept || formedAbstract || candidateVisualEvidence;
+  const dailyObject = evidenceDailyObject
+    || (recognizedDailyObject && nameOnlyEvidenceAllowed && visualPositiveEvidence)
+    || (subjectNameDailyObject && nameOnlyEvidenceAllowed && visualPositiveEvidence);
   const namedSubject = !isGenericDrawingName(recognizedSubject) || (subjectNameDailyObject && nameOnlyEvidenceAllowed);
   const candidateConfidence = subjectCandidates.reduce((best, candidate) => Math.max(best, candidate.confidence || 0), 0);
-  const formedAbstract = hasFormedAbstractDrawingEvidenceText(evidenceText) || hasFormedAbstractDrawingEvidenceText(normalizedEvidence);
-  const positiveEvidence = clearEquipment || simpleSymbol || dailyObject || strongConcept || formedAbstract || namedSubject || candidateConfidence >= 0.45;
+  const nameAssistedEvidence = nameOnlyEvidenceAllowed && visualPositiveEvidence && (namedSubject || candidateConfidence >= 0.45);
+  const positiveEvidence = visualPositiveEvidence || nameAssistedEvidence;
   const lowConfidence = Number.isFinite(confidence) && confidence > 0 && confidence < 0.24 && !positiveEvidence;
 
   let level = "recognizable_object";
@@ -11870,8 +11884,8 @@ function balanceItem(item, image = "") {
   if (sourceMode === "drawing") {
     const gateFallbackName = inferDrawingNameFromVisualEvidence(drawingGate?.normalizedEvidence || identityDescription);
     if (drawingGate?.level === "unformed") {
-      itemName = gateFallbackName;
-      subjectName = gateFallbackName;
+      itemName = "未成形线团";
+      subjectName = "未成形线团";
     } else {
       itemName = refineDrawingNameWithVisualEvidence(itemName, subjectName, objectType, identityDescription);
       subjectName = refineDrawingNameWithVisualEvidence(subjectName, itemName, objectType, identityDescription);
