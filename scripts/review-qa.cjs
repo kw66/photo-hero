@@ -481,8 +481,8 @@ function assertScenario(name, metrics) {
     }
     if (!controls.battleGainBoosted) failures.push(`${name}: SFX gain should exceed old capped volume at 100%, got ${JSON.stringify(controls)}`);
     const preloadedKeys = preload.completedKeys || preload.blobKeys || preload.keys || [];
-    if (!preload.started || preloadedKeys.length < 3) failures.push(`${name}: BGM should preload in order after audio unlock, got ${JSON.stringify(preload)}`);
-    if (preloadedKeys[0] !== "opening") failures.push(`${name}: BGM preload should start from opening track, got ${JSON.stringify(preloadedKeys)}`);
+    if (!preload.started || preloadedKeys.length < 3) failures.push(`${name}: BGM should preload after audio unlock, got ${JSON.stringify(preload)}`);
+    if ((preload.order || [])[0] !== "opening" || !preloadedKeys.includes("opening")) failures.push(`${name}: BGM preload order should begin with opening and opening should be loaded, got ${JSON.stringify(preload)}`);
     if (!(preload.blobKeys || []).includes("area1")) failures.push(`${name}: preloaded BGM should use cached blob sources for early floors, got ${JSON.stringify(preload)}`);
   }
   if (name === "monster-distribution") {
@@ -718,6 +718,12 @@ function assertScenario(name, metrics) {
     if (hidden.hidden1?.beforeAllSelectedText !== "全部选择" || hidden.hidden1?.afterAllSelectedText !== "解救") {
       failures.push(`${name}: hidden battle button should require all three selected cards, got ${JSON.stringify(hidden.hidden1)}`);
     }
+    if (!hidden.hidden1Reward?.rescued || !hidden.hidden1Reward?.allFormsReceivedElderBonus || hidden.hidden1Reward?.returnFloor !== 10) {
+      failures.push(`${name}: hidden1 rescue should grant +2 experience to every form and return to the queued floor, got ${JSON.stringify(hidden.hidden1Reward)}`);
+    }
+    if (!hidden.hidden2Reward?.rescued || hidden.hidden2Reward?.filmDelta < 2 || hidden.hidden2Reward?.returnFloor !== 20) {
+      failures.push(`${name}: hidden2 rescue should grant at least 2.0 film/canvas before guard drops and return to the queued floor, got ${JSON.stringify(hidden.hidden2Reward)}`);
+    }
     if (!hidden.hidden1Timeout?.resolved || hidden.hidden1Timeout?.rescued || hidden.hidden1Timeout?.returnFloor !== 10 || hidden.hidden1Timeout?.result !== "enemy-fled" || !/解救失败/.test(hidden.hidden1Timeout?.summary || "")) {
       failures.push(`${name}: hidden timeout should return to the queued floor and mark rescue failed, got ${JSON.stringify(hidden.hidden1Timeout)}`);
     }
@@ -751,7 +757,7 @@ function assertScenario(name, metrics) {
     }
     if (api.xiaomiModel !== "mimo-v2.5") failures.push(`${name}: Xiaomi preset should default to mimo-v2.5, got ${JSON.stringify(api)}`);
     if (api.xiaomiModelOptions?.join(",") !== "mimo-v2.5,mimo-v2-omni") failures.push(`${name}: Xiaomi model dropdown should contain only supported vision models, got ${JSON.stringify(api)}`);
-    if (!/mimo-v2\.5-pro/.test(api.xiaomiNote || "")) failures.push(`${name}: Xiaomi note should explain mimo-v2.5-pro is not a vision model, got ${JSON.stringify(api)}`);
+    if (api.xiaomiNote) failures.push(`${name}: Xiaomi preset should not show a standalone note, got ${JSON.stringify(api)}`);
     if (!api.xiaomiLinksText?.includes("小米邀请链接") || !api.xiaomiLinksText?.includes("小米文档")) failures.push(`${name}: Xiaomi preset should show invite and docs links, got ${JSON.stringify(api)}`);
     if (!api.xiaomiUsesApiKeyHeader || api.xiaomiUsesAuthorizationHeader) failures.push(`${name}: Xiaomi requests should use api-key header instead of Authorization, got ${JSON.stringify(api)}`);
     if (api.xiaomiFirstContentType !== "image_url" || api.xiaomiSecondContentType !== "text") failures.push(`${name}: Xiaomi vision request should send image before text, got ${JSON.stringify(api)}`);
@@ -3122,8 +3128,11 @@ function assertScenario(name, metrics) {
       const runHiddenRescue = async (index, returnFloor) => {
         hooks.resetGameForTest();
         hooks.setHeroStats({ baseHp: 200, hp: 50, baseAtk: 200, baseDef: 100, baseSpeed: 20, baseShield: 0, shield: 0 });
+        hooks.setRunRewards({ filmRolls: 0, filmShards: 0 });
         hooks.enterHiddenLayerForTest(index, returnFloor);
         const before = hooks.getPlayerStats();
+        const beforeProgress = hooks.getFormProgress();
+        const beforeFilm = JSON.parse(window.render_game_to_text()).player.filmCount;
         hooks.selectEnemies(hooks.state.enemies.map((enemy) => enemy.id));
         hooks.beginBattle(hooks.state.enemies.filter((enemy) => !enemy.nonCombat));
         for (let i = 0; i < 20 && hooks.state.currentBattle; i += 1) {
@@ -3131,20 +3140,35 @@ function assertScenario(name, metrics) {
         }
         await wait(520);
         const after = hooks.getPlayerStats();
+        const afterState = JSON.parse(window.render_game_to_text());
+        const afterProgress = hooks.getFormProgress();
         const hero = hooks.getHeroStateForTest();
         const hiddenState = hooks.getHiddenLayerStateForTest();
-        return {
-          rescued: Boolean(hiddenState.rescued?.[index]),
-          returnFloor: hooks.state.floor,
+      const formDeltas = Object.fromEntries(Object.keys(afterProgress).map((formId) => [
+        formId,
+        (afterProgress[formId]?.kills || 0) - (beforeProgress[formId]?.kills || 0),
+      ]));
+      const nonCurrentFormDeltas = Object.entries(formDeltas)
+        .filter(([formId]) => formId !== afterState.player.form.id)
+        .map(([, delta]) => delta);
+      return {
+        rescued: Boolean(hiddenState.rescued?.[index]),
+        returnFloor: hooks.state.floor,
           atkDelta: after.atk - before.atk,
-          defDelta: after.def - before.def,
-          speedDelta: after.speed - before.speed,
+        defDelta: after.def - before.def,
+        speedDelta: after.speed - before.speed,
+        formDeltas,
+        allFormsReceivedElderBonus: Object.values(formDeltas).every((delta) => delta >= 2)
+          && nonCurrentFormDeltas.every((delta) => delta === 2),
+        filmDelta: Number((afterState.player.filmCount - beforeFilm).toFixed(1)),
           trueEnding: Boolean(hiddenState.rescued?.[4]),
           hpAfter: hero.hp,
           maxHpAfter: hero.maxHp,
         };
       };
 
+      const hidden1Reward = await runHiddenRescue(1, 10);
+      const hidden2Reward = await runHiddenRescue(2, 20);
       const hidden3Reward = await runHiddenRescue(3, 22);
       const hidden4Reward = await runHiddenRescue(4, 40);
       const runHiddenTimeout = async (index, returnFloor) => {
@@ -3176,6 +3200,8 @@ function assertScenario(name, metrics) {
         triggersValid,
         hidden1,
         hidden1Timeout,
+        hidden1Reward,
+        hidden2Reward,
         hidden3Reward,
         hidden4Reward,
       };

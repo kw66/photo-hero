@@ -498,7 +498,7 @@ const cases = [
       statAffinity: [],
       specialAffinity: [],
     },
-    expect: ({ item, score }) => item.drawingRecognition === "unformed" && score === 0 && item.tooLarge,
+    expect: ({ item, score }) => /未成形/.test(item.itemName) && score === 0 && item.tooLarge,
   },
   {
     label: "one-stroke loop is not a wing item",
@@ -969,6 +969,103 @@ const cases = [
     ),
   },
   {
+    label: "drawing flag rejects kite and carry-into-tower fallback",
+    input: {
+      sourceMode: "drawing",
+      itemName: "彩绘风鸢",
+      subjectName: "风鸢",
+      objectType: "装备轮廓",
+      objectiveAssessment: "客观评价：一条黑色长杆连接右上角的封闭三角旗面，旗面内部有绿色曲线和橙黄色短线装饰，主体完整。",
+      diagnosticFeatures: {
+        shapes: ["长杆", "封闭三角旗面"],
+        colors: ["黑色", "绿色", "橙色", "黄色"],
+        parts: ["杆", "旗面", "彩色纹路"],
+        relations: ["长杆连接旗面一侧"],
+        counterEvidence: ["没有风筝线轴或菱形风筝骨架", "没有刀刃或枪尖"],
+      },
+      subjectCandidates: [
+        { name: "旗帜", category: "带杆小物", evidence: ["长杆", "连接旗面", "彩色纹路"], missing: [], confidence: 0.86 },
+        { name: "风筝", category: "飞行玩具", evidence: ["三角形轮廓"], missing: ["没有风筝线", "没有十字骨架"], confidence: 0.32 },
+      ],
+      recognizedSubject: "风筝",
+      recognition: "recognizable_object",
+      visualEvidence: ["长杆连接旗面", "彩色纹路"],
+      identityDescription: "白色底上有一根黑色长杆，右上角连着封闭旗面，旗面里有绿色曲线和橙黄色短线。",
+      description: "彩绘风鸢带着清晰的装备轮廓，可以被带进魔塔。",
+      reason: "主体=风鸢；证据=三角轮廓；质量=清楚。",
+      tags: ["风鸢", "旗面", "彩色纹路"],
+      value: 16,
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 2 }],
+    },
+    expect: ({ item, renderedDescription }) => (
+      /旗/.test(item.itemName)
+      && !/风鸢|风筝|装备轮廓|轮廓/.test(item.itemName)
+      && !/可以被带进魔塔|带进魔塔|带进塔中|带进塔里|装备轮廓|主体轮廓/.test(renderedDescription)
+      && item.value > 0
+    ),
+  },
+  {
+    label: "drawing flag keeps flag from direct model output",
+    input: {
+      sourceMode: "drawing",
+      itemName: "藤纹旗帜",
+      subjectName: "旗帜",
+      objectType: "带杆旗帜",
+      objectiveAssessment: "客观评价：黑色长杆和右上方的四边形旗面清楚，旗面里有绿色藤纹和橙色装饰。",
+      diagnosticFeatures: {
+        shapes: ["长杆", "四边形旗面"],
+        colors: ["绿色藤纹", "橙色短线"],
+        parts: ["旗杆", "旗面"],
+        relations: ["旗面连在旗杆顶端"],
+      },
+      recognizedSubject: "旗帜",
+      recognition: "recognizable_object",
+      identityDescription: "黑色长杆连接一块四边形旗面，内部有绿色和橙色彩纹。",
+      description: "藤纹旗帜带着清晰的装备轮廓，可以被带进魔塔。",
+      reason: "主体=旗帜；证据=旗杆+旗面；质量=清楚。",
+      tags: ["旗帜", "旗杆", "藤纹"],
+      value: 17,
+      photoQuality: { clarity: 3, subjectArea: 2, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "defense", score: 1 }, { stat: "speed", score: 1 }],
+    },
+    expect: ({ item, renderedDescription }) => (
+      /旗/.test(item.itemName)
+      && !/装备轮廓|主体轮廓|可以被带进魔塔|带进魔塔|带进塔中|带进塔里/.test(renderedDescription)
+      && item.value > 0
+    ),
+  },
+  {
+    label: "drawing irregular outline becomes flag when pole and cloth are visible",
+    input: {
+      sourceMode: "drawing",
+      itemName: "菱形或不规则四边形的轮廓",
+      subjectName: "不规则四边形轮廓",
+      objectType: "装备轮廓",
+      objectiveAssessment: "客观评价：画面中有一条黑色长杆，末端连接一个不规则四边形布面，布面内有绿色和橙色纹路。",
+      diagnosticFeatures: {
+        shapes: ["长杆", "不规则四边形布面"],
+        colors: ["绿色", "橙色"],
+        parts: ["杆", "布面"],
+        relations: ["布面接在长杆末端"],
+      },
+      recognizedSubject: "不规则四边形轮廓",
+      recognition: "recognizable_object",
+      identityDescription: "黑色长杆连接一个不规则四边形布面，内部有绿色和橙色短线装饰。",
+      description: "菱形或不规则四边形的轮廓带着清晰的装备轮廓，可以被带进魔塔。",
+      reason: "主体=轮廓；证据=封闭形状和长杆。",
+      tags: ["轮廓", "长杆", "布面"],
+      value: 14,
+      photoQuality: { clarity: 2, subjectArea: 2, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 1 }],
+    },
+    expect: ({ item, renderedDescription }) => (
+      /旗/.test(item.itemName)
+      && !/轮廓/.test(item.itemName)
+      && !/可以被带进魔塔|带进魔塔|带进塔中|带进塔里|装备轮廓|主体轮廓/.test(renderedDescription)
+    ),
+  },
+  {
     label: "red angular scribble is not flying blade",
     input: {
       sourceMode: "drawing",
@@ -1099,6 +1196,34 @@ const cases = [
       && item.stats.speed === 0
       && item.specialEffects.length === 0
       && score <= 9
+    ),
+  },
+  {
+    label: "formed abstract symbol stays usable",
+    input: {
+      sourceMode: "drawing",
+      itemName: "彩环记号",
+      subjectName: "彩色圆环",
+      objectType: "符号",
+      recognition: "simple_symbol",
+      visualEvidence: ["闭合圆环", "红蓝色块", "清楚分区"],
+      missingEvidence: ["没有随机线团", "没有孤立折线"],
+      identityDescription: "白底上有一个闭合圆环，边缘和内部有红蓝色块，轮廓清楚。",
+      description: "彩环记号在塔光下微微发亮。",
+      reason: "主体=圆环记号；证据=闭合轮廓和颜色分区；质量=结构清楚。",
+      tags: ["圆环", "记号", "彩色"],
+      value: 9,
+      photoQuality: { clarity: 2, subjectArea: 2, backgroundClean: 2, realPhoto: 1, focusLight: 1, interesting: 1 },
+      statAffinity: [{ stat: "defense", score: 2 }, { stat: "regen", score: 1 }],
+      specialAffinity: [],
+      confidence: 0.71,
+    },
+    expect: ({ item, score, quality }) => (
+      item.drawingRecognition !== "unformed"
+      && item.value > 0
+      && score > 0
+      && quality.key === "common"
+      && (item.stats.defense > 0 || item.stats.hp > 0 || item.stats.regen > 0)
     ),
   },
   {
