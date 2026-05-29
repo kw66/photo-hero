@@ -2589,20 +2589,9 @@ dd {
   align-items: stretch;
 }
 
-.boss-reward-prompt {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  min-height: 30px;
-  padding: 0 10px;
-  border: 2px solid color-mix(in srgb, var(--amber) 72%, #000 28%);
-  border-radius: var(--radius);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--amber) 20%, var(--panel-2) 80%), var(--panel));
-  color: var(--ink);
-  font-size: 0.88rem;
-  font-weight: 950;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%);
+.enemy-field.is-reward-field {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
 }
 
 .enemy-card {
@@ -3115,22 +3104,22 @@ dd {
 }
 
 .reward-card {
-  min-height: 102px;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 158px;
+  height: 158px;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 6px;
   padding: 8px;
+  align-content: stretch;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--amber) 12%, var(--panel-2) 88%), var(--panel));
 }
 
 .intro-reward-card {
-  min-height: 116px;
-  height: 116px;
-  align-content: stretch;
-  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 158px;
+  height: 158px;
 }
 
-.intro-reward-card .reward-card-desc {
+.reward-card .reward-card-desc {
   align-self: start;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -3208,24 +3197,6 @@ dd {
   line-height: 1.22;
   text-align: left;
   overflow-wrap: anywhere;
-}
-
-.reward-card-foot {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 6px;
-  min-height: 18px;
-  color: color-mix(in srgb, var(--ink) 70%, var(--muted));
-  font-size: 0.74rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.reward-card-foot strong {
-  color: var(--green);
-  font-weight: 950;
-  white-space: nowrap;
 }
 
 .reward-portrait {
@@ -5663,13 +5634,6 @@ textarea {
     gap: 5px;
   }
 
-  .boss-reward-prompt {
-    min-height: 25px;
-    padding-inline: 7px;
-    border-width: 1px;
-    font-size: 0.72rem;
-  }
-
   .enemy-card {
     min-height: 126px;
     gap: 4px;
@@ -5729,14 +5693,15 @@ textarea {
   }
 
   .reward-card {
-    min-height: 96px;
+    min-height: 126px;
+    height: 126px;
     gap: 4px;
     padding: 6px 5px;
   }
 
   .intro-reward-card {
-    min-height: 104px;
-    height: 104px;
+    min-height: 126px;
+    height: 126px;
   }
 
   .reward-card-main {
@@ -5762,12 +5727,6 @@ textarea {
   .reward-card-desc {
     font-size: 0.52rem;
     line-height: 1.14;
-  }
-
-  .reward-card-foot {
-    min-height: 16px;
-    gap: 3px;
-    font-size: 0.58rem;
   }
 
   .selection-badge {

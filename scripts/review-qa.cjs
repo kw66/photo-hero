@@ -65,9 +65,17 @@ async function collectScenario(page, name, action = async () => {}) {
       detail: rect("#equipmentDetail"),
       actions: rect(".floor-action-row"),
       enemyField: rect("#enemyField"),
+      floorText: document.querySelector("#floorText")?.textContent.trim() || "",
       visibleButtons,
       detailText: document.querySelector("#equipmentDetail")?.innerText || "",
       enemyText: document.querySelector("#enemyField")?.innerText || "",
+      rewardCards: Array.from(document.querySelectorAll(".reward-card")).map((node) => {
+        const r = node.getBoundingClientRect();
+        return {
+          width: Math.round(r.width * 10) / 10,
+          height: Math.round(r.height * 10) / 10,
+        };
+      }),
       infoText: document.querySelector(".info-panel")?.innerText || "",
       playerManualText: Array.from(document.querySelectorAll('.info-page[data-info-page="about"], .info-page[data-info-page="photo"], .info-page[data-info-page="battle"]'))
         .map((node) => node.textContent || "")
@@ -361,7 +369,13 @@ function assertScenario(name, metrics) {
   }
   if (name === "mobile-reward") {
     if (!metrics.visibleButtons.includes("选择")) failures.push(`${name}: missing reward confirm button`);
-    if (/可切换|点选|点选择确认/.test(metrics.enemyText)) failures.push(`${name}: reward cards still show old footer copy`);
+    if (!/三选一奖励/.test(metrics.floorText)) failures.push(`${name}: floor label should carry 三选一奖励, got ${metrics.floorText}`);
+    if (/三张奖励牌|只能带走一张|已选中奖励牌|可切换|点选|点选择确认/.test(metrics.enemyText)) failures.push(`${name}: reward cards still show old prompt/footer copy`);
+    if ((metrics.rewardCards || []).length !== 3) failures.push(`${name}: should render exactly 3 reward cards, got ${JSON.stringify(metrics.rewardCards)}`);
+    const widths = (metrics.rewardCards || []).map((card) => card.width);
+    const heights = (metrics.rewardCards || []).map((card) => card.height);
+    if (widths.length === 3 && Math.max(...widths) - Math.min(...widths) > 1) failures.push(`${name}: reward card widths should be stable, got ${JSON.stringify(widths)}`);
+    if (heights.length === 3 && Math.max(...heights) - Math.min(...heights) > 1) failures.push(`${name}: reward card heights should be stable, got ${JSON.stringify(heights)}`);
   }
   if (name === "mobile-reward-boss-bypass") {
     if (!metrics.visibleButtons.includes("绕过")) failures.push(`${name}: reward boss pre-battle should show 绕过`);

@@ -13053,7 +13053,7 @@ function getFloorActionLabel(bossRewardPending = Boolean(state.bossReward)) {
   }
   const floor = bossRewardPending && state.bossReward?.floor ? state.bossReward.floor : state.floor;
   if (isPlayerDefeated()) return `第 ${floor} / ${maxFloor} 层 · 战败`;
-  if (bossRewardPending) return `第 ${floor} / ${maxFloor} 层 · 奖励`;
+  if (bossRewardPending) return `第 ${floor} / ${maxFloor} 层 · 三选一奖励`;
   return `第 ${floor} / ${maxFloor} 层${isBossFloor(floor) ? " · Boss" : isRewardBossFloor(floor) ? " · 奖励Boss" : ""}`;
 }
 
@@ -13090,6 +13090,7 @@ function renderCameraStatus() {
 function renderEnemyField(enemyDamageEstimates = null) {
   els.enemyField.innerHTML = "";
   els.enemyField.classList.toggle("is-intro-field", isIntroFloor());
+  els.enemyField.classList.toggle("is-reward-field", Boolean(state.bossReward));
   const estimates = enemyDamageEstimates || getEnemyDamageEstimates();
   const shouldFlipIn = state.enemyFlipEncounterId === state.encounterId && !state.currentBattle && !state.autoBattleTimer;
 
@@ -13236,10 +13237,6 @@ function renderIntroRewardCards() {
 function renderBossRewardCards() {
   const options = Array.isArray(state.bossReward?.options) ? state.bossReward.options : [];
   const selectedIndex = getSelectedBossRewardIndex();
-  const title = document.createElement("div");
-  title.className = "boss-reward-prompt";
-  title.textContent = selectedIndex >= 0 ? "已选中奖励牌，点击选择确认" : "三张奖励牌，只能带走一张";
-  els.enemyField.append(title);
   options.forEach((option, index) => {
     const displayOption = getBossRewardDisplayOption(option);
     const button = document.createElement("button");
@@ -13249,12 +13246,6 @@ function renderBossRewardCards() {
     button.setAttribute("aria-pressed", String(selected));
     button.addEventListener("click", () => selectBossReward(index));
     const icon = displayOption.icon || getBossRewardIcon(option.type);
-    const footHtml = selected
-      ? `<div class="reward-card-foot">
-        <span>已选</span>
-        <strong>待确认</strong>
-      </div>`
-      : "";
     button.innerHTML = `
       <div class="reward-card-main">
         <div class="monster-portrait reward-portrait">
@@ -13266,7 +13257,6 @@ function renderBossRewardCards() {
         </div>
       </div>
       <p class="reward-card-desc">${escapeHtml(displayOption.desc || "选择后进入下一层。")}</p>
-      ${footHtml}
     `;
     els.enemyField.append(button);
   });
