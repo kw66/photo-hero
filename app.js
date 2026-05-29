@@ -601,6 +601,16 @@ const bgmLoopHoldUntil = new WeakMap();
 const bgmFadeScales = new WeakMap();
 const bgmFadeTimers = new WeakMap();
 const bgmAudioCache = {};
+const bgmBlobUrlCache = {};
+const bgmPreloadPromises = {};
+const bgmPreloadCompletedKeys = new Set();
+const bgmPreloadFailedKeys = new Set();
+const sfxBlobUrlCache = {};
+const sfxPreloadPromises = {};
+const sfxPreloadCompletedKeys = new Set();
+const sfxPreloadFailedKeys = new Set();
+const imagePreloadCompletedUrls = new Set();
+const imagePreloadFailedUrls = new Set();
 const activeSfxAudios = new Set();
 const pooledSfxAudios = new WeakSet();
 const sfxCleanupCallbacks = new WeakMap();
@@ -617,6 +627,25 @@ const bgmCrossfadeMs = 720;
 const bgmCrossfadeStepMs = 60;
 const sfxPoolSize = 5;
 const sfxPoolMaxSize = 8;
+const bootImagePreloadTimeoutMs = 8000;
+const bootSfxPreloadTimeoutMs = 8000;
+const bootBgmPreloadTimeoutMs = 16000;
+const backgroundBgmPreloadGapMs = 220;
+const npcPreloadKeys = ["elder", "merchant", "thief", "princess", "fairy", "lava", "exp-shop", "gold-shop"];
+const bootPreloadState = {
+  active: false,
+  startedAt: 0,
+  finishedAt: 0,
+  expected: 0,
+  completed: 0,
+  failures: [],
+  imageKeys: [],
+  sfxKeys: [],
+  criticalBgmKeys: [],
+  backgroundBgmKeys: [],
+  backgroundStarted: false,
+  backgroundComplete: false,
+};
 
 const defaultTutorialState = {
   photoStarted: false,
@@ -666,6 +695,13 @@ const bgmPreloadOrder = [
   "reward",
   "ending",
   "defeat",
+];
+
+const bootCriticalBgmPreloadOrder = [
+  "opening",
+  "area1",
+  "skeletonCaptain",
+  "area2",
 ];
 
 const introRewardOptions = [
@@ -944,17 +980,280 @@ let selectedBestiaryGroup = "normal";
 let bestiaryPageByGroup = { normal: 0, boss: 0, npc: 0, affix: 0 };
 let formGridRendered = false;
 
-loadConfig();
-loadSave();
-ensureEncounter();
-ensureInitialFloorNarrative();
-bindEvents();
-initializeInfoCardSelection();
-ensureBgmForGameState(true);
-render();
-window.setTimeout(() => {
-  initGlobalStats();
-}, 250);
+bootstrapGame();
+
+async function bootstrapGame() {
+  bootPreloadState.active = true;
+  bootPreloadState.startedAt = Date.now();
+  setBootProgress("检查塔内图像...", 0, 1);
+  try {
+    await preloadBootResources();
+  } catch (error) {
+    bootPreloadState.failures.push({ type: "boot", detail: formatPreloadError(error) });
+  }
+
+  loadConfig();
+  loadSave();
+  ensureEncounter();
+  ensureInitialFloorNarrative();
+  bindEvents();
+  initializeInfoCardSelection();
+  ensureBgmForGameState(true);
+  render();
+  finishBootLoader();
+  startBackgroundBgmPreload();
+  window.setTimeout(() => {
+    initGlobalStats();
+  }, 250);
+}
+
+async function preloadBootResources() {
+  const imageUrls = collectBootImageUrls();
+  const sfxKeys = Object.keys(soundEffects);
+  const criticalBgmKeys = bootCriticalBgmPreloadOrder.filter((key) => bgmTracks[key]);
+  bootPreloadState.imageKeys = imageUrls.slice();
+  bootPreloadState.sfxKeys = sfxKeys.slice();
+  bootPreloadState.criticalBgmKeys = criticalBgmKeys.slice();
+  bootPreloadState.expected = imageUrls.length + sfxKeys.length + criticalBgmKeys.length;
+  bootPreloadState.completed = 0;
+  bootPreloadState.failures = [];
+  setBootProgress("预加载塔内图像...", 0, bootPreloadState.expected || 1);
+
+  const jobs = [
+    ...imageUrls.map((url) => () => preloadImageAsset(url, bootImagePreloadTimeoutMs)),
+    ...sfxKeys.map((key) => () => preloadSoundEffectAsset(key, bootSfxPreloadTimeoutMs)),
+    ...criticalBgmKeys.map((key) => () => preloadBgmTrackAsset(key, bootBgmPreloadTimeoutMs)),
+  ];
+
+  await runBootPreloadJobs(jobs, 4);
+}
+
+function collectBootImageUrls() {
+  const urls = new Set([
+    `${heroFormImageBase}form-hp.png`,
+    `${heroFormImageBase}form-attack.png`,
+    `${heroFormImageBase}form-defense.png`,
+    `${heroFormImageBase}form-lifesteal.png`,
+    `${heroFormImageBase}form-regen.png`,
+    `${heroFormImageBase}form-speed.png`,
+    `${heroFormImageBase}form-shield.png`,
+    `${heroFormImageBase}form-greedy.png`,
+    `${heroFormImageBase}form-angry.png`,
+    "./assets/tiles/floor.png",
+    "./assets/tiles/wall.png",
+    "./assets/effects/hit-hero-impact.png",
+    "./assets/effects/hit-enemy-slash.png",
+  ]);
+  Object.values(monsterImages).forEach((file) => urls.add(`${monsterImageBase}${file}`));
+  Object.values(monsterAnimations).forEach((file) => urls.add(`${monsterAnimationBase}${file}`));
+  getBossRewardCatalog("photo").forEach((reward) => {
+    if (reward.icon) urls.add(`${rewardIconBase}${reward.icon}`);
+  });
+  introRewardOptions.forEach((option) => {
+    if (option.icon) urls.add(`${rewardIconBase}${option.icon}`);
+  });
+  npcPreloadKeys.forEach((key) => {
+    urls.add(`${npcImageBase}${key}.png`);
+    urls.add(`${npcImageBase}${key}-row.png`);
+  });
+  return [...urls];
+}
+
+async function runBootPreloadJobs(jobs, concurrency = 4) {
+  let index = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(concurrency, jobs.length || 1)) }, async () => {
+    while (index < jobs.length) {
+      const job = jobs[index];
+      index += 1;
+      try {
+        await job();
+      } catch (error) {
+        bootPreloadState.failures.push({ type: "asset", detail: formatPreloadError(error) });
+      } finally {
+        bootPreloadState.completed += 1;
+        setBootProgress(getBootProgressLabel(), bootPreloadState.completed, bootPreloadState.expected || 1);
+      }
+    }
+  });
+  await Promise.all(workers);
+}
+
+function getBootProgressLabel() {
+  const done = bootPreloadState.completed;
+  const imageDone = Math.min(done, bootPreloadState.imageKeys.length);
+  if (imageDone < bootPreloadState.imageKeys.length) return "预加载塔内图像...";
+  const sfxDone = Math.min(Math.max(done - bootPreloadState.imageKeys.length, 0), bootPreloadState.sfxKeys.length);
+  if (sfxDone < bootPreloadState.sfxKeys.length) return "预加载打击音效...";
+  return "预加载前段音乐...";
+}
+
+function setBootProgress(label, done, total) {
+  const loader = document.getElementById("bootLoader");
+  if (!loader) return;
+  const text = document.getElementById("bootProgressText");
+  const bar = document.getElementById("bootProgressBar");
+  const count = document.getElementById("bootProgressCount");
+  const percentValue = total > 0 ? clampNumber(done / total, 0, 1) * 100 : 100;
+  const percentText = `${Math.round(percentValue)}%`;
+  if (text) text.textContent = label || "正在装填塔内资源...";
+  if (bar) bar.style.setProperty("--boot-progress", percentText);
+  if (count) count.textContent = percentText;
+}
+
+function finishBootLoader() {
+  bootPreloadState.active = false;
+  bootPreloadState.finishedAt = Date.now();
+  setBootProgress("资源已就绪，进入魔塔。", 1, 1);
+  document.body.classList.remove("is-booting");
+  const loader = document.getElementById("bootLoader");
+  if (!loader) return;
+  loader.classList.add("is-done");
+  window.setTimeout(() => {
+    loader.hidden = true;
+  }, 260);
+}
+
+function formatPreloadError(error) {
+  if (!error) return "";
+  if (typeof error === "string") return error.slice(0, 180);
+  const message = error.message || String(error);
+  return message.slice(0, 180);
+}
+
+function withTimeout(promise, timeoutMs, label = "asset") {
+  if (!timeoutMs || timeoutMs <= 0) return promise;
+  let timer = 0;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = window.setTimeout(() => reject(new Error(`${label} preload timeout`)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timer) window.clearTimeout(timer);
+  });
+}
+
+function preloadImageAsset(url, timeoutMs = bootImagePreloadTimeoutMs) {
+  if (!url) return Promise.resolve(false);
+  if (imagePreloadCompletedUrls.has(url)) return Promise.resolve(true);
+  return withTimeout(new Promise((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => {
+      imagePreloadCompletedUrls.add(url);
+      imagePreloadFailedUrls.delete(url);
+      resolve(true);
+    };
+    image.onerror = () => {
+      imagePreloadFailedUrls.add(url);
+      reject(new Error(`image: ${url}`));
+    };
+    image.src = url;
+    if (image.complete && image.naturalWidth > 0) {
+      imagePreloadCompletedUrls.add(url);
+      imagePreloadFailedUrls.delete(url);
+      resolve(true);
+    }
+  }), timeoutMs, url);
+}
+
+async function fetchAssetBlobUrl(url, timeoutMs, label) {
+  const response = await withTimeout(fetch(url, { cache: "force-cache" }), timeoutMs, label);
+  if (!response.ok) throw new Error(`${label}: ${response.status}`);
+  const blob = await withTimeout(response.blob(), timeoutMs, label);
+  return URL.createObjectURL(blob);
+}
+
+function getSoundEffectSrc(key) {
+  const effect = soundEffects[key];
+  if (!effect) return "";
+  return sfxBlobUrlCache[key] || `${audioAssetBase}${effect.file}`;
+}
+
+async function preloadSoundEffectAsset(key, timeoutMs = bootSfxPreloadTimeoutMs) {
+  const effect = soundEffects[key];
+  if (!effect) return false;
+  if (!sfxPreloadPromises[key]) {
+    sfxPreloadPromises[key] = fetchAssetBlobUrl(`${audioAssetBase}${effect.file}`, timeoutMs, `sfx:${key}`)
+      .then((url) => {
+        sfxBlobUrlCache[key] = url;
+        sfxPreloadCompletedKeys.add(key);
+        sfxPreloadFailedKeys.delete(key);
+        if (effect.audio) {
+          effect.audio.src = url;
+          try {
+            effect.audio.load?.();
+          } catch {
+            // The blob is already cached; load() is best-effort.
+          }
+        }
+        if (effect.pool) {
+          effect.pool.forEach((audio) => {
+            if (!audio || activeSfxAudios.has(audio)) return;
+            audio.src = url;
+            try {
+              audio.load?.();
+            } catch {
+              // Pool refresh is best-effort.
+            }
+          });
+        }
+        return true;
+      })
+      .catch((error) => {
+        delete sfxPreloadPromises[key];
+        sfxPreloadFailedKeys.add(key);
+        throw error;
+      });
+  }
+  return sfxPreloadPromises[key];
+}
+
+function getBgmTrackSrc(key) {
+  const track = bgmTracks[key];
+  if (!track) return "";
+  return bgmBlobUrlCache[key] || `${musicAssetBase}${track.file}`;
+}
+
+async function preloadBgmTrackAsset(key, timeoutMs = bootBgmPreloadTimeoutMs) {
+  const track = bgmTracks[key];
+  if (!track) return false;
+  if (bgmBlobUrlCache[key]) {
+    const cachedAudio = bgmAudioCache[key];
+    try {
+      cachedAudio?.load?.();
+    } catch {
+      // Loading a cached audio element is best-effort.
+    }
+    return true;
+  }
+  if (!bgmPreloadPromises[key]) {
+    bgmPreloadPromises[key] = fetchAssetBlobUrl(`${musicAssetBase}${track.file}`, timeoutMs, `bgm:${key}`)
+      .then((url) => {
+        bgmBlobUrlCache[key] = url;
+        bgmPreloadCompletedKeys.add(key);
+        bgmPreloadFailedKeys.delete(key);
+        const audio = bgmAudioCache[key] || getBgmAudio(key);
+        if (audio && state.bgmAudio !== audio && !isBgmPlaying(audio)) {
+          const wasPaused = audio.paused;
+          audio.src = url;
+          try {
+            audio.load?.();
+          } catch {
+            // The blob is already cached; load() is best-effort.
+          }
+          if (!wasPaused) {
+            scheduleAudioRecovery("bgm-preload-src-refresh", 240);
+          }
+        }
+        return true;
+      })
+      .catch((error) => {
+        delete bgmPreloadPromises[key];
+        bgmPreloadFailedKeys.add(key);
+        throw error;
+      });
+  }
+  return bgmPreloadPromises[key];
+}
 
 function normalizeHeroMode(mode) {
   return heroModes[mode]?.id || defaultHeroMode;
@@ -1043,7 +1342,8 @@ function getSoundEffectAudio(key) {
 }
 
 function createSoundEffectAudioElement(effect, pooled = false) {
-  const audio = new Audio(`${audioAssetBase}${effect.file}`);
+  const key = Object.keys(soundEffects).find((itemKey) => soundEffects[itemKey] === effect);
+  const audio = new Audio(key ? getSoundEffectSrc(key) : `${audioAssetBase}${effect.file}`);
   audio.preload = "auto";
   audio.volume = getElementSafeSfxVolume(effect.volume);
   sfxAudioBaseVolumes.set(audio, effect.volume);
@@ -1099,11 +1399,14 @@ function unlockGameAudio() {
   state.audioUnlocked = true;
   resumeGameAudioContext();
   for (const key of Object.keys(soundEffects)) {
+    preloadSoundEffectAsset(key).catch(() => {
+      // SFX falls back to normal file URLs when blob caching fails.
+    });
     const audio = getSoundEffectAudio(key);
     audio?.load?.();
     primeSoundEffectPool(key);
   }
-  preloadBgmTracksInOrder();
+  startBackgroundBgmPreload();
   ensureBgmForGameState(true);
   recoverGameAudio("unlock", { force: true });
 }
@@ -1427,13 +1730,23 @@ function getBgmAudio(key) {
   const track = bgmTracks[key];
   if (!track) return null;
   if (bgmAudioCache[key]) {
-    updateBgmAudioElementVolume(bgmAudioCache[key]);
-    return bgmAudioCache[key];
+    const cachedAudio = bgmAudioCache[key];
+    const blobSrc = bgmBlobUrlCache[key];
+    if (blobSrc && cachedAudio.src !== blobSrc && state.bgmAudio !== cachedAudio && !isBgmPlaying(cachedAudio)) {
+      cachedAudio.src = blobSrc;
+      try {
+        cachedAudio.load?.();
+      } catch {
+        // Blob URL refresh is best-effort.
+      }
+    }
+    updateBgmAudioElementVolume(cachedAudio);
+    return cachedAudio;
   }
   const audio = document.createElement("audio");
   audio.preload = "auto";
   audio.loop = false;
-  audio.src = `${musicAssetBase}${track.file}`;
+  audio.src = getBgmTrackSrc(key);
   audio.addEventListener("ended", () => {
     scheduleBgmLoopRestart(key, audio);
   });
@@ -1516,21 +1829,46 @@ function fadeBgmAudioTo(audio, targetScale, options = {}) {
 }
 
 function preloadBgmTracksInOrder() {
+  startBackgroundBgmPreload();
+}
+
+function startBackgroundBgmPreload() {
   if (bgmPreloadStarted) return;
   bgmPreloadStarted = true;
-  bgmPreloadOrder
-    .filter((key) => bgmTracks[key])
-    .forEach((key, index) => {
-      window.setTimeout(() => {
-        const audio = getBgmAudio(key);
-        if (key === state.bgmKey && audio === state.bgmAudio) return;
-        try {
-          audio?.load?.();
-        } catch {
-          // Preloading is best-effort; playback still falls back to normal loading.
-        }
-      }, index * 90);
-    });
+  const keys = bgmPreloadOrder.filter((key) => bgmTracks[key] && !bgmBlobUrlCache[key]);
+  bootPreloadState.backgroundStarted = true;
+  bootPreloadState.backgroundComplete = keys.length === 0;
+  bootPreloadState.backgroundBgmKeys = keys.slice();
+  keys.forEach((key, index) => {
+    window.setTimeout(() => {
+      preloadBgmTrackAsset(key, bootBgmPreloadTimeoutMs)
+        .then(() => {
+          const audio = getBgmAudio(key);
+          if (key === state.bgmKey && audio === state.bgmAudio) return;
+          try {
+            audio?.load?.();
+          } catch {
+            // Preloading is best-effort; playback still falls back to normal loading.
+          }
+        })
+        .catch((error) => {
+          bootPreloadState.failures.push({ type: "background-bgm", key, detail: formatPreloadError(error) });
+          const audio = getBgmAudio(key);
+          if (key !== state.bgmKey || audio !== state.bgmAudio) {
+            try {
+              audio?.load?.();
+            } catch {
+              // Normal preload fallback is best-effort.
+            }
+          }
+        })
+        .finally(() => {
+          bootPreloadState.backgroundComplete = bgmPreloadOrder.every((itemKey) => (
+            !bgmTracks[itemKey] || bgmPreloadCompletedKeys.has(itemKey) || bgmPreloadFailedKeys.has(itemKey)
+          ));
+        });
+    }, index * backgroundBgmPreloadGapMs);
+  });
 }
 
 function stopBgmAudioElement(audio) {
@@ -1580,10 +1918,15 @@ function playBgm(key, options = {}) {
     if (previousAudio) stopBgmAudioElement(previousAudio);
     return;
   }
-  try {
-    state.bgmAudio.load?.();
-  } catch {
-    // Loading is best-effort; play() will retry through the recovery layer.
+  if (!bgmBlobUrlCache[key]) {
+    preloadBgmTrackAsset(key, bootBgmPreloadTimeoutMs).catch(() => {
+      // Playback still falls back to the regular source URL.
+    });
+    try {
+      state.bgmAudio.load?.();
+    } catch {
+      // Loading is best-effort; play() will retry through the recovery layer.
+    }
   }
   playCurrentBgmAudio({ previousAudio });
 }
@@ -14487,8 +14830,27 @@ window.__photoHeroTestHooks = {
     return {
       started: bgmPreloadStarted,
       keys: Object.keys(bgmAudioCache),
+      blobKeys: Object.keys(bgmBlobUrlCache),
+      completedKeys: [...bgmPreloadCompletedKeys],
+      failedKeys: [...bgmPreloadFailedKeys],
       order: [...bgmPreloadOrder],
       loadedCount: Object.keys(bgmAudioCache).length,
+      boot: {
+        active: bootPreloadState.active,
+        expected: bootPreloadState.expected,
+        completed: bootPreloadState.completed,
+        criticalBgmKeys: bootPreloadState.criticalBgmKeys.slice(),
+        imageLoadedCount: imagePreloadCompletedUrls.size,
+        imageFailedCount: imagePreloadFailedUrls.size,
+        sfxLoadedKeys: [...sfxPreloadCompletedKeys],
+        sfxFailedKeys: [...sfxPreloadFailedKeys],
+        backgroundStarted: bootPreloadState.backgroundStarted,
+        backgroundComplete: bootPreloadState.backgroundComplete,
+        failures: bootPreloadState.failures.slice(-12),
+        durationMs: bootPreloadState.finishedAt && bootPreloadState.startedAt
+          ? bootPreloadState.finishedAt - bootPreloadState.startedAt
+          : 0,
+      },
     };
   },
   getBgmPlaybackStateForTest() {

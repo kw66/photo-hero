@@ -32,9 +32,11 @@ async function collectScenario(page, name, action = async () => {}) {
   const url = new URL(targetUrl);
   url.searchParams.set("review", String(Date.now()));
   url.searchParams.set("scenario", name);
-  await page.goto(url.toString(), { waitUntil: "networkidle" });
+  await page.goto(url.toString(), { waitUntil: "load" });
+  await waitForGameReady(page);
   await page.evaluate(() => localStorage.clear());
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "load" });
+  await waitForGameReady(page);
   await action(page);
   await page.waitForTimeout(250);
 
@@ -176,6 +178,15 @@ async function collectScenario(page, name, action = async () => {}) {
   metrics.errors = errors;
   await page.screenshot({ path: `${screenshotDir}/review-${name}.png`, fullPage: true });
   return metrics;
+}
+
+async function waitForGameReady(page) {
+  await page.waitForFunction(() => (
+    Boolean(window.render_game_to_text)
+    && Boolean(window.__photoHeroTestHooks)
+    && !document.body.classList.contains("is-booting")
+    && document.getElementById("bootLoader")?.hidden !== false
+  ), null, { timeout: 30000 });
 }
 
 function assertScenario(name, metrics) {
@@ -454,8 +465,10 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: volume range inputs should not inherit global input padding/border, got ${JSON.stringify(controls)}`);
     }
     if (!controls.battleGainBoosted) failures.push(`${name}: SFX gain should exceed old capped volume at 100%, got ${JSON.stringify(controls)}`);
-    if (!preload.started || (preload.loadedCount || 0) < 3) failures.push(`${name}: BGM should preload in order after audio unlock, got ${JSON.stringify(preload)}`);
-    if ((preload.keys || [])[0] !== "opening") failures.push(`${name}: BGM preload should start from opening track, got ${JSON.stringify(preload.keys)}`);
+    const preloadedKeys = preload.completedKeys || preload.blobKeys || preload.keys || [];
+    if (!preload.started || preloadedKeys.length < 3) failures.push(`${name}: BGM should preload in order after audio unlock, got ${JSON.stringify(preload)}`);
+    if (preloadedKeys[0] !== "opening") failures.push(`${name}: BGM preload should start from opening track, got ${JSON.stringify(preloadedKeys)}`);
+    if (!(preload.blobKeys || []).includes("area1")) failures.push(`${name}: preloaded BGM should use cached blob sources for early floors, got ${JSON.stringify(preload)}`);
   }
   if (name === "monster-distribution") {
     const distribution = metrics.monsterDistribution || {};
