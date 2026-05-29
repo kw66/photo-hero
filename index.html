@@ -3,18 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>照片勇者</title>
-    <link rel="stylesheet" href="./styles.css?v=20260529-drawing-balance-fix">
+    <title>照片勇者 / 画图勇者</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📷</text></svg>">
+    <link rel="stylesheet" href="./styles.css?v=20260530-experience-route-fix">
   </head>
   <body class="is-booting">
     <div class="boot-loader" id="bootLoader" role="status" aria-live="polite" aria-label="资源加载中">
       <div class="boot-loader-panel">
-        <span class="boot-loader-eyebrow">照片勇者</span>
+        <span class="boot-loader-eyebrow">照片勇者 / 画图勇者</span>
         <strong>正在装填冒险资源</strong>
         <p id="bootProgressText">检查图像、音效和前段音乐...</p>
         <div class="boot-tip" aria-live="polite">
           <span class="boot-tip-label">勇者贴士</span>
-          <span class="boot-tip-text is-visible" id="bootTipText">点空装备格，拍下身边小物，它会变成随身装备。</span>
+          <span class="boot-tip-text is-visible" id="bootTipText">点亮空装备格，拍下或画出身边小物，它会变成随身装备。</span>
         </div>
         <div class="boot-progress" aria-hidden="true">
           <span id="bootProgressBar"></span>
@@ -23,7 +24,7 @@
       </div>
     </div>
     <main class="app-shell">
-      <section class="game-panel" aria-label="照片勇者游戏面板">
+      <section class="game-panel" aria-label="勇者游戏面板">
         <div class="game-board">
           <section class="hero-zone" aria-label="勇者属性、装备和战斗">
             <div class="zone-head hero-head">
@@ -39,22 +40,22 @@
             <div class="hero-summary">
               <button class="hero-form-card" type="button" data-panel-target="forms" aria-pressed="false" aria-label="切换角色形态">
                 <b class="hero-switch-badge" aria-hidden="true">切换</b>
-                <img id="heroAvatarImage" src="./assets/heroes/form-hp.png" alt="照片勇者形态">
+                <img id="heroAvatarImage" src="./assets/heroes/form-hp.png" alt="勇者形态">
                 <span data-form-label>生命形态</span>
               </button>
 
               <div class="hero-stat-card">
                 <dl class="hero-stat-strip hero-stats">
-                  <div><dt>攻击</dt><dd id="playerAtk">5</dd></div>
+                  <div><dt>攻击</dt><dd id="playerAtk">4</dd></div>
                   <div><dt>吸血</dt><dd id="playerLifesteal">0</dd></div>
-                  <div><dt>速度</dt><dd id="playerSpeed">3</dd></div>
+                  <div><dt>速度</dt><dd id="playerSpeed">2</dd></div>
                   <div><dt>防御</dt><dd id="playerDef">1</dd></div>
                   <div><dt>回复</dt><dd id="playerRegen">0</dd></div>
                   <div><dt>护盾</dt><dd id="playerShield">0 / 0</dd></div>
                 </dl>
                 <div class="vital-row hp-row hero-hp">
                   <span>生命</span>
-                  <strong id="playerHpText">30 / 30</strong>
+                  <strong id="playerHpText">80 / 80</strong>
                   <div class="hp-track"><span id="playerHpBar"></span></div>
                 </div>
               </div>
@@ -123,7 +124,7 @@
                           </div>
                         </div>
                         <div class="group-qr" aria-label="小红书交流群二维码">
-                          <img id="groupQrImage" data-src="./assets/info/xiaohongshu-group-qr.jpg" alt="照片勇者小红书交流群二维码" loading="lazy" decoding="async">
+                          <img id="groupQrImage" data-src="./assets/info/xiaohongshu-group-qr.jpg" alt="游戏小红书交流群二维码" loading="lazy" decoding="async">
                           <span>加入小红书交流群</span>
                         </div>
                       </article>
@@ -364,6 +365,6 @@
       </section>
     </div>
 
-    <script defer src="./app.js?v=20260529-drawing-balance-fix"></script>
+    <script defer src="./app.js?v=20260530-experience-route-fix"></script>
   </body>
 </html>

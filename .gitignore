@@ -1,6 +1,7 @@
 node_modules/
 output/
 tests/
+backup/
 figure/QQ*
 .env
 npm-debug.log*

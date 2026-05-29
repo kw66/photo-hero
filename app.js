@@ -59,9 +59,6 @@ const experienceWorkerBaseUrl = "https://photo-hero-experience.1092043672.worker
 const experienceProxyBaseUrl = (() => {
   const configured = window.PHOTO_HERO_EXPERIENCE_PROXY_BASE_URL || "";
   if (configured) return configured.replace(/\/+$/, "");
-  if (/^https?:$/.test(window.location.protocol) && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname)) {
-    return `${window.location.origin}/api/experience`;
-  }
   return experienceWorkerBaseUrl;
 })();
 
@@ -492,6 +489,54 @@ const drawingIdentificationUserPrompt = [
   "reason 只写一句内部依据，格式尽量像：主体=火焰短剑；证据=黑线剑身+红橙火焰；质量=线条清楚；倾向=攻击。",
   "",
   "不要额外输出示例、解释或分析过程。",
+].join("\n");
+
+// === LITE 鉴定通道（重构：信任模型 + 极简 schema + 本地只做数值平衡）===
+// 通过 USE_LITE_APPRAISAL 与旧逻辑并存，便于回归对照与回退。
+const USE_LITE_APPRAISAL = true;
+
+const liteIdentificationSystemPromptPhoto = [
+  "你是《照片勇者》的照片鉴定器。只输出一个 JSON 对象：第一个字符是 {，最后一个字符是 }，不要 Markdown、代码块或任何解释。",
+  "你的任务：认出照片里的一个主体、判断它是不是真实拍摄的实物、能不能随身携带，并按 rubric 打质量分和属性倾向。最终数值、品质、特殊词条由本地结算，你不要输出它们。",
+].join("\n");
+
+const liteIdentificationUserPromptPhoto = [
+  "鉴定照片里最清楚的一个主体，输出装备素材 JSON。",
+  "",
+  "输出结构（字段名用英文）：",
+  '{"name":"装备名","subject":"主体","objectType":"类型","equipable":true,"scene":false,"tooLarge":false,"authentic":"real","clarity":0,"appeal":0,"craft":0,"stats":["attack"],"special":false,"desc":"一句话装备描述","identityDescription":"颜色/材质/形状等可区分细节","confidence":0.0}',
+  "",
+  "规则：",
+  "1. 认出画面里最大最清楚的单个主体，按它本来是什么命名，例如 蓝柄剪刀、旧陶瓷杯、黑色键盘；不要叫 照片装备、神秘物品。",
+  "2. equipable=能拿在手里或随身携带的小物为 true；比人明显大、搬不动的（汽车、家具、冰箱、房子、整张床沙发）equipable=false 且 tooLarge=true。",
+  "3. scene=true 只在主体是风景、天空、街道、整个房间这类场景、没有明确小主体时。",
+  "4. authentic 判断来源：真实拍摄的实物=real；网络图/搜图=web；屏幕截图=screenshot；AI 生成图=ai；电商白底/精修宣传图=product。纸卡、贴纸、屏幕里的武器或角色图案，按载体本身（纸、屏幕）判断，不要把图案当真武器。",
+  "5. clarity=主体清晰可辨 0-3；appeal=有趣、让人想装备 0-3；craft=对焦光线构图等拍摄质量 0-3。主动拉开差距，别都给中间分。",
+  "6. stats=1-3 个属性倾向，从 hp/attack/defense/speed/shield/lifesteal/regen 里选，贴合物品功能或形态。special=true 只在主体很清楚、质量高且属性语义非常强时，否则 false。",
+  "7. 物体上的文字含义不作为命名或属性依据。desc 写一句中文装备味道，不承诺具体数值；identityDescription 写颜色、材质、形状、磨损等可区分细节，供查重用。",
+].join("\n");
+
+const liteIdentificationSystemPromptDrawing = [
+  "你是《画图勇者》的简笔画鉴定器。只输出一个 JSON 对象：第一个字符是 {，最后一个字符是 }，不要 Markdown、代码块或任何解释。",
+  "你的任务：看出玩家画的是什么、能不能认出主体，并按 rubric 打质量分和属性倾向。最终数值、品质、特殊词条由本地结算，你不要输出它们。",
+  "鼓励玩家天马行空；像什么就诚实叫什么，认不出就老实说看不出，不要硬猜成神器或魔杖。",
+].join("\n");
+
+const liteIdentificationUserPromptDrawing = [
+  "鉴定这张简笔画里的一个主体，输出装备素材 JSON。",
+  "",
+  "输出结构（字段名用英文）：",
+  '{"name":"装备名","subject":"主体","objectType":"类型","equipable":true,"scene":false,"recognizable":"clear","clarity":0,"appeal":0,"craft":0,"stats":["attack"],"special":false,"desc":"一句话装备描述","identityDescription":"线条/颜色/构图等可区分细节","confidence":0.0}',
+  "",
+  "规则：",
+  "1. 看玩家画的像什么就叫什么，例如 鼠标、雨伞、旗帜、苹果、短剑；可以加一个酷炫前缀但要保留类别词（雷纹鼠标、寒风雨伞）。不要叫 画作装备、神秘涂鸦。",
+  "1b. 拿不准具体是什么时，用朴素中性的名字（例如 小挂件、奇怪的小物、圆形记号），不要硬猜成神剑、魔杖、神器或某种具体武器；宁可朴素也不要认错成离谱的东西。",
+  "2. 倾向于认出来：只要能看出大概是什么就给 clear 或 rough，绝不要因为画得丑、潦草或简单就说看不出。能清楚认出=clear；能猜出但粗糙=rough；只有完全空白、单独一条线、纯随机乱涂、确实没有任何可辨主体时才 scribble。",
+  "3. 只有真画出对应结构才用对应名字：剑要有刃和柄，旗要有杆和布面，盾要有盾面，伞要有伞面和伞柄。画不出就用更朴素的名字，不要硬套神剑、魔杖、神器。",
+  "4. 画里的文字不作依据。画的巨大物、怪物、生物都按符号化装备处理，不判 tooLarge；只有纯风景、整片天空、空房间这类没有主体的画面才 scene=true。",
+  "5. clarity=主体可识别度 0-3；appeal=美观、创意、装备吸引力 0-3；craft=线条完整和配色控制 0-3。主动拉开差距。",
+  "6. stats=1-3 个属性倾向，从 hp/attack/defense/speed/shield/lifesteal/regen 里选，贴合主体。special=true 只在主体明确、结构完整且属性语义非常强时，否则 false。",
+  "7. name、subject、desc 里不要出现 手绘、涂鸦、画作、画布、线条 这类媒介词，直接写它在塔里是什么装备；identityDescription 可以写线条和颜色，用于查重。",
 ].join("\n");
 
 const statOrder = ["hp", "attack", "defense", "speed", "shield", "lifesteal", "regen"];
@@ -4028,16 +4073,19 @@ async function testVisionApi() {
 
   saveConfig(false);
   els.testChatBtn.disabled = true;
-  setChatResult("正在测试图文模型...");
+  const isExperience = isExperienceConfig(config);
+  setChatResult(isExperience ? "正在测试公共鉴定台..." : "正在测试图文模型...");
 
   try {
-    const content = await callVisionText(config, makeVisionTestImage());
-    const result = formatVisionTestResult(content);
+    const content = isExperience
+      ? await callExperienceAppraisal(config, makeVisionTestImage())
+      : await callVisionText(config, makeVisionTestImage());
+    const result = isExperience ? formatExperienceTestResult(content) : formatVisionTestResult(content);
     setChatResult(result.message, result.isError);
-    addLog(result.isError ? "图文模型测试失败。" : "图文模型测试成功。");
+    addLog(result.isError ? (isExperience ? "公共鉴定台测试失败。" : "图文模型测试失败。") : (isExperience ? "公共鉴定台测试成功。" : "图文模型测试成功。"));
   } catch (error) {
     setChatResult(normalizeAnalyzeError(error), true);
-    addLog("图文模型测试失败。");
+    addLog(isExperience ? "公共鉴定台测试失败。" : "图文模型测试失败。");
   } finally {
     els.testChatBtn.disabled = false;
     render();
@@ -4085,6 +4133,42 @@ async function callVisionText(config, image) {
   throw new Error(`模型没有返回最终文本内容。响应结构：${summarizePayloadShape(payload)}`);
 }
 
+async function callExperienceAppraisal(config, image) {
+  let response;
+  const body = {
+    model: config.model,
+    temperature: 0.35,
+    max_tokens: 512,
+    sourceMode: normalizeHeroMode(state.playMode),
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "请对这张图片做一次公共鉴定台测试，按鉴定台要求返回装备 JSON。" },
+          { type: "image_url", image_url: { url: image, detail: "low" } },
+        ],
+      },
+    ],
+  };
+
+  try {
+    response = await fetchJsonWithTimeout(buildChatEndpoint(config.baseUrl), {
+      method: "POST",
+      headers: buildModelHeaders(config),
+      body: JSON.stringify(body),
+    }, visionTestTimeoutMs, "公共鉴定台测试");
+  } catch (error) {
+    if (isAbortError(error) || isTimeoutError(error)) throw error;
+    throw formatBrowserRequestFailure(config, error, (message) => `浏览器直连失败：${message}。如果这是 CORS 错误，说明该 API 不允许网页直接调用。`);
+  }
+
+  if (!response.response.ok) {
+    throw new Error(readUpstreamError(response.payload) || `模型接口返回 ${response.response.status}`);
+  }
+
+  return response.payload;
+}
+
 function formatVisionTestResult(content) {
   const text = normalizeModelContent(content);
   if (!text) return { message: "模型返回为空。", isError: true };
@@ -4129,6 +4213,16 @@ function formatVisionTestResult(content) {
     message: "模型有返回，但没有识别出测试图里的“照片勇者 / VISION OK”。请换成真正支持图片输入的模型。",
     isError: true,
   };
+}
+
+function formatExperienceTestResult(payload) {
+  const text = readModelText(payload);
+  const item = text ? extractJson(text, payload) : null;
+  if (!item) {
+    return { message: "公共鉴定台有返回，但没有形成可解析的装备结果。", isError: true };
+  }
+  const summary = `${formatItemDisplayName(item)} · ${getItemQuality(scoreItem(item)).label} · ${formatSignedNumber(item.value || 0)}`;
+  return { message: `公共鉴定台测试成功：${summary}`, isError: false };
 }
 
 function cleanModelDisplayLine(line) {
@@ -4599,6 +4693,7 @@ async function analyzeDirectly(config, image, options = {}) {
     model: config.model,
     temperature: 0.35,
     max_tokens: modelMaxTokens,
+    sourceMode: isExperienceConfig(config) ? sourceMode : undefined,
     messages: [
       {
         role: "system",
@@ -4822,12 +4917,20 @@ function buildChatEndpoint(input) {
 }
 
 function getIdentificationSystemPrompt(sourceMode = state.playMode) {
-  return normalizeHeroMode(sourceMode) === "drawing"
-    ? drawingIdentificationSystemPrompt
-    : photoIdentificationSystemPrompt;
+  const drawing = normalizeHeroMode(sourceMode) === "drawing";
+  if (USE_LITE_APPRAISAL) {
+    return drawing ? liteIdentificationSystemPromptDrawing : liteIdentificationSystemPromptPhoto;
+  }
+  return drawing ? drawingIdentificationSystemPrompt : photoIdentificationSystemPrompt;
 }
 
 function getIdentificationPrompt(options = {}) {
+  if (USE_LITE_APPRAISAL) {
+    const liteDrawing = normalizeHeroMode(options.sourceMode) === "drawing";
+    const liteReroll = options.reappraise ? "\n\n这是重鉴定：请独立重新观察图片，不要沿用旧名称、属性或描述。" : "";
+    const liteCrop = !liteDrawing && options.cropped ? "\n\n玩家已圈定主体区域，请鉴定框内的物体。" : "";
+    return `${liteDrawing ? liteIdentificationUserPromptDrawing : liteIdentificationUserPromptPhoto}${liteCrop}${liteReroll}`;
+  }
   const rerollHint = options.reappraise
     ? "\n\n这是对一件已经装备的装备进行重鉴定。请重新独立观察这张图片，不要沿用旧装备的名称、属性或描述；允许因为模型随机性给出不同但仍贴合图像的判断。"
     : "";
@@ -4907,14 +5010,15 @@ function extractJson(content, payload = null) {
     throw new Error(`模型没有返回文本内容。响应结构：${summarizePayloadShape(payload)}`);
   }
 
+  const normalizeItem = USE_LITE_APPRAISAL ? normalizeModelItemLite : normalizeModelItem;
   const candidates = collectJsonCandidates(text);
   for (const candidate of candidates) {
     const parsed = parseJsonCandidate(candidate);
-    if (parsed) return normalizeModelItem(parsed);
+    if (parsed) return normalizeItem(parsed);
   }
 
   const looseParsed = parseLooseModelJsonFields(text);
-  if (looseParsed) return normalizeModelItem(looseParsed);
+  if (looseParsed) return normalizeItem(looseParsed);
 
   const fallback = makeFallbackItemFromModelText(text);
   if (fallback) return fallback;
@@ -6261,7 +6365,7 @@ function getTextVisualLength(text) {
   return Array.from(String(text || "")).reduce((sum, char) => sum + (char.charCodeAt(0) <= 0x7f ? 0.55 : 1), 0);
 }
 
-function formatBalancedItemDisplayName(item, maxSingleLineLength = 6.5) {
+function formatBalancedItemDisplayName(item, maxSingleLineLength = 5.5) {
   const name = formatItemDisplayName(item).trim().replace(/\s+/g, " ");
   const chars = Array.from(name);
   if (chars.length <= 2 || getTextVisualLength(name) <= maxSingleLineLength) return name;
@@ -6275,8 +6379,8 @@ function formatBalancedItemDisplayName(item, maxSingleLineLength = 6.5) {
     const firstLength = getTextVisualLength(first);
     const secondLength = getTextVisualLength(second);
     if (!firstLength || !secondLength) continue;
-    const orphanPenalty = secondLength < 2 ? 8 : secondLength < 3 ? 2 : 0;
-    const topShortPenalty = firstLength < secondLength ? 1.25 + Math.min(1.5, secondLength - firstLength) : 0;
+    const orphanPenalty = secondLength < 2 ? 20 : secondLength < 3 ? 4 : 0;
+    const topShortPenalty = firstLength < secondLength ? 5 + Math.min(3, secondLength - firstLength) : 0;
     const overflowPenalty = Math.max(0, firstLength - maxSingleLineLength) * 0.45;
     const targetPenalty = Math.abs(firstLength - target) * 0.2;
     const score = Math.abs(firstLength - secondLength) + orphanPenalty + topShortPenalty + overflowPenalty + targetPenalty;
@@ -11853,6 +11957,7 @@ function isUnformedDrawingSubjectText(text = "") {
 }
 
 function balanceItem(item, image = "") {
+  if (USE_LITE_APPRAISAL) return balanceItemLite(item, image);
   const safe = item && typeof item === "object" ? item : {};
   const sourceMode = normalizeHeroMode(safe.sourceMode || safe.source_mode || "photo");
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
@@ -12048,6 +12153,265 @@ function balanceItem(item, image = "") {
   };
   balanced.objectKey = cleanText(balanced.objectKey || makeObjectDuplicateKey(balanced), "", 80);
   return balanced;
+}
+
+// === LITE 鉴定数值层：信任模型字段，本地只做数值平衡与三条硬底线 ===
+function normalizeLiteAuthentic(value) {
+  const t = String(value || "").trim().toLowerCase();
+  if (!t) return "real";
+  if (/web|search|internet|网图|搜图|网络/.test(t)) return "web";
+  if (/screenshot|screen|截图|屏幕/.test(t)) return "screenshot";
+  if (/\bai\b|ai生成|ai图|render|渲染|生成图/.test(t)) return "ai";
+  if (/product|商品|电商|白底|宣传|精修/.test(t)) return "product";
+  return "real";
+}
+
+function normalizeLiteRecognizable(value) {
+  const t = String(value || "").trim().toLowerCase();
+  if (!t) return "clear";
+  if (/scribble|unrecognizable|乱线|乱画|涂鸦|看不出|无法|随机|空白/.test(t)) return "scribble";
+  if (/rough|粗糙|勉强|大概|模糊/.test(t)) return "rough";
+  return "clear";
+}
+
+function normalizeLiteStatNames(value) {
+  const list = Array.isArray(value)
+    ? value
+    : typeof value === "string" ? value.split(/[，,、;；\s]+/) : [];
+  const seen = [];
+  for (const raw of list) {
+    const key = String(raw || "").trim().toLowerCase();
+    if (statOrder.includes(key) && !seen.includes(key)) seen.push(key);
+  }
+  return seen.slice(0, 3);
+}
+
+function liteStatAffinity(statNames) {
+  return statNames.map((stat, index) => ({ stat, score: Math.max(1, 3 - index) }));
+}
+
+// 纯按模型给的属性倾向 + 预算分配，不做任何语义推断（信任模型）。
+function allocateStatsLite(statNames, budget) {
+  const result = normalizeStats({}, 20);
+  const keys = (statNames || []).filter((key) => statOrder.includes(key));
+  const usable = keys.length ? keys : ["hp"];
+  let remaining = Math.max(0, Math.round(budget));
+  // 先给每个倾向 1 点，体现倾向优先级
+  for (const key of usable) {
+    const weight = statValueWeights[key];
+    if (remaining >= weight && result[key] < 20) {
+      result[key] += 1;
+      remaining -= weight;
+    }
+  }
+  // 轮流把剩余预算尽量分配到倾向属性上
+  let safety = 0;
+  while (remaining > 0 && safety < 200) {
+    safety += 1;
+    let spent = false;
+    for (const key of usable) {
+      const weight = statValueWeights[key];
+      if (remaining >= weight && result[key] < 20) {
+        result[key] += 1;
+        remaining -= weight;
+        spent = true;
+      }
+    }
+    if (!spent) break;
+  }
+  // 剩余预算（单一高权重属性买不满的零头，如 speed=12 在预算里只够买 1 点）转成生命，
+  // 避免高 value 装备因属性买不满而虚标品质、浪费数值，保证 value≈实际战力。
+  if (remaining > 0) {
+    result.hp += remaining;
+  }
+  return result;
+}
+
+// 把 lite 的 clarity/appeal/craft 近似映射进旧 6 维 photoQuality，便于存档/重平衡/旧 UI 复用。
+function liteToPhotoQuality(clarity, appeal, craft, sourceMode) {
+  return normalizePhotoQuality({
+    clarity,
+    subjectArea: clarity,
+    backgroundClean: Math.min(2, craft),
+    realPhoto: sourceMode === "drawing" ? craft : clarity,
+    focusLight: Math.min(2, craft),
+    interesting: Math.min(2, appeal),
+  });
+}
+
+function liteNonAuthenticCap() {
+  return Math.min(getPhotoValueMax(), Math.max(getPhotoValueMin(), 12));
+}
+
+function stripLiteMediumWords(name, sourceMode) {
+  let text = cleanText(name, "", 24);
+  if (sourceMode === "drawing") {
+    text = text.replace(/(?:手绘|涂鸦|画作|画布|纸面|简笔画|线稿|草图|画出来的|画的)/g, "");
+  }
+  return text.replace(/(?:截图|网图|商品图|素材图|宣传图)/g, "").trim();
+}
+
+function balanceItemLite(item, image = "") {
+  const safe = item && typeof item === "object" ? item : {};
+  const sourceMode = normalizeHeroMode(safe.sourceMode || safe.source_mode || "photo");
+  const preserveSettled = Boolean(safe.skipSpecialRoll);
+
+  const fallbackName = sourceMode === "drawing" ? "神秘小物" : "照片装备";
+  const itemName = cleanText(stripLiteMediumWords(safe.itemName || safe.name || safe.subjectName || safe.subject, sourceMode), fallbackName, 18);
+  const subjectName = cleanText(stripLiteMediumWords(safe.subjectName || safe.subject || itemName, sourceMode), itemName, 18);
+  const objectType = cleanText(safe.objectType || safe.object_type || safe.type, "", 18);
+  const tags = normalizeStringList(safe.tags);
+  const reason = cleanText(safe.reason, "", 72);
+  const identityDescription = cleanText(safe.identityDescription || safe.identity_description || safe.appearance, "", 160);
+  const confidence = clampNumber(safe.confidence, 0, 1);
+
+  const scene = parseBooleanMaybe(safe.scene ?? safe.isScene) === true;
+  const tooLargeFlag = parseBooleanMaybe(safe.tooLarge ?? safe.too_large) === true;
+  const equipable = parseBooleanMaybe(safe.equipable ?? safe.isEquipable);
+  const authentic = sourceMode === "drawing" ? "real" : normalizeLiteAuthentic(safe.authentic);
+  const recognizable = sourceMode === "drawing" ? normalizeLiteRecognizable(safe.recognizable) : "clear";
+
+  const clarity = clampInt(safe.clarity, 0, 3);
+  const appeal = clampInt(safe.appeal, 0, 3);
+  const craft = clampInt(safe.craft, 0, 3);
+  const photoQuality = liteToPhotoQuality(clarity, appeal, craft, sourceMode);
+
+  // scribble 救回：模型说看不出，但若给了具体（非泛词、非线团类）主体名且有一定信心，
+  // 降级为 rough 出低分装备，避免误杀真有主体的粗糙画。真正空白/乱涂仍判 scribble。
+  let effectiveRecognizable = recognizable;
+  if (sourceMode === "drawing" && recognizable === "scribble"
+    && !isGenericDrawingName(itemName) && !isGenericDrawingName(subjectName)
+    && !isUnformedDrawingSubjectText(`${itemName} ${subjectName}`)
+    && confidence >= 0.4 && (clarity >= 1 || craft >= 1)) {
+    effectiveRecognizable = "rough";
+  }
+  const isScribble = sourceMode === "drawing" && effectiveRecognizable === "scribble";
+  const noEffect = scene || tooLargeFlag || equipable === false || isScribble;
+
+  const qualityScore = clampNumber(clarity * 2.5 + appeal * 1.5 + craft * 1, 0, 15);
+  let requestedValue;
+  if (noEffect) {
+    requestedValue = 0;
+  } else if (preserveSettled && Number.isFinite(safe.value)) {
+    requestedValue = Math.max(0, safe.value);
+  } else {
+    requestedValue = mapPhotoQualityScoreToValue(qualityScore);
+    if (sourceMode !== "drawing" && authentic !== "real") {
+      requestedValue = Math.min(requestedValue, liteNonAuthenticCap());
+    }
+  }
+
+  const statNames = normalizeLiteStatNames(safe.stats);
+  const wantSpecial = parseBooleanMaybe(safe.special) === true;
+  const statAffinity = statNames.length ? liteStatAffinity(statNames) : normalizeStatAffinity(safe.statAffinity || []);
+
+  let specialEffects = [];
+  let stats = normalizeStats({}, 20);
+  if (!noEffect) {
+    specialEffects = preserveSettled
+      ? normalizeSpecialEffects(safe.specialEffects).filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue)
+      : choosePhotoSpecialEffects({
+          itemName, subjectName, objectType, reason, tags, description: safe.description || reason,
+          sourceMode, specialAffinity: wantSpecial ? statNames : [],
+          semanticTextOverride: `${itemName} ${subjectName} ${objectType}`,
+        }, image, requestedValue).filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue);
+    const specialValue = calculateSpecialEffectsValue(specialEffects);
+    const statBudget = Math.max(0, requestedValue - specialValue);
+    const seedStats = preserveSettled && safe.stats && typeof safe.stats === "object" && !Array.isArray(safe.stats) ? safe.stats : null;
+    const allocationKeys = statNames.length ? statNames : statAffinity.map((a) => a.stat);
+    stats = seedStats && calculateStatsValue(normalizeStats(seedStats, 20)) > 0
+      ? clampStatsToValue(seedStats, statBudget)
+      : allocateStatsLite(allocationKeys, statBudget);
+  }
+
+  let actualScore = calculateItemScore(stats, specialEffects);
+  if (!preserveSettled && specialEffects.length && !["epic", "legendary"].includes(getItemQuality(actualScore).key)) {
+    specialEffects = [];
+    stats = allocateStatsLite(statNames.length ? statNames : statAffinity.map((a) => a.stat), requestedValue);
+    actualScore = calculateItemScore(stats, specialEffects);
+  }
+
+  const failDescription = isScribble
+    ? "线条还没画出明确的主体，再画清楚一点试试。"
+    : scene
+      ? (sourceMode === "drawing" ? "整张画是背景，没有可带走的主体。" : "画面主要是场景，没有可带走的主体。")
+      : "主体太大，只适合留作影像，无法随身上阵。";
+  const baseDesc = cleanText(safe.description || safe.desc || reason, "", 72);
+  const displayDescription = noEffect
+    ? failDescription
+    : (baseDesc || makeSettledItemDescription({ itemName, subjectName, stats, tooLarge: false }) || (sourceMode === "drawing" ? "由想象凝成的装备。" : "由照片鉴定出的装备。"));
+
+  const balanced = {
+    itemName,
+    subjectName,
+    objectType,
+    sizeClass: cleanText(safe.sizeClass, "", 18),
+    isScene: scene,
+    isEquipable: !noEffect && equipable !== false,
+    rarity: ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common",
+    value: noEffect ? 0 : requestedValue,
+    quality: getItemQuality(actualScore),
+    stats,
+    specialEffects,
+    specialState: normalizeSpecialState(safe.specialState, specialEffects),
+    description: displayDescription,
+    identityDescription,
+    objectiveAssessment: "",
+    diagnosticFeatures: "",
+    reason,
+    recognizedSubject: subjectName,
+    tags,
+    photoQuality,
+    photoQualityScore: noEffect ? 0 : Math.round(qualityScore),
+    statAffinity,
+    specialAffinity: normalizeSpecialEffects(wantSpecial ? statNames : (safe.specialAffinity || [])),
+    semanticAppraisal: true,
+    drawingRecognition: sourceMode === "drawing" ? effectiveRecognizable : "",
+    liteAuthentic: authentic,
+    confidence,
+    photoKey: cleanText(safe.photoKey, "", 48),
+    sourcePhotoKey: cleanText(safe.sourcePhotoKey, "", 48),
+    cropRect: normalizeCropRect(safe.cropRect),
+    sourceMode,
+    objectKey: cleanText(safe.objectKey, "", 80),
+    film: Boolean(safe.film),
+    skipSpecialRoll: Boolean(safe.skipSpecialRoll),
+    tooLarge: noEffect,
+    virtualImage: false,
+    image,
+    appraisalImage: typeof safe.appraisalImage === "string" && safe.appraisalImage ? safe.appraisalImage : "",
+    fullImage: typeof safe.fullImage === "string" && safe.fullImage ? safe.fullImage : "",
+  };
+  balanced.objectKey = cleanText(balanced.objectKey || makeObjectDuplicateKey(balanced), "", 80);
+  return balanced;
+}
+
+// LITE 解析：透传统一 schema 字段，最小清洗，不做正则视觉复核。
+function normalizeModelItemLite(raw) {
+  const source = [raw?.equipment, raw?.result, raw?.data, raw?.item]
+    .find((value) => value && typeof value === "object" && !Array.isArray(value)) || raw;
+  const safe = source && typeof source === "object" ? source : {};
+  const itemName = safe.name || safe.itemName || safe.subject || safe.subjectName || safe["装备名"] || safe["名称"];
+  const subjectName = safe.subject || safe.subjectName || itemName;
+  return {
+    itemName: cleanText(itemName, "", 24),
+    subjectName: cleanText(subjectName, "", 24),
+    objectType: cleanText(safe.objectType || safe.object_type || safe.type, "", 24),
+    equipable: safe.equipable ?? safe.isEquipable,
+    scene: safe.scene ?? safe.isScene,
+    tooLarge: safe.tooLarge ?? safe.too_large,
+    authentic: safe.authentic,
+    recognizable: safe.recognizable ?? safe.recognition,
+    clarity: safe.clarity,
+    appeal: safe.appeal,
+    craft: safe.craft,
+    stats: safe.stats,
+    special: safe.special,
+    description: cleanText(safe.desc || safe.description, "", 96),
+    identityDescription: cleanText(safe.identityDescription || safe.identity_description, "", 160),
+    tags: normalizeStringList(safe.tags),
+    confidence: clampNumber(safe.confidence ?? safe["置信度"], 0, 1),
+  };
 }
 
 function normalizeInventoryItem(item) {
@@ -13946,7 +14310,7 @@ function renderEquipmentDetail() {
 
   const quality = getItemQuality(scoreItem(selected));
   setEquipmentDetailQuality(quality);
-  els.equipmentDetailName.textContent = formatBalancedItemDisplayName(selected, 8);
+  els.equipmentDetailName.textContent = formatBalancedItemDisplayName(selected);
   els.equipmentDetailName.dataset.quality = quality.label;
   els.equipmentDetailStats.innerHTML = renderItemDetailPills(selected);
   els.equipmentDetailStats.hidden = false;

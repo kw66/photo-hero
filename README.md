@@ -155,7 +155,7 @@ https://kw66.github.io/photo-hero/
 
 ## 本地运行
 
-Node 只用于本地静态预览和少量回归脚本，不参与 GitHub Pages 玩家访问。
+Node 只用于本地静态预览和少量回归脚本，不参与 GitHub Pages 玩家访问。默认 `体验` 模式也会走 Cloudflare Worker；只有需要调试本地代理时，才在页面加载前显式设置 `window.PHOTO_HERO_EXPERIENCE_PROXY_BASE_URL` 指向本机代理地址。
 
 ```powershell
 npm start

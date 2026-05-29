@@ -424,6 +424,7 @@ function assertScenario(name, metrics) {
     const item = metrics.itemTypography || {};
     if (!item.slotNameBalanced) failures.push(`${name}: long equipment names should split into balanced two-line slot labels, got ${JSON.stringify(item)}`);
     if (!item.detailNameBalanced) failures.push(`${name}: detail title should use the same balanced line break, got ${JSON.stringify(item)}`);
+    if (!item.mediumNameBalanced) failures.push(`${name}: six-character equipment names should split before browser orphan wrapping, got ${JSON.stringify(item)}`);
     const refunds = item.refunds || {};
     if (refunds.common !== 0.3 || refunds.rare !== 0.5 || refunds.epic !== 0.7 || refunds.legendary !== 0.9) {
       failures.push(`${name}: quality dismantle refunds should be 0.3/0.5/0.7/0.9, got ${JSON.stringify(refunds)}`);
@@ -740,7 +741,7 @@ function assertScenario(name, metrics) {
     if (api.visiblePresetLabels?.join(",") !== "体验,硅基流动,小米,智谱,米醋,自定义") failures.push(`${name}: visible preset labels changed unexpectedly, got ${JSON.stringify(api)}`);
     if (api.defaultPreset !== "experience") failures.push(`${name}: default preset should be experience, got ${JSON.stringify(api)}`);
     if (api.defaultModel !== "Qwen/Qwen3.5-35B-A3B") failures.push(`${name}: default experience model changed unexpectedly, got ${JSON.stringify(api)}`);
-    if (!/\/api\/experience$|workers\.dev$/.test(api.defaultBaseUrl || "")) failures.push(`${name}: default base URL should use the experience proxy, got ${JSON.stringify(api)}`);
+    if (api.defaultBaseUrl !== "https://photo-hero-experience.1092043672.workers.dev") failures.push(`${name}: default base URL should use the Cloudflare Worker, got ${JSON.stringify(api)}`);
     if (!api.defaultKeyLocked || !api.defaultToggleHidden || !api.defaultModelDisabled || !api.defaultHasMaskedKey) failures.push(`${name}: experience preset should lock and mask key/model controls, got ${JSON.stringify(api)}`);
     if (!api.defaultConfigPanelExperience || !api.defaultConfigGridHidden || api.defaultBaseUrlVisible || api.defaultModelVisible || api.defaultApiKeyVisible || api.defaultSaveVisible) {
       failures.push(`${name}: experience preset should hide URL/model/key/save controls, got ${JSON.stringify(api)}`);
@@ -1243,7 +1244,8 @@ function assertScenario(name, metrics) {
       requestCount += 1;
       const body = route.request().postDataJSON();
       const userContent = body?.messages?.find?.((message) => message.role === "user")?.content || [];
-      promptHadRerollHint = JSON.stringify(userContent).includes("重鉴定") && JSON.stringify(userContent).includes("重新独立观察");
+      const userPromptText = JSON.stringify(userContent);
+      promptHadRerollHint = userPromptText.includes("重鉴定") && /(?:重新独立观察|独立重新观察)/.test(userPromptText);
       await Promise.race([
         reappraisalRouteGate,
         new Promise((resolve) => setTimeout(resolve, 5000)),
@@ -2001,6 +2003,7 @@ function assertScenario(name, metrics) {
       const hooks = window.__photoHeroTestHooks;
       hooks.resetGameForTest();
       const longName = "古铜色机械怀表碎片";
+      const mediumName = "暴风测试工具";
       hooks.addRawItem({
         itemName: longName,
         subjectName: "怀表碎片",
@@ -2016,8 +2019,10 @@ function assertScenario(name, metrics) {
       const slotName = document.querySelector(".slot-name")?.textContent || "";
       const detailName = document.querySelector("#equipmentDetail strong")?.textContent || "";
       const balancedName = hooks.formatBalancedItemDisplayNameForTest?.({ itemName: longName }) || "";
+      const balancedMediumName = hooks.formatBalancedItemDisplayNameForTest?.({ itemName: mediumName }) || "";
       const slotLengths = readLengths(slotName);
       const detailLengths = readLengths(detailName);
+      const mediumLengths = readLengths(balancedMediumName);
       const makeItem = (stats, specialEffects = []) => ({ itemName: "测试装备", stats, specialEffects, skipSpecialRoll: true });
       const shieldOnly = hooks.balanceItem({
         itemName: "护盾盒",
@@ -2051,6 +2056,8 @@ function assertScenario(name, metrics) {
         detailLengths,
         slotNameBalanced: slotLengths.length === 2 && slotLengths[0] >= slotLengths[1] && slotLengths[0] - slotLengths[1] <= 1,
         detailNameBalanced: detailLengths.length === 2 && detailLengths[0] >= detailLengths[1] && detailLengths[0] - detailLengths[1] <= 1,
+        balancedMediumName,
+        mediumNameBalanced: mediumLengths.length === 2 && mediumLengths[0] >= mediumLengths[1] && mediumLengths[0] - mediumLengths[1] <= 1,
         scoredItems,
         refunds: {
           common: hooks.getDismantleFilmReturnForTest(makeItem({ shield: 2 })),
