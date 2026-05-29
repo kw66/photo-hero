@@ -357,6 +357,129 @@ const cases = [
     ),
   },
   {
+    label: "drawing lollipop is not an unformed spiral",
+    input: {
+      sourceMode: "drawing",
+      itemName: "彩虹棒棒糖",
+      subjectName: "棒棒糖",
+      objectType: "糖果",
+      objectiveAssessment: "客观评价：上方是圆形糖头，里面有红黄蓝绿多色螺旋，下方连接一根黑色细棒，主体完整。",
+      diagnosticFeatures: {
+        shapes: ["圆形糖头", "彩色螺旋", "下方细棒"],
+        colors: ["红色", "黄色", "蓝色", "绿色", "黑色"],
+        parts: ["糖面", "糖棒"],
+        relations: ["糖头下方连接细棒"],
+        distinctiveCombos: ["圆形糖头+彩色螺旋+细棒"],
+        counterEvidence: ["不是孤立螺旋线"],
+      },
+      subjectCandidates: [
+        { name: "棒棒糖", category: "糖果", evidence: ["圆形糖头", "彩色螺旋", "下方细棒"], missing: [], confidence: 0.92 },
+        { name: "螺旋线", category: "符号", evidence: ["有螺旋"], missing: ["不是孤立线团，还有糖棒"], confidence: 0.18 },
+      ],
+      recognizedSubject: "棒棒糖",
+      recognition: "recognizable_object",
+      visualEvidence: ["圆形糖头", "彩色螺旋", "下方细棒"],
+      identityDescription: "上方圆形糖面里有多色螺旋，下方连着黑色细棒，像一支棒棒糖。",
+      description: "彩虹棒棒糖甜甜醒目，像能在魔塔口袋里补上一点轻快元气。",
+      reason: "主体=棒棒糖；证据=圆形糖头+多色螺旋+下方细棒；倾向=生命。",
+      tags: ["棒棒糖", "糖果"],
+      value: 11,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "hp", score: 3 }],
+      specialAffinity: [],
+    },
+    expect: ({ item }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /糖/.test(item.itemName)
+      && !/未成形|线团|螺旋线|徽记|魔杖|盾/.test(item.itemName)
+      && item.value > 0
+      && item.stats.hp > 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
+    label: "drawing watermelon uses diagnostic color-part combo",
+    input: {
+      sourceMode: "drawing",
+      itemName: "翠绿生菜叶",
+      subjectName: "生菜叶",
+      objectType: "蔬菜叶片",
+      objectiveAssessment: "客观评价：半圆切面，外圈是绿色外皮，内部红色果肉，红色区域里有多个黑色小点。",
+      diagnosticFeatures: {
+        shapes: ["半圆切面", "外圈", "内部果肉", "小黑点"],
+        colors: ["绿色外皮", "红色果肉", "黑色籽"],
+        parts: ["瓜皮", "果肉", "籽"],
+        relations: ["绿色外皮包住红色果肉", "黑籽分布在果肉中"],
+        distinctiveCombos: ["绿色外皮+红色果肉+黑籽"],
+        counterEvidence: ["不是叶脉或生菜褶皱"],
+      },
+      subjectCandidates: [
+        { name: "西瓜切片", category: "水果", evidence: ["绿色外皮", "红色果肉", "黑籽"], missing: [], confidence: 0.9 },
+        { name: "生菜叶", category: "蔬菜", evidence: ["绿色边缘"], missing: ["没有叶脉，内部是红色果肉和黑籽"], confidence: 0.15 },
+      ],
+      recognizedSubject: "西瓜切片",
+      recognition: "recognizable_object",
+      visualEvidence: ["绿色外皮", "红色果肉", "黑色籽点", "半圆切面"],
+      identityDescription: "半圆形水果切面，绿色外皮围住红色果肉，里面有黑色籽点。",
+      description: "翠绿生菜叶带着清爽的补给味道。",
+      reason: "主体=西瓜；证据=绿色外皮+红色果肉+黑籽。",
+      tags: ["西瓜", "水果"],
+      value: 12,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "hp", score: 3 }, { stat: "regen", score: 1 }],
+      specialAffinity: [],
+    },
+    expect: ({ item, renderedDescription }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /西瓜|瓜/.test(item.itemName)
+      && !/生菜|叶/.test(item.itemName)
+      && !/生菜叶/.test(renderedDescription)
+      && item.stats.hp > 0
+      && item.stats.attack === 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
+    label: "drawing polearm beats kite or fork misread",
+    input: {
+      sourceMode: "drawing",
+      itemName: "风筝徽记",
+      subjectName: "风筝",
+      objectType: "符号",
+      objectiveAssessment: "客观评价：一根长杆从下方延伸到上方，顶端有宽大的弯刃和尖端，杆身旁有短横挡，不是风筝线。",
+      diagnosticFeatures: {
+        shapes: ["长杆", "顶端弯刃", "宽刃", "护手"],
+        colors: ["黑色杆身", "红色刃部"],
+        parts: ["杆", "刃", "护手"],
+        relations: ["弯刃装在长杆顶端"],
+        distinctiveCombos: ["长杆+顶端弯刃"],
+        counterEvidence: ["没有风筝面", "不是叉齿"],
+      },
+      subjectCandidates: [
+        { name: "长柄大刀", category: "长柄武器", evidence: ["长杆", "顶端弯刃", "宽刃"], missing: [], confidence: 0.88 },
+        { name: "风筝", category: "玩具", evidence: ["上方有形状"], missing: ["没有风筝面和线"], confidence: 0.1 },
+      ],
+      recognizedSubject: "长柄大刀",
+      recognition: "clear_equipment",
+      visualEvidence: ["长杆", "顶端弯刃", "宽刃", "护手"],
+      identityDescription: "长杆顶端接着宽大弯刃，像偃月刀或长柄大刀，不是风筝也不是叉子。",
+      description: "按模型，并生成《画图勇者》装备素材JSON。让我仔细观察，图片显示的是一枚风筝徽记。",
+      reason: "主体=长柄大刀；证据=长杆+弯刃；倾向=攻击。",
+      tags: ["长柄", "弯刃", "武器"],
+      value: 16,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 3, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 3 }],
+      specialAffinity: [],
+    },
+    expect: ({ item, renderedDescription }) => (
+      /clear_equipment|recognizable_object/.test(item.drawingRecognition)
+      && /偃月刀|长柄|大刀|战戟|蛇矛/.test(item.itemName)
+      && !/风筝|叉子|生菜|叶|徽记/.test(item.itemName)
+      && item.stats.attack > 0
+      && !/JSON|模型|图片显示|让我观察|装备素材|prompt/.test(renderedDescription)
+    ),
+  },
+  {
     label: "drawing one-line spoon remains unformed",
     input: {
       sourceMode: "drawing",

@@ -343,8 +343,8 @@ const photoSpecialEffects = [
 
 const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
 
-const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|弓箭|弓|箭|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|袋|钱包|卡包|鞋|拖鞋|滑板|风扇|音箱|音响|喇叭|橡皮|橡皮擦|胶带|刷|梳|钥匙|钥匙扣|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物|毛巾|纸巾|湿巾|电池|灯|勺|叉|筷|盘|碗|玩偶|娃娃|徽章|挂件/i;
-const everydayDrawingObjectPattern = /雨伞|伞面|伞柄|伞骨|折伞|中性笔|圆珠笔|签字笔|铅笔|钢笔|马克笔|水笔|笔杆|笔尖|笔帽|汤勺|勺子|勺头|勺柄|汤匙|叉子|筷子|筷|碗|盘子|盘|杯子|水杯|矿泉水|水瓶|饮料瓶|瓶子|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|西瓜|水果|果实|面包|糖果|饼干|饭团|钥匙|锁|手机|笔记本电脑|笔记本|电脑|平板|屏幕|相机|眼镜|橡皮|尺子|书包|背包|话筒|麦克风|麦|书本|书|本子|记事本|笔记本|毛巾|纸巾|电池|灯泡|遥控器|耳机|鼠标|键盘|风扇|玩具|模型|摆件|挂件|umbrella|pen|pencil|spoon|fork|chopstick|bowl|plate|mineral water|water bottle|cup|bottle|apple|banana|orange|pear|fruit|bread|candy|cookie|key|phone|laptop|computer|tablet|screen|camera|glasses|eraser|ruler|backpack|bag|microphone|mic|notebook|book|towel|battery|lamp|remote|mouse|keyboard|fan|toy|model/i;
+const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|弓箭|弓|箭|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|袋|钱包|卡包|鞋|拖鞋|滑板|风扇|音箱|音响|喇叭|橡皮|橡皮擦|胶带|刷|梳|钥匙|钥匙扣|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物|毛巾|纸巾|湿巾|电池|灯|勺|叉|筷|盘|碗|玩偶|娃娃|徽章|挂件|棒棒糖|糖果/i;
+const everydayDrawingObjectPattern = /雨伞|伞面|伞柄|伞骨|折伞|中性笔|圆珠笔|签字笔|铅笔|钢笔|马克笔|水笔|笔杆|笔尖|笔帽|汤勺|勺子|勺头|勺柄|汤匙|叉子|筷子|筷|碗|盘子|盘|杯子|水杯|矿泉水|水瓶|饮料瓶|瓶子|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|西瓜|瓜果|水果|果实|棒棒糖|糖果棒|糖果|面包|糖果|饼干|饭团|钥匙|锁|手机|笔记本电脑|笔记本|电脑|平板|屏幕|相机|眼镜|橡皮|尺子|书包|背包|话筒|麦克风|麦|书本|书|本子|记事本|笔记本|毛巾|纸巾|电池|灯泡|遥控器|耳机|鼠标|键盘|风扇|玩具|模型|摆件|挂件|umbrella|pen|pencil|spoon|fork|chopstick|bowl|plate|mineral water|water bottle|cup|bottle|apple|banana|orange|pear|watermelon|fruit|lollipop|candy|bread|cookie|key|phone|laptop|computer|tablet|screen|camera|glasses|eraser|ruler|backpack|bag|microphone|mic|notebook|book|towel|battery|lamp|remote|mouse|keyboard|fan|toy|model/i;
 const oversizedScenePattern = /汽车|车辆|公交|火车|飞机|船|房|楼|建筑|天空|风景|街道|道路|公路|山|海|河|湖|森林|荒原|全景|远景|大型家具|床|沙发|衣柜|冰箱|洗衣机|大面积背景/i;
 const explicitOversizePattern = /比人.{0,8}(大|高)|比一个人.{0,8}(大|高)|尺寸.{0,8}(超过|大于|高于).{0,4}人|人.{0,4}(还要)?大|巨大|无法搬动|不能搬动|主要是.{0,6}(场景|背景)|大面积背景/i;
 
@@ -430,16 +430,17 @@ const drawingIdentificationSystemPrompt = [
   "你必须只输出一个 JSON 对象，不要 Markdown，不要代码块，不要额外解释。",
   "第一字符必须是 {，最后一个字符必须是 }。",
   "你不负责计算最终 value、最终 stats 或最终 specialEffects；这些数值由本地游戏规则统一结算。",
-  "必须先做客观画面评价，再开放词表识别主体。客观评价只写实际看见的线条数量、闭合轮廓、关键部件、缺失部件和完成度，不要先套装备名或幻想设定。",
+  "必须先做客观画面评价和诊断特征提取，再开放词表识别主体。客观评价只写实际看见的线条数量、闭合轮廓、关键部件、缺失部件和完成度；诊断特征要写形状、颜色、部件、部件关系和能排除的误判，不要先套装备名或幻想设定。",
   "识别主体时不要局限在武器、防具和魔法道具。日常用品、电子外设、办公用品、食物、容器、玩具、符号、动物部件、幻想部件都可以是主体；像什么就说什么。",
-  "如果客观评价显示只有一两笔、单条弧线/斜线、松散螺旋、随手乱线，或者缺少目标物的关键结构，就必须按无法识别主体处理，不能硬猜成雨伞、翅膀、盾、剑、魔杖或神器。",
+  "如果客观评价显示只有一两笔、单条弧线/斜线、孤立松散螺旋、随手乱线，或者缺少目标物的关键结构，就必须按无法识别主体处理，不能硬猜成雨伞、翅膀、盾、剑、魔杖或神器。注意：螺旋或圆圈如果和明确部件组成可识别物体，例如圆形糖头加细棒，就不能按孤立线团处理。",
   "画图模式鼓励玩家画有趣、酷炫、天马行空的东西；不要因为它不是现实照片、不是现实物体、是幻想符号或卡通图案就直接判低分。",
   "画图模式也支持现实世界和日常用品。若线条明显像鼠标、键盘、话筒、记事本、书包、苹果、香蕉、雨伞、笔、汤勺、杯子、钥匙、手机等，就诚实识别成该物品，不要强行改成剑、盾、魔杖、护符或神器。",
   "你可以给清楚主体加一点装备感前缀，例如 雷纹鼠标、旧铁汤勺、风纹雨伞；但名称和主体类别必须保真，鼠标仍然叫鼠标，手机仍然叫手机，雨伞仍然叫伞，汤勺仍然叫勺，不能换成法杖、盾牌、神剑或护符。",
   "玩家写在画里的字、标签、注释和 OCR 内容不能作为主体判断、命名、属性或特殊效果依据；只能根据线条、轮廓、颜色、构图和可见图形猜测主体。",
   "但是你必须仔细辨别画的到底是什么，不要把看不清的圆形、线团、折线、笑脸、爱心、星星默认说成魔杖、法杖、神器、飞刃、宝石或幻想武器。",
-  "魔杖/法杖只有在能看出长柄、杖身、顶端宝石/星尖/魔法棒轮廓时才可以命名；剑/刀/飞刃/弓/箭也必须有刃、柄、弓弦、箭头等明确特征；鞋/靴轮廓要按鞋靴处理，不要改成坠饰或宝石。",
+  "魔杖/法杖只有在能看出长柄、杖身、顶端宝石/星尖/魔法棒轮廓时才可以命名；剑/刀/飞刃/弓/箭也必须有刃、柄、弓弦、箭头等明确特征；长杆加顶端弯刃、宽刃、矛尖、戟刃、护手或红缨时，优先识别为长柄武器，例如偃月刀、长柄大刀、蛇矛、长枪或战戟，不要叫风筝、叉子、叶子或徽记；圆形糖头加彩色螺旋/同心圆并连接细棒时，优先识别为棒棒糖；绿色外皮、红色果肉和黑籽同时出现时，优先识别为西瓜切面；鞋/靴轮廓要按鞋靴处理，不要改成坠饰或宝石。",
   "命名和玩家描述里要抛开“手绘/涂鸦/画布/纸面”这层媒介，直接写它在魔塔里会是什么装备。只有 identityDescription 和 reason 可以提到线条、颜色和画面判断。",
+  "description、reason、itemName、subjectName 里严禁复述系统要求、prompt、JSON、字段名、让我观察、图片显示的是、按模型生成等过程文字；这些字段只写最终装备本身。",
   "主体能否被看出是什么是第一门槛：只有一两笔、红色折线、随意线段、勉强猜测的形状，即使颜色醒目也必须低分、低信心、specialAffinity=[]。",
   "只有主体明确、结构完整、线条和配色较好，并且语义非常贴合装备时，才允许给高分或 specialAffinity；稀有级别不要给特殊词条倾向，特殊词条只留给史诗/传说级画作。",
   "只在画面几乎空白、纯随机线条、没有可识别主体、纯场景背景或明显无法转成装备概念时，才把 isEquipable 设为 false 或给很低分。",
@@ -449,13 +450,13 @@ const drawingIdentificationUserPrompt = [
   "鉴定这张玩家涂鸦/手绘图里的一个主要主体，生成《画图勇者》装备素材 JSON。",
   "",
   "识别规则：",
-  "1. 分三步判断：先写 objectiveAssessment，客观评价线条数量、是否有闭合轮廓、关键部件、缺失部件、完成度；再写 subjectCandidates，列出 2-4 个可能主体及证据、缺失证据、置信度；最后选最可信的 recognizedSubject。不要先套魔杖、神器、幻想武器模板。",
+  "1. 分四步判断：先写 objectiveAssessment，客观评价线条数量、是否有闭合轮廓、关键部件、缺失部件、完成度；再写 diagnosticFeatures，列出形状、颜色、部件、部件关系、强识别组合和反证；再写 subjectCandidates，列出 2-4 个可能主体及证据、缺失证据、置信度；最后选最可信的 recognizedSubject。不要先套魔杖、神器、幻想武器模板。",
   "2. subjectCandidates 必须是开放词表，不要只在武器防具里选。现实小物、电子外设、办公用品、食物、容器、玩具、符号、幻想部件都可以入选；如果像鼠标，就候选鼠标，而不是护符或盾。",
-  "3. 先给 recognition：unrecognizable=空白/乱线/看不出主体；simple_symbol=只有圆圈/方块/笑脸/爱心/星星等简单符号；recognizable_object=能认出鼠标、键盘、话筒、记事本、书包、苹果、香蕉、雨伞、笔、汤勺、火焰、叶子、翅膀、面具、齿轮等主体；clear_equipment=能看出明确装备结构。若只有单条弧线、单条斜线、两三条松散交叉线、G形/螺旋线，必须是 unrecognizable。",
+  "3. 先给 recognition：unrecognizable=空白/乱线/看不出主体；simple_symbol=只有圆圈/方块/笑脸/爱心/星星等简单符号；recognizable_object=能认出鼠标、键盘、话筒、记事本、书包、苹果、香蕉、雨伞、笔、汤勺、糖果、水果、火焰、叶子、翅膀、面具、齿轮等主体；clear_equipment=能看出明确装备结构。若只有单条弧线、单条斜线、两三条松散交叉线、孤立G形/螺旋线，必须是 unrecognizable；若螺旋有圆形糖头和下方细棒，则是 recognizable_object。若有长杆/长柄加顶端刃、矛尖或戟刃，必须列出长柄武器候选。",
   "4. 现实小物和日常用品可以直接作为装备素材：鼠标就是鼠标，键盘就是键盘，记事本就是记事本，苹果/香蕉就是水果，雨伞就是雨伞，笔就是笔，汤勺就是汤勺。不要为了显得厉害而把它们改名成剑、盾、魔杖、护符或神器。",
   "4b. 命名可以有一两个酷炫前缀，但必须保留主体类别词，例如 雷纹鼠标、旧铁汤勺、寒风雨伞、星点香蕉；不要把鼠标叫护符，把手机叫法杖，把雨伞叫盾牌，把汤勺叫圣杯，把水果叫宝石。",
   "5. 盾、剑、靴子、翅膀、心形、火焰、星星、眼睛、机器人、怪物面具、可爱小图标都可以鉴定，只要主体可辨认；如果只是圆圈/方块/笑脸/爱心，按圆环、石板、徽记、记号这类低阶形状装备处理，不要强行说成魔杖、飞刃、铁盾或宝石。",
-  "6. 盾必须看见盾面/边框/十字/把手/罩形边界等结构；剑刀必须看见刃部和握柄/尖端；魔杖必须同时看见长柄和杖头；雨伞必须看见伞面加伞柄/伞骨；翅膀必须看见成对翼形、羽片层次或翼膜结构。只有一条弧线、颜色、保护感、速度感、酷炫感或玩家写字，都不能当结构证据。",
+  "6. 盾必须看见盾面/边框/十字/把手/罩形边界等结构；剑刀必须看见刃部和握柄/尖端；长柄武器必须看见长杆/长柄以及顶端弯刃、宽刃、枪尖、矛尖、戟刃、护手或红缨；魔杖必须同时看见长柄和杖头；雨伞必须看见伞面加伞柄/伞骨；翅膀必须看见成对翼形、羽片层次或翼膜结构；棒状糖果必须看见圆形糖头/糖面和连接的细棒；切开的瓜果必须看见外皮、果肉和籽这类组合特征。只有一条弧线、颜色、保护感、速度感、酷炫感或玩家写字，都不能当结构证据。",
   "7. 画出来的巨大物、怪物或生物默认按“装备概念/符号化部件”处理，不按现实尺寸判定 tooLarge；只有纯风景、整片天空、道路、房间这类没有道具主体的画面才 isScene=true。",
   "8. 不要输出最终 value、最终 stats 或最终 specialEffects；本地规则会根据 photoQuality、statAffinity、specialAffinity 计算。",
   "9. itemName、subjectName、objectType、description 面向玩家时不要出现 手绘、涂鸦、画作、画布、纸面、简笔画、线稿、草图、画出来的 这些媒介词；identityDescription 可以写线条、颜色和构图用于查重，但不要复述画面里的具体文字内容。",
@@ -463,7 +464,7 @@ const drawingIdentificationUserPrompt = [
   "11. 如果 recognition=unrecognizable，itemName 和 subjectName 用“未成形线团”或同级弱名，isEquipable=false，statAffinity=[]，specialAffinity=[]，confidence 不要高于 0.25。",
   "",
   "必须输出这个 JSON 结构，字段名使用英文：",
-  "{\"itemName\":\"短装备名\",\"subjectName\":\"画布主体\",\"objectType\":\"主体类型\",\"objectiveAssessment\":\"客观评价：线条数量、闭合轮廓、关键部件、缺失部件、完成度\",\"subjectCandidates\":[{\"name\":\"候选主体\",\"category\":\"主体类别\",\"evidence\":[\"实际看见的结构\"],\"missing\":[\"缺失结构\"],\"confidence\":0.0}],\"recognizedSubject\":\"最终识别主体\",\"recognition\":\"unrecognizable|simple_symbol|recognizable_object|clear_equipment\",\"visualEvidence\":[\"实际看见的结构\"],\"missingEvidence\":[\"若要叫盾/剑/魔杖/雨伞/翅膀还缺什么\"],\"effortQuality\":{\"lineControl\":0,\"colorUse\":0,\"completeness\":0,\"aesthetic\":0},\"identityDescription\":\"用于判断是否同一幅画的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
+  "{\"itemName\":\"短装备名\",\"subjectName\":\"画布主体\",\"objectType\":\"主体类型\",\"objectiveAssessment\":\"客观评价：线条数量、闭合轮廓、关键部件、缺失部件、完成度\",\"diagnosticFeatures\":{\"shapes\":[\"主要形状\"],\"colors\":[\"主要颜色\"],\"parts\":[\"关键部件\"],\"relations\":[\"部件关系\"],\"distinctiveCombos\":[\"强识别组合\"],\"counterEvidence\":[\"排除误判的理由\"]},\"subjectCandidates\":[{\"name\":\"候选主体\",\"category\":\"主体类别\",\"evidence\":[\"实际看见的结构\"],\"missing\":[\"缺失结构\"],\"confidence\":0.0}],\"recognizedSubject\":\"最终识别主体\",\"recognition\":\"unrecognizable|simple_symbol|recognizable_object|clear_equipment\",\"visualEvidence\":[\"实际看见的结构\"],\"missingEvidence\":[\"若要叫盾/剑/魔杖/雨伞/翅膀还缺什么\"],\"effortQuality\":{\"lineControl\":0,\"colorUse\":0,\"completeness\":0,\"aesthetic\":0},\"identityDescription\":\"用于判断是否同一幅画的详细外观描述\",\"sizeClass\":\"handheld\",\"isScene\":false,\"isEquipable\":true,\"photoQuality\":{\"clarity\":0,\"subjectArea\":0,\"backgroundClean\":0,\"realPhoto\":0,\"focusLight\":0,\"interesting\":0},\"statAffinity\":[{\"stat\":\"attack\",\"score\":3}],\"specialAffinity\":[],\"description\":\"面向玩家的一句短描述\",\"reason\":\"一句短判断依据\",\"tags\":[\"标签\"],\"confidence\":0.0}",
   "",
   "画作质量 photoQuality，必须主动拉开差距：",
   "clarity=主体可识别性 0-3：0空白/乱线；1只能猜大概；2能认出主体；3一眼能认出。",
@@ -476,14 +477,14 @@ const drawingIdentificationUserPrompt = [
   "",
   "属性语义：",
   "statAffinity 只输出属性倾向，score 用 1-3，最大 3 项。可选 stat：hp、attack、defense、speed、shield、lifesteal、regen。",
-  "属性必须跟画出来的主体强相关，不要为了让装备变强而乱配。attack=剑刃、刀、斧、弓箭、尖刺、爪牙、火焰、雷电、爆炸、笔尖/硬工具等进攻证据；defense=铠甲、墙、龟壳、厚重外壳、金属/硬塑料日用品；shield=盾牌、圆环屏障、保护罩、雨伞、锅盖、盒包；speed=翅膀、风、闪电、轮子、飞行、箭头、靴子、轻快小物；lifesteal=吸血、尖牙、血滴、黑暗抽取；regen=水、草、药、光、治愈、泉水、清洁/充电/补给物；hp=生命、食物、果实、苹果、香蕉、爱心、能量核心。",
+  "属性必须跟画出来的主体强相关，不要为了让装备变强而乱配。attack=剑刃、刀、斧、长柄武器、弓箭、尖刺、爪牙、火焰、雷电、爆炸、笔尖/硬工具等进攻证据；defense=铠甲、墙、龟壳、厚重外壳、金属/硬塑料日用品；shield=盾牌、圆环屏障、保护罩、雨伞、锅盖、盒包；speed=翅膀、风、闪电、轮子、飞行、箭头、靴子、轻快小物；lifesteal=吸血、尖牙、血滴、黑暗抽取；regen=水、草、药、光、治愈、泉水、清洁/充电/补给物；hp=生命、食物、果实、瓜果、糖果、爱心、能量核心。",
   "餐具要看内容：汤勺、叉子、筷子、空碗空盘本身不是食物，只能偏轻攻击/防御/护盾；只有清楚画出里面有汤、水、食物或药水，才可以给 hp/regen 倾向。",
   "圆形/星形/笑脸/普通符号不要默认 attack；更常见是护符、徽记、圆环、屏障、生命或回复倾向。红色本身不等于吸血、血怒或武器；必须画出血滴、伤口、尖牙、刀刃、燃烧等更明确证据才给相关倾向。魔杖/法杖只有在长柄和杖头明确时才能给 attack 或特殊效果。",
   `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}：${effect.detail || effect.label}(价值${effect.value})`).join("；")}。`,
   "specialAffinity 只在 photoQuality 接近 14-15、主体一眼可认、结构完整且属性语义非常强时输出；普通、勉强、简单线条或只有颜色/字面联想时必须输出 []。",
   "",
   "命名和描述：",
-  "itemName 要具体、短、有画面感，像是在给装备命名，例如 雷纹鼠标、星火短剑、旧铁汤勺、寒风雨伞、风羽靴、尖牙项链。日常用品必须保留主体类别词；只有确实画出长柄杖形，才可以叫星纹魔杖或法杖；不要叫 画作装备、神秘涂鸦、手绘短剑、万能魔杖、幻想武器。",
+  "itemName 要具体、短、有画面感，像是在给装备命名，例如 雷纹鼠标、星火短剑、青锋偃月刀、赤缨蛇矛、旧铁汤勺、寒风雨伞、风羽靴、尖牙项链。日常用品必须保留主体类别词；只有确实画出长柄杖形，才可以叫星纹魔杖或法杖；不要叫 画作装备、神秘涂鸦、手绘短剑、万能魔杖、幻想武器。",
   "description 用一句中文写成装备味道，可以比照片模式更有想象力，但不要直接承诺最终数值或战斗效果，也不要说这是一幅画或纸上的东西。",
   "reason 只写一句内部依据，格式尽量像：主体=火焰短剑；证据=黑线剑身+红橙火焰；质量=线条清楚；倾向=攻击。",
   "",
@@ -5277,6 +5278,7 @@ function normalizeModelItem(raw) {
   const specialAffinity = normalizeSpecialEffects(rawSpecialAffinity);
   const tags = normalizeStringList(safe.tags || safe.keywords || safe["标签"] || safe["关键词"]);
   const objectiveAssessment = safe.objectiveAssessment || safe.objective_assessment || safe.visualAssessment || safe.visual_assessment || safe["客观评价"] || safe["画面评价"];
+  const diagnosticFeatures = normalizeDrawingDiagnosticFeatureText(safe.diagnosticFeatures || safe.diagnostic_features || safe.visualFeatures || safe.visual_features || safe["诊断特征"] || safe["视觉特征"]);
   const reason = safe.reason || safe.analysis || safe.rationale || safe["理由"] || safe["判断依据"] || safe["分析"];
   const description = safe.description || safe.desc || safe["描述"] || reason;
   const identityDescription = safe.identityDescription || safe.identity_description || safe.appearance || safe.objectIdentity || safe["外观描述"] || safe["身份描述"];
@@ -5298,6 +5300,7 @@ function normalizeModelItem(raw) {
     sizeClass,
     description,
     reason,
+    diagnosticFeatures,
     tags.join(" "),
     subjectCandidates.map((candidate) => [candidate.name, candidate.category, ...candidate.evidence].filter(Boolean).join(" ")).join(" "),
   ].filter(Boolean).join(" ");
@@ -5329,6 +5332,7 @@ function normalizeModelItem(raw) {
     description: cleanText(description, "由照片鉴定出的装备。", 72),
     identityDescription: cleanText(identityDescription, "", 160),
     objectiveAssessment: cleanText(objectiveAssessment, "", 160),
+    diagnosticFeatures,
     recognizedSubject,
     subjectCandidates,
     reason: cleanText(reason, "", 72),
@@ -5463,6 +5467,7 @@ function isPortableEquipmentText(text) {
 
 function isEverydayDrawingObjectText(text) {
   const source = stripNegatedSemanticText(stripDrawingMediumWords(stripImageTextSemantics(text || "")));
+  if (hasLollipopVisualEvidenceText(source) || hasWatermelonVisualEvidenceText(source)) return true;
   if (!source || isWeakDrawingIdentityText(source) || isBareColorLineDrawingText(source) || isLooseLineOnlyDrawingText(source)) return false;
   return everydayDrawingObjectPattern.test(source) || isSmallEquipableNaturalText(source);
 }
@@ -5480,7 +5485,7 @@ function isSmallEquipableNaturalText(text) {
   const source = String(text || "");
   if (isClearlyOversizedSubjectText(source)) return false;
   if (/(?:风景|远景|全景|森林|草地|花园|道路|街道|人物|人像|动物整体|猫|狗|鸟|鱼|昆虫整体|landscape|forest|road|street|portrait|animal|cat|dog)/i.test(source)) return false;
-  return /(?:叶片|叶子|花朵|花瓣|种子|松果|果实|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|水果|石头|石子|贝壳|羽毛|树枝|树叶|水滴|冰块|小植物|盆栽|多肉|仙人掌|小自然物|leaf|flower|seed|pinecone|fruit|apple|banana|orange|pear|stone|pebble|shell|feather|twig|droplet|ice|succulent|cactus)/i.test(source);
+  return /(?:叶片|叶子|花朵|花瓣|种子|松果|果实|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|西瓜|瓜果|水果|糖果|棒棒糖|石头|石子|贝壳|羽毛|树枝|树叶|水滴|冰块|小植物|盆栽|多肉|仙人掌|小自然物|leaf|flower|seed|pinecone|fruit|apple|banana|orange|pear|watermelon|candy|lollipop|stone|pebble|shell|feather|twig|droplet|ice|succulent|cactus)/i.test(source);
 }
 
 function isClearlySmallModelOrPatternText(text) {
@@ -5715,8 +5720,11 @@ function hasStrongDrawingConceptText(text) {
   if (/(?:无法辨认|不能辨认|看不出|没有明确主体|无主体|随机线条|乱线|不成形|unrecognizable|random\s+line)/i.test(source)) return false;
   return hasShoeVisualEvidenceText(source)
     || hasDrawingWeaponVisualEvidenceText(source)
+    || hasPolearmVisualEvidenceText(source)
     || hasShieldVisualEvidenceText(source)
     || hasGemAccessoryVisualEvidenceText(source)
+    || hasLollipopVisualEvidenceText(source)
+    || hasWatermelonVisualEvidenceText(source)
     || isEverydayDrawingObjectText(source)
     || hasWingVisualEvidenceText(source)
     || /(?:火焰|火苗|闪电|雷电|水滴|泉水|草叶|叶片|花朵|新芽|爱心|心形|星形|眼睛|瞳孔|齿轮|机器人|面具|符文|护符|徽记|圆环|石板|核心|爪|牙|尖牙|flame|fire|lightning|droplet|spring|leaf|flower|heart|star|eye|gear|robot|mask|rune|amulet|emblem|core|claw|fang)/i.test(source);
@@ -5733,20 +5741,20 @@ function isTablewareSemanticText(text) {
 
 function hasEdibleContentSemanticText(text) {
   const source = stripNegatedSemanticText(text || "");
-  const contentPattern = "咖啡|矿泉水|饮料|药|汤(?!勺)|茶|牛奶|果汁|食物|饭|面|糖|饼|肉|菜|水果|苹果|香蕉|番茄|西红柿|能量|coffee|water|drink|medicine|soup|tea|milk|juice|food|rice|noodle|bread|candy|meat|vegetable|fruit|apple|banana|energy";
+  const contentPattern = "咖啡|矿泉水|饮料|药|汤(?!勺)|茶|牛奶|果汁|食物|饭|面|糖|糖果|棒棒糖|饼|肉|菜|水果|瓜果|西瓜|苹果|香蕉|番茄|西红柿|能量|coffee|water|drink|medicine|soup|tea|milk|juice|food|rice|noodle|bread|candy|lollipop|meat|vegetable|fruit|watermelon|apple|banana|energy";
   return new RegExp(`(?:装着|盛着|装有|里面有|里有|杯中|碗里|盘里|勺里|装满|半杯|一杯|一碗|一盘|一勺).{0,10}(?:${contentPattern})|(?:${contentPattern}).{0,10}(?:装在|盛在|在杯|在碗|在盘|in a cup|in a bowl|in a plate|filled)`, "i").test(source);
 }
 
 function hasHpSemanticText(text) {
   const source = stripNegatedSemanticText(text || "");
   if (isTablewareSemanticText(source) && !hasEdibleContentSemanticText(source)) return false;
-  return /(?:生命|爱心|心形|核心|咖啡|矿泉水|饮料|药|汤(?!勺)|茶|牛奶|果汁|食物|饭团|面包|糖果|饼干|肉|蔬菜|水果|苹果|香蕉|番茄|西红柿|能量|植物|花朵|叶片|种子|可爱|治愈|毛绒|玩偶|娃娃|贴纸|卡通|图案|青蛙|coffee|water|drink|medicine|tea|milk|juice|food|bread|candy|fruit|apple|banana|tomato|energy|plant|flower|seed|heart|core|cute|heal|healing|plush|doll|toy|sticker|cartoon|pattern)/i.test(source);
+  return /(?:生命|爱心|心形|核心|咖啡|矿泉水|饮料|药|汤(?!勺)|茶|牛奶|果汁|食物|饭团|面包|糖果|棒棒糖|饼干|肉|蔬菜|水果|瓜果|西瓜|苹果|香蕉|番茄|西红柿|能量|植物|花朵|叶片|种子|可爱|治愈|毛绒|玩偶|娃娃|贴纸|卡通|图案|青蛙|coffee|water|drink|medicine|tea|milk|juice|food|bread|candy|lollipop|fruit|watermelon|apple|banana|tomato|energy|plant|flower|seed|heart|core|cute|heal|healing|plush|doll|toy|sticker|cartoon|pattern)/i.test(source);
 }
 
 function hasStrongHpSemanticText(text) {
   const source = stripNegatedSemanticText(text || "");
   if (isTablewareSemanticText(source) && !hasEdibleContentSemanticText(source)) return false;
-  return /(?:生命|爱心|心形|咖啡|矿泉水|饮料|药|汤(?!勺)|茶|牛奶|果汁|食物|饭团|面包|糖果|饼干|肉|蔬菜|水果|苹果|香蕉|番茄|西红柿|能量|植物|花朵|叶片|种子|治愈|毛绒|玩偶|娃娃|coffee|water|drink|medicine|tea|milk|juice|food|bread|candy|fruit|apple|banana|tomato|energy|plant|flower|seed|heart|heal|healing|plush|doll)/i.test(source);
+  return /(?:生命|爱心|心形|咖啡|矿泉水|饮料|药|汤(?!勺)|茶|牛奶|果汁|食物|饭团|面包|糖果|棒棒糖|饼干|肉|蔬菜|水果|瓜果|西瓜|苹果|香蕉|番茄|西红柿|能量|植物|花朵|叶片|种子|治愈|毛绒|玩偶|娃娃|coffee|water|drink|medicine|tea|milk|juice|food|bread|candy|lollipop|fruit|watermelon|apple|banana|tomato|energy|plant|flower|seed|heart|heal|healing|plush|doll)/i.test(source);
 }
 
 function hasStrongSpeedSemanticText(text) {
@@ -10988,16 +10996,32 @@ function stripDrawingMediumWords(text = "") {
     .trim();
 }
 
+function hasPromptInstructionLeakText(text = "") {
+  return /(?:按模型|生成《?画图勇者》?装备素材|装备素材\s*JSON|JSON|字段名|只输出|不要\s*Markdown|系统要求|提示词|prompt|让我(?:仔细)?观察|我(?:先|来)?观察|图片显示的是|图中显示的是|这张图片显示的是|返回一个|输出一个)/i.test(String(text || ""));
+}
+
+function stripPromptInstructionLeakText(text = "") {
+  return String(text || "")
+    .replace(/(?:按模型|并生成|生成《?画图勇者》?装备素材\s*JSON|生成《?画图勇者》?装备素材|装备素材\s*JSON|JSON|字段名|只输出|不要\s*Markdown|系统要求|提示词|prompt)[^。！？\n\r]{0,60}[。！？\n\r]?/gi, "")
+    .replace(/(?:让我(?:仔细)?观察(?:这个|这件|这张)?(?:装备片|装备|图片)?|我(?:先|来)?(?:仔细)?观察(?:一下)?|图片显示的是|图中显示的是|这张图片显示的是|可以看到|能看到|看起来像|首先)[：:\s，,、-]*/gi, "")
+    .replace(/^[\s\-—:：，,、。]+|[\s\-—:：，,、。]+$/g, "")
+    .trim();
+}
+
+function cleanDrawingAuxiliaryText(value, maxLength = 160) {
+  return cleanText(stripPromptInstructionLeakText(value), "", maxLength);
+}
+
 function isGenericDrawingName(text = "") {
   return /^(?:神秘|未知|装备|物品|主体|道具|小道具|幻想|概念|符号|图案|装备概念|幻想装备|幻想武器|神秘装备|神秘武器|魔法装备|神器)?$/.test(String(text || "").trim());
 }
 
 function cleanDrawingName(value, fallback, maxLength = 18) {
-  const cleaned = stripDrawingMediumWords(cleanText(value, "", maxLength + 12))
+  const cleaned = stripDrawingMediumWords(stripPromptInstructionLeakText(cleanText(value, "", maxLength + 12)))
     .replace(/^(?:一把|一个|一枚|一件|一只|一条)/, "")
     .replace(/(?:装备|道具)$/g, "")
     .trim();
-  const fallbackClean = stripDrawingMediumWords(cleanText(fallback, "", maxLength + 12));
+  const fallbackClean = stripDrawingMediumWords(stripPromptInstructionLeakText(cleanText(fallback, "", maxLength + 12)));
   const picked = !isGenericDrawingName(cleaned) ? cleaned : (!isGenericDrawingName(fallbackClean) ? fallbackClean : "幻想装备");
   return cleanText(picked, "幻想装备", maxLength);
 }
@@ -11007,24 +11031,36 @@ function isDailySubjectNameText(text = "") {
 }
 
 function cleanDrawingDescription(value, fallback, itemName) {
-  let text = stripDrawingMediumWords(stripImageTextSemantics(cleanText(value, "", 96)))
+  const leaked = hasPromptInstructionLeakText(value);
+  let text = stripDrawingMediumWords(stripImageTextSemantics(stripPromptInstructionLeakText(cleanText(value, "", 96))))
     .replace(/媒介|载体/g, "")
     .replace(/^\s*这件装备?装备/, "这件装备")
     .replace(/^\s*这件$/, "")
     .trim();
   const name = cleanDrawingName(itemName, fallback, 18);
+  if (leaked && !hasPhotoStatSemanticText(text) && !hasDrawingWeaponNameText(text) && !hasDailyDrawingSubjectNameText(text) && !hasStrongDrawingConceptText(text)) {
+    text = "";
+  }
+  if (/^(?:一|一个|一把|一件|主体|图片|装备片|显示)$/.test(text)) text = "";
   const unsupportedWeaponDescription = /(?:魔杖|法杖|魔法棒|武器|神器|神兵|飞刃|利刃|翼刃|短剑|长剑|剑|刀|刃|弓|箭|枪|矛|锤)/.test(text)
     && !/(?:魔杖|法杖|魔法棒|武器|神器|神兵|飞刃|利刃|翼刃|短剑|长剑|剑|刀|刃|弓|箭|枪|矛|锤)/.test(name);
   const unsupportedAccessoryDescription = /(?:宝石|水晶|翡翠|坠饰|吊坠|项链|戒指|饰品)/.test(text)
     && !/(?:宝石|水晶|翡翠|坠饰|吊坠|项链|戒指|饰品)/.test(name);
   const dailyName = isDailySubjectNameText(name);
+  const categoryKeyword = dailyName ? getEverydayDrawingCategoryKeyword(name) : "";
   const fantasySwapDescription = dailyName
     && /(?:护符|魔杖|法杖|魔法棒|神器|神剑|飞刃|圣杯|宝石|水晶|盾牌|圆盾)/.test(text)
-    && !new RegExp(getEverydayDrawingCategoryKeyword(name)).test(text);
+    && !new RegExp(categoryKeyword).test(text);
+  const everydaySwapDescription = dailyName
+    && categoryKeyword
+    && hasDailyDrawingSubjectNameText(text)
+    && !new RegExp(categoryKeyword).test(text);
+  const unsupportedCategoryDescription = text && !objectEvidenceSupportsNameCategory(name, text);
+  const conflictingSubjectDescription = hasConflictingDrawingDescriptionSubject(name, text);
   if (unsupportedWeaponDescription || unsupportedAccessoryDescription) {
     text = `${name}带着清晰的主体轮廓，可以被带进魔塔。`;
   }
-  if (fantasySwapDescription) {
+  if (fantasySwapDescription || everydaySwapDescription || unsupportedCategoryDescription || conflictingSubjectDescription) {
     text = `${name}带着清晰的主体轮廓，可以被带进魔塔。`;
   }
   if (!text || /^由.*鉴定/.test(text)) {
@@ -11034,25 +11070,52 @@ function cleanDrawingDescription(value, fallback, itemName) {
   return cleanText(text, "由想象凝成的装备。", 72);
 }
 
+function hasConflictingDrawingDescriptionSubject(name = "", text = "") {
+  const nameText = String(name || "");
+  const source = stripPromptInstructionLeakText(stripImageTextSemantics(stripDrawingMediumWords(text || "")));
+  if (!nameText || !source) return false;
+  if (/(?:西瓜|瓜|苹果|香蕉|橙|梨|糖|棒棒糖|水果|果实|fruit|watermelon|candy|lollipop)/i.test(nameText)) {
+    return /(?:生菜|叶片|叶子|新芽|风筝|叉子|护符|徽记|宝石|水晶|盾牌|魔杖|法杖|剑|刀|弓|箭|枪|矛|戟|kite|fork|leaf|amulet|emblem|gem|shield|wand|sword|blade|spear)/i.test(source)
+      && !/(?:西瓜|瓜|苹果|香蕉|橙|梨|糖|棒棒糖|水果|果实|果肉|籽|fruit|watermelon|candy|lollipop)/i.test(source);
+  }
+  if (hasPolearmNameText(nameText)) {
+    return /(?:风筝|叉子|生菜|叶片|叶子|新芽|护符|徽记|宝石|水晶|盾牌|魔杖|法杖|kite|fork|leaf|amulet|emblem|gem|shield|wand)/i.test(source)
+      && !hasPolearmVisualEvidenceText(source);
+  }
+  return false;
+}
+
 function hasMagicWandNameText(text = "") {
   return /(?:魔杖|法杖|魔法棒|星杖|wand|staff)/i.test(String(text || ""));
 }
 
 function hasDrawingWeaponNameText(text = "") {
-  return /(?:剑|短剑|长剑|刀|刃|飞刃|利刃|翼刃|斧|弓|箭|枪|矛|锤|武器|神器|神兵|魔杖|法杖|魔法棒|sword|blade|axe|bow|arrow|spear|hammer|weapon|wand|staff)/i.test(String(text || ""));
+  return /(?:剑|短剑|长剑|刀|大刀|长刀|偃月刀|青龙偃月|关刀|长柄刀|刃|飞刃|利刃|翼刃|斧|弓|箭|枪|长枪|矛|长矛|蛇矛|丈八蛇矛|戟|战戟|锤|武器|神器|神兵|魔杖|法杖|魔法棒|sword|blade|glaive|guandao|halberd|polearm|axe|bow|arrow|spear|lance|pike|hammer|weapon|wand|staff)/i.test(String(text || ""));
+}
+
+function hasPolearmNameText(text = "") {
+  return /(?:偃月刀|青龙偃月|关刀|大刀|长刀|长柄刀|蛇矛|丈八蛇矛|长矛|长枪|枪矛|战戟|戟|矛|枪|glaive|guandao|halberd|polearm|spear|lance|pike)/i.test(String(text || ""));
+}
+
+function inferPolearmDrawingName(text = "") {
+  const source = stripNegatedDrawingEvidence(stripNegatedSemanticText(stripImageTextSemantics(stripDrawingMediumWords(text || ""))));
+  if (/(?:偃月|青龙偃月|关刀|月牙刃|弯刃|宽刃|大刀|长柄刀|glaive|guandao)/i.test(source)) return "青锋偃月刀";
+  if (/(?:蛇矛|丈八蛇矛|蛇形|分叉矛|双尖|红缨|矛尖|枪尖|spear|lance|pike)/i.test(source)) return "赤缨蛇矛";
+  if (/(?:戟|战戟|戟刃|钩刃|halberd)/i.test(source)) return "长柄战戟";
+  return "长柄武器";
 }
 
 function hasDailyDrawingSubjectNameText(text = "") {
-  return /(?:键盘|鼠标|话筒|麦克风|书包|背包|记事本|笔记本|手机|电脑|平板|风扇|雨伞|汤勺|勺子|杯|瓶|水|苹果|香蕉|橙子|梨|笔|尺|书本|书|本子|相机|眼镜|橡皮|电池|灯|玩具|模型|摆件|挂件|keyboard|mouse|microphone|mic|backpack|notebook|phone|computer|tablet|fan|umbrella|spoon|cup|bottle|water|apple|banana|pen|book|camera|glasses|battery|lamp|toy|model)/i.test(String(text || ""));
+  return /(?:键盘|鼠标|话筒|麦克风|书包|背包|记事本|笔记本|手机|电脑|平板|风扇|雨伞|汤勺|勺子|杯|瓶|水|苹果|香蕉|橙子|梨|西瓜|瓜|棒棒糖|糖果|笔|尺|书本|书|本子|相机|眼镜|橡皮|电池|灯|玩具|模型|摆件|挂件|keyboard|mouse|microphone|mic|backpack|notebook|phone|computer|tablet|fan|umbrella|spoon|cup|bottle|water|apple|banana|watermelon|lollipop|candy|pen|book|camera|glasses|battery|lamp|toy|model)/i.test(String(text || ""));
 }
 
 function stripNegatedDrawingEvidence(text = "") {
-  const featureWords = "长柄|长杆|杖身|棒状|杆状|棍状|顶端|宝石|水晶|圆球|剑身|剑尖|刀身|刀刃|刃口|锋刃|握柄|手柄|弓弦|箭头|箭羽|斧刃|枪尖|矛尖|锤头|尖刺|爪|牙|盾|护盾|屏障|鞋|靴|鞋底|鞋帮|鞋口|吊坠|项链|链条|戒指|伞面|伞柄|伞骨|伞把|雨伞|翅膀|羽翼|羽片|羽毛|翼膜|翼形";
+  const featureWords = "长柄|长杆|枪杆|矛杆|戟杆|杆身|杖身|棒状|杆状|棍状|顶端|宝石|水晶|圆球|剑身|剑尖|刀身|刀刃|刀头|刃口|锋刃|弯刃|宽刃|月牙刃|握柄|手柄|护手|红缨|弓弦|箭头|箭羽|斧刃|枪尖|矛尖|戟刃|锤头|尖刺|爪|牙|盾|护盾|屏障|鞋|靴|鞋底|鞋帮|鞋口|吊坠|项链|链条|戒指|伞面|伞柄|伞骨|伞把|雨伞|翅膀|羽翼|羽片|羽毛|翼膜|翼形|糖头|糖面|糖棒|棒棒糖|细棒|果肉|外皮|瓜皮|黑籽|种子|西瓜";
   return String(text || "").replace(new RegExp(`(?:没有|无|缺少|看不出|不见|未画出|未形成|不是|没有明确)[^，。；,.]{0,24}(?:${featureWords})[^，。；,.]{0,12}`, "g"), "");
 }
 
 function stripNegatedSemanticText(text = "") {
-  const featureWords = "食物|汤水|汤|水|液体|饮料|药|药水|水果|苹果|香蕉|生命|回血|回复|恢复|治愈|补给|能量|护盾|盾牌|武器|刀刃|剑|魔杖|法杖|尖刺|血滴|吸血";
+  const featureWords = "食物|汤水|汤|水|液体|饮料|药|药水|水果|果肉|西瓜|瓜|苹果|香蕉|糖果|棒棒糖|生命|回血|回复|恢复|治愈|补给|能量|护盾|盾牌|武器|刀刃|剑|魔杖|法杖|尖刺|血滴|吸血";
   return String(text || "")
     .replace(new RegExp(`(?:没有|无|不含|缺少|看不出|不见|未画出|未形成|不是|没有明确)[^，。；,.]{0,28}(?:${featureWords})[^，。；,.]{0,16}`, "g"), "")
     .replace(new RegExp(`(?:${featureWords})[^，。；,.]{0,16}(?:没有|无|不含|缺少|看不出|不见|未画出|未形成|不是|没有明确)`, "g"), "");
@@ -11066,12 +11129,22 @@ function hasMagicWandVisualEvidenceText(text = "") {
   return head && (shaft || explicitWand);
 }
 
+function hasPolearmVisualEvidenceText(text = "") {
+  const source = stripNegatedDrawingEvidence(stripNegatedSemanticText(stripImageTextSemantics(stripDrawingMediumWords(text || ""))));
+  if (!source || isLooseLineOnlyDrawingText(source)) return false;
+  if (/(?:偃月刀|青龙偃月|关刀|长柄大刀|长柄刀|大刀|蛇矛|丈八蛇矛|长矛|长枪|枪矛|战戟|戟|glaive|guandao|halberd|polearm|spear|lance|pike)/i.test(source)) return true;
+  const shaft = /(?:长柄|长杆|长棍|枪杆|矛杆|戟杆|杆身|斜长线|长黑线|黑色长线|长柄杆|pole|shaft|long\s+handle|long\s+pole)/i.test(source);
+  const head = /(?:弯刃|弯刀|月牙刃|月牙形|偃月|宽刃|大刀|刀头|刀刃|刀身|刃部|刃口|尖刃|枪尖|矛尖|蛇形矛|分叉矛|双尖|戟刃|钩刃|curved\s+blade|blade\s+head|spear\s+tip|halberd\s+blade|glaive\s+blade)/i.test(source);
+  const guard = /(?:护手|横挡|格挡|红缨|缨|tassel|guard)/i.test(source);
+  return shaft && (head || (guard && /(?:尖|刃|刀|矛|枪|戟|blade|spear|point)/i.test(source)));
+}
+
 function hasDrawingWeaponVisualEvidenceText(text = "") {
   const source = stripNegatedDrawingEvidence(stripNegatedSemanticText(text));
-  const weaponHead = /(?:剑身|剑尖|刀身|刀刃|刃口|锋刃|弓弦|箭头|箭羽|斧刃|枪尖|矛尖|锤头|尖刺|爪|牙|sword|blade|edge|bowstring|arrowhead|axe blade|spear tip|spike|claw|fang)/i.test(source);
+  const weaponHead = /(?:剑身|剑尖|刀身|刀刃|刀头|刃部|刃口|锋刃|弯刃|宽刃|月牙刃|弓弦|箭头|箭羽|斧刃|枪尖|矛尖|戟刃|锤头|尖刺|爪|牙|sword|blade|edge|curved blade|bowstring|arrowhead|axe blade|spear tip|halberd blade|spike|claw|fang)/i.test(source);
   const handleWithWeapon = /(?:握柄|手柄|handle)/i.test(source)
-    && /(?:剑|刀|刃|弓|箭|斧|枪|矛|锤|武器|sword|blade|bow|arrow|axe|spear|hammer|weapon)/i.test(source);
-  return hasMagicWandVisualEvidenceText(source) || weaponHead || handleWithWeapon;
+    && /(?:剑|刀|刃|弓|箭|斧|枪|矛|戟|大刀|长柄|锤|武器|sword|blade|bow|arrow|axe|spear|halberd|glaive|hammer|weapon)/i.test(source);
+  return hasMagicWandVisualEvidenceText(source) || hasPolearmVisualEvidenceText(source) || weaponHead || handleWithWeapon;
 }
 
 function hasShoeNameText(text = "") {
@@ -11096,7 +11169,7 @@ function hasLooseDrawingLineMarkerText(text = "") {
 
 function hasDrawingPartStructureEvidenceText(text = "") {
   const source = stripNegatedDrawingEvidence(stripImageTextSemantics(stripDrawingMediumWords(text || "")));
-  return /(?:闭合轮廓|完整轮廓|主体完整|结构完整|轮廓完整|清晰轮廓|外框|边框|底座|屏幕|键盘|摄像头|瓶身|瓶盖|水位|笔杆|笔尖|笔帽|勺头|勺柄|叉齿|碗口|杯口|杯身|果实|短梗|叶子|扇叶|伞面|伞柄|伞把|伞骨|盾面|盾身|十字|握柄|手柄|剑身|剑尖|刀身|刀刃|弓弦|箭头|杖身|杖头|鞋底|鞋帮|鞋口|羽片|羽轴|翼膜|左右两翼|成对翅膀|多片羽毛|多条羽毛|rim|border|screen|keyboard|camera|bottle|cap|waterline|pen\s+tip|spoon\s+bowl|handle|fan\s+blade|canopy|umbrella\s+rib|shield\s+face|blade|bowstring|arrowhead|wand\s+head|sole|feather|wing\s+membrane)/i.test(source);
+  return /(?:闭合轮廓|完整轮廓|主体完整|结构完整|轮廓完整|清晰轮廓|外框|边框|底座|屏幕|键盘|摄像头|瓶身|瓶盖|水位|笔杆|笔尖|笔帽|勺头|勺柄|叉齿|碗口|杯口|杯身|果实|果肉|外皮|瓜皮|籽|种子|糖头|糖面|糖球|糖棒|细棒|棒柄|短梗|叶子|扇叶|伞面|伞柄|伞把|伞骨|盾面|盾身|十字|握柄|手柄|护手|剑身|剑尖|刀身|刀刃|弯刃|宽刃|月牙刃|枪杆|矛杆|戟杆|枪尖|矛尖|戟刃|弓弦|箭头|杖身|杖头|鞋底|鞋帮|鞋口|羽片|羽轴|翼膜|左右两翼|成对翅膀|多片羽毛|多条羽毛|rim|border|screen|keyboard|camera|bottle|cap|waterline|rind|flesh|seed|lollipop|candy\s+head|candy\s+stick|pen\s+tip|spoon\s+bowl|handle|fan\s+blade|canopy|umbrella\s+rib|shield\s+face|blade|curved\s+blade|bowstring|arrowhead|wand\s+head|sole|feather|wing\s+membrane)/i.test(source);
 }
 
 function isLooseLineOnlyDrawingText(text = "") {
@@ -11138,9 +11211,43 @@ function hasWingVisualEvidenceText(text = "") {
   return pairedWing || featherStructure;
 }
 
+function hasWatermelonVisualEvidenceText(text = "") {
+  const source = stripNegatedDrawingEvidence(stripNegatedSemanticText(stripImageTextSemantics(stripDrawingMediumWords(text || ""))));
+  if (!source || isLooseLineOnlyDrawingText(source)) return false;
+  if (/(?:西瓜|watermelon)/i.test(source)) return true;
+  const greenRind = /(?:绿色|绿|青绿色|深绿|green)[^，。；,.]{0,16}(?:外皮|外圈|边缘|边框|弧边|轮廓|瓜皮|rind|edge|outline)|(?:外皮|外圈|边缘|边框|弧边|轮廓|瓜皮|rind|edge|outline)[^，。；,.]{0,16}(?:绿色|绿|青绿色|深绿|green)/i.test(source);
+  const redFlesh = /(?:红色|红|粉红|red|pink)[^，。；,.]{0,16}(?:内部|里面|中心|果肉|内层|flesh)|(?:内部|里面|中心|果肉|内层|flesh)[^，。；,.]{0,16}(?:红色|红|粉红|red|pink)/i.test(source);
+  const blackSeeds = /(?:黑色|黑|black)[^，。；,.]{0,16}(?:小点|点|籽|种子|seed)|(?:小点|点|籽|种子|seed)[^，。；,.]{0,16}(?:黑色|黑|black)/i.test(source);
+  const fruitShape = /(?:半圆|三角|扇形|圆形切面|切面|果肉|瓜|水果|fruit|slice)/i.test(source);
+  return greenRind && redFlesh && blackSeeds && fruitShape;
+}
+
+function hasLollipopVisualEvidenceText(text = "") {
+  const source = stripNegatedDrawingEvidence(stripNegatedSemanticText(stripImageTextSemantics(stripDrawingMediumWords(text || ""))));
+  if (!source || isLooseLineOnlyDrawingText(source)) return false;
+  if (/(?:棒棒糖|糖棒|lollipop)/i.test(source)) return true;
+  const candyHead = /(?:圆形|圆圈|圆盘|糖头|糖面|糖球|糖果头|round|circle|disc|candy\s+head)/i.test(source);
+  const spiralOrColor = /(?:螺旋|回旋|同心圆|彩虹|彩色|多色|红黄蓝绿|红.*黄.*蓝|spiral|swirl|concentric|rainbow|multicolor)/i.test(source);
+  const stick = /(?:细棒|直棒|小棒|棒柄|下方有棒|连接一根|竖线|直线杆|糖棒|stick|handle)/i.test(source);
+  const relation = /(?:下方|下面|底部|连接|连着|插在|伸出|attached|below|under)/i.test(source);
+  return candyHead && spiralOrColor && stick && relation;
+}
+
+function inferDiagnosticDrawingNameFromVisualFeatures(text = "") {
+  const source = normalizeDrawingVisualEvidenceForRules(text || "");
+  if (!source || isLooseLineOnlyDrawingText(source)) return "";
+  if (hasLollipopVisualEvidenceText(source)) return "彩虹棒棒糖";
+  if (hasWatermelonVisualEvidenceText(source)) return "西瓜切片";
+  if (hasPolearmVisualEvidenceText(source)) return inferPolearmDrawingName(source);
+  return "";
+}
+
 function inferEverydayDrawingNameFromText(text = "") {
   const source = stripNegatedSemanticText(stripDrawingMediumWords(stripImageTextSemantics(text || "")));
-  if (!source || isWeakDrawingIdentityText(source)) return "";
+  if (!source) return "";
+  const diagnosticName = inferDiagnosticDrawingNameFromVisualFeatures(source);
+  if (diagnosticName) return diagnosticName;
+  if (isWeakDrawingIdentityText(source)) return "";
   if (/笔记本电脑|笔记本|电脑|laptop|computer/i.test(source)) return "笔记本电脑";
   if (/平板|tablet/i.test(source)) return "平板电脑";
   if (/手机|phone/i.test(source)) return "手机";
@@ -11165,6 +11272,8 @@ function inferEverydayDrawingNameFromText(text = "") {
   if (/瓶子|瓶|bottle/i.test(source)) return "瓶子";
   if (/苹果|apple/i.test(source)) return /红|red/i.test(source) ? "红苹果" : "苹果";
   if (/香蕉|banana/i.test(source)) return "香蕉";
+  if (/西瓜|watermelon/i.test(source)) return "西瓜切片";
+  if (/棒棒糖|糖棒|lollipop/i.test(source)) return "棒棒糖";
   if (/橙子|orange/i.test(source)) return "橙子";
   if (/梨|pear/i.test(source)) return "梨";
   if (/钥匙|key/i.test(source)) return "钥匙";
@@ -11196,6 +11305,8 @@ function getEverydayDrawingCategoryKeyword(text = "") {
   if (/瓶子/.test(name)) return "瓶";
   if (/红苹果|苹果/.test(name)) return "苹果";
   if (/香蕉/.test(name)) return "香蕉";
+  if (/西瓜/.test(name)) return "西瓜";
+  if (/棒棒糖|糖果/.test(name)) return "糖";
   if (/橙子/.test(name)) return "橙";
   if (/梨/.test(name)) return "梨";
   if (/钥匙/.test(name)) return "钥匙";
@@ -11228,9 +11339,12 @@ function isWeakDrawingIdentityText(text = "") {
 function isBareColorLineDrawingText(text = "") {
   const source = stripNegatedDrawingEvidence(text || "");
   if (!/(?:线|线条|折线|斜线|弧线|线段|笔画|涂抹|划痕|stroke|line|scribble)/i.test(source)) return false;
-  return !/(?:鞋|靴|盾|剑身|剑尖|握柄|刀身|刀刃|弓弦|箭头|魔杖|法杖|杖身|长柄|火焰|闪电|爱心|心形|眼睛|齿轮|机器人|面具|水滴|叶片|花|星形|shoe|boot|shield|handle|blade|wand|staff|flame|lightning|heart|eye|gear|robot|mask|droplet|leaf|star)/i.test(source)
+  return !/(?:鞋|靴|盾|剑身|剑尖|握柄|刀身|刀刃|弯刃|宽刃|月牙刃|弓弦|箭头|枪尖|矛尖|戟刃|魔杖|法杖|杖身|长柄|长杆|糖头|糖面|糖棒|棒棒糖|果肉|外皮|瓜皮|黑籽|火焰|闪电|爱心|心形|眼睛|齿轮|机器人|面具|水滴|叶片|花|星形|shoe|boot|shield|handle|blade|wand|staff|flame|lightning|heart|eye|gear|robot|mask|droplet|leaf|star)/i.test(source)
     && !hasUmbrellaVisualEvidenceText(source)
-    && !hasWingVisualEvidenceText(source);
+    && !hasWingVisualEvidenceText(source)
+    && !hasLollipopVisualEvidenceText(source)
+    && !hasWatermelonVisualEvidenceText(source)
+    && !hasPolearmVisualEvidenceText(source);
 }
 
 function normalizeDrawingVisualEvidenceForRules(text = "") {
@@ -11306,9 +11420,19 @@ function isOffensiveBladeSemanticText(text = "") {
 function objectEvidenceSupportsNameCategory(name, evidence) {
   const nameText = String(name || "");
   const evidenceText = stripImageTextSemantics(evidence || "");
+  if (hasPolearmVisualEvidenceText(evidenceText)) {
+    return hasPolearmNameText(nameText) || !/(?:风筝|叉子|叉|生菜|叶子|叶片|新芽|徽记|护符|宝石|水晶|kite|fork|leaf|emblem|amulet|gem)/i.test(nameText);
+  }
+  if (hasLollipopVisualEvidenceText(evidenceText)) {
+    return /(?:棒棒糖|糖|糖果|lollipop|candy)/i.test(nameText);
+  }
+  if (hasWatermelonVisualEvidenceText(evidenceText)) {
+    return /(?:西瓜|瓜|水果|果|watermelon|fruit)/i.test(nameText);
+  }
   const everydayKeyword = getEverydayDrawingCategoryKeyword(evidenceText);
   if (everydayKeyword && !nameText.includes(everydayKeyword)) return false;
   if (hasDailyDrawingSubjectNameText(evidenceText) && !hasDailyDrawingSubjectNameText(nameText)) return false;
+  if (hasPolearmNameText(nameText)) return hasPolearmVisualEvidenceText(evidenceText);
   if (/弓箭|弓|箭/.test(nameText) && /弓箭|弓弦|箭头|箭羽|弓身|bow|arrow/i.test(evidenceText)) return true;
   if (hasUmbrellaNameText(nameText)) return hasUmbrellaVisualEvidenceText(evidenceText);
   if (hasWingNameText(nameText)) return hasWingVisualEvidenceText(evidenceText);
@@ -11332,11 +11456,14 @@ function inferDrawingNameFromVisualEvidence(text = "") {
   const source = normalizeDrawingVisualEvidenceForRules(text);
   const hasStrongConcept = hasStrongDrawingConceptText(source);
   if ((isLooseLineOnlyDrawingText(source) || isWeakDrawingIdentityText(source)) && !hasStrongConcept) return "未成形线团";
+  const diagnosticName = inferDiagnosticDrawingNameFromVisualFeatures(source);
+  if (diagnosticName) return diagnosticName;
   const everydayName = inferEverydayDrawingNameFromText(source);
   if (everydayName) return everydayName;
   if (hasShoeVisualEvidenceText(source)) return /风|疾|闪电|lightning|wind/i.test(source) ? "风行短靴" : "旅者短靴";
   if (hasShieldVisualEvidenceText(source)) return /圆|环|circle|round/i.test(source) ? "守护圆盾" : "守护盾牌";
   if (hasMagicWandVisualEvidenceText(source)) return /星|star/i.test(source) ? "星纹魔杖" : "符石法杖";
+  if (hasPolearmVisualEvidenceText(source)) return inferPolearmDrawingName(source);
   if (/剑身|剑尖|短剑|长剑|握柄|sword/i.test(source)) return "短剑";
   if (/刀身|刀刃|刃口|blade|knife/i.test(source)) return "锋刃短刀";
   if (/弓弦|弓|箭头|箭羽|bow|arrow/i.test(source)) return "风箭徽记";
@@ -11363,6 +11490,10 @@ function refineDrawingNameWithVisualEvidence(name, subjectName, objectType, iden
   const visualEvidence = stripImageTextSemantics(stripDrawingMediumWords(identityDescription || ""));
   if (!visualEvidence) return cleanName;
   const nameText = [cleanName, subjectName, objectType].filter(Boolean).join(" ");
+  const diagnosticName = inferDiagnosticDrawingNameFromVisualFeatures(visualEvidence);
+  if (diagnosticName && !objectEvidenceSupportsNameCategory(cleanName, visualEvidence)) {
+    return cleanText(diagnosticName, diagnosticName, 18);
+  }
   const everydayName = inferEverydayDrawingNameFromText(visualEvidence);
   const everydayKeyword = getEverydayDrawingCategoryKeyword(visualEvidence);
   if (everydayName && everydayKeyword && !cleanName.includes(everydayKeyword)) {
@@ -11389,11 +11520,36 @@ function refineDrawingNameWithRecognizedSubject(name, subjectName, objectType, r
   const recognized = cleanDrawingName(recognizedSubject, "", 18);
   if (!recognized || isGenericDrawingName(recognized)) return name;
   const evidenceText = [recognized, subjectName, objectType, fallbackEvidence].filter(Boolean).join(" ");
+  const diagnosticName = inferDiagnosticDrawingNameFromVisualFeatures(evidenceText);
+  if (diagnosticName && !objectEvidenceSupportsNameCategory(recognized, evidenceText)) {
+    return cleanText(diagnosticName, diagnosticName, 18);
+  }
   const keyword = getEverydayDrawingCategoryKeyword(evidenceText);
   if (keyword && !String(name || "").includes(keyword)) {
     return recognized.includes(keyword) ? recognized : cleanText(`${recognized}${keyword}`, recognized, 18);
   }
   return name;
+}
+
+function normalizeDrawingDiagnosticFeatureText(input, maxLength = 220) {
+  const values = [];
+  const walk = (value, depth = 0) => {
+    if (value == null || depth > 3 || values.length >= 24) return;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      const text = cleanText(stripPromptInstructionLeakText(value), "", 40);
+      if (text) values.push(text);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => walk(item, depth + 1));
+      return;
+    }
+    if (typeof value === "object") {
+      Object.values(value).forEach((item) => walk(item, depth + 1));
+    }
+  };
+  walk(input);
+  return cleanText([...new Set(values)].join(" "), "", maxLength);
 }
 
 function normalizeDrawingEvidenceList(input) {
@@ -11431,6 +11587,7 @@ function normalizeDrawingEffortQuality(input) {
 function getDrawingEvidenceText(input = {}) {
   const visualEvidence = normalizeDrawingEvidenceList(input.visualEvidence || input.visual_evidence || input.evidence || input["可见证据"]).join(" ");
   const missingEvidence = normalizeDrawingEvidenceList(input.missingEvidence || input.missing_evidence || input["缺失证据"]).join(" ");
+  const diagnosticFeatures = normalizeDrawingDiagnosticFeatureText(input.diagnosticFeatures || input.diagnostic_features || input.visualFeatures || input.visual_features || input["诊断特征"] || input["视觉特征"]);
   const subjectCandidates = normalizeDrawingSubjectCandidates(input.subjectCandidates || input.subject_candidates || input.candidates || input["候选主体"]);
   const candidateText = subjectCandidates
     .map((candidate) => [
@@ -11440,8 +11597,9 @@ function getDrawingEvidenceText(input = {}) {
       candidate.missing.length ? `缺少 ${candidate.missing.join(" ")}` : "",
     ].filter(Boolean).join(" "))
     .join(" ");
-  return [
+  const evidenceText = [
     input.objectiveAssessment || input.objective_assessment || input.visualAssessment || input.visual_assessment || input["客观评价"] || input["画面评价"],
+    diagnosticFeatures,
     input.recognizedSubject || input.recognized_subject || input.finalSubject || input.final_subject || input["最终识别主体"],
     candidateText,
     input.identityDescription || input.identity_description || input.appearance || input.objectIdentity,
@@ -11450,6 +11608,7 @@ function getDrawingEvidenceText(input = {}) {
     input.analysis,
     missingEvidence ? `缺少 ${missingEvidence}` : "",
   ].filter(Boolean).join(" ");
+  return stripPromptInstructionLeakText(evidenceText);
 }
 
 function getDrawingRecognitionGate(input = {}) {
@@ -11479,7 +11638,7 @@ function getDrawingRecognitionGate(input = {}) {
   let level = "recognizable_object";
   if (declared === "unformed" || lowConfidence || looseLines || (weakText && !clearEquipment && !strongConcept && weakQuality) || (bareLines && quality.clarity <= 1 && quality.realPhoto <= 1)) {
     level = "unformed";
-  } else if (clearEquipment && !dailyObject && quality.clarity >= 2 && quality.subjectArea >= 1) {
+  } else if ((clearEquipment || (declared === "clear_equipment" && strongConcept)) && !dailyObject && quality.clarity >= 2 && quality.subjectArea >= 1) {
     level = "clear_equipment";
   } else if (simpleSymbol || declared === "simple_symbol") {
     level = "simple_symbol";
@@ -11600,14 +11759,19 @@ function balanceItem(item, image = "") {
     ? rawObjectType ? cleanDrawingName(rawObjectType, "", 18) : ""
     : cleanText(rawObjectType, "", 18);
   const sizeClass = cleanText(safe.sizeClass, "", 18);
-  const reason = cleanText(safe.reason, "", 72);
+  const reason = sourceMode === "drawing" ? cleanDrawingAuxiliaryText(safe.reason, 72) : cleanText(safe.reason, "", 72);
   const semanticSchema = getRawSemanticFlag(safe);
   const photoQuality = normalizePhotoQuality(safe.photoQuality || {});
   const statAffinity = normalizeStatAffinity(safe.statAffinity || []);
   let specialAffinity = normalizeSpecialEffects(safe.specialAffinity || []);
   const preserveSettledOutput = Boolean(safe.skipSpecialRoll);
-  const identityDescription = cleanText(safe.identityDescription || safe.identity_description || safe.appearance || safe.objectIdentity || "", "", 160);
-  const objectiveAssessment = cleanText(safe.objectiveAssessment || safe.objective_assessment || safe.visualAssessment || safe.visual_assessment || safe["客观评价"] || safe["画面评价"] || "", "", 160);
+  const identityDescription = sourceMode === "drawing"
+    ? cleanDrawingAuxiliaryText(safe.identityDescription || safe.identity_description || safe.appearance || safe.objectIdentity || "", 160)
+    : cleanText(safe.identityDescription || safe.identity_description || safe.appearance || safe.objectIdentity || "", "", 160);
+  const objectiveAssessment = sourceMode === "drawing"
+    ? cleanDrawingAuxiliaryText(safe.objectiveAssessment || safe.objective_assessment || safe.visualAssessment || safe.visual_assessment || safe["客观评价"] || safe["画面评价"] || "", 160)
+    : cleanText(safe.objectiveAssessment || safe.objective_assessment || safe.visualAssessment || safe.visual_assessment || safe["客观评价"] || safe["画面评价"] || "", "", 160);
+  const diagnosticFeatures = sourceMode === "drawing" ? cleanDrawingAuxiliaryText(safe.diagnosticFeatures || safe.diagnostic_features || "", 180) : "";
   const recognizedSubject = getRecognizedSubjectText(safe);
   const drawingGate = sourceMode === "drawing" ? getDrawingRecognitionGate(safe) : null;
   if (sourceMode === "drawing") {
@@ -11633,7 +11797,7 @@ function balanceItem(item, image = "") {
     ? cleanDrawingDescription(safe.description || reason, reason, itemName)
     : cleanText(hasImageTextMarkerText(`${safe.description || ""} ${reason}`) ? "" : safe.description || reason, "由照片鉴定出的装备。", 72);
   const unformedDrawingSubject = sourceMode === "drawing" && isUnformedDrawingSubjectText(`${itemName} ${subjectName}`);
-  const semanticText = [itemName, subjectName, objectType, recognizedSubject, sizeClass, identityDescription, displayDescription, reason, tags.join(" ")].filter(Boolean).join(" ");
+  const semanticText = [itemName, subjectName, objectType, recognizedSubject, sizeClass, identityDescription, diagnosticFeatures, displayDescription, reason, tags.join(" ")].filter(Boolean).join(" ");
   const rulesSemanticText = stripImageTextSemantics(semanticText);
   const safeTooLarge = parseBooleanMaybe(safe.tooLarge) === true;
   const safeIsScene = parseBooleanMaybe(safe.isScene) === true;
@@ -11664,7 +11828,7 @@ function balanceItem(item, image = "") {
       ? Math.max(0, safe.value)
       : calculatePhotoItemValue(safe, rulesSemanticText);
   const objectStatEvidenceText = sourceMode === "drawing"
-    ? makeDrawingStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) || itemName
+    ? makeDrawingStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription: [identityDescription, diagnosticFeatures].filter(Boolean).join(" ") }) || itemName
     : makePhotoStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) || itemName;
   if (!noEffect) {
     requestedValue = preserveSettledOutput
@@ -11748,6 +11912,7 @@ function balanceItem(item, image = "") {
       : displayDescription,
     identityDescription,
     objectiveAssessment,
+    diagnosticFeatures,
     reason,
     recognizedSubject,
     tags,
@@ -12365,7 +12530,7 @@ function getAffordableFallbackStatKeys(text, budget) {
 function getPhotoStatSoftCap(key, text, valueBudget) {
   if (key === "hp") {
     if (isTablewareSemanticText(text) && !hasEdibleContentSemanticText(text)) return 0;
-    return /食|饭|面|糖|饼|肉|菜|果|苹果|香蕉|番茄|西红柿|药|茶|奶|水|饮|咖啡|汤(?!勺)|补给|能量|植物|花|叶|种子|food|fruit|apple|banana|tomato|coffee|water|drink|plant|flower|seed/i.test(stripNegatedSemanticText(text || "")) ? 99 : 6;
+    return /食|饭|面|糖|糖果|棒棒糖|饼|肉|菜|果|瓜|西瓜|苹果|香蕉|番茄|西红柿|药|茶|奶|水|饮|咖啡|汤(?!勺)|补给|能量|植物|花|叶|种子|food|fruit|watermelon|lollipop|candy|apple|banana|tomato|coffee|water|drink|plant|flower|seed/i.test(stripNegatedSemanticText(text || "")) ? 99 : 6;
   }
   if (key === "shield") {
     if (valueBudget >= 18) return 4;
@@ -12509,7 +12674,7 @@ function inferSemanticSpecialEffects(text) {
     add("killDefense");
     add("killSpeed");
   }
-  if ((!isTablewareSemanticText(source) || hasEdibleContentSemanticText(source)) && /食|饭|面|糖|饼|肉|菜|果|苹果|西红柿|番茄|香蕉|药|茶|奶|水|饮|咖啡|汤(?!勺)|补给|能量|food|rice|bread|candy|meat|fruit|apple|tomato|banana|medicine|tea|milk|water|drink|coffee|soup|energy/i.test(source)) {
+  if ((!isTablewareSemanticText(source) || hasEdibleContentSemanticText(source)) && /食|饭|面|糖|糖果|棒棒糖|饼|肉|菜|果|瓜|西瓜|苹果|西红柿|番茄|香蕉|药|茶|奶|水|饮|咖啡|汤(?!勺)|补给|能量|food|rice|bread|candy|lollipop|meat|fruit|watermelon|apple|tomato|banana|medicine|tea|milk|water|drink|coffee|soup|energy/i.test(source)) {
     add("killMaxHp");
     add("killHpBoost");
   }
@@ -12591,7 +12756,7 @@ function inferPreferredStats(name) {
   if (/笔记本电脑|笔记本|电脑|平板|手机|屏幕|laptop|computer|tablet|phone|screen/i.test(text)) return ["defense", "shield", "attack"];
   if (/矿泉水|水瓶|mineral water|water bottle/i.test(text)) return ["regen", "hp"];
   if (/风扇|扇叶|fan/i.test(text)) return ["speed"];
-  if (/水果|果实|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|西红柿|番茄|面包|糖果|饼干|饭团|fruit|apple|banana|orange|pear|bread|candy|cookie|rice ball/i.test(text)) return ["hp"];
+  if (/水果|瓜果|果实|西瓜|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|西红柿|番茄|面包|糖果|棒棒糖|饼干|饭团|fruit|watermelon|apple|banana|orange|pear|bread|candy|lollipop|cookie|rice ball/i.test(text)) return ["hp"];
   if (/爱心|心形|生命核心|能量核心|heart|life core/i.test(text)) return ["hp", "regen", "shield"];
   if (hasMagicWandVisualEvidenceText(text) || /火焰|星火|雷电|闪电|爆炸|剑|短剑|长剑|斧|弓|箭|爪|牙|fire|lightning|explosion|sword|axe|bow|arrow|claw|fang/i.test(text)) return ["attack", "speed", "lifesteal"];
   if (/盾|护盾|铠|甲|堡垒|屏障|结界|龟壳|龙鳞|shield|armor|barrier|shell|scale/i.test(text)) return ["shield", "defense", "hp"];
@@ -12600,7 +12765,7 @@ function inferPreferredStats(name) {
   if (/刺|尖刺|荆棘|倒刺|玻璃片|碎玻璃|铁丝网|cactus|thorn|spike|barb|broken glass|wire fence/i.test(text)) return ["attack", "defense", "lifesteal"];
   if (hasAirPurifierSemanticText(text)) return ["regen", "defense", "shield"];
   if (/咖啡|水|饮|药|汤(?!勺)|茶|奶|果汁|杯|瓶|喷雾|清洁|纸巾|毛巾|湿巾|coffee|water|drink|medicine|tea|milk|juice|cup|bottle|clean|tissue|towel/i.test(text)) return ["regen", "shield", "hp"];
-  if (/番茄|西红柿|苹果|香蕉|饭|面|糖|饼|肉|菜|水果|食|能量|糖果|零食|植物|花|叶|种子|tomato|apple|banana|rice|bread|candy|meat|vegetable|fruit|food|energy|snack|plant|flower|leaf|seed/i.test(text)) return ["hp", "regen"];
+  if (/番茄|西红柿|西瓜|苹果|香蕉|饭|面|糖|糖果|棒棒糖|饼|肉|菜|水果|瓜果|食|能量|零食|植物|花|叶|种子|tomato|watermelon|apple|banana|rice|bread|candy|lollipop|meat|vegetable|fruit|food|energy|snack|plant|flower|leaf|seed/i.test(text)) return ["hp", "regen"];
   if (/刀|剪|针|钉|锥|刃|指甲刀|钩|夹|钳|锯|尖锐|knife|scissor|needle|nail|blade|clipper|hook|pliers|saw|sharp/i.test(text)) return ["lifesteal", "attack", "speed"];
   if (/键盘|鼠标|锤|棍|棒|扳手|螺丝刀|砖|石|球拍|拍子|遥控器|手机|相机|keyboard|mouse|hammer|club|tool|wrench|screwdriver|brick|stone|racket|remote|phone|camera/i.test(text)) return ["attack", "defense", "shield"];
   if (/锅盖|镜|盾|伞|盔|盒|箱|包|壳|套|口罩|眼镜|锁|钥匙|防护|保护|容器|lid|mirror|shield|umbrella|helmet|box|case|bag|shell|mask|glasses|lock|key|protect|container/i.test(text)) return ["shield", "defense", "hp"];
