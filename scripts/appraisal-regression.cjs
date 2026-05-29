@@ -150,6 +150,302 @@ const cases = [
     expect: ({ item }) => item.stats.hp === 0 && (item.stats.attack > 0 || item.stats.defense > 0 || item.stats.shield > 0),
   },
   {
+    label: "drawing umbrella stays an umbrella instead of a shield",
+    input: {
+      sourceMode: "drawing",
+      itemName: "铁盾",
+      subjectName: "雨伞盾",
+      objectType: "防具",
+      recognition: "recognizable_object",
+      visualEvidence: ["弧形伞面", "伞骨", "短伞柄"],
+      identityDescription: "黑色弧形伞面，下方有伞骨和短伞柄，主体完整。",
+      description: "黑伞把塔里的冷雨挡在外面。",
+      reason: "主体=雨伞；伞面可以遮挡。",
+      tags: ["雨伞", "遮挡", "日常物品"],
+      value: 14,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "shield", score: 3 }, { stat: "defense", score: 2 }],
+      specialAffinity: [],
+    },
+    expect: ({ item }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /伞/.test(item.itemName)
+      && !/盾|魔杖|法杖|剑|神器/.test(item.itemName)
+      && item.stats.attack === 0
+      && item.stats.lifesteal === 0
+      && item.stats.shield > 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
+    label: "drawing pen stays a pen without shield or lifesteal",
+    input: {
+      sourceMode: "drawing",
+      itemName: "黑色中性笔",
+      subjectName: "中性笔",
+      objectType: "笔",
+      recognition: "recognizable_object",
+      visualEvidence: ["细长笔杆", "笔尖", "笔帽"],
+      identityDescription: "细长直线笔杆，一端有笔尖，另一端有笔帽，主体完整。",
+      description: "黑色中性笔像一根细长的开路符。",
+      reason: "主体=中性笔；有笔尖和长杆。",
+      tags: ["笔", "笔尖", "日常物品"],
+      value: 14,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "attack", score: 3 }, { stat: "speed", score: 1 }],
+      specialAffinity: [],
+    },
+    expect: ({ item }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /笔/.test(item.itemName)
+      && !/魔杖|法杖|剑|神器|盾/.test(item.itemName)
+      && item.stats.attack > 0
+      && item.stats.shield === 0
+      && item.stats.lifesteal === 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
+    label: "drawing empty spoon does not trigger food or regen",
+    input: {
+      sourceMode: "drawing",
+      itemName: "不锈钢汤勺",
+      subjectName: "汤勺",
+      objectType: "餐具",
+      recognition: "recognizable_object",
+      visualEvidence: ["椭圆勺头", "细长勺柄", "金属餐具"],
+      missingEvidence: ["没有食物或汤水"],
+      identityDescription: "椭圆形勺头连接细长勺柄，没有画出食物或汤水。",
+      description: "不锈钢汤勺带着一点金属硬度。",
+      reason: "主体=汤勺；餐具；没有可食用内容。",
+      tags: ["汤勺", "餐具", "金属"],
+      value: 14,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "attack", score: 2 }, { stat: "defense", score: 1 }, { stat: "regen", score: 3 }],
+      specialAffinity: ["regenMultiplier"],
+    },
+    expect: ({ item }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /勺/.test(item.itemName)
+      && item.stats.hp === 0
+      && item.stats.regen === 0
+      && item.specialEffects.length === 0
+      && (item.stats.attack > 0 || item.stats.defense > 0 || item.stats.shield > 0)
+    ),
+  },
+  {
+    label: "drawing apple is an honest fruit item",
+    input: {
+      sourceMode: "drawing",
+      itemName: "红苹果",
+      subjectName: "苹果",
+      objectType: "水果",
+      recognition: "recognizable_object",
+      visualEvidence: ["红色圆形果实", "短梗", "叶子"],
+      identityDescription: "红色圆形果实，上方有短梗和叶子，主体完整。",
+      description: "红苹果带着清甜的补给感。",
+      reason: "主体=苹果；水果；线条清楚。",
+      tags: ["苹果", "水果"],
+      value: 12,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "hp", score: 3 }],
+      specialAffinity: [],
+    },
+    expect: ({ item }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /苹果/.test(item.itemName)
+      && !/剑|盾|魔杖|法杖|神器/.test(item.itemName)
+      && item.stats.hp > 0
+      && item.stats.attack === 0
+      && item.stats.shield === 0
+      && item.stats.lifesteal === 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
+    label: "drawing banana is an honest fruit item",
+    input: {
+      sourceMode: "drawing",
+      itemName: "香蕉",
+      subjectName: "香蕉",
+      objectType: "水果",
+      recognition: "recognizable_object",
+      visualEvidence: ["黄色弯月形水果", "两端尖细"],
+      identityDescription: "黄色弯月形水果，两端尖细，主体完整。",
+      description: "香蕉像一份轻便补给。",
+      reason: "主体=香蕉；水果；线条清楚。",
+      tags: ["香蕉", "水果"],
+      value: 12,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "hp", score: 3 }],
+      specialAffinity: [],
+    },
+    expect: ({ item }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /香蕉/.test(item.itemName)
+      && !/剑|盾|魔杖|法杖|神器/.test(item.itemName)
+      && item.stats.hp > 0
+      && item.stats.attack === 0
+      && item.stats.shield === 0
+      && item.stats.lifesteal === 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
+    label: "drawing one-line spoon remains unformed",
+    input: {
+      sourceMode: "drawing",
+      itemName: "汤勺",
+      subjectName: "汤勺",
+      objectType: "餐具",
+      recognition: "unrecognizable",
+      visualEvidence: ["一条直线"],
+      missingEvidence: ["没有勺头", "没有餐具结构"],
+      identityDescription: "只有一条黑线，无法确认主体。",
+      description: "线条还没凝成能上阵的装备。",
+      reason: "看不出明确主体。",
+      tags: ["线条"],
+      value: 5,
+      photoQuality: { clarity: 0, subjectArea: 0, backgroundClean: 2, realPhoto: 0, focusLight: 0, interesting: 0 },
+      statAffinity: [],
+      specialAffinity: [],
+    },
+    expect: ({ item, score }) => item.drawingRecognition === "unformed" && score === 0 && item.tooLarge,
+  },
+  {
+    label: "drawing phone can be styled but must stay phone",
+    input: {
+      sourceMode: "drawing",
+      itemName: "雷纹法杖",
+      subjectName: "魔法终端",
+      objectType: "幻想装备",
+      recognition: "recognizable_object",
+      visualEvidence: ["圆角矩形机身", "屏幕", "摄像头"],
+      identityDescription: "圆角矩形手机，有屏幕边框和背面摄像头，边缘画了几道闪电纹。",
+      description: "雷纹手机像一块贴身的黑色终端。",
+      reason: "主体=手机；屏幕和机身清楚。",
+      tags: ["手机", "电子设备", "闪电纹"],
+      value: 14,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 2 },
+      statAffinity: [{ stat: "defense", score: 2 }, { stat: "attack", score: 1 }],
+      specialAffinity: [],
+    },
+    expect: ({ item }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /手机/.test(item.itemName)
+      && !/法杖|魔杖|剑|盾|护符|神器/.test(item.itemName)
+      && item.stats.lifesteal === 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
+    label: "drawing laptop stays computer not magic book",
+    input: {
+      sourceMode: "drawing",
+      itemName: "星界魔法书",
+      subjectName: "笔记本电脑",
+      objectType: "电子设备",
+      recognition: "recognizable_object",
+      visualEvidence: ["矩形屏幕", "键盘格子", "转轴"],
+      identityDescription: "打开的笔记本电脑，上半部分是矩形屏幕，下半部分有键盘格子和转轴。",
+      description: "笔记本电脑像一块结实的塔内终端。",
+      reason: "主体=笔记本电脑；屏幕和键盘清楚。",
+      tags: ["笔记本电脑", "电子设备"],
+      value: 14,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "defense", score: 2 }, { stat: "attack", score: 1 }],
+      specialAffinity: [],
+    },
+    expect: ({ item }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /电脑/.test(item.itemName)
+      && !/魔法书|法杖|魔杖|剑|盾|神器/.test(item.itemName)
+      && item.stats.lifesteal === 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
+    label: "drawing fan stays fan and favors speed",
+    input: {
+      sourceMode: "drawing",
+      itemName: "风暴法器",
+      subjectName: "风扇",
+      objectType: "电器",
+      recognition: "recognizable_object",
+      visualEvidence: ["圆形外框", "三片扇叶", "底座"],
+      identityDescription: "圆形风扇外框，里面有三片扇叶，下方有小底座。",
+      description: "小风扇把气流卷进装备格。",
+      reason: "主体=风扇；扇叶和外框清楚。",
+      tags: ["风扇", "气流"],
+      value: 14,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "speed", score: 3 }],
+      specialAffinity: [],
+    },
+    expect: ({ item }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /风扇/.test(item.itemName)
+      && !/法器|法杖|魔杖|剑|盾|神器/.test(item.itemName)
+      && item.stats.speed > 0
+      && item.stats.lifesteal === 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
+    label: "drawing mineral water stays water supply",
+    input: {
+      sourceMode: "drawing",
+      itemName: "圣杯",
+      subjectName: "矿泉水瓶",
+      objectType: "饮料瓶",
+      recognition: "recognizable_object",
+      visualEvidence: ["透明瓶身", "瓶盖", "水位线"],
+      identityDescription: "透明矿泉水瓶，有瓶盖、瓶身轮廓和水位线。",
+      description: "矿泉水瓶像一份清凉补给。",
+      reason: "主体=矿泉水瓶；瓶身和水位清楚。",
+      tags: ["矿泉水", "瓶子", "水"],
+      value: 14,
+      photoQuality: { clarity: 3, subjectArea: 3, backgroundClean: 2, realPhoto: 2, focusLight: 2, interesting: 1 },
+      statAffinity: [{ stat: "regen", score: 3 }, { stat: "hp", score: 2 }],
+      specialAffinity: [],
+    },
+    expect: ({ item }) => (
+      item.drawingRecognition === "recognizable_object"
+      && /水/.test(item.itemName)
+      && !/圣杯|法杖|魔杖|剑|盾|神器/.test(item.itemName)
+      && (item.stats.regen > 0 || item.stats.hp > 0)
+      && item.stats.attack === 0
+      && item.stats.lifesteal === 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
+    label: "drawing unclear cool name still becomes unformed",
+    input: {
+      sourceMode: "drawing",
+      itemName: "星界神兵",
+      subjectName: "神器",
+      objectType: "幻想武器",
+      recognition: "unrecognizable",
+      visualEvidence: ["几条乱线", "红色折线"],
+      missingEvidence: ["没有明确主体", "没有武器结构"],
+      identityDescription: "几条互不连接的红色折线和黑色乱线，看不出具体物品。",
+      description: "线条还没凝成能上阵的装备。",
+      reason: "看不出明确主体。",
+      tags: ["乱线", "红色"],
+      value: 12,
+      photoQuality: { clarity: 0, subjectArea: 0, backgroundClean: 1, realPhoto: 0, focusLight: 0, interesting: 1 },
+      statAffinity: [{ stat: "attack", score: 3 }],
+      specialAffinity: ["heavyStrike"],
+    },
+    expect: ({ item, score }) => (
+      item.drawingRecognition === "unformed"
+      && /未成形/.test(item.itemName)
+      && score === 0
+      && item.specialEffects.length === 0
+    ),
+  },
+  {
     label: "drawing sword removes medium words and keeps attack",
     input: {
       sourceMode: "drawing",
