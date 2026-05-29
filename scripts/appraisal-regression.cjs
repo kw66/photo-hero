@@ -313,6 +313,103 @@ const cases = [
     expect: ({ item, score }) => item.drawingRecognition === "unformed" && score === 0 && item.tooLarge,
   },
   {
+    label: "one-stroke loop is not a wing item",
+    input: {
+      sourceMode: "drawing",
+      itemName: "风纹折翼",
+      subjectName: "折翼",
+      objectType: "速度道具",
+      objectiveAssessment: "客观评价：只有一条黑色长弧线和一条斜线，线条松散，没有闭合主体，也没有羽片、翼膜或成对翅膀结构。",
+      recognition: "recognizable_object",
+      visualEvidence: ["一条黑色弧线", "一条斜线", "没有成对翅膀", "没有羽片"],
+      missingEvidence: ["没有羽片", "没有翼膜", "没有左右两翼", "没有明确主体"],
+      identityDescription: "白色底上只有一条黑色弧线和一条斜线交错，像随手画的松散曲线，看不出具体物品。",
+      description: "风纹折翼带着轻快的气息。",
+      reason: "模型猜测为翅膀，但实际只有少数线条，缺少翅膀结构。",
+      tags: ["翅膀", "风", "线条"],
+      value: 12,
+      photoQuality: { clarity: 1, subjectArea: 1, backgroundClean: 2, realPhoto: 1, focusLight: 1, interesting: 0 },
+      statAffinity: [{ stat: "speed", score: 3 }, { stat: "attack", score: 1 }],
+      specialAffinity: ["doubleStrikeSpeedDown"],
+      confidence: 0.58,
+    },
+    expect: ({ item, renderedDescription, score }) => (
+      item.drawingRecognition === "unformed"
+      && /未成形|线团/.test(item.itemName)
+      && !/折翼|翅|羽|风纹/.test(item.itemName)
+      && !/折翼|翅|羽|轻快|速度/.test(renderedDescription)
+      && item.value === 0
+      && score === 0
+      && Object.values(item.stats).every((value) => value === 0)
+      && item.specialEffects.length === 0
+      && item.tooLarge === true
+    ),
+  },
+  {
+    label: "spiral line is not an umbrella item",
+    input: {
+      sourceMode: "drawing",
+      itemName: "风纹雨伞",
+      subjectName: "雨伞",
+      objectType: "日常物品",
+      objectiveAssessment: "客观评价：只有一条黑色G形螺旋线和短弧线，没有伞面、伞柄或伞骨，主体不完整。",
+      recognition: "recognizable_object",
+      visualEvidence: ["一条G形螺旋线", "一小段弧线", "没有伞面", "没有伞柄", "没有伞骨"],
+      missingEvidence: ["没有伞面", "没有伞柄", "没有伞骨", "没有明确主体"],
+      identityDescription: "白色底上只有一条黑色G形螺旋线，线条没有形成半圆伞面或下方伞柄。",
+      description: "风纹雨伞遮住塔里的雨。",
+      reason: "模型猜测为雨伞，但实际只有螺旋线，缺少雨伞结构。",
+      tags: ["雨伞", "螺旋", "线条"],
+      value: 12,
+      photoQuality: { clarity: 1, subjectArea: 1, backgroundClean: 2, realPhoto: 1, focusLight: 1, interesting: 0 },
+      statAffinity: [{ stat: "shield", score: 3 }, { stat: "defense", score: 2 }],
+      specialAffinity: ["shieldCrashAttackDown"],
+      confidence: 0.6,
+    },
+    expect: ({ item, renderedDescription, score }) => (
+      item.drawingRecognition === "unformed"
+      && /未成形|线团/.test(item.itemName)
+      && !/雨伞|黑伞|风纹|伞/.test(item.itemName)
+      && !/雨伞|黑伞|遮住|挡/.test(renderedDescription)
+      && item.value === 0
+      && score === 0
+      && Object.values(item.stats).every((value) => value === 0)
+      && item.specialEffects.length === 0
+      && item.tooLarge === true
+    ),
+  },
+  {
+    label: "unformed line ball never keeps stats",
+    input: {
+      sourceMode: "drawing",
+      itemName: "未成形线团",
+      subjectName: "无法识别主体",
+      objectType: "线条",
+      objectiveAssessment: "客观评价：只有几条松散交叉线，没有闭合轮廓和关键部件。",
+      recognition: "unrecognizable",
+      visualEvidence: ["几条松散交叉线"],
+      missingEvidence: ["没有明确主体"],
+      identityDescription: "几条黑色交叉线，无法识别主体。",
+      description: "未成形线团暂时不能上阵。",
+      reason: "无法识别主体。",
+      tags: ["线团"],
+      value: 10,
+      stats: { attack: 2, defense: 1, shield: 1, hp: 6 },
+      photoQuality: { clarity: 0, subjectArea: 0, backgroundClean: 2, realPhoto: 0, focusLight: 0, interesting: 0 },
+      statAffinity: [{ stat: "attack", score: 3 }, { stat: "shield", score: 3 }],
+      specialAffinity: ["heavyStrike"],
+      skipSpecialRoll: true,
+    },
+    expect: ({ item, renderedDescription, score }) => (
+      item.drawingRecognition === "unformed"
+      && item.value === 0
+      && score === 0
+      && Object.values(item.stats).every((value) => value === 0)
+      && item.specialEffects.length === 0
+      && !/上阵/.test(renderedDescription)
+    ),
+  },
+  {
     label: "drawing phone can be styled but must stay phone",
     input: {
       sourceMode: "drawing",

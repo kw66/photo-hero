@@ -1051,9 +1051,10 @@ dd {
   color: var(--ink);
 }
 
+.info-tab-button[data-info-tab="about"],
 .info-tab-button[data-info-tab="battle"],
 .info-tab-button[data-info-tab="bestiary"] {
-  min-width: calc(3em + 18px);
+  min-width: calc(4em + 18px);
 }
 
 .info-tab-button[aria-selected="true"] {
@@ -4064,7 +4065,7 @@ dd {
 .affix-card-grid {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(184px, 1fr));
   gap: 6px;
 }
 
@@ -4084,11 +4085,13 @@ dd {
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
 .affix-card-top b {
+  flex: 1 1 auto;
   min-width: 0;
   font-size: 0.84rem;
   font-weight: 950;
@@ -4097,31 +4100,24 @@ dd {
 }
 
 .affix-card-top b[data-stat="attack"],
-.affix-card-top b[data-stat="lifesteal"],
-.affix-card[data-stat="attack"] dd,
-.affix-card[data-stat="lifesteal"] dd {
+.affix-card-top b[data-stat="lifesteal"] {
   color: #ff746b;
 }
 
-.affix-card-top b[data-stat="defense"],
-.affix-card[data-stat="defense"] dd {
+.affix-card-top b[data-stat="defense"] {
   color: #7db8ff;
 }
 
-.affix-card-top b[data-stat="shield"],
-.affix-card[data-stat="shield"] dd {
+.affix-card-top b[data-stat="shield"] {
   color: #fffef4;
 }
 
 .affix-card-top b[data-stat="hp"],
-.affix-card-top b[data-stat="regen"],
-.affix-card[data-stat="hp"] dd,
-.affix-card[data-stat="regen"] dd {
+.affix-card-top b[data-stat="regen"] {
   color: #7be58d;
 }
 
-.affix-card-top b[data-stat="speed"],
-.affix-card[data-stat="speed"] dd {
+.affix-card-top b[data-stat="speed"] {
   color: #ffd36d;
 }
 
@@ -4138,7 +4134,6 @@ dd {
 }
 
 .affix-card p {
-  min-height: 2.65em;
   color: color-mix(in srgb, var(--ink) 88%, var(--muted));
   font-family: var(--font-reading);
   font-size: 0.67rem;
@@ -4146,37 +4141,13 @@ dd {
   line-height: 1.34;
 }
 
-.affix-card dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  margin: 0;
-}
-
-.affix-card dl div {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-  padding: 4px 5px;
-  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--field) 76%, transparent);
-}
-
-.affix-card dt {
-  color: var(--muted);
-  font-size: 0.52rem;
-  font-weight: 850;
-  line-height: 1;
-}
-
-.affix-card dd {
-  color: color-mix(in srgb, var(--ink) 78%, var(--muted));
-  font-size: 0.63rem;
-  font-weight: 850;
+.affix-card-note {
+  display: block;
+  color: color-mix(in srgb, var(--muted) 84%, var(--ink));
   font-family: var(--font-ui);
-  line-height: 1.24;
-  overflow-wrap: anywhere;
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 1.25;
 }
 
 .author-qr-card {
@@ -5044,9 +5015,10 @@ textarea {
     font-size: 0.65rem;
   }
 
+  .info-tab-button[data-info-tab="about"],
   .info-tab-button[data-info-tab="battle"],
   .info-tab-button[data-info-tab="bestiary"] {
-    min-width: calc(3em + 12px);
+    min-width: calc(4em + 12px);
   }
 
   .info-panel .secondary-head .ghost-button {
@@ -5264,10 +5236,6 @@ textarea {
     white-space: normal;
   }
 
-  .affix-card dl {
-    grid-template-columns: 1fr;
-  }
-
   .affix-card-top b {
     font-size: 0.68rem;
   }
@@ -5278,24 +5246,11 @@ textarea {
   }
 
   .affix-card p {
-    min-height: 2.4em;
     font-size: 0.54rem;
     line-height: 1.2;
   }
 
-  .affix-card dl {
-    gap: 3px;
-  }
-
-  .affix-card dl div {
-    padding: 3px 4px;
-  }
-
-  .affix-card dt {
-    font-size: 0.45rem;
-  }
-
-  .affix-card dd {
+  .affix-card-note {
     font-size: 0.5rem;
     line-height: 1.15;
   }

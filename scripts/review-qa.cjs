@@ -653,8 +653,11 @@ function assertScenario(name, metrics) {
     if (!/魔王/.test(bestiary.detailText || "") || !/第40层塔顶魔王/.test(bestiary.detailText || "") || !/晋升/.test(bestiary.detailText || "")) {
       failures.push(`${name}: demon detail should show name, floor pattern, and trait detail, got ${JSON.stringify(bestiary)}`);
     }
-    if (bestiary.affixStart?.group !== "affix" || (bestiary.affixStart?.affixCardCount || 0) < 2 || !/时机/.test(bestiary.affixDetailText || "") || !/价值/.test(bestiary.affixDetailText || "") || !/战中/.test(bestiary.affixDetailText || "")) {
-      failures.push(`${name}: affix group should show multiple detailed affix cards, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.affixStart?.group !== "affix" || (bestiary.affixStart?.affixCardCount || 0) < 2 || !/属性与词条/.test(bestiary.affixDetailText || "") || !/生命上限/.test(bestiary.affixDetailText || "") || !/攻击/.test(bestiary.affixDetailText || "") || !/防御/.test(bestiary.affixDetailText || "") || !/每点/.test(bestiary.affixDetailText || "")) {
+      failures.push(`${name}: affix group should start with compact base stat cards, got ${JSON.stringify(bestiary)}`);
+    }
+    if (/时机|收益|战中|看装备在战斗/.test(bestiary.affixDetailText || "")) {
+      failures.push(`${name}: affix group should not use split manual labels or awkward copy, got ${JSON.stringify(bestiary)}`);
     }
     if (bestiary.npcStart?.group !== "npc" || (bestiary.npcStart?.npcCardCount || 0) !== 4 || !bestiary.npcStart?.npcKeys?.includes("elder") || !bestiary.npcStart?.npcKeys?.includes("princess") || !bestiary.npcHasPortrait) {
       failures.push(`${name}: npc group should show all rescue NPC cards with portraits, got ${JSON.stringify(bestiary)}`);
@@ -662,7 +665,7 @@ function assertScenario(name, metrics) {
     if (!/老人/.test(bestiary.npcDetailText || "") || !/出没/.test(bestiary.npcDetailText || "") || !/奖励/.test(bestiary.npcDetailText || "") || /暗门触发怪|随机选中|非最弱位/.test(bestiary.npcDetailText || "")) {
       failures.push(`${name}: npc bestiary should show NPC appearance/reward without hidden-trigger mechanics, got ${JSON.stringify(bestiary)}`);
     }
-    if (!/普通怪/.test(bestiary.groupText || "") || !/Boss/.test(bestiary.groupText || "") || !/NPC/.test(bestiary.groupText || "") || !/词条/.test(bestiary.groupText || "") || /隐藏/.test(bestiary.groupText || "")) {
+    if (!/普通怪/.test(bestiary.groupText || "") || !/Boss/.test(bestiary.groupText || "") || !/NPC/.test(bestiary.groupText || "") || !/属性/.test(bestiary.groupText || "") || /隐藏/.test(bestiary.groupText || "")) {
       failures.push(`${name}: bestiary groups should show normal, Boss, NPC, and affix only, got ${JSON.stringify(bestiary)}`);
     }
   }
@@ -1187,12 +1190,19 @@ function assertScenario(name, metrics) {
   scenarios.reappraisal = await collectScenario(desktop, "reappraisal", async (page) => {
     let requestCount = 0;
     let promptHadRerollHint = false;
+    let releaseReappraisalRoute = null;
+    const reappraisalRouteGate = new Promise((resolve) => {
+      releaseReappraisalRoute = resolve;
+    });
     await page.route("https://api.siliconflow.cn/v1/chat/completions", async (route) => {
       requestCount += 1;
       const body = route.request().postDataJSON();
       const userContent = body?.messages?.find?.((message) => message.role === "user")?.content || [];
       promptHadRerollHint = JSON.stringify(userContent).includes("重鉴定") && JSON.stringify(userContent).includes("重新独立观察");
-      await new Promise((resolve) => setTimeout(resolve, 180));
+      await Promise.race([
+        reappraisalRouteGate,
+        new Promise((resolve) => setTimeout(resolve, 5000)),
+      ]);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -1294,6 +1304,7 @@ function assertScenario(name, metrics) {
         enabled: Boolean(button && !button.hidden && !button.disabled),
       };
     });
+    releaseReappraisalRoute?.();
     await page.waitForFunction(() => {
       const hooks = window.__photoHeroTestHooks;
       const inventory = hooks.getInventoryForTest();
@@ -2956,7 +2967,7 @@ function assertScenario(name, metrics) {
       npcCardCount: document.querySelectorAll(".bestiary-npc-card").length,
       affixCardCount: document.querySelectorAll(".affix-card").length,
       pageText: document.querySelector(".bestiary-page-indicator")?.textContent.trim() || "",
-      truncationCount: Array.from(document.querySelectorAll("[data-bestiary-shell] .bestiary-card-head strong, [data-bestiary-shell] .bestiary-card-head em, [data-bestiary-shell] .bestiary-card-rules p span, [data-bestiary-shell] .bestiary-card-rules li span, [data-bestiary-shell] .affix-card p, [data-bestiary-shell] .affix-card dd"))
+      truncationCount: Array.from(document.querySelectorAll("[data-bestiary-shell] .bestiary-card-head strong, [data-bestiary-shell] .bestiary-card-head em, [data-bestiary-shell] .bestiary-card-rules p span, [data-bestiary-shell] .bestiary-card-rules li span, [data-bestiary-shell] .affix-card p, [data-bestiary-shell] .affix-card-note"))
         .filter((node) => {
           const style = getComputedStyle(node);
           const lineClamp = style.webkitLineClamp || "";
@@ -3377,18 +3388,23 @@ function assertScenario(name, metrics) {
       const recoveryAfterWatchdog = hooks.getAudioRecoveryStateForTest?.() || {};
       await hooks.suspendAudioContextForTest?.();
       const recoveryBeforeContext = hooks.getAudioRecoveryStateForTest?.() || {};
-      hooks.recoverGameAudioForTest?.("review-context");
+      const recoveryAfterContext = hooks.recoverGameAudioAndWaitForTest
+        ? await hooks.recoverGameAudioAndWaitForTest("review-context", 900)
+        : hooks.recoverGameAudioForTest?.("review-context") || {};
       await new Promise((resolve) => setTimeout(resolve, 80));
-      const recoveryAfterContext = hooks.getAudioRecoveryStateForTest?.() || {};
-      hooks.playBgmKeyForTest?.("area1");
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      hooks.setFloor(1);
+      hooks.ensureBgmForTest?.(true);
+      await new Promise((resolve) => setTimeout(resolve, 180));
       const area1BgmState = hooks.getBgmPlaybackStateForTest?.() || {};
-      hooks.playBgmKeyForTest?.("skeletonCaptain");
+      hooks.setFloor(10);
+      hooks.ensureBgmForTest?.(true);
       const area1DuringSwitchState = hooks.getCachedBgmPlaybackStateForTest?.("area1") || {};
       await new Promise((resolve) => setTimeout(resolve, 1900));
       const bossBgmState = hooks.getBgmPlaybackStateForTest?.() || {};
       const area1AfterSwitchState = hooks.getCachedBgmPlaybackStateForTest?.("area1") || {};
-      const switchSfxRecovery = hooks.recoverGameAudioForTest?.("review-before-sfx") || {};
+      const switchSfxRecovery = hooks.recoverGameAudioAndWaitForTest
+        ? await hooks.recoverGameAudioAndWaitForTest("review-before-sfx", 900)
+        : hooks.recoverGameAudioForTest?.("review-before-sfx") || {};
 
       hooks.clearAudioEvents();
       hooks.addTestItem({
