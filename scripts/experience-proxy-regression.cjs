@@ -98,6 +98,24 @@ const assert = require("node:assert/strict");
   assert.ok(!String(workerVisionTest.messages[0].content).includes("画图勇者"));
   assert.ok(!String(workerVisionTest.messages[1].content[0].text).includes("装备素材 JSON"));
 
+  const legacyVisionTestBody = {
+    ...sanitized,
+    experienceTask: "",
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "请识别图片文字，只回复一句中文，格式为“图文模型测试成功：图片里写着……”。不要解释。" },
+          { type: "image_url", image_url: { url: "data:image/jpeg;base64,AA==" } },
+        ],
+      },
+    ],
+  };
+  const legacyWorkerVisionTest = worker.buildExperienceBody(legacyVisionTestBody);
+  assert.equal(legacyWorkerVisionTest.max_tokens, 96);
+  assert.ok(String(legacyWorkerVisionTest.messages[1].content[0].text).includes("图文模型测试成功"));
+  assert.ok(!String(legacyWorkerVisionTest.messages[1].content[0].text).includes("装备素材 JSON"));
+
   const localVisionTest = buildExperienceBody(visionTestBody);
   assert.equal(localVisionTest.max_tokens, 96);
   assert.ok(String(localVisionTest.messages[0].content).includes("只输出最终回答"));

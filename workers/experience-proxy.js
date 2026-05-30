@@ -140,7 +140,7 @@ export function sanitizeExperienceBody(body) {
   return {
     ...body,
     sourceMode: normalizeSourceMode(body.sourceMode || body.source_mode || "photo"),
-    experienceTask: normalizeExperienceTask(body.experienceTask || body.experience_task || ""),
+    experienceTask: normalizeExperienceTask(body.experienceTask || body.experience_task || inferExperienceTaskFromMessages(body.messages)),
     model: experienceModel,
     stream: false,
     max_tokens: clampNumber(body.max_tokens, 32, 640, 512),
@@ -151,7 +151,7 @@ export function sanitizeExperienceBody(body) {
 function buildExperienceBody(body) {
   const safe = body && typeof body === "object" ? body : {};
   const image = pickFirstImageUrl(safe.messages);
-  if (normalizeExperienceTask(safe.experienceTask || safe.experience_task || "") === "vision_test") {
+  if (normalizeExperienceTask(safe.experienceTask || safe.experience_task || inferExperienceTaskFromMessages(safe.messages)) === "vision_test") {
     return {
       model: experienceModel,
       stream: false,
@@ -212,6 +212,21 @@ function normalizeSourceMode(value) {
 
 function normalizeExperienceTask(value) {
   return String(value || "").toLowerCase() === "vision_test" ? "vision_test" : "";
+}
+
+function inferExperienceTaskFromMessages(messages) {
+  const text = collectMessageText(messages);
+  return /图文模型测试成功|VISION\s*OK|照片勇者/.test(text) ? "vision_test" : "";
+}
+
+function collectMessageText(messages) {
+  if (!Array.isArray(messages)) return "";
+  return messages.map((message) => {
+    const content = message?.content;
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+    return content.map((part) => (part?.type === "text" ? String(part.text || "") : "")).join("\n");
+  }).join("\n");
 }
 
 function pickFirstImageUrl(messages) {
