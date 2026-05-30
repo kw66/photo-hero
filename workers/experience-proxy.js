@@ -37,24 +37,25 @@ const experiencePhotoUserPrompt = [
 
 const experienceDrawingSystemPrompt = [
   "你是《画图勇者》的公共鉴定台。只输出一个 JSON 对象：第一个字符是 {，最后一个字符是 }，不要 Markdown、代码块或任何解释。",
-  "你的任务：看出玩家画的是什么、判断它是不是能带进塔的装备，并按 rubric 给出质量分、属性倾向和简短描述。",
-  "鼓励玩家天马行空；像什么就诚实叫什么，认不出就老实说看不出，不要硬猜成神器、魔杖或离谱武器。",
+  "你的首要任务是客观识别简笔画主体，不是创作装备。先描述看见的线条、轮廓、部件关系、颜色和缺失部件，再给候选主体。",
+  "主体确定后才给朴素装备名和属性倾向。名字可以有一个短前缀，但必须保留真实主体类别；认不出就说未成形线团，不要硬猜成神器、魔杖或离谱武器。",
 ].join("\n");
 
 const experienceDrawingUserPrompt = [
-  "鉴定这张简笔画里的一个主体，输出装备素材 JSON。",
+  "鉴定这张简笔画里的一个主体，输出客观识别 JSON。",
   "",
   "输出结构（字段名用英文）：",
-  '{"name":"装备名","subject":"主体","objectType":"类型","equipable":true,"scene":false,"recognizable":"clear","clarity":0,"appeal":0,"craft":0,"stats":["attack"],"special":false,"desc":"一句话装备描述","identityDescription":"线条/颜色/构图等可区分细节","confidence":0.0}',
+  '{"name":"装备名","subject":"最终主体","objectType":"主体类型","recognition":"unrecognizable|simple_symbol|recognizable_object|clear_equipment","subjectCandidates":[{"name":"候选主体","evidence":["实际看见的结构"],"missing":["缺失或反证"],"confidence":0.0}],"recognizedSubject":"最终主体","visualEvidence":["实际看见的结构"],"missingEvidence":["缺失结构或反证"],"objectiveAssessment":"线条、轮廓、部件关系和完成度","diagnosticFeatures":"用于区分候选的关键特征","equipable":true,"scene":false,"clarity":0,"appeal":0,"craft":0,"stats":["attack"],"special":false,"desc":"一句话装备描述","identityDescription":"线条/颜色/构图等可区分细节","confidence":0.0}',
   "",
   "规则：",
-  "1. 看玩家画的像什么就叫什么，例如 鼠标、雨伞、旗帜、苹果、短剑；可以加一个酷炫前缀但要保留类别词（雷纹鼠标、寒风雨伞）。不要叫 画作装备、神秘涂鸦。",
-  "2. 拿不准具体是什么时，用朴素中性的名字（例如 小挂件、奇怪的小物、圆形记号），不要硬猜成神剑、魔杖、神器或某种具体武器；宁可朴素也不要认错成离谱的东西。",
-  "3. 只有真画出对应结构才用对应名字：剑要有刃和柄，旗要有杆和布面，盾要有盾面，伞要有伞面和伞柄。画不出就用更朴素的名字，不要硬套神剑、魔杖、神器。",
-  "4. 画里的文字不作依据。画的巨大物、怪物、生物都按符号化装备处理，不判 tooLarge；只有纯风景、整片天空、空房间这类没有主体的画面才 scene=true。",
-  "5. clarity=主体可识别度 0-3；appeal=美观、创意、装备吸引力 0-3；craft=线条完整和配色控制 0-3。主动拉开差距。",
-  "6. stats=1-3 个属性倾向，从 hp/attack/defense/speed/shield/lifesteal/regen 里选，贴合主体。special=true 只在主体明确、结构完整且属性语义非常强时，否则 false。",
-  "7. name、subject、desc 里不要出现 手绘、涂鸦、画作、画布、线条 这类媒介词，直接写它在塔里是什么装备；identityDescription 可以写线条和颜色，用于查重。",
+  "1. subjectCandidates 最多 3 个，按可信度排序。每个候选必须写实际看见的结构证据和缺失/反证。不要用玩家写的文字当证据。",
+  "2. recognition：unrecognizable=空白、随机线团、单独一两条线、没有可辨主体；simple_symbol=圆圈、星星、爱心、笑脸、徽记等简单符号；recognizable_object=能认出日常物、食物、电子物、玩具、旗帜、雨伞等主体；clear_equipment=能看出明确武器/防具/装备结构。",
+  "3. 先诚实识别主体，不要先往武器防具上套。鼠标就是鼠标，苹果就是苹果，手机就是手机，雨伞就是雨伞。主体不确定时用奇怪小物、圆形记号、小挂件等中性名。",
+  "4. 只有画出对应结构才用对应类别：剑/刀要有刃和柄，长柄武器要有长杆加矛尖/戟刃/弯刃/护手，盾/护甲要有盾面/甲片/胸甲轮廓/边框，伞要有伞面和伞柄，旗要有杆和布面。",
+  "5. name 和 subject 必须保留最终主体类别词。可以叫寒风雨伞、赤缨长矛、旧铜护甲，但不能把三叉戟叫飞镖，不能把护甲叫长鞭。",
+  "6. 打分要拉开差距。clarity=主体可识别度；craft=线条完整、闭合、部件关系、配色控制；appeal=美观和创意。3 分是少数优秀画，普通能认出多为 1-2，潦草或缺部件不要给满。简笔画整体上限低于照片：清楚但普通约 8-10，认真完整约 11-12，极少数优秀画也不要给到照片级满分。",
+  "7. stats=1-3 个属性倾向，从 hp/attack/defense/speed/shield/lifesteal/regen 里选，必须贴合最终主体和视觉证据。special=true 只在主体明确、结构完整、质量高且属性语义强时。",
+  "8. name、subject、desc 里不要出现 手绘、涂鸦、画作、画布、线条 这类媒介词；identityDescription、objectiveAssessment 和 evidence 可以写线条和颜色。",
 ].join("\n");
 
 export const experienceSystemPromptLines = experiencePhotoSystemPrompt.split("\n");

@@ -655,6 +655,7 @@ function assertScenario(name, metrics) {
     if (bestiary.bossCount !== 7) failures.push(`${name}: boss pagination should include seven bosses, got ${JSON.stringify(bestiary)}`);
     if (bestiary.npcCount !== 4 || bestiary.npcGroupCount !== 1) failures.push(`${name}: npc bestiary should be a separate paged group with four NPCs, got ${JSON.stringify(bestiary)}`);
     if ((bestiary.affixCount || 0) < 10 || bestiary.affixGroupCount !== 1) failures.push(`${name}: affix bestiary should be a separate paged group, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.formCount !== 18 || bestiary.formGroupCount !== 1) failures.push(`${name}: form bestiary should list normal and super forms, got ${JSON.stringify(bestiary)}`);
     if (bestiary.hiddenGroupCount !== 0 || bestiary.hiddenCount !== 0) {
       failures.push(`${name}: hidden layers should not be a separate bestiary group, got ${JSON.stringify(bestiary)}`);
     }
@@ -671,7 +672,7 @@ function assertScenario(name, metrics) {
     if (bestiary.afterNormalNext?.group !== "normal" || bestiary.afterNormalNext?.pageText !== `2 / ${bestiary.normalPages}` || JSON.stringify(bestiary.afterNormalNext?.monsterKeys) === JSON.stringify(bestiary.initial?.monsterKeys)) {
       failures.push(`${name}: normal next page should advance to a different multi-card page, got ${JSON.stringify(bestiary)}`);
     }
-    for (const [pageName, pageState] of Object.entries({ initial: bestiary.initial, boss: bestiary.bossStart, npc: bestiary.npcStart, affix: bestiary.affixStart })) {
+    for (const [pageName, pageState] of Object.entries({ initial: bestiary.initial, boss: bestiary.bossStart, npc: bestiary.npcStart, affix: bestiary.affixStart, form: bestiary.formStart })) {
       if ((pageState?.truncationCount || 0) > 0) failures.push(`${name}: ${pageName} bestiary page should not use ellipsis/clamped text, got ${JSON.stringify(pageState)}`);
     }
     if (bestiary.bossStart?.group !== "boss" || !bestiary.bossStart?.monsterKeys?.includes("skeletonCaptain") || (bestiary.bossStart?.cardCount || 0) < 2 || bestiary.bossStart?.pageText !== `1 / ${bestiary.bossPages}`) {
@@ -696,8 +697,11 @@ function assertScenario(name, metrics) {
     if (!/老人/.test(bestiary.npcDetailText || "") || !/出没/.test(bestiary.npcDetailText || "") || !/奖励/.test(bestiary.npcDetailText || "") || /暗门触发怪|随机选中|非最弱位/.test(bestiary.npcDetailText || "")) {
       failures.push(`${name}: npc bestiary should show NPC appearance/reward without hidden-trigger mechanics, got ${JSON.stringify(bestiary)}`);
     }
-    if (!/普通怪/.test(bestiary.groupText || "") || !/Boss/.test(bestiary.groupText || "") || !/NPC/.test(bestiary.groupText || "") || !/属性/.test(bestiary.groupText || "") || /隐藏/.test(bestiary.groupText || "")) {
-      failures.push(`${name}: bestiary groups should show normal, Boss, NPC, and affix only, got ${JSON.stringify(bestiary)}`);
+    if (bestiary.formStart?.group !== "form" || (bestiary.formStart?.formCardCount || 0) < 2 || !bestiary.formStart?.formKeys?.includes("hp") || !bestiary.formStart?.formLevels?.includes("2") || !/超级/.test(bestiary.formDetailText || "")) {
+      failures.push(`${name}: form group should show normal and super hero forms, got ${JSON.stringify(bestiary)}`);
+    }
+    if (!/普通怪/.test(bestiary.groupText || "") || !/Boss/.test(bestiary.groupText || "") || !/NPC/.test(bestiary.groupText || "") || !/属性/.test(bestiary.groupText || "") || !/形态/.test(bestiary.groupText || "") || /隐藏/.test(bestiary.groupText || "")) {
+      failures.push(`${name}: bestiary groups should show normal, Boss, NPC, affix, and forms, got ${JSON.stringify(bestiary)}`);
     }
   }
   if (name === "hidden-layers") {
@@ -3018,13 +3022,17 @@ function assertScenario(name, metrics) {
       count: Number(document.querySelector("[data-bestiary-shell]")?.dataset.currentCount || 0),
       selectedKey: document.querySelector(".bestiary-card")?.dataset.selectedMonster
         || document.querySelector(".bestiary-card")?.dataset.selectedNpc
+        || document.querySelector(".bestiary-card")?.dataset.selectedForm
         || document.querySelector(".affix-card")?.dataset.affixKey
         || "",
       monsterKeys: Array.from(document.querySelectorAll(".bestiary-card")).map((card) => card.dataset.selectedMonster || ""),
       npcKeys: Array.from(document.querySelectorAll(".bestiary-npc-card")).map((card) => card.dataset.selectedNpc || ""),
+      formKeys: Array.from(document.querySelectorAll(".bestiary-form-card")).map((card) => card.dataset.selectedForm || ""),
+      formLevels: Array.from(document.querySelectorAll(".bestiary-form-card")).map((card) => card.dataset.formLevel || ""),
       affixKeys: Array.from(document.querySelectorAll(".affix-card")).map((card) => card.dataset.affixKey || ""),
       cardCount: document.querySelectorAll(".bestiary-card").length,
       npcCardCount: document.querySelectorAll(".bestiary-npc-card").length,
+      formCardCount: document.querySelectorAll(".bestiary-form-card").length,
       affixCardCount: document.querySelectorAll(".affix-card").length,
       pageText: document.querySelector(".bestiary-page-indicator")?.textContent.trim() || "",
       truncationCount: Array.from(document.querySelectorAll("[data-bestiary-shell] .bestiary-card-head strong, [data-bestiary-shell] .bestiary-card-head em, [data-bestiary-shell] .bestiary-card-rules p span, [data-bestiary-shell] .bestiary-card-rules li span, [data-bestiary-shell] .affix-card p, [data-bestiary-shell] .affix-card-note"))
@@ -3058,13 +3066,17 @@ function assertScenario(name, metrics) {
     await page.click('[data-bestiary-group="affix"]');
     const affixStart = await readPage();
     const affixDetailText = await page.$eval(".affix-bestiary", (node) => node.innerText);
+    await page.click('[data-bestiary-group="form"]');
+    const formStart = await readPage();
+    const formDetailText = await page.$eval(".bestiary-card-grid", (node) => node.innerText);
     const groupState = await page.evaluate(() => ({
       groupText: document.querySelector(".bestiary-group-switch")?.innerText || "",
       hiddenGroupCount: document.querySelectorAll('[data-bestiary-group="hidden"]').length,
       npcGroupCount: document.querySelectorAll('[data-bestiary-group="npc"]').length,
       affixGroupCount: document.querySelectorAll('[data-bestiary-group="affix"]').length,
+      formGroupCount: document.querySelectorAll('[data-bestiary-group="form"]').length,
     }));
-    await page.evaluate(({ initial, afterNormalNext, bossStart, bossFinal, npcStart, affixStart, bossDetailText, bossHasDetailPortrait, npcDetailText, npcHasPortrait, affixDetailText, groupState, initialAffixCardCount, statValueFontSize }) => {
+    await page.evaluate(({ initial, afterNormalNext, bossStart, bossFinal, npcStart, affixStart, formStart, bossDetailText, bossHasDetailPortrait, npcDetailText, npcHasPortrait, affixDetailText, formDetailText, groupState, initialAffixCardCount, statValueFontSize }) => {
       const shell = document.querySelector("[data-bestiary-shell]");
       window.__reviewBestiary = {
         activeInfoTab: document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "",
@@ -3072,16 +3084,19 @@ function assertScenario(name, metrics) {
         normalCount: Number(shell?.dataset.normalCount || 0),
         bossCount: Number(shell?.dataset.bossCount || 0),
         affixCount: Number(shell?.dataset.affixCount || 0),
+        formCount: Number(shell?.dataset.formCount || 0),
         hiddenCount: Number(shell?.dataset.hiddenCount || 0),
         npcCount: Number(shell?.dataset.npcCount || 0),
         hiddenGroupCount: groupState.hiddenGroupCount,
         npcGroupCount: groupState.npcGroupCount,
         affixGroupCount: groupState.affixGroupCount,
+        formGroupCount: groupState.formGroupCount,
         bossKeys: (shell?.dataset.bossKeys || "").split(",").filter(Boolean),
         normalPages: initial.pages,
         bossPages: bossStart.pages,
         npcPages: npcStart.pages,
         affixPages: affixStart.pages,
+        formPages: formStart.pages,
         initialAffixCardCount,
         statValueFontSize,
         initial,
@@ -3090,9 +3105,11 @@ function assertScenario(name, metrics) {
         bossFinal,
         npcStart,
         affixStart,
+        formStart,
         selectedGroup: shell?.dataset.currentGroup || "",
         selectedKey: document.querySelector(".bestiary-card")?.dataset.selectedMonster
           || document.querySelector(".bestiary-card")?.dataset.selectedNpc
+          || document.querySelector(".bestiary-card")?.dataset.selectedForm
           || document.querySelector(".affix-card")?.dataset.affixKey
           || "",
         pageText: document.querySelector(".bestiary-page-indicator")?.textContent.trim() || "",
@@ -3102,8 +3119,9 @@ function assertScenario(name, metrics) {
         detailText: bossDetailText,
         npcDetailText,
         affixDetailText,
+        formDetailText,
       };
-    }, { initial, afterNormalNext, bossStart, bossFinal, npcStart, affixStart, bossDetailText, bossHasDetailPortrait, npcDetailText, npcHasPortrait, affixDetailText, groupState, initialAffixCardCount, statValueFontSize });
+    }, { initial, afterNormalNext, bossStart, bossFinal, npcStart, affixStart, formStart, bossDetailText, bossHasDetailPortrait, npcDetailText, npcHasPortrait, affixDetailText, formDetailText, groupState, initialAffixCardCount, statValueFontSize });
   });
 
   scenarios.hiddenLayers = await collectScenario(mobile, "hidden-layers", async (page) => {

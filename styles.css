@@ -1699,6 +1699,7 @@ dd {
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 7%),
     0 2px 0 rgb(0 0 0 / 48%);
+  animation: careerPanelEnter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .equipment-detail.career-summary-panel[data-outcome="defeat"] {
@@ -1715,6 +1716,12 @@ dd {
   min-height: 0;
   display: block;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--detail-quality) 54%, var(--line)) transparent;
+}
+
+.career-summary-panel .detail-body.is-auto-scrolling {
+  scrollbar-color: color-mix(in srgb, var(--detail-quality) 70%, var(--ink)) transparent;
 }
 
 .career-summary-panel #equipmentDetailDesc {
@@ -2028,6 +2035,11 @@ dd {
   --career-accent-soft: color-mix(in srgb, var(--enemy) 18%, #050606);
 }
 
+@keyframes careerPanelEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes careerCardEnter {
   from { opacity: 0; transform: translateY(14px) scale(0.975); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -2055,8 +2067,10 @@ dd {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .equipment-detail.career-summary-panel,
   .career-card,
   .career-card > * { animation: none; }
+
 }
 
 .career-card-head {
@@ -4024,8 +4038,8 @@ dd {
 }
 
 .bestiary-group-switch {
-  min-width: min(384px, 100%);
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  min-width: min(460px, 100%);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .bestiary-card-grid {
@@ -4077,6 +4091,29 @@ dd {
 
 .bestiary-npc-card .bestiary-card-rules {
   align-content: start;
+}
+
+.bestiary-form-card {
+  border-color: color-mix(in srgb, var(--hero) 42%, var(--line-strong));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--hero-soft) 12%, var(--panel-2) 88%), var(--panel));
+}
+
+.bestiary-form-card.is-active {
+  border-color: color-mix(in srgb, var(--hero) 70%, var(--line-strong));
+}
+
+.bestiary-form-card .bestiary-badge {
+  border-color: color-mix(in srgb, var(--hero) 46%, var(--line));
+  background: color-mix(in srgb, var(--hero-soft) 22%, var(--panel) 78%);
+  color: color-mix(in srgb, var(--hero) 76%, var(--ink));
+}
+
+.bestiary-form-portrait img {
+  width: 84%;
+  height: 84%;
+  object-fit: contain;
+  image-rendering: auto;
+  filter: drop-shadow(0 4px 0 rgb(0 0 0 / 30%));
 }
 
 .bestiary-card-head {
@@ -5230,7 +5267,7 @@ textarea {
   .bestiary-group-switch {
     min-width: 0;
     flex: 1 1 100%;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .bestiary-group-button {
@@ -5298,6 +5335,10 @@ textarea {
   .bestiary-card-grid {
     grid-template-columns: 1fr;
     gap: 7px;
+  }
+
+  .bestiary-group-switch {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .bestiary-card {
