@@ -332,6 +332,7 @@ const photoSpecialEffects = [
   { key: "peerless", label: "无双", detail: "击杀后本场攻防+3", value: 15, kind: "killBattleTemp", amount: 3, displayStat: "attackDefense" },
   { key: "doubleStrikeSpeedDown", label: "连击", detail: "每2次进攻触发一次二连击", value: 16, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 2, strikeCount: 2, displayStat: "attack", hideBattleValue: true },
   { key: "shieldCrashAttackDown", label: "盾击", detail: "每2次进攻附带当前护盾伤害", value: 16, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 2, shieldDamageRatio: 1, displayStat: "shield" },
+  { key: "shieldReflect", label: "反伤", detail: "护盾减少时对怪物造成等量伤害", value: 16, kind: "shieldReflect", displayStat: "shield" },
   { key: "regenMultiplier", label: "焕发", detail: "每2次受击触发3倍回复", value: 15, kind: "hitSkill", cooldownTrigger: "hit", cooldown: 2, stat: "regen", multiplier: 3, displayStat: "hp" },
   { key: "lifestealMultiplier", label: "泣血", detail: "每2次进攻触发3倍吸血", value: 15, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 2, stat: "lifesteal", multiplier: 3, displayStat: "hp" },
   { key: "heavyStrike", label: "重击", detail: "每3次进攻造成一次3倍攻击", value: 14, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 3, attackMultiplier: 3, displayStat: "attack" },
@@ -407,7 +408,7 @@ const photoIdentificationUserPrompt = [
   "特殊效果只给语义很强的候选，普通物品可以 specialAffinity=[]；不要为了显得厉害乱给特殊效果。",
   "只有史诗或传说装备才可能出现特殊效果；史诗只在约三分之一情况下出特殊效果，传说必出一个特殊效果。",
   "宽、长、扫帚、扇面、拍子、刷子等有横向扫开联想的实物可选 sweep；奖杯、徽章、冠军感、英雄感、强烈战斗胜利联想的实物可选 peerless。",
-  "工具、现实玩具/模型武器、越打越顺手的现实物品可选 dealDamageAttack 或 heavyStrike；盾牌、外壳、硬保护物可选 takeDamageDefense 或 shieldCrashAttackDown；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、成对/双件/高速物品可选 doubleStrikeSpeedDown；宽面、扫帚、刷子、拍子、扇面等横向扫开联想可选 sweep；喝的、补给、净化、回复感物品可选 regenMultiplier；带尖锐、抽取、血感、锋利联想的物品可选 lifestealMultiplier；红色、受伤、怒气、破损、燃烧或越危险越强的物品可选 bloodrage。",
+  "工具、现实玩具/模型武器、越打越顺手的现实物品可选 dealDamageAttack 或 heavyStrike；盾牌、外壳、硬保护物可选 takeDamageDefense、shieldCrashAttackDown 或 shieldReflect；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、成对/双件/高速物品可选 doubleStrikeSpeedDown；宽面、扫帚、刷子、拍子、扇面等横向扫开联想可选 sweep；喝的、补给、净化、回复感物品可选 regenMultiplier；带尖锐、抽取、血感、锋利联想的物品可选 lifestealMultiplier；红色、受伤、怒气、破损、燃烧或越危险越强的物品可选 bloodrage。",
   "不要给游戏装备图、AI 渲染图、动画、插画、精修素材、卡牌素材 specialAffinity；普通拍摄的现实实物网图/截图可以有正常属性，但不应因为来源是网图而额外变强。现实卡片/贴纸/包装上的幻想武器也不要因为图案像武器就给强攻击或特殊效果。",
   "",
   "命名和描述：",
@@ -547,7 +548,7 @@ const heroForms = [
     label: "生命",
     image: "form-hp.png",
     levels: {
-      1: { stats: { hp: 30 }, effects: ["生命上限 +30"] },
+      1: { stats: { hp: 30 }, effects: ["生命上限 +30", "每击杀1怪，生命+6"], killHeal: 6 },
       2: { stats: { hp: 40 }, effects: ["生命上限 +40", "每击杀1怪，生命上限+3且生命+6"], killMaxHp: 3, killHeal: 6 },
     },
   },
@@ -556,8 +557,8 @@ const heroForms = [
     label: "攻击",
     image: "form-attack.png",
     levels: {
-      1: { stats: { attack: 3, defense: -1 }, effects: ["攻击 +3", "防御 -1"] },
-      2: { stats: { attack: 4 }, effects: ["攻击 +4", "无视25%防御（下取整）"], ignoreDefenseRatio: 0.25 },
+      1: { stats: { attack: 4, defense: -1 }, effects: ["攻击 +4", "防御 -1"] },
+      2: { stats: { attack: 4 }, effects: ["攻击 +4", "无视50%防御（下取整）"], ignoreDefenseRatio: 0.5 },
     },
   },
   {
@@ -565,7 +566,7 @@ const heroForms = [
     label: "吸血",
     image: "form-lifesteal.png",
     levels: {
-      1: { stats: { lifesteal: 1 }, effects: ["吸血 +1"] },
+      1: { stats: { lifesteal: 2, defense: -1 }, effects: ["吸血 +2", "防御 -1"] },
       2: { stats: { lifesteal: 4, defense: -2 }, effects: ["吸血 +4", "防御 -2"] },
     },
   },
@@ -574,7 +575,7 @@ const heroForms = [
     label: "回复",
     image: "form-regen.png",
     levels: {
-      1: { stats: { regen: 1 }, effects: ["回复 +1"] },
+      1: { stats: { regen: 2, attack: -1 }, effects: ["回复 +2", "攻击 -1"] },
       2: { stats: { regen: 2 }, effects: ["回复 +2", "回复也补护盾"], regenAffectsShield: true },
     },
   },
@@ -583,8 +584,8 @@ const heroForms = [
     label: "速度",
     image: "form-speed.png",
     levels: {
-      1: { stats: { speed: 1 }, effects: ["速度 +1"] },
-      2: { stats: { speed: 2 }, effects: ["速度 +2", "战前先攻击每个怪"], preBattleStrike: true },
+      1: { stats: { speed: 2, attack: -1 }, effects: ["速度 +2", "攻击 -1"] },
+      2: { stats: { speed: 3 }, effects: ["速度 +3", "战前先攻击每个怪1次"], preBattleStrike: true },
     },
   },
   {
@@ -593,7 +594,7 @@ const heroForms = [
     image: "form-defense.png",
     levels: {
       1: { stats: { defense: 3, attack: -1 }, effects: ["防御 +3", "攻击 -1"] },
-      2: { stats: { defense: 4 }, effects: ["防御 +4", "免疫前2次伤害"], damageImmunity: 2 },
+      2: { stats: { defense: 4 }, effects: ["防御 +4", "免疫前3次伤害"], damageImmunity: 3 },
     },
   },
   {
@@ -601,8 +602,8 @@ const heroForms = [
     label: "护盾",
     image: "form-shield.png",
     levels: {
-      1: { stats: { shield: 10 }, effects: ["护盾 +10"] },
-      2: { stats: { shield: 15 }, effects: ["护盾 +15", "护盾减少转为治疗"], shieldLossToHeal: true },
+      1: { stats: { shield: 12 }, effects: ["护盾 +12"] },
+      2: { stats: { shield: 18 }, effects: ["护盾 +18", "护盾减少转为治疗"], shieldLossToHeal: true },
     },
   },
   {
@@ -831,28 +832,31 @@ const monsterTypes = {
 const normalMonsterUnlocks = [
   { floor: 1, key: "slime", weight: 20, tier: 1 },
   { floor: 2, key: "bat", weight: 9, tier: 1 },
-  { floor: 3, key: "skeleton", weight: 9, tier: 1 },
+  { floor: 5, key: "skeleton", weight: 9, tier: 1 },
   { floor: 5, key: "mage", weight: 7, tier: 2 },
-  { floor: 10, key: "orc", weight: 7, tier: 2 },
-  { floor: 10, key: "golem", weight: 5, tier: 2 },
-  { floor: 11, key: "wizard", weight: 6, tier: 3 },
-  { floor: 13, key: "guard", weight: 5, tier: 3 },
-  { floor: 15, key: "knight", weight: 6, tier: 3 },
-  { floor: 17, key: "patrol", weight: 5, tier: 4 },
-  { floor: 21, key: "warrior", weight: 5, tier: 4 },
-  { floor: 23, key: "swordsman", weight: 4, tier: 4 },
+  { floor: 10, key: "guard", weight: 5, tier: 3 },
+  { floor: 13, key: "orc", weight: 7, tier: 2 },
+  { floor: 15, key: "golem", weight: 5, tier: 2 },
+  { floor: 20, key: "wizard", weight: 6, tier: 3 },
+  { floor: 22, key: "knight", weight: 6, tier: 3 },
+  { floor: 28, key: "patrol", weight: 5, tier: 4 },
+  { floor: 30, key: "warrior", weight: 5, tier: 4 },
+  { floor: 30, key: "swordsman", weight: 4, tier: 4 },
 ];
 
 const floorNarratives = {
   1: "塔门在身后合上，石阶潮得发亮。先从这些黏糊糊的守门怪身上找找手感。",
   2: "墙缝里掠过翅影，脚步声被拉得很长。接下来，谁更快出手会更要命。",
-  3: "旧骨头敲着地面靠近，硬壳和骨盾开始挡在路中央。",
+  3: "旧骨头的敲击声从远处传来，真正挡路的硬骨还藏在更深的楼梯后。",
   5: "细小火星在空气里游走。法师的火不会问你防御有多高。",
-  8: "楼道尽头传来石块滚动声。打不穿外壳，就会被它们拖进漫长缠斗。",
-  11: "寒气从更高处落下来。熟悉的弱怪还在游荡，真正麻烦的东西也混了进来。",
-  15: "半山的塔身开始透风，墙上的火把换成了一盏盏幽幽的冷光。",
-  21: "墙上的爪痕一层比一层深。想多收胶卷，就要把每一次战损都算清楚。",
-  28: "再往上，骑士守门的传闻顺着楼梯飘下来，台阶上的灰也踩得格外实。",
+  8: "楼道尽头传来石块滚动声。先别急着追响动，塔会把耐打的家伙留到后面。",
+  10: "卫兵的盾牌声第一次在走廊里合拢。越往后，单挑会越来越少。",
+  13: "兽人的脚步重得像敲门，回复和厚血会把短战拖长。",
+  15: "石头人在阴影里翻身。打不穿外壳，就会被它们拖进漫长缠斗。",
+  20: "巫师站上更高的台阶，开局的防线会被它们先削掉一截。",
+  22: "半山的塔身开始透风，骑士的红莲让回复不再可靠。",
+  28: "警卫从门侧现身，旧护盾会在开战时被一口气敲碎。",
+  30: "墙上的爪痕一层比一层深。战士与剑士同时露面，想多收胶卷，就要把每一次战损都算清楚。",
   33: "离塔顶不远了，空气里全是铁锈和旧符纸的味道，每一步都更沉。",
   37: "塔顶的风从门缝灌下来，火把被吹得几乎贴住墙面。最后几层不会给勇者太多喘息。",
 };
@@ -3616,7 +3620,7 @@ function renderBestiaryPage(page) {
   const entries = page.pageEntries || [];
   if (!entries.length) return "";
   return `
-    <div class="bestiary-card-grid" data-bestiary-page-kind="${escapeHtml(page.group)}">
+    <div class="bestiary-card-grid${page.group === "normal" ? " bestiary-normal-grid" : ""}" data-bestiary-page-kind="${escapeHtml(page.group)}">
       ${entries.map((entry) => renderBestiaryCard(entry, page)).join("")}
     </div>
   `;
@@ -3697,7 +3701,7 @@ function renderNpcBestiaryCard(entry, page) {
         </div>
       </div>
       <div class="bestiary-card-rules">
-        <p><b>出没</b><span>${escapeHtml(getNpcBestiaryAppearText(config))}</span></p>
+        <p><span>${escapeHtml(getNpcBestiaryAppearText(config))}</span></p>
         <ul>
           <li><b>看守</b><span>${escapeHtml(config.monsterLabel)} ×2，三张卡牌全部点亮后开战。</span></li>
           <li><b>奖励</b><span>${escapeHtml(config.rewardText)}</span></li>
@@ -3712,7 +3716,8 @@ function renderBestiaryCard(entry, page) {
   const type = monsterTypes[entry.key] || monsterTypes.slime;
   const traits = Array.isArray(type.traits) ? type.traits : [];
   const isBoss = entry.category === "boss";
-  const categoryLabel = isBoss ? "Boss" : "普通怪";
+  const isNormal = entry.category === "normal";
+  const categoryLabel = isBoss ? "Boss" : "";
   const traitHtml = traits.length
     ? traits.map((trait) => `
         <li>
@@ -3722,13 +3727,13 @@ function renderBestiaryCard(entry, page) {
       `).join("")
     : "<li><b>朴素</b><span>没有额外花招，主要看基础数值。</span></li>";
   return `
-    <article class="bestiary-card${isBoss ? " is-boss" : ""}" data-selected-monster="${escapeHtml(entry.key)}" data-selected-group="${escapeHtml(entry.category)}">
+    <article class="bestiary-card${isBoss ? " is-boss" : ""}${isNormal ? " is-normal" : ""}" data-selected-monster="${escapeHtml(entry.key)}" data-selected-group="${escapeHtml(entry.category)}">
       <div class="bestiary-card-head">
         ${renderMonsterSprite(entry.key, type.name, "bestiary-card-portrait")}
         <div>
           <span class="bestiary-badge">${escapeHtml(entry.badge)}</span>
           <strong>${escapeHtml(type.name)}</strong>
-          <em>${escapeHtml(categoryLabel)}</em>
+          ${categoryLabel ? `<em>${escapeHtml(categoryLabel)}</em>` : ""}
         </div>
       </div>
       <dl class="bestiary-stats">
@@ -3738,7 +3743,7 @@ function renderBestiaryCard(entry, page) {
         <div><dt>速度</dt><dd>${type.speed}</dd></div>
       </dl>
       <div class="bestiary-card-rules">
-        <p><b>出没</b><span>${escapeHtml(entry.appear)}</span></p>
+        <p><span>${escapeHtml(entry.appear)}</span></p>
         <ul>${traitHtml}</ul>
       </div>
     </article>
@@ -3810,9 +3815,7 @@ function getFormBestiaryUnlockText(level = 1) {
 
 function getFormBestiaryExtraLines(form, level = 1, config = getHeroFormLevelConfig(form, level)) {
   if (!form || level < 2) return [];
-  if (form.id === "greedy" && config.filmStatCycle) {
-    return ["携带胶卷越多，依次提高攻击、防御、速度。"];
-  }
+  if (form.id === "greedy" && config.filmStatCycle) return [];
   return [];
 }
 
@@ -3869,6 +3872,7 @@ function getAffixBestiaryText(effect) {
   }
   if (effect.kind === "killBattleTemp") return `击杀后本场攻击、防御各+${effect.amount || 0}。`;
   if (effect.kind === "missingHpAttack") return `每损失${effect.threshold || 20}生命，攻击+${effect.amount || 1}。`;
+  if (effect.kind === "shieldReflect") return "护盾被打掉多少，就对出手怪物回敬多少伤害。";
   if (effect.kind === "attackSkill") {
     if (effect.spreadRatio) return `每${effect.cooldown || 1}次进攻，横扫同场敌人，伤害为本次攻击的100%。`;
     if (effect.strikeCount) return `每${effect.cooldown || 1}次进攻，打出一次${effect.strikeCount}连击。`;
@@ -3898,6 +3902,8 @@ function getAffixBadgeHintText(effect) {
     hints.push("右上累计数值");
   } else if (effect.key === "shieldCrashAttackDown") {
     hints.push("右上记录盾击");
+  } else if (effect.key === "shieldReflect") {
+    hints.push("右上记录反伤");
   } else if (effect.key === "regenMultiplier") {
     hints.push("右上记录回血");
   } else if (effect.key === "lifestealMultiplier") {
@@ -3928,6 +3934,7 @@ function getAffixTypeLabel(effect) {
     case "cooldownStack": return "蓄势";
     case "attackSkill": return "出手";
     case "hitSkill": return "受击";
+    case "shieldReflect": return "护盾";
     case "killBattleTemp": return "斩获";
     case "missingHpAttack": return "逆境";
     default: return "特殊词条";
@@ -3981,10 +3988,10 @@ function getMonsterBestiaryEntry(typeKey) {
 
 function getNormalMonsterAppearText(entry, type) {
   const start = Math.max(1, entry.floor || 1);
-  if (entry.key === "slime") return "第1层起就会冒出来，前期最常见，后面也常在弱位凑数。";
-  if (entry.tier >= 4) return `第${start}层起开始露面，通常站在后段强位。想多选时，先看预估损失。`;
-  if (entry.tier >= 3) return `第${start}层起混入普通楼层，中段之后会更常撞见。`;
-  return `第${start}层起在普通楼层出现。Boss 层和奖励强敌层不会随机刷出它。`;
+  if (entry.key === "slime") return "第1层起，前期最常见，后面也常在弱位凑数。";
+  if (entry.tier >= 4) return `第${start}层起，常站在后段强位。`;
+  if (entry.tier >= 3) return `第${start}层起，中段之后更常撞见。`;
+  return `第${start}层起，普通楼层随机出现。`;
 }
 
 function getMonsterTraitDetail(trait) {
@@ -6907,9 +6914,12 @@ function applyBattleStartEnemyAuras(enemies = getActiveBattleEnemies()) {
 function applyBattleStartHeroEffects(enemies = getActiveBattleEnemies()) {
   const activeEnemies = Array.isArray(enemies) ? enemies.filter((enemy) => enemy?.hp > 0) : [];
   if (activeEnemies.some((enemy) => hasTrait(enemy, "breakShield")) && state.player.shield > 0) {
+    const sourceEnemy = activeEnemies.find((enemy) => hasTrait(enemy, "breakShield"));
     const shieldLoss = state.player.shield;
     state.player.shield = 0;
-    addBattleDetail(`警卫破盾，护盾清空 ${shieldLoss}。`);
+    const reflectResult = applyShieldReflectDamageToEnemy(sourceEnemy, shieldLoss);
+    const reflectText = reflectResult.totalDamage > 0 ? `，反伤 ${reflectResult.totalDamage}` : "";
+    addBattleDetail(`警卫破盾，护盾清空 ${shieldLoss}${reflectText}。`);
   }
 }
 
@@ -7302,6 +7312,23 @@ function applyFixedHeroDamageToEnemy(enemy, damage, source = "sweep") {
   };
 }
 
+function hasActiveShieldReflect() {
+  return getEquippedPhotoEffectInstances("shieldReflect").length > 0;
+}
+
+function applyShieldReflectDamageToEnemy(enemy, shieldLoss = 0) {
+  const damage = Math.max(0, Math.trunc(Number(shieldLoss) || 0));
+  if (!enemy || damage <= 0 || !hasActiveShieldReflect()) {
+    return { rawDamage: damage, shieldLoss: 0, hpDamage: 0, totalDamage: 0, defeated: false };
+  }
+  const wasAlive = enemy.hp > 0 && state.activeEnemyIds.includes(enemy.id);
+  const result = applyFixedHeroDamageToEnemy(enemy, damage, "shieldReflect");
+  const defeated = wasAlive && enemy.hp <= 0;
+  if (defeated) defeatEnemy(enemy);
+  addBattleValueToInstances(getEquippedPhotoEffectInstances("shieldReflect"), result.totalDamage);
+  return { ...result, defeated };
+}
+
 function applyPreBattleFormEffects() {
   const config = getHeroFormLevelConfig();
   if (!config.preBattleStrike || state.battleSpecial.preBattleStruck) return;
@@ -7346,6 +7373,7 @@ function resolveMonsterStrike(enemy, stats, round) {
   let totalHpLoss = 0;
   let totalShieldLoss = 0;
   let totalRegen = 0;
+  let totalReflect = 0;
   let monsterStealTotal = 0;
   let immuneCount = 0;
   let attackActionCount = 0;
@@ -7380,6 +7408,10 @@ function resolveMonsterStrike(enemy, stats, round) {
       state.player.hp = Math.min(currentStatsBeforeHit.maxHp, state.player.hp + shieldLoss);
       totalRegen += state.player.hp - beforeHp;
     }
+    if (shieldLoss > 0) {
+      const reflectResult = applyShieldReflectDamageToEnemy(enemy, shieldLoss);
+      totalReflect += reflectResult.totalDamage || 0;
+    }
     const hitContext = buildHeroHitActionContext();
     if (hitContext.triggeredLabels.length) traitChanges.push(`触发${hitContext.triggeredLabels.join("、")}`);
 
@@ -7390,6 +7422,8 @@ function resolveMonsterStrike(enemy, stats, round) {
       totalShieldLoss -= regenResult.shield;
       addBattleValueToInstances(hitContext.regenInstances, regenResult.hp);
     }
+
+    if (enemy.hp <= 0 || !state.activeEnemyIds.includes(enemy.id)) break;
 
     const monsterSteal = getTraitValue(enemy, "lifesteal", 0);
     if (monsterSteal > 0) {
@@ -7415,6 +7449,7 @@ function resolveMonsterStrike(enemy, stats, round) {
   if (immuneCount > 0) parts.push(`免疫${immuneCount}次`);
   parts.push(totalHpLoss > 0 ? `生命损失 ${Math.max(0, totalHpLoss - totalRegen)}` : "生命无损失");
   if (totalShieldLoss > 0) parts.push(`护盾承受 ${totalShieldLoss}`);
+  if (totalReflect > 0) parts.push(`反伤 ${totalReflect}`);
   if (totalRegen > 0) parts.push(`回复 ${totalRegen}`);
   if (monsterHealed > 0) parts.push(`${enemy.name}回复 ${monsterHealed}`);
   if (monsterStealTotal > 0) parts.push(`${enemy.name}吸取 ${monsterStealTotal}`);
@@ -10227,7 +10262,11 @@ function applySimBattleStartEnemyAuras(sim, enemies = []) {
 }
 
 function applySimBattleStartHeroEffects(sim, enemies = []) {
-  if (getAliveTraitEnemies(enemies).some((enemy) => hasTrait(enemy, "breakShield"))) sim.shield = 0;
+  const sourceEnemy = getAliveTraitEnemies(enemies).find((enemy) => hasTrait(enemy, "breakShield"));
+  if (!sourceEnemy || sim.shield <= 0) return;
+  const shieldLoss = sim.shield;
+  sim.shield = 0;
+  applySimShieldReflectDamageToEnemy(sim, sourceEnemy, shieldLoss, enemies);
 }
 
 function getSimMaxHpBonus(sim) {
@@ -10381,12 +10420,17 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
     if (shieldLoss > 0 && getHeroFormLevelConfig().shieldLossToHeal) {
       healSimHero(sim, currentStatsBeforeHit, shieldLoss);
     }
+    if (shieldLoss > 0) {
+      applySimShieldReflectDamageToEnemy(sim, enemy, shieldLoss, enemies);
+    }
     const hitContext = buildSimHeroHitActionContext(sim);
 
     const currentStats = getSimBattleStats(sim, enemies);
     if (sim.actualHp > 0 && currentStats.regen > 0) {
       regenSimHeroAfterHit(sim, currentStats, hitContext.regenMultiplier);
     }
+
+    if (enemy.hp <= 0 || !sim.activeIds.includes(enemy.id)) break;
 
     const monsterSteal = getTraitValue(enemy, "lifesteal", 0);
     if (monsterSteal > 0) enemy.hp = Math.min(enemy.maxHp, enemy.hp + monsterSteal);
@@ -10547,6 +10591,16 @@ function applySimFixedHeroDamageToEnemy(sim, enemy, damage, enemies = []) {
   const totalDamage = shieldLoss + hpDamage;
   if (fixedDamage > 0) triggerSimEnemyDamagedTraits(enemy);
   return { rawDamage: fixedDamage, shieldLoss, hpDamage, totalDamage };
+}
+
+function applySimShieldReflectDamageToEnemy(sim, enemy, shieldLoss = 0, enemies = []) {
+  const damage = Math.max(0, Math.trunc(Number(shieldLoss) || 0));
+  if (!enemy || damage <= 0 || !hasActiveShieldReflect()) return { rawDamage: damage, shieldLoss: 0, hpDamage: 0, totalDamage: 0, defeated: false };
+  const wasAlive = enemy.hp > 0 && sim.activeIds.includes(enemy.id);
+  const result = applySimFixedHeroDamageToEnemy(sim, enemy, damage, enemies);
+  const defeated = wasAlive && enemy.hp <= 0;
+  if (defeated) settleSimEnemyDefeat(sim, enemies, enemy);
+  return { ...result, defeated };
 }
 
 function applySimPreBattleFormEffects(sim, enemies) {
@@ -13600,6 +13654,7 @@ function inferSemanticSpecialEffects(text) {
     add("shieldCrashAttackDown");
     add("takeDamageDefense");
     add("killShield");
+    add("shieldReflect");
   }
   if (!plainTableware && /水|饮|咖啡|茶|奶|药|杯|瓶|清洁|净化|过滤|毛巾|纸巾|湿巾|充电|电池|补给|修复|water|drink|coffee|tea|milk|medicine|cup|bottle|clean|purify|filter|tissue|towel|battery|charger|repair/i.test(source)) {
     add("regenMultiplier");
@@ -13641,6 +13696,7 @@ function normalizeSpecialEffectKey(value) {
     if (/击杀.*生命上限/.test(text)) return "killMaxHp";
     if (/击杀.*生命|击杀.*回复|击杀.*回血/.test(text)) return "killHpBoost";
     if (/二连击|连击2|连击翻倍/.test(text)) return "doubleStrikeSpeedDown";
+    if (/反伤|反弹|荆棘|倒刺|护盾.*伤害|盾.*反/.test(text)) return "shieldReflect";
     if (/当前护盾|护盾.*0\.?5|护盾.*一半/.test(text)) return "shieldCrashAttackDown";
     if (/横扫|扩散|溅射|范围伤害|周围.*伤害|伤害.*50/.test(text)) return "sweep";
     if (/无双|击杀.*攻防|击杀.*攻击.*防御|攻防.*3/.test(text)) return "peerless";
@@ -14475,7 +14531,7 @@ function getSpecialBattleValueForDisplay(item, instance) {
     const value = clampInt(data.bonus, 0, 9999);
     return value > 0 ? { text: formatBattleBadgeNumber(value), stat: getBattleBadgeStat(effect) } : null;
   }
-  if (effect.kind === "killHeal" || effect.kind === "cooldownStack" || effect.kind === "hitSkill" || effect.key === "shieldCrashAttackDown" || effect.key === "lifestealMultiplier" || effect.key === "heavyStrike") {
+  if (effect.kind === "killHeal" || effect.kind === "cooldownStack" || effect.kind === "hitSkill" || effect.kind === "shieldReflect" || effect.key === "shieldCrashAttackDown" || effect.key === "lifestealMultiplier" || effect.key === "heavyStrike") {
     const value = clampInt(data.battleValue, 0, 9999);
     return value > 0 ? { text: formatBattleBadgeNumber(value), stat: getBattleBadgeStat(effect) } : null;
   }
@@ -15161,13 +15217,14 @@ function makeSettledItemDescription(item) {
   }
   if (effects.includes("doubleStrikeSpeedDown")) return `${name}使起来沉手，慢是慢了点，可一次挥动能砸出两下。`;
   if (effects.includes("shieldCrashAttackDown")) return `${name}让护盾跟着出拳，挡下的力道会顺势砸回敌人身上。`;
+  if (effects.includes("shieldReflect")) return `${name}不只挡得住，护盾每被削去一分，都会把力道还回去。`;
   if (effects.includes("sweep")) return `${name}挥起来带风，打中一个，旁边的也跟着遭殃。`;
   if (effects.includes("peerless")) return `${name}越战越勇，每放倒一个敌人，这一场的攻防就再涨一截。`;
   if (effects.includes("dealDamageAttack")) return `${name}越打越顺手，连攻几下之后，下一击会更狠。`;
   if (effects.includes("takeDamageDefense")) return `${name}挨打反而越挨越硬，几下撞击过后就更扛揍了。`;
   if (effects.includes("killMaxHp")) return `${name}会把倒下敌人的气力收进身体，生命上限一点点往上长。`;
   if (effects.includes("killHpBoost")) return `${name}懂得趁胜喘息，敌人一倒，就替勇者补回一口气。`;
-  if (stats.attack > 0 && stats.lifesteal > 0) return `${name}开起刃来不留情，伤敌的同时也替你回一口血。`;
+  if (stats.attack > 0 && stats.lifesteal > 0) return `${name}在塔风里开起刃来不留情，伤敌的同时也替你回一口血。`;
   if (stats.attack > 0 && stats.speed > 0) return `${name}握着趁手，出手又快又利落。`;
   if (stats.defense > 0 && stats.shield > 0) return `${name}像块结实的护板，硬扛冲击，守得很稳。`;
   if (stats.hp > 0 && stats.regen > 0) return `${name}像随身的补给，撑大了血量，挨了打也缓得快。`;
@@ -15254,7 +15311,7 @@ function formatSpecialEffectText(effect, data = {}) {
   if (effect.kind === "killPermanent") {
     return `${effect.label}：${detailText}，已+${clampInt(data.bonus, 0, 9999)}${inactiveText}`;
   }
-  if (effect.kind === "killHeal" || effect.kind === "cooldownStack" || effect.kind === "attackSkill" || effect.kind === "hitSkill" || effect.kind === "killBattleTemp" || effect.kind === "missingHpAttack") {
+  if (effect.kind === "killHeal" || effect.kind === "cooldownStack" || effect.kind === "attackSkill" || effect.kind === "hitSkill" || effect.kind === "shieldReflect" || effect.kind === "killBattleTemp" || effect.kind === "missingHpAttack") {
     return `${effect.label}：${detailText}${inactiveText}`;
   }
   const inactiveSuffix = data.inactive ? "，未激活" : "";

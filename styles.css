@@ -3851,12 +3851,12 @@ dd {
 }
 
 .monster-portrait.bestiary-detail-portrait {
-  width: 76px;
-  height: 76px;
+  width: 66px;
+  height: 66px;
 }
 
 .bestiary-detail-portrait .monster-sprite {
-  --sprite-size: 76px;
+  --sprite-size: 66px;
 }
 
 .bestiary-stats {
@@ -4120,7 +4120,7 @@ dd {
   grid-area: auto;
   min-width: 0;
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: 52px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
 }
@@ -4154,12 +4154,29 @@ dd {
 }
 
 .monster-portrait.bestiary-card-portrait {
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
 }
 
 .bestiary-card-portrait .monster-sprite {
-  --sprite-size: 58px;
+  --sprite-size: 52px;
+}
+
+.bestiary-card.is-normal .bestiary-card-head {
+  grid-template-columns: 46px minmax(0, 1fr);
+}
+
+.bestiary-card.is-normal .monster-portrait.bestiary-card-portrait {
+  width: 46px;
+  height: 46px;
+}
+
+.bestiary-card.is-normal .bestiary-card-portrait .monster-sprite {
+  --sprite-size: 46px;
+}
+
+.bestiary-card.is-normal .bestiary-card-head strong {
+  font-size: 0.9rem;
 }
 
 .bestiary-card .bestiary-stats {
@@ -4399,6 +4416,17 @@ dd {
   color: var(--ink-soft);
   font-size: 0.86rem;
   font-weight: 950;
+}
+
+.author-inline a {
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.author-inline a:hover {
+  color: var(--amber);
 }
 
 .project-social-card p {
@@ -5306,17 +5334,17 @@ textarea {
   }
 
   .bestiary-detail-head {
-    grid-template-columns: 58px minmax(0, 1fr);
+    grid-template-columns: 54px minmax(0, 1fr);
     gap: 8px;
   }
 
   .monster-portrait.bestiary-detail-portrait {
-    width: 58px;
-    height: 58px;
+    width: 54px;
+    height: 54px;
   }
 
   .bestiary-detail-portrait .monster-sprite {
-    --sprite-size: 58px;
+    --sprite-size: 54px;
   }
 
   .bestiary-detail-head strong {
@@ -5348,17 +5376,30 @@ textarea {
   }
 
   .bestiary-card-head {
-    grid-template-columns: 46px minmax(0, 1fr);
+    grid-template-columns: 42px minmax(0, 1fr);
     gap: 6px;
   }
 
   .monster-portrait.bestiary-card-portrait {
-    width: 46px;
-    height: 46px;
+    width: 42px;
+    height: 42px;
   }
 
   .bestiary-card-portrait .monster-sprite {
-    --sprite-size: 46px;
+    --sprite-size: 42px;
+  }
+
+  .bestiary-card.is-normal .bestiary-card-head {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .bestiary-card.is-normal .monster-portrait.bestiary-card-portrait {
+    width: 38px;
+    height: 38px;
+  }
+
+  .bestiary-card.is-normal .bestiary-card-portrait .monster-sprite {
+    --sprite-size: 38px;
   }
 
   .bestiary-card-head strong {

@@ -278,7 +278,7 @@ function assertScenario(name, metrics) {
     if (result.buttonText !== "重鉴定" || !result.buttonEnabled) failures.push(`${name}: selected photo equipment should expose an enabled reappraisal button, got ${JSON.stringify(result)}`);
     if (result.requestCount !== 1) failures.push(`${name}: reappraisal should send exactly one model request, got ${JSON.stringify(result)}`);
     if (result.busyButtonText !== "取消重鉴定" || !result.busyButtonEnabled) failures.push(`${name}: in-flight reappraisal should expose an enabled cancel button, got ${JSON.stringify(result)}`);
-    if (result.filmBefore !== 2 || result.filmAfter !== 1) failures.push(`${name}: successful reappraisal should consume exactly one film/canvas use, got ${JSON.stringify(result)}`);
+    if (result.filmBefore !== 2 || Math.abs((result.filmAfter || 0) - 1.3) > 0.001) failures.push(`${name}: successful reappraisal should consume the discounted reappraisal cost, got ${JSON.stringify(result)}`);
     if (result.slotCountBefore !== result.slotCountAfter || result.slotCountAfter !== 1) failures.push(`${name}: reappraisal should replace the selected slot instead of adding a new item, got ${JSON.stringify(result)}`);
     if (!result.sameSlot || result.oldId === result.newId || result.oldName === result.newName) failures.push(`${name}: reappraisal should replace the same slot with a new item identity, got ${JSON.stringify(result)}`);
     if (!result.newPhotoKeyIsReroll || result.newPhotoKey === result.oldPhotoKey) failures.push(`${name}: reappraisal should assign a reroll duplicate key, got ${JSON.stringify(result)}`);
@@ -495,8 +495,8 @@ function assertScenario(name, metrics) {
     if (distribution.earlyTier3Count !== 0) failures.push(`${name}: tier 3 monsters appeared before floor 11`);
     if ((distribution.floor11Tier3Rate || 0) > 0.42) failures.push(`${name}: floor 11 tier 3 rate too high: ${distribution.floor11Tier3Rate}`);
     if ((distribution.floor13Tier3Rate || 0) > 0.58) failures.push(`${name}: floor 13 tier 3 rate too high: ${distribution.floor13Tier3Rate}`);
-    if ((distribution.floor17Tier4Rate || 0) > 0.28) failures.push(`${name}: floor 17 tier 4 rate too high: ${distribution.floor17Tier4Rate}`);
-    if ((distribution.floor23Tier4Rate || 0) < 0.18) failures.push(`${name}: floor 23 should still allow some tier 4 pressure: ${distribution.floor23Tier4Rate}`);
+    if ((distribution.floor17Tier4Rate || 0) !== 0) failures.push(`${name}: tier 4 monsters should not appear before floor 28, got ${distribution.floor17Tier4Rate}`);
+    if ((distribution.floor23Tier4Rate || 0) !== 0) failures.push(`${name}: tier 4 monsters should not appear before floor 28, got ${distribution.floor23Tier4Rate}`);
   }
   if (name === "boss-film-drops") {
     const drops = metrics.bossFilmDrops || {};
@@ -555,7 +555,7 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: sweep should not count as extra attack action for attack gain/lifesteal, got ${JSON.stringify(specials)}`);
     }
     const megaDefense = specials.megaDefenseState || {};
-    if (megaDefense.immuneUsed !== 2 || megaDefense.defenseSpecial !== 1 || megaDefense.hp !== 41) {
+    if (megaDefense.immuneUsed !== 3 || megaDefense.defenseSpecial !== 1 || megaDefense.hp !== 46) {
       failures.push(`${name}: mega defense immunity should still count as a defended action, got ${JSON.stringify(megaDefense)}`);
     }
     if (specials.heavyStrikeHp !== 1 || specials.heavyStrikeValue !== 9) {
@@ -566,6 +566,9 @@ function assertScenario(name, metrics) {
     }
     if (specials.attackCapState?.attack !== 5 || specials.attackCapState?.leftBadge !== "" || specials.attackCapState?.rightBadge !== "+5") {
       failures.push(`${name}: capped attack stack should stop showing a cooldown countdown and keep the +5 value badge, got ${JSON.stringify(specials.attackCapState)}`);
+    }
+    if (specials.reflectAfterShieldHit?.enemyHp !== 12 || specials.reflectAfterShieldHit?.playerShield !== 2 || specials.reflectAfterShieldHit?.badge !== "+6") {
+      failures.push(`${name}: shield reflect should damage the attacker by lost shield and record its badge value, got ${JSON.stringify(specials.reflectAfterShieldHit)}`);
     }
   }
   if (name === "linked-traits") {
@@ -600,14 +603,14 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: wizard should not turn negative defense into zero, got ${JSON.stringify({ def: traits.wizardNegativeDef, hp: traits.wizardNegativeHp })}`);
     }
     if (traits.patrolShield !== 0 || traits.patrolHp !== 75 || traits.patrolAfterDeathShield !== 0) failures.push(`${name}: patrol breakShield should be a battle-start result that persists after patrol dies, got ${JSON.stringify(traits.patrolState)}`);
-    if (traits.noLifestealBefore !== 0 || traits.noLifestealAfter !== 2) {
+    if (traits.noLifestealBefore !== 0 || traits.noLifestealAfter !== 8) {
       failures.push(`${name}: skeleton no-lifesteal should disappear after skeleton death, got ${JSON.stringify({ before: traits.noLifestealBefore, after: traits.noLifestealAfter })}`);
     }
     const lifestealReadout = traits.noLifestealReadoutBefore || {};
     if (lifestealReadout.base !== "2" || lifestealReadout.delta !== "-2" || lifestealReadout.deltaKind !== "negative") {
       failures.push(`${name}: skeleton no-lifesteal should render lifesteal as base plus red delta, got ${JSON.stringify(lifestealReadout)}`);
     }
-    if (traits.noRegenBefore !== 0 || traits.noRegenAfter !== 4) {
+    if (traits.noRegenBefore !== 0 || traits.noRegenAfter !== 10) {
       failures.push(`${name}: knight no-regen should disappear after knight death, got ${JSON.stringify({ before: traits.noRegenBefore, after: traits.noRegenAfter })}`);
     }
     const regenReadout = traits.noRegenReadoutBefore || {};
@@ -625,7 +628,7 @@ function assertScenario(name, metrics) {
     if (traits.octopusLethalEstimate !== "会倒下" || traits.octopusLethalEstimateState !== "danger") {
       failures.push(`${name}: octopus estimate should warn when giant damage is lethal, got ${JSON.stringify(traits.octopusLethalStateInfo)}`);
     }
-    if (traits.octopusAfterHpKillEstimate !== "损失 -8" || traits.octopusAfterHpKillEstimateState !== "safe") {
+    if (traits.octopusAfterHpKillEstimate !== "损失 -2" || traits.octopusAfterHpKillEstimateState !== "safe") {
       failures.push(`${name}: octopus estimate should include real max-HP gains from previous simulated kills without counting theoretical buffer, got ${JSON.stringify(traits.octopusAfterHpKillStateInfo)}`);
     }
     if (traits.octopusSpeed !== 2) failures.push(`${name}: octopus speed should be 2, got ${traits.octopusSpeed}`);
@@ -635,8 +638,8 @@ function assertScenario(name, metrics) {
     if (traits.archmageStats?.atk !== 10 || traits.archmageStats?.def !== 5 || traits.archmageStats?.speed !== 3) {
       failures.push(`${name}: archmage stats should be 10/5/3, got ${JSON.stringify(traits.archmageStats)}`);
     }
-    if (traits.archmageSummonHpChanged || traits.archmageSummonLeftHp !== 30 || traits.archmageSummonActiveOrder?.join(",") !== "mage,mage,archmage" || traits.archmageSummonDrops?.join(",") !== "胶卷 0.0,胶卷 0.3,胶卷 0.0") {
-      failures.push(`${name}: archmage summon should revive a side mage without damaging hero and keep target/drop order, got ${JSON.stringify(traits.archmageSummonState)}`);
+    if (traits.archmageSummonHpAfter < traits.archmageSummonHpBefore || traits.archmageSummonLeftHp !== 30 || traits.archmageSummonActiveOrder?.join(",") !== "mage,mage,archmage" || traits.archmageSummonDrops?.join(",") !== "胶卷 0.0,胶卷 0.3,胶卷 0.0") {
+      failures.push(`${name}: archmage summon should revive a side mage without net damaging hero and keep target/drop order, got ${JSON.stringify(traits.archmageSummonState)}`);
     }
     if (traits.knightDamageWithGuards !== 17 || traits.knightDamageAfterGuardDeath !== 17) {
       failures.push(`${name}: knight captain should not reduce damage through guards, got ${JSON.stringify(traits.knightState)}`);
@@ -694,8 +697,8 @@ function assertScenario(name, metrics) {
     if (bestiary.npcStart?.group !== "npc" || (bestiary.npcStart?.npcCardCount || 0) !== 4 || !bestiary.npcStart?.npcKeys?.includes("elder") || !bestiary.npcStart?.npcKeys?.includes("princess") || !bestiary.npcHasPortrait) {
       failures.push(`${name}: npc group should show all rescue NPC cards with portraits, got ${JSON.stringify(bestiary)}`);
     }
-    if (!/老人/.test(bestiary.npcDetailText || "") || !/出没/.test(bestiary.npcDetailText || "") || !/奖励/.test(bestiary.npcDetailText || "") || /暗门触发怪|随机选中|非最弱位/.test(bestiary.npcDetailText || "")) {
-      failures.push(`${name}: npc bestiary should show NPC appearance/reward without hidden-trigger mechanics, got ${JSON.stringify(bestiary)}`);
+    if (!/老人/.test(bestiary.npcDetailText || "") || !/奖励/.test(bestiary.npcDetailText || "") || /出没|暗门触发怪|随机选中|非最弱位/.test(bestiary.npcDetailText || "")) {
+      failures.push(`${name}: npc bestiary should show NPC appearance/reward without labels or hidden-trigger mechanics, got ${JSON.stringify(bestiary)}`);
     }
     if (bestiary.formStart?.group !== "form" || (bestiary.formStart?.formCardCount || 0) < 2 || !bestiary.formStart?.formKeys?.includes("hp") || !bestiary.formStart?.formLevels?.includes("2") || !/超级/.test(bestiary.formDetailText || "")) {
       failures.push(`${name}: form group should show normal and super hero forms, got ${JSON.stringify(bestiary)}`);
@@ -835,7 +838,7 @@ function assertScenario(name, metrics) {
     if (metrics.infoCards?.photoSelectedIndex !== 1 || metrics.infoCards?.battleSelectedIndex !== 2) failures.push(`${name}: clicked photo/battle info cards should become selected, got ${JSON.stringify(metrics.infoCards)}`);
     if (metrics.infoCards?.photoSelectedCount !== 1 || metrics.infoCards?.battleSelectedCount !== 1) failures.push(`${name}: exactly one selectable card per info page should be active, got ${JSON.stringify(metrics.infoCards)}`);
     if (!metrics.infoCards?.photoCardsClickable || !metrics.infoCards?.battleCardsClickable) failures.push(`${name}: photo/battle info cards should be keyboard/click selectable, got ${JSON.stringify(metrics.infoCards)}`);
-    if (!/另一段冒险/.test(metrics.infoText)) failures.push(`${name}: missing other games block`);
+    if (!/其他游戏推荐/.test(metrics.infoText)) failures.push(`${name}: missing other games block`);
     const manualPlayerPages = metrics.playerManualText || "";
     if (/素材来源|魔塔50层|抹茶旦旦/.test(manualPlayerPages)) failures.push(`${name}: material source copy should stay out of the in-game manual, got ${manualPlayerPages}`);
     if (/\bAI\b|API(?:\s*Key)?|接口|模型名|图文模型|开发者|说明书|教程/.test(manualPlayerPages)) failures.push(`${name}: player manual should avoid developer/API/manual wording, got ${manualPlayerPages}`);
@@ -847,7 +850,7 @@ function assertScenario(name, metrics) {
     if (metrics.groupQr.text !== "加入小红书交流群") failures.push(`${name}: Xiaohongshu QR copy should be 加入小红书交流群`);
     if (!/项目地址（求个star⭐）/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing restored project link copy`);
     if (!/小红书交流帖（求点赞❤️）/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing restored Xiaohongshu post copy`);
-    if (/github\.com\/kw66\/photo-hero|打开帖子|小红书帖子|作者\/统计|全站统计/.test(metrics.groupQr.linksText || "")) failures.push(`${name}: author block still exposes old/manual link text`);
+    if (/打开帖子|小红书帖子|作者\/统计|全站统计/.test(metrics.groupQr.linksText || "")) failures.push(`${name}: author block still exposes old/manual link text`);
     if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "项目地址（求个star⭐）" && link.href.includes("github.com/kw66/photo-hero"))) failures.push(`${name}: project label should link to GitHub`);
     if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "小红书交流帖（求点赞❤️）" && link.href.includes("xhslink.com/o/17XFWimxM94"))) failures.push(`${name}: Xiaohongshu label should link to post`);
     if (!metrics.groupQr.rightSide) failures.push(`${name}: Xiaohongshu QR should sit on the right side of author block`);
@@ -897,7 +900,7 @@ function assertScenario(name, metrics) {
   }
   if (name === "mobile-form-economy") {
     const formChecks = metrics.formEconomy || {};
-    if (formChecks.shield !== 15) failures.push(`${name}: mega shield should add 15 shield`);
+    if (formChecks.shield !== 18) failures.push(`${name}: mega shield should add 18 shield`);
     if (formChecks.shieldAvatar?.dataFormKey !== "shield") {
       failures.push(`${name}: main avatar card should expose shield form key, got ${JSON.stringify(formChecks.shieldAvatar)}`);
     }
@@ -966,7 +969,7 @@ function assertScenario(name, metrics) {
     }
     const badgeKey = (entry) => `${entry.stat}:${entry.text}`;
     const attackBadges = (formChecks.formBattleBadges?.attack?.badges || []).map(badgeKey);
-    if (!attackBadges.includes("attack:+3") || !attackBadges.includes("defense:-1")) {
+    if (!attackBadges.includes("attack:+4") || !attackBadges.includes("defense:-1")) {
       failures.push(`${name}: attack form battle avatar should show attack gain and defense loss, got ${JSON.stringify(formChecks.formBattleBadges?.attack)}`);
     }
     const angryBadges = (formChecks.formBattleBadges?.angry?.badges || []).map(badgeKey);
@@ -2651,6 +2654,25 @@ function assertScenario(name, metrics) {
         rightBadge: attackCapSlot?.querySelector(".slot-battle-badge-right")?.textContent?.trim() || "",
       };
 
+      hooks.resetGameForTest();
+      hooks.addSpecialItem("shieldReflect", { itemName: "反伤护盾测试壳", description: "shield shell thorn reflect", value: 16, stats: {}, specialAffinity: ["shieldReflect"] });
+      hooks.setHeroStats({ hp: 80, baseHp: 80, baseAtk: 1, baseDef: 0, baseShield: 8, shield: 8 });
+      hooks.setEnemies([{ ...makeEnemy("reflect-target", 20), hp: 18, maxHp: 18, atk: 6, def: 0 }]);
+      hooks.selectEnemies(["reflect-target"]);
+      hooks.beginBattle(hooks.state.enemies);
+      hooks.resolveMonsterStrike(hooks.state.enemies[0], hooks.getBattleStatsForTest(), 1);
+      hooks.render();
+      const reflectSlot = document.querySelector(".equipment-slot.has-item");
+      const reflectState = hooks.state.inventory
+        .find((item) => item?.specialEffects?.includes("shieldReflect"))
+        ?.specialState?.shieldReflect || {};
+      const reflectAfterShieldHit = {
+        enemyHp: hooks.state.enemies[0]?.hp,
+        playerShield: hooks.state.player.shield,
+        badge: reflectSlot?.querySelector(".slot-battle-badge-right")?.textContent?.trim() || "",
+        recorded: reflectState.battleValue || 0,
+      };
+
       window.__reviewGroupSpecials = {
         sweepLeftHp,
         sweepCenterHp,
@@ -2683,6 +2705,7 @@ function assertScenario(name, metrics) {
         bloodrageAtk,
         bloodrageReadout,
         attackCapState,
+        reflectAfterShieldHit,
       };
     });
   });
@@ -2976,6 +2999,8 @@ function assertScenario(name, metrics) {
         archmageStats,
         archmageSummonState,
         archmageSummonHpChanged: archmageSummonState.hpAfter !== archmageSummonState.hpBefore,
+        archmageSummonHpBefore: archmageSummonState.hpBefore,
+        archmageSummonHpAfter: archmageSummonState.hpAfter,
         archmageSummonLeftHp: archmageSummonState.leftHp,
         archmageSummonActiveOrder: archmageSummonState.activeOrderTypes,
         archmageSummonDrops: archmageSummonState.drops,
