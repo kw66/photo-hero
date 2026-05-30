@@ -207,7 +207,7 @@ const battleRoundBaseMs = 1000;
 const battleHitEffectMs = 260;
 const battleRoundLimitsByEnemyCount = [0, 100, 150, 200];
 const bossBattleRoundLimit = 200;
-const visionTestTimeoutMs = 30000;
+const visionTestTimeoutMs = 60000;
 const photoAnalyzeTimeoutMs = 45000;
 const duplicateCompareTimeoutMs = 20000;
 const imageDecodeTimeoutMs = 15000;
@@ -639,10 +639,11 @@ const defaultAudioSettings = {
   sfxEnabled: true,
   bgmEnabled: true,
   sfxVolume: 0.45,
-  bgmVolume: 0.22,
+  bgmVolume: 0.35,
 };
 
 const sfxGainBoost = 2.1;
+const bgmGainBoost = 1.8;
 let gameAudioContext = null;
 const mediaAudioNodes = new WeakMap();
 const sfxAudioBaseVolumes = new WeakMap();
@@ -675,6 +676,7 @@ const audioRecoveryCooldownMs = 180;
 const bgmLoopDelayMs = 1000;
 const bgmCrossfadeMs = 720;
 const bgmCrossfadeStepMs = 60;
+const bgmWatchdogStallMs = 3600;
 const sfxPoolSize = 5;
 const sfxPoolMaxSize = 8;
 const bootImagePreloadTimeoutMs = 8000;
@@ -1523,12 +1525,38 @@ function updateActiveSfxAudioVolumes() {
   const context = gameAudioContext;
   for (const audio of activeSfxAudios) {
     const baseVolume = sfxAudioBaseVolumes.get(audio) ?? 1;
-    if (context?.state === "running" && setBoostedAudioGain(audio, getEffectiveSfxGain(baseVolume))) {
+    if (state.audioSettings.sfxEnabled && state.audioSettings.sfxVolume > 0 && context?.state === "running" && setBoostedAudioGain(audio, getEffectiveSfxGain(baseVolume), "sfx")) {
       audio.volume = 1;
     } else {
-      audio.volume = getElementSafeSfxVolume(baseVolume);
+      audio.volume = state.audioSettings.sfxEnabled ? getElementSafeSfxVolume(baseVolume) : 0;
     }
   }
+}
+
+function updateBgmAudioGain(audio) {
+  if (!audio) return false;
+  const existingNode = mediaAudioNodes.get(audio);
+  if (!state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0) {
+    if (existingNode?.kind === "bgm") {
+      existingNode.gain.gain.value = 0;
+      audio.volume = 1;
+      return true;
+    }
+    audio.volume = 0;
+    return false;
+  }
+  const context = gameAudioContext;
+  if (context?.state === "running" && setBoostedAudioGain(audio, getEffectiveBgmGainForAudio(audio), "bgm")) {
+    audio.volume = 1;
+    return true;
+  }
+  if (existingNode?.kind === "bgm") {
+    existingNode.gain.gain.value = getEffectiveBgmGainForAudio(audio);
+    audio.volume = 1;
+    return true;
+  }
+  audio.volume = getBgmVolumeForAudio(audio);
+  return false;
 }
 
 function clearAudioRecoveryRetry() {
@@ -1663,8 +1691,8 @@ function checkBgmWatchdog() {
     return;
   }
 
-  if (now - state.bgmWatchProgressAt > 2600) {
-    recoverGameAudio("watchdog-bgm-stalled", { force: true, restartPlaying: true });
+  if (now - state.bgmWatchProgressAt > bgmWatchdogStallMs) {
+    recoverGameAudio("watchdog-bgm-stalled", { force: true });
     state.bgmWatchProgressAt = now;
   }
 }
@@ -1697,7 +1725,7 @@ function playSoundEffect(key, options = {}) {
     sfxAudioBaseVolumes.set(audio, baseVolume);
     audio.volume = getElementSafeSfxVolume(baseVolume);
     const context = gameAudioContext;
-    if (context?.state === "running" && attachBoostedAudioNode(audio, getEffectiveSfxGain(baseVolume))) {
+    if (context?.state === "running" && attachBoostedAudioNode(audio, getEffectiveSfxGain(baseVolume), "sfx")) {
       audio.volume = 1;
     }
     activeSfxAudios.add(audio);
@@ -1707,7 +1735,7 @@ function playSoundEffect(key, options = {}) {
       audio.removeEventListener("error", cleanup);
       if (cleanupTimer) window.clearTimeout(cleanupTimer);
       cleanupTimer = 0;
-      if (!pooledSfxAudios.has(audio)) detachBoostedAudioNode(audio);
+      if (!pooledSfxAudios.has(audio)) detachBoostedAudioNode(audio, "sfx");
       activeSfxAudios.delete(audio);
       sfxCleanupCallbacks.delete(audio);
     };
@@ -1743,7 +1771,12 @@ function getEffectiveSfxGain(baseVolume = 1) {
 }
 
 function getEffectiveBgmGain() {
-  return getElementSafeBgmVolume();
+  return getElementSafeBgmVolume() * bgmGainBoost;
+}
+
+function getEffectiveBgmGainForAudio(audio) {
+  const scale = bgmFadeScales.has(audio) ? bgmFadeScales.get(audio) : 1;
+  return Math.max(0, getEffectiveBgmGain() * clampNumber(scale, 0, 1));
 }
 
 function ensureGameAudioContext() {
@@ -1776,39 +1809,43 @@ function resumeGameAudioContext() {
   return context;
 }
 
-function attachBoostedAudioNode(audio, gainValue) {
+function attachBoostedAudioNode(audio, gainValue, kind = "") {
   if (!audio) return false;
   const context = ensureGameAudioContext();
   if (!context || context.state !== "running") return false;
   try {
     const existing = mediaAudioNodes.get(audio);
     if (existing) {
+      if (kind && existing.kind && existing.kind !== kind) return false;
       existing.gain.gain.value = Math.max(0, gainValue);
+      if (kind) existing.kind = kind;
       return true;
     }
     const source = context.createMediaElementSource(audio);
     const gain = context.createGain();
     gain.gain.value = Math.max(0, gainValue);
     source.connect(gain).connect(context.destination);
-    mediaAudioNodes.set(audio, { source, gain });
+    mediaAudioNodes.set(audio, { source, gain, kind });
     return true;
   } catch {
     return false;
   }
 }
 
-function setBoostedAudioGain(audio, gainValue) {
+function setBoostedAudioGain(audio, gainValue, kind = "") {
   const existing = mediaAudioNodes.get(audio);
   if (existing) {
+    if (kind && existing.kind && existing.kind !== kind) return false;
     existing.gain.gain.value = Math.max(0, gainValue);
     return true;
   }
-  return attachBoostedAudioNode(audio, gainValue);
+  return attachBoostedAudioNode(audio, gainValue, kind);
 }
 
-function detachBoostedAudioNode(audio) {
+function detachBoostedAudioNode(audio, kind = "") {
   const existing = mediaAudioNodes.get(audio);
   if (!existing) return;
+  if (kind && existing.kind && existing.kind !== kind) return;
   try {
     existing.source.disconnect();
     existing.gain.disconnect();
@@ -1876,7 +1913,7 @@ function scheduleBgmLoopRestart(key, audio) {
 
 function updateBgmAudioElementVolume(audio) {
   if (!audio) return;
-  audio.volume = getBgmVolumeForAudio(audio);
+  updateBgmAudioGain(audio);
 }
 
 function clearBgmFade(audio) {
@@ -2050,6 +2087,7 @@ function pauseOrResumeBgm() {
   updateBgmVolume();
   if (!state.audioUnlocked || !state.audioSettings.bgmEnabled || state.audioSettings.bgmVolume <= 0) {
     stopBgmAudioElement(state.bgmAudio);
+    stopOtherBgmAudioElements(state.bgmAudio);
     resetBgmWatchProgress();
     return;
   }
@@ -2062,7 +2100,10 @@ function pauseOrResumeBgm() {
 function playCurrentBgmAudio(options = {}) {
   const audio = state.bgmAudio;
   if (!audio) return;
-  if (isBgmPlaying(audio) && !options.force) return;
+  if (isBgmPlaying(audio) && !options.force) {
+    updateBgmAudioElementVolume(audio);
+    return;
+  }
   if (!options.force && getBgmLoopHoldRemaining(audio) > 0) return;
   clearBgmLoopRestart("", audio);
   bgmLoopHoldUntil.set(audio, 0);
@@ -2201,7 +2242,7 @@ function readAudioSettingsFromInputs() {
 function applyAudioSettingsFromInputs(persist = true) {
   state.audioSettings = normalizeAudioSettings(readAudioSettingsFromInputs());
   for (const effect of Object.values(soundEffects)) {
-    if (effect.audio) effect.audio.volume = getElementSafeSfxVolume(effect.volume);
+    if (effect.audio) effect.audio.volume = state.audioSettings.sfxEnabled ? getElementSafeSfxVolume(effect.volume) : 0;
   }
   updateActiveSfxAudioVolumes();
   updateBgmVolume();
@@ -4099,19 +4140,22 @@ async function testVisionApi() {
 
 async function callVisionText(config, image) {
   let response;
+  const isExperience = isExperienceConfig(config);
   const body = withProviderRequestOptions(config, {
     model: config.model,
     temperature: 0.2,
     max_tokens: 96,
-    experienceTask: isExperienceConfig(config) ? "vision_test" : undefined,
+    experienceTask: isExperience ? "vision_test" : undefined,
     messages: [
-      {
+      ...(isExperience ? [] : [{
         role: "system",
         content: "只输出最终回答，不要输出分析过程、步骤、编号或 Markdown。",
-      },
+      }]),
       {
         role: "user",
-        content: makeVisionUserContent(config, "请识别图片文字，只回复一句中文，格式为“图文模型测试成功：图片里写着……”。不要解释。", [image]),
+        content: isExperience
+          ? [makeImageUrlContentPart(image)]
+          : makeVisionUserContent(config, "请识别图片文字，只回复一句中文，格式为“图文模型测试成功：图片里写着……”。不要解释。", [image]),
       },
     ],
   });
@@ -4121,7 +4165,7 @@ async function callVisionText(config, image) {
       method: "POST",
       headers: buildModelHeaders(config),
       body: JSON.stringify(body),
-    }, visionTestTimeoutMs, "图文模型测试");
+    }, visionTestTimeoutMs, isExperience ? "公共鉴定台测试" : "图文模型测试");
   } catch (error) {
     if (isAbortError(error) || isTimeoutError(error)) throw error;
     throw formatBrowserRequestFailure(config, error, (message) => `浏览器直连失败：${message}。如果这是 CORS 错误，说明该 API 不允许网页直接调用。`);

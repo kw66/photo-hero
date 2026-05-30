@@ -467,7 +467,8 @@ function assertScenario(name, metrics) {
     if (se.modeSwitchDoesNotTouchBgm !== true) failures.push(`${name}: switching photo/drawing mode should not restart or switch BGM, got ${JSON.stringify(se)}`);
     if (se.bgmDelayedLoopRestart !== true) failures.push(`${name}: BGM should restart only after delayed loop handoff, got ${JSON.stringify(se)}`);
     if (se.bgmRecoveredFromPause !== true) failures.push(`${name}: BGM should recover if paused unexpectedly, got ${JSON.stringify(se)}`);
-    if (se.bgmWatchdogRecovered !== true) failures.push(`${name}: BGM watchdog should recover stalled playback, got ${JSON.stringify(se)}`);
+    if (se.bgmWatchdogRecovered !== true) failures.push(`${name}: BGM watchdog should recover stalled playback without forced periodic restarts, got ${JSON.stringify(se)}`);
+    if (se.bgmWatchdogDidNotRestart !== true) failures.push(`${name}: BGM watchdog should not restart an already-playing track, got ${JSON.stringify(se)}`);
     if (se.contextRecoveryAttempted !== true) failures.push(`${name}: audio context recovery should be attempted, got ${JSON.stringify(se)}`);
     if (se.bgmSwitchStartedNewTrack !== true) failures.push(`${name}: BGM switching should start the requested new track, got ${JSON.stringify(se)}`);
     if (se.bgmSwitchStopsOldTrack !== true) failures.push(`${name}: BGM switching should keep the old track during handoff then stop it, got ${JSON.stringify(se)}`);
@@ -481,6 +482,7 @@ function assertScenario(name, metrics) {
       failures.push(`${name}: volume range inputs should not inherit global input padding/border, got ${JSON.stringify(controls)}`);
     }
     if (!controls.battleGainBoosted) failures.push(`${name}: SFX gain should exceed old capped volume at 100%, got ${JSON.stringify(controls)}`);
+    if (!controls.bgmGainBoosted || !controls.bgmZeroStopsGain) failures.push(`${name}: BGM should use effective gain and obey the music volume slider, got ${JSON.stringify(controls)}`);
     const preloadedKeys = preload.completedKeys || preload.blobKeys || preload.keys || [];
     if (!preload.started || preloadedKeys.length < 3) failures.push(`${name}: BGM should preload after audio unlock, got ${JSON.stringify(preload)}`);
     if ((preload.order || [])[0] !== "opening" || !preloadedKeys.includes("opening")) failures.push(`${name}: BGM preload order should begin with opening and opening should be loaded, got ${JSON.stringify(preload)}`);
@@ -754,6 +756,9 @@ function assertScenario(name, metrics) {
     }
     if (api.defaultExperienceTask !== "vision_test" || api.defaultExperienceMaxTokens !== 96) {
       failures.push(`${name}: experience test button should stay a short OCR vision test, got ${JSON.stringify(api)}`);
+    }
+    if (api.defaultExperienceMessageCount !== 1 || api.defaultExperienceTextPartCount !== 0 || !api.defaultExperienceImageOnlyTest) {
+      failures.push(`${name}: experience test should use the Worker fixed OCR prompt with an image-only browser request, got ${JSON.stringify(api)}`);
     }
     if (api.xiaomiPreset !== "xiaomi" || api.xiaomiBaseUrl !== "https://api.xiaomimimo.com/v1") failures.push(`${name}: Xiaomi preset should use the requested base URL, got ${JSON.stringify(api)}`);
     if (api.xiaomiConfigPanelExperience || api.xiaomiConfigGridHidden || !api.xiaomiBaseUrlVisible || !api.xiaomiModelVisible || !api.xiaomiApiKeyVisible || !api.xiaomiSaveVisible) {
@@ -3293,6 +3298,14 @@ function assertScenario(name, metrics) {
         defaultExperienceBodyHasImage: hasImage,
         defaultExperienceTask: body.experienceTask || "",
         defaultExperienceMaxTokens: body.max_tokens,
+        defaultExperienceMessageCount: (body.messages || []).length,
+        defaultExperienceTextPartCount: (body.messages || []).reduce((count, message) => (
+          count + (Array.isArray(message.content) ? message.content.filter((part) => part?.type === "text").length : 0)
+        ), 0),
+        defaultExperienceImageOnlyTest: Boolean(hasImage) && (body.messages || []).length === 1
+          && (body.messages || []).every((message) => Array.isArray(message.content)
+            && message.content.length === 1
+            && message.content[0]?.type === "image_url"),
       };
     }, defaultExperienceRequest);
 
@@ -3419,6 +3432,9 @@ function assertScenario(name, metrics) {
       hooks.setAudioSettings({ sfxEnabled: true, sfxVolume: 1, bgmEnabled: true, bgmVolume: 1 });
       const battleGain = hooks.getEffectiveAudioGainForTest?.("battleHit", "sfx") || 0;
       const bgmGain = hooks.getEffectiveAudioGainForTest?.("", "bgm") || 0;
+      hooks.setAudioSettings({ bgmEnabled: true, bgmVolume: 0 });
+      const bgmZeroGain = hooks.getEffectiveAudioGainForTest?.("", "bgm") || 0;
+      hooks.setAudioSettings({ sfxEnabled: true, sfxVolume: 1, bgmEnabled: true, bgmVolume: 1 });
       window.__reviewAudioControls = {
         sfxFill,
         bgmFill,
@@ -3430,8 +3446,11 @@ function assertScenario(name, metrics) {
         sliderBorderRight: sliderStyle.borderRightWidth,
         battleGain,
         bgmGain,
+        bgmZeroGain,
         battleGainBoosted: battleGain > 0.58,
         bgmNativeVolume: bgmGain <= 1,
+        bgmGainBoosted: bgmGain > 1,
+        bgmZeroStopsGain: bgmZeroGain === 0,
       };
       document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 360));
@@ -3459,10 +3478,12 @@ function assertScenario(name, metrics) {
       await new Promise((resolve) => setTimeout(resolve, 220));
       const recoveredBgmState = hooks.getBgmPlaybackStateForTest?.() || {};
       const recoveryBeforeWatchdog = hooks.getAudioRecoveryStateForTest?.() || {};
+      const watchdogTokenBefore = (hooks.getBgmPlaybackStateForTest?.() || {}).playAttemptToken || 0;
       hooks.forceBgmStalledForTest?.();
       hooks.checkBgmWatchdogForTest?.();
       await new Promise((resolve) => setTimeout(resolve, 120));
       const recoveryAfterWatchdog = hooks.getAudioRecoveryStateForTest?.() || {};
+      const watchdogTokenAfter = (hooks.getBgmPlaybackStateForTest?.() || {}).playAttemptToken || 0;
       await hooks.suspendAudioContextForTest?.();
       const recoveryBeforeContext = hooks.getAudioRecoveryStateForTest?.() || {};
       const recoveryAfterContext = hooks.recoverGameAudioAndWaitForTest
@@ -3592,6 +3613,7 @@ function assertScenario(name, metrics) {
         bgmDelayedLoopRestart: loopWaitState.playAttemptToken === sameTrackRefreshState.playAttemptToken && loopWaitState.loopRestartScheduled === true && loopRestartState.playAttemptToken > loopWaitState.playAttemptToken,
         bgmRecoveredFromPause: recoveredBgmState.hasAudio && recoveredBgmState.paused === false,
         bgmWatchdogRecovered: (recoveryAfterWatchdog.count || 0) > (recoveryBeforeWatchdog.count || 0),
+        bgmWatchdogDidNotRestart: watchdogTokenAfter === watchdogTokenBefore,
         contextRecoveryAttempted: (recoveryAfterContext.count || 0) > (recoveryBeforeContext.count || 0),
         bgmSwitchStartedNewTrack: area1BgmState.key === "area1" && bossBgmState.key === "skeletonCaptain" && bossBgmState.hasAudio,
         bgmSwitchStopsOldTrack: area1DuringSwitchState.paused === false && area1AfterSwitchState.paused === true,
