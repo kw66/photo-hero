@@ -841,11 +841,11 @@ function assertScenario(name, metrics) {
     if (!metrics.groupQr.loaded || !metrics.groupQr.src.includes("xiaohongshu-group-qr.jpg")) failures.push(`${name}: Xiaohongshu QR image did not load`);
     if (!metrics.groupQr.square) failures.push(`${name}: Xiaohongshu QR image should be square`);
     if (metrics.groupQr.text !== "加入小红书交流群") failures.push(`${name}: Xiaohongshu QR copy should be 加入小红书交流群`);
-    if (!/项目页查看更新记录/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing compact project link copy`);
-    if (!/交流帖分享你的装备/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing compact Xiaohongshu post copy`);
-    if (/github\.com\/kw66\/photo-hero|打开帖子|小红书帖子|求个|求点赞|作者\/统计|全站统计/.test(metrics.groupQr.linksText || "")) failures.push(`${name}: author block still exposes old/manual link text`);
-    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "项目页查看更新记录" && link.href.includes("github.com/kw66/photo-hero"))) failures.push(`${name}: project label should link to GitHub`);
-    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "交流帖分享你的装备" && link.href.includes("xhslink.com/o/17XFWimxM94"))) failures.push(`${name}: Xiaohongshu label should link to post`);
+    if (!/项目地址（求个star⭐）/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing restored project link copy`);
+    if (!/小红书交流帖（求点赞❤️）/.test(metrics.groupQr.projectSocialText || "")) failures.push(`${name}: missing restored Xiaohongshu post copy`);
+    if (/github\.com\/kw66\/photo-hero|打开帖子|小红书帖子|作者\/统计|全站统计/.test(metrics.groupQr.linksText || "")) failures.push(`${name}: author block still exposes old/manual link text`);
+    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "项目地址（求个star⭐）" && link.href.includes("github.com/kw66/photo-hero"))) failures.push(`${name}: project label should link to GitHub`);
+    if (!metrics.groupQr.projectSocialLinks?.some((link) => link.text === "小红书交流帖（求点赞❤️）" && link.href.includes("xhslink.com/o/17XFWimxM94"))) failures.push(`${name}: Xiaohongshu label should link to post`);
     if (!metrics.groupQr.rightSide) failures.push(`${name}: Xiaohongshu QR should sit on the right side of author block`);
     if (metrics.statLabels.includes("装备")) failures.push(`${name}: old generic equipment stat label should be split into photo/drawing equipment`);
     if (metrics.statCardCount !== 11) failures.push(`${name}: expected 11 global stat cards, got ${metrics.statCardCount}`);
