@@ -752,6 +752,9 @@ function assertScenario(name, metrics) {
     if (!api.defaultExperienceRequestSeen || api.defaultExperienceUsesAuthorizationHeader || !api.defaultExperienceBodyHasImage) {
       failures.push(`${name}: experience browser request should use proxy without Authorization and include an image, got ${JSON.stringify(api)}`);
     }
+    if (api.defaultExperienceTask !== "vision_test" || api.defaultExperienceMaxTokens !== 96) {
+      failures.push(`${name}: experience test button should stay a short OCR vision test, got ${JSON.stringify(api)}`);
+    }
     if (api.xiaomiPreset !== "xiaomi" || api.xiaomiBaseUrl !== "https://api.xiaomimimo.com/v1") failures.push(`${name}: Xiaomi preset should use the requested base URL, got ${JSON.stringify(api)}`);
     if (api.xiaomiConfigPanelExperience || api.xiaomiConfigGridHidden || !api.xiaomiBaseUrlVisible || !api.xiaomiModelVisible || !api.xiaomiApiKeyVisible || !api.xiaomiSaveVisible) {
       failures.push(`${name}: non-experience presets should show URL/model/key/save controls, got ${JSON.stringify(api)}`);
@@ -3288,6 +3291,8 @@ function assertScenario(name, metrics) {
         defaultExperienceRequestSeen: Boolean(request),
         defaultExperienceUsesAuthorizationHeader: Boolean(request?.headers?.authorization),
         defaultExperienceBodyHasImage: hasImage,
+        defaultExperienceTask: body.experienceTask || "",
+        defaultExperienceMaxTokens: body.max_tokens,
       };
     }, defaultExperienceRequest);
 

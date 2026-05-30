@@ -4084,10 +4084,8 @@ async function testVisionApi() {
   setChatResult(isExperience ? "正在测试公共鉴定台..." : "正在测试图文模型...");
 
   try {
-    const content = isExperience
-      ? await callExperienceAppraisal(config, makeVisionTestImage())
-      : await callVisionText(config, makeVisionTestImage());
-    const result = isExperience ? formatExperienceTestResult(content) : formatVisionTestResult(content);
+    const content = await callVisionText(config, makeVisionTestImage());
+    const result = formatVisionTestResult(content);
     setChatResult(result.message, result.isError);
     addLog(result.isError ? (isExperience ? "公共鉴定台测试失败。" : "图文模型测试失败。") : (isExperience ? "公共鉴定台测试成功。" : "图文模型测试成功。"));
   } catch (error) {
@@ -4105,6 +4103,7 @@ async function callVisionText(config, image) {
     model: config.model,
     temperature: 0.2,
     max_tokens: 96,
+    experienceTask: isExperienceConfig(config) ? "vision_test" : undefined,
     messages: [
       {
         role: "system",
@@ -4138,42 +4137,6 @@ async function callVisionText(config, image) {
   const reasoning = readModelText(payload, { reasoningOnly: true });
   if (reasoning) return reasoning;
   throw new Error(`模型没有返回最终文本内容。响应结构：${summarizePayloadShape(payload)}`);
-}
-
-async function callExperienceAppraisal(config, image) {
-  let response;
-  const body = {
-    model: config.model,
-    temperature: 0.35,
-    max_tokens: 512,
-    sourceMode: normalizeHeroMode(state.playMode),
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: "请对这张图片做一次公共鉴定台测试，按鉴定台要求返回装备 JSON。" },
-          { type: "image_url", image_url: { url: image, detail: "low" } },
-        ],
-      },
-    ],
-  };
-
-  try {
-    response = await fetchJsonWithTimeout(buildChatEndpoint(config.baseUrl), {
-      method: "POST",
-      headers: buildModelHeaders(config),
-      body: JSON.stringify(body),
-    }, visionTestTimeoutMs, "公共鉴定台测试");
-  } catch (error) {
-    if (isAbortError(error) || isTimeoutError(error)) throw error;
-    throw formatBrowserRequestFailure(config, error, (message) => `浏览器直连失败：${message}。如果这是 CORS 错误，说明该 API 不允许网页直接调用。`);
-  }
-
-  if (!response.response.ok) {
-    throw new Error(readUpstreamError(response.payload) || `模型接口返回 ${response.response.status}`);
-  }
-
-  return response.payload;
 }
 
 function formatVisionTestResult(content) {
@@ -4220,16 +4183,6 @@ function formatVisionTestResult(content) {
     message: "模型有返回，但没有识别出测试图里的“照片勇者 / VISION OK”。请换成真正支持图片输入的模型。",
     isError: true,
   };
-}
-
-function formatExperienceTestResult(payload) {
-  const text = readModelText(payload);
-  const item = text ? extractJson(text, payload) : null;
-  if (!item) {
-    return { message: "公共鉴定台有返回，但没有形成可解析的装备结果。", isError: true };
-  }
-  const summary = `${formatItemDisplayName(item)} · ${getItemQuality(scoreItem(item)).label} · ${formatSignedNumber(item.value || 0)}`;
-  return { message: `公共鉴定台测试成功：${summary}`, isError: false };
 }
 
 function cleanModelDisplayLine(line) {

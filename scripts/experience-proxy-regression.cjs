@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 
 (async () => {
-  const { experienceModel, sanitizeExperienceBody, buildExperienceBody, experienceSystemPrompt, experienceUserPrompt } = await import("../server.js?test=experience-proxy");
+  const { experienceModel, sanitizeExperienceBody, buildExperienceBody, experienceSystemPrompt, experienceUserPrompt, experienceVisionTestSystemPrompt, experienceVisionTestUserPrompt } = await import("../server.js?test=experience-proxy");
   const worker = await import("../workers/experience-proxy.js");
 
   const sanitized = sanitizeExperienceBody({
@@ -36,6 +36,10 @@ const assert = require("node:assert/strict");
   assert.ok(worker.experienceDrawingUserPromptLines.includes("鉴定这张简笔画里的一个主体，输出装备素材 JSON。"));
   assert.ok(experienceSystemPrompt.includes("公共鉴定台"));
   assert.ok(experienceUserPrompt.includes("装备素材 JSON"));
+  assert.ok(worker.experienceVisionTestSystemPrompt.includes("只输出最终回答"));
+  assert.ok(worker.experienceVisionTestUserPrompt.includes("图文模型测试成功"));
+  assert.ok(experienceVisionTestSystemPrompt.includes("只输出最终回答"));
+  assert.ok(experienceVisionTestUserPrompt.includes("图文模型测试成功"));
 
   assert.throws(() => sanitizeExperienceBody({
     model: "attacker-model",
@@ -81,5 +85,24 @@ const assert = require("node:assert/strict");
   assert.ok(String(localBuilt.messages[1].content[0].text).includes("装备素材 JSON"));
   assert.ok(localBuilt.messages[1].content.some((part) => part.type === "image_url"));
 
-  console.log(JSON.stringify({ ok: true, model: sanitized.model, workerModel: worker.experienceModel, sourceMode: sanitized.sourceMode }, null, 2));
+  const visionTestBody = {
+    ...sanitized,
+    experienceTask: "vision_test",
+    sourceMode: "drawing",
+  };
+  const workerVisionTest = worker.buildExperienceBody(visionTestBody);
+  assert.equal(workerVisionTest.sourceMode, undefined);
+  assert.equal(workerVisionTest.max_tokens, 96);
+  assert.ok(String(workerVisionTest.messages[0].content).includes("只输出最终回答"));
+  assert.ok(String(workerVisionTest.messages[1].content[0].text).includes("图文模型测试成功"));
+  assert.ok(!String(workerVisionTest.messages[0].content).includes("画图勇者"));
+  assert.ok(!String(workerVisionTest.messages[1].content[0].text).includes("装备素材 JSON"));
+
+  const localVisionTest = buildExperienceBody(visionTestBody);
+  assert.equal(localVisionTest.max_tokens, 96);
+  assert.ok(String(localVisionTest.messages[0].content).includes("只输出最终回答"));
+  assert.ok(String(localVisionTest.messages[1].content[0].text).includes("图文模型测试成功"));
+  assert.ok(!String(localVisionTest.messages[1].content[0].text).includes("装备素材 JSON"));
+
+  console.log(JSON.stringify({ ok: true, model: sanitized.model, workerModel: worker.experienceModel, sourceMode: sanitized.sourceMode, visionTest: true }, null, 2));
 })();

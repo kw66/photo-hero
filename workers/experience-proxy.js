@@ -10,6 +10,9 @@ const rateLimitMax = 20;
 const visitorBuckets = new Map();
 let inFlight = 0;
 
+const experienceVisionTestSystemPrompt = "只输出最终回答，不要输出分析过程、步骤、编号或 Markdown。";
+const experienceVisionTestUserPrompt = "请识别图片文字，只回复一句中文，格式为“图文模型测试成功：图片里写着……”。不要解释。";
+
 const experiencePhotoSystemPrompt = [
   "你是《照片勇者》的公共鉴定台。只输出一个 JSON 对象：第一个字符是 {，最后一个字符是 }，不要 Markdown、代码块或任何解释。",
   "你的任务：认出图片里的一个主体、判断它是不是能带进塔的装备，并按 rubric 给出质量分、属性倾向和简短描述。",
@@ -65,7 +68,7 @@ export default {
   },
 };
 
-export { experienceModel, experiencePhotoSystemPrompt as experienceSystemPrompt, experiencePhotoUserPrompt as experienceUserPrompt, experienceDrawingSystemPrompt, experienceDrawingUserPrompt, buildExperienceBody, pickFirstImageUrl };
+export { experienceModel, experiencePhotoSystemPrompt as experienceSystemPrompt, experiencePhotoUserPrompt as experienceUserPrompt, experienceDrawingSystemPrompt, experienceDrawingUserPrompt, experienceVisionTestSystemPrompt, experienceVisionTestUserPrompt, buildExperienceBody, pickFirstImageUrl };
 
 export async function handleExperienceRequest(request, env = {}) {
   const url = new URL(request.url);
@@ -137,6 +140,7 @@ export function sanitizeExperienceBody(body) {
   return {
     ...body,
     sourceMode: normalizeSourceMode(body.sourceMode || body.source_mode || "photo"),
+    experienceTask: normalizeExperienceTask(body.experienceTask || body.experience_task || ""),
     model: experienceModel,
     stream: false,
     max_tokens: clampNumber(body.max_tokens, 32, 640, 512),
@@ -147,6 +151,26 @@ export function sanitizeExperienceBody(body) {
 function buildExperienceBody(body) {
   const safe = body && typeof body === "object" ? body : {};
   const image = pickFirstImageUrl(safe.messages);
+  if (normalizeExperienceTask(safe.experienceTask || safe.experience_task || "") === "vision_test") {
+    return {
+      model: experienceModel,
+      stream: false,
+      enable_thinking: false,
+      thinking: { type: "disabled" },
+      temperature: clampNumber(safe.temperature, 0, 1, 0.2),
+      max_tokens: 96,
+      messages: [
+        { role: "system", content: experienceVisionTestSystemPrompt },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: experienceVisionTestUserPrompt },
+            ...(image ? [{ type: "image_url", image_url: { url: image, detail: "low" } }] : []),
+          ],
+        },
+      ],
+    };
+  }
   const sourceMode = normalizeSourceMode(safe.sourceMode || safe.source_mode || "photo");
   const promptBundle = buildExperiencePromptBundle(sourceMode);
   return {
@@ -184,6 +208,10 @@ function buildExperiencePromptBundle(sourceMode) {
 
 function normalizeSourceMode(value) {
   return String(value || "").toLowerCase() === "drawing" ? "drawing" : "photo";
+}
+
+function normalizeExperienceTask(value) {
+  return String(value || "").toLowerCase() === "vision_test" ? "vision_test" : "";
 }
 
 function pickFirstImageUrl(messages) {

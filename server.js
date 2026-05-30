@@ -16,6 +16,9 @@ const experienceRateLimitMax = Number(process.env.PHOTO_HERO_EXPERIENCE_RATE_LIM
 const experienceVisitors = new Map();
 let experienceInFlight = 0;
 
+const experienceVisionTestSystemPrompt = "只输出最终回答，不要输出分析过程、步骤、编号或 Markdown。";
+const experienceVisionTestUserPrompt = "请识别图片文字，只回复一句中文，格式为“图文模型测试成功：图片里写着……”。不要解释。";
+
 const experiencePhotoSystemPrompt = [
   "你是《照片勇者》的公共鉴定台。只输出一个 JSON 对象：第一个字符是 {，最后一个字符是 }，不要 Markdown、代码块或任何解释。",
   "你的任务：认出图片里的一个主体、判断它是不是能带进塔的装备，并按 rubric 给出质量分、属性倾向和简短描述。",
@@ -66,6 +69,7 @@ export const experienceSystemPromptLines = experiencePhotoSystemPrompt.split("\n
 export const experienceUserPromptLines = experiencePhotoUserPrompt.split("\n");
 export const experienceDrawingSystemPromptLines = experienceDrawingSystemPrompt.split("\n");
 export const experienceDrawingUserPromptLines = experienceDrawingUserPrompt.split("\n");
+export { experienceVisionTestSystemPrompt, experienceVisionTestUserPrompt };
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -205,6 +209,26 @@ function buildUpstreamChatUrl() {
 export function buildExperienceBody(body) {
   const safe = body && typeof body === "object" ? body : {};
   const image = pickFirstImageUrl(safe.messages);
+  if (normalizeExperienceTask(safe.experienceTask || safe.experience_task || "") === "vision_test") {
+    return {
+      model: experienceModel,
+      stream: false,
+      enable_thinking: false,
+      thinking: { type: "disabled" },
+      temperature: clampNumber(safe.temperature, 0, 1, 0.2),
+      max_tokens: 96,
+      messages: [
+        { role: "system", content: experienceVisionTestSystemPrompt },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: experienceVisionTestUserPrompt },
+            ...(image ? [{ type: "image_url", image_url: { url: image, detail: "low" } }] : []),
+          ],
+        },
+      ],
+    };
+  }
   const sourceMode = normalizeSourceMode(safe.sourceMode || safe.source_mode || "photo");
   const promptBundle = buildExperiencePromptBundle(sourceMode);
   return {
@@ -251,6 +275,7 @@ export function sanitizeExperienceBody(body) {
   return {
     ...body,
     sourceMode: normalizeSourceMode(body.sourceMode || body.source_mode || "photo"),
+    experienceTask: normalizeExperienceTask(body.experienceTask || body.experience_task || ""),
     model: experienceModel,
     stream: false,
     max_tokens: clampNumber(body.max_tokens, 32, 640, 512),
@@ -265,6 +290,10 @@ function hasImageInput(messages) {
 
 function normalizeSourceMode(value) {
   return String(value || "").toLowerCase() === "drawing" ? "drawing" : "photo";
+}
+
+function normalizeExperienceTask(value) {
+  return String(value || "").toLowerCase() === "vision_test" ? "vision_test" : "";
 }
 
 function pickFirstImageUrl(messages) {
