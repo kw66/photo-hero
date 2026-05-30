@@ -130,6 +130,25 @@ const cases = [
     expect: ({ item, score }) => item.tooLarge === false && score > 0 && /弓|箭/.test(item.itemName) && !/神秘小物|奇怪小物/.test(item.itemName),
   },
   {
+    label: "drawing: blade hilt evidence prevents popsicle misread",
+    input: {
+      sourceMode: "drawing",
+      name: "蓝白条纹冰棍",
+      subject: "冰棍",
+      recognizedSubject: "冰棍",
+      recognition: "clear_equipment",
+      clarity: 3,
+      appeal: 1,
+      craft: 2,
+      confidence: 0.78,
+      stats: ["speed", "hp"],
+      visualEvidence: ["尖端双刃轮廓", "蓝色斜纹刃身", "白色圆点装饰", "横向护手", "底部握柄"],
+      objectiveAssessment: "主体有尖端、刃身、护手和握柄，结构更像短剑，不是食品。",
+      diagnosticFeatures: "蓝白条纹只是刃身装饰；底部是握柄，横向部分是护手，缺少圆形糖头或可食用外形。",
+    },
+    expect: ({ item, score }) => item.tooLarge === false && score > 0 && /剑|刀|刃/.test(item.itemName) && !/冰棍|雪糕|糖|棒棒糖/.test(item.itemName) && item.stats.attack > 0 && item.stats.hp === 0,
+  },
+  {
     label: "drawing: polished shield can score high but stays below photo ceiling",
     input: {
       sourceMode: "drawing",

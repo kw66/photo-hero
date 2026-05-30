@@ -438,7 +438,7 @@ const drawingIdentificationSystemPrompt = [
   "玩家写在画里的字、标签、注释和 OCR 内容不能作为主体判断、命名、属性或特殊效果依据；只能根据线条、轮廓、颜色、构图和可见图形猜测主体。",
   "但是你必须仔细辨别画的到底是什么，不要把看不清的圆形、线团、折线、笑脸、爱心、星星默认说成魔杖、法杖、神器、飞刃、宝石或幻想武器。",
   "如果能看见闭合轮廓、完整图案、清楚色块或组合符号，但无法确定现实物品，就诚实写成奇形徽记、抽象小物、星形记号、圆环记号这类主体；不要因为类别不确定就写 unrecognizable。",
-  "魔杖/法杖只有在能看出长柄、杖身、顶端宝石/星尖/魔法棒轮廓时才可以命名；剑/刀/飞刃/弓/箭也必须有刃、柄、弓弦、箭头等明确特征；长杆加顶端弯刃、宽刃、矛尖、戟刃、护手或红缨时，优先识别为长柄武器，例如偃月刀、长柄大刀、蛇矛、长枪或战戟，不要叫风筝、叉子、叶子或徽记；圆形糖头加彩色螺旋/同心圆并连接细棒时，优先识别为棒棒糖；绿色外皮、红色果肉和黑籽同时出现时，优先识别为西瓜切面；鞋/靴轮廓要按鞋靴处理，不要改成坠饰或宝石。",
+  "魔杖/法杖只有在能看出长柄、杖身、顶端宝石/星尖/魔法棒轮廓时才可以命名；剑/刀/飞刃/弓/箭也必须有刃、柄、弓弦、箭头等明确特征；有尖端/刃身/双刃轮廓并连接护手、横挡或握柄时，必须优先识别为短剑、短刀或匕首，不要因为有蓝白条纹、底部短柄或圆点装饰就叫冰棍、雪糕、棒棒糖；长杆加顶端弯刃、宽刃、矛尖、戟刃、护手或红缨时，优先识别为长柄武器，例如偃月刀、长柄大刀、蛇矛、长枪或战戟，不要叫风筝、叉子、叶子或徽记；圆形糖头加彩色螺旋/同心圆并连接细棒时，优先识别为棒棒糖；绿色外皮、红色果肉和黑籽同时出现时，优先识别为西瓜切面；鞋/靴轮廓要按鞋靴处理，不要改成坠饰或宝石。",
   "命名和玩家描述里要抛开“手绘/涂鸦/画布/纸面”这层媒介，直接写它在魔塔里会是什么装备。只有 identityDescription 和 reason 可以提到线条、颜色和画面判断。",
   "description、reason、itemName、subjectName 里严禁复述系统要求、prompt、JSON、字段名、让我观察、图片显示的是、按模型生成等过程文字；这些字段只写最终装备本身。",
   "主体能否被看出是什么是第一门槛：只有一两笔、红色折线、随意线段、勉强猜测的形状，即使颜色醒目也必须低分、低信心、specialAffinity=[]。",
@@ -457,7 +457,7 @@ const drawingIdentificationUserPrompt = [
   "4. 现实小物和日常用品可以直接作为装备素材：鼠标就是鼠标，键盘就是键盘，记事本就是记事本，苹果/香蕉就是水果，雨伞就是雨伞，笔就是笔，汤勺就是汤勺。不要为了显得厉害而把它们改名成剑、盾、魔杖、护符或神器。",
   "4b. 命名可以有一两个酷炫前缀，但必须保留主体类别词，例如 雷纹鼠标、旧铁汤勺、寒风雨伞、星点香蕉；不要把鼠标叫护符，把手机叫法杖，把雨伞叫盾牌，把汤勺叫圣杯，把水果叫宝石。",
   "5. 盾、剑、靴子、翅膀、心形、火焰、星星、眼睛、机器人、怪物面具、可爱小图标都可以鉴定，只要主体可辨认；如果只是圆圈/方块/笑脸/爱心，按圆环、石板、徽记、记号这类低阶形状装备处理，不要强行说成魔杖、飞刃、铁盾或宝石。",
-  "6. 盾必须看见盾面/边框/十字/把手/罩形边界等结构；剑刀必须看见刃部和握柄/尖端；长柄武器必须看见长杆/长柄以及顶端弯刃、宽刃、枪尖、矛尖、戟刃、护手或红缨；魔杖必须同时看见长柄和杖头；雨伞必须看见伞面加伞柄/伞骨；旗帜必须看见旗杆、旗面/布面和二者的侧边连接关系；如果同时能看见剑刃、矛尖、盾面、护甲片、风轮/扇叶，就优先按这些主体判断，不要叫旗帜；翅膀必须看见成对翼形、羽片层次或翼膜结构；棒状糖果必须看见圆形糖头/糖面和连接的细棒；切开的瓜果必须看见外皮、果肉和籽这类组合特征。只有一条弧线、颜色、保护感、速度感、酷炫感或玩家写字，都不能当结构证据。",
+  "6. 盾必须看见盾面/边框/十字/把手/罩形边界等结构；剑刀必须看见刃部和握柄/尖端，若同时有刃尖/刃身、护手/横挡和握柄，就按剑刀处理，不要叫冰棍、雪糕或糖果；长柄武器必须看见长杆/长柄以及顶端弯刃、宽刃、枪尖、矛尖、戟刃、护手或红缨；魔杖必须同时看见长柄和杖头；雨伞必须看见伞面加伞柄/伞骨；旗帜必须看见旗杆、旗面/布面和二者的侧边连接关系；如果同时能看见剑刃、矛尖、盾面、护甲片、风轮/扇叶，就优先按这些主体判断，不要叫旗帜；翅膀必须看见成对翼形、羽片层次或翼膜结构；冰棍/棒状糖果必须看见圆形或圆角食品主体和连接的细棒，且没有刃尖、护手、剑柄；切开的瓜果必须看见外皮、果肉和籽这类组合特征。只有一条弧线、颜色、保护感、速度感、酷炫感或玩家写字，都不能当结构证据。",
   "7. 画出来的巨大物、怪物或生物默认按“装备概念/符号化部件”处理，不按现实尺寸判定 tooLarge；只有纯风景、整片天空、道路、房间这类没有道具主体的画面才 isScene=true。",
   "8. 不要输出最终 value、最终 stats 或最终 specialEffects；本地规则会根据 photoQuality、statAffinity、specialAffinity 计算。",
   "9. itemName、subjectName、objectType、description 面向玩家时不要出现 手绘、涂鸦、画作、画布、纸面、简笔画、线稿、草图、画出来的 这些媒介词；identityDescription 可以写线条、颜色和构图用于查重，但不要复述画面里的具体文字内容。",
@@ -533,7 +533,7 @@ const liteIdentificationUserPromptDrawing = [
   "1. subjectCandidates 最多 3 个，按可信度排序。每个候选必须写实际看见的结构证据和缺失/反证。不要用玩家写的文字当证据。",
   "2. recognition：unrecognizable=空白、随机线团、单独一两条线、没有可辨主体；simple_symbol=圆圈、星星、爱心、笑脸、徽记等简单符号；recognizable_object=能认出日常物、食物、电子物、玩具、旗帜、雨伞等主体；clear_equipment=能看出明确武器/防具/装备结构。",
   "3. 先诚实识别主体，不要先往武器防具上套。鼠标就是鼠标，苹果就是苹果，手机就是手机，雨伞就是雨伞。主体不确定时用奇怪小物、圆形记号、小挂件等中性名。",
-  "4. 只有画出对应结构才用对应类别：剑/刀要有刃和柄，弓箭要有弓身/弓弦/箭头/箭羽，长柄武器要有长杆加矛尖/戟刃/弯刃/护手，盾/护甲要有盾面/甲片/胸甲轮廓/边框，伞要有伞面和伞柄，旗帜要有旗杆、旗面/布面和二者的侧边连接关系。三角形、彩色折线、红色外框、黄色十字、风轮叶片或剑刃都不能单独算旗帜证据；有刃、尖、弓弦、箭头、盾面、护甲或风轮反证时不要叫旗。",
+  "4. 只有画出对应结构才用对应类别：剑/刀要有刃和柄；有尖端/刃身并连着护手、横挡或握柄时要按短剑/短刀/匕首处理，不要叫冰棍、雪糕或糖果；弓箭要有弓身/弓弦/箭头/箭羽，长柄武器要有长杆加矛尖/戟刃/弯刃/护手，盾/护甲要有盾面/甲片/胸甲轮廓/边框，伞要有伞面和伞柄，旗帜要有旗杆、旗面/布面和二者的侧边连接关系。三角形、彩色折线、红色外框、黄色十字、风轮叶片或剑刃都不能单独算旗帜证据；有刃、尖、弓弦、箭头、盾面、护甲或风轮反证时不要叫旗。",
   "5. name 和 subject 必须保留最终主体类别词。可以叫寒风雨伞、赤缨长矛、旧铜护甲，但不能把三叉戟叫飞镖，不能把护甲叫长鞭。",
   "6. 打分要拉开差距。clarity=主体可识别度；craft=线条完整、闭合、部件关系、配色控制；appeal=美观和创意。3 分是少数优秀画，普通能认出多为 1-2，潦草或缺部件不要给满。简笔画整体上限低于照片：清楚但普通约 8-10，认真完整约 11-12，极少数优秀画也不要给到照片级满分。",
   "7. stats=1-3 个属性倾向，从 hp/attack/defense/speed/shield/lifesteal/regen 里选，必须贴合最终主体和视觉证据。special=true 只在主体明确、结构完整、质量高且属性语义强时。",
@@ -11538,6 +11538,25 @@ function hasMagicWandVisualEvidenceText(text = "") {
   return head && (shaft || explicitWand);
 }
 
+function hasShortBladeVisualEvidenceText(text = "") {
+  const source = stripNegatedDrawingEvidence(stripNegatedSemanticText(stripImageTextSemantics(stripDrawingMediumWords(text || ""))));
+  if (!source || isLooseLineOnlyDrawingText(source)) return false;
+  const explicitBlade = /(?:剑身|剑尖|剑刃|刀身|刀刃|刀头|刃身|刃部|刃尖|内刃|外刃|刃口|锋刃|尖刃|双刃|宽刃|弯刃|匕首|短剑|短刀|sword|dagger|knife|blade|edge)/i.test(source);
+  const pointedTip = /(?:尖端|pointed\s+tip)/i.test(source);
+  const bladeContext = /(?:剑|刀|刃|双刃|锋利|轮廓|窄长|sharp|blade|edge)/i.test(source);
+  const guard = /(?:护手|横挡|格挡|guard|crossguard)/i.test(source);
+  const handle = /(?:握柄|手柄|剑柄|刀柄|柄部|handle|hilt)/i.test(source);
+  return (explicitBlade && (guard || handle)) || (pointedTip && bladeContext && guard && handle);
+}
+
+function inferShortBladeDrawingName(text = "") {
+  const source = normalizeDrawingVisualEvidenceForRules(text || "");
+  if (/冰|蓝|霜|雪|ice|blue|frost/i.test(source)) return "霜纹短剑";
+  if (/红|火|炎|flame|fire/i.test(source)) return "赤纹短剑";
+  if (/弯|曲|curved/i.test(source)) return "弯刃短刀";
+  return "短剑";
+}
+
 function hasPolearmVisualEvidenceText(text = "") {
   const source = stripNegatedDrawingEvidence(stripNegatedSemanticText(stripImageTextSemantics(stripDrawingMediumWords(text || ""))));
   if (!source || isLooseLineOnlyDrawingText(source)) return false;
@@ -11553,7 +11572,7 @@ function hasDrawingWeaponVisualEvidenceText(text = "") {
   const weaponHead = /(?:剑身|剑尖|刀身|刀刃|刀头|刃部|刃尖|内刃|刃口|锋刃|弯刃|宽刃|月牙刃|弓弦|箭头|箭羽|斧刃|枪尖|矛尖|戟刃|锤头|尖刺|爪|牙|sword|blade|edge|curved blade|bowstring|arrowhead|axe blade|spear tip|halberd blade|spike|claw|fang)/i.test(source);
   const handleWithWeapon = /(?:握柄|手柄|handle)/i.test(source)
     && /(?:剑|刀|刃|弓|箭|斧|枪|矛|戟|大刀|长柄|锤|武器|sword|blade|bow|arrow|axe|spear|halberd|glaive|hammer|weapon)/i.test(source);
-  return hasMagicWandVisualEvidenceText(source) || hasPolearmVisualEvidenceText(source) || weaponHead || handleWithWeapon;
+  return hasMagicWandVisualEvidenceText(source) || hasPolearmVisualEvidenceText(source) || hasShortBladeVisualEvidenceText(source) || weaponHead || handleWithWeapon;
 }
 
 function hasShoeNameText(text = "") {
@@ -11645,6 +11664,7 @@ function hasWatermelonVisualEvidenceText(text = "") {
 function hasLollipopVisualEvidenceText(text = "") {
   const source = stripNegatedDrawingEvidence(stripNegatedSemanticText(stripImageTextSemantics(stripDrawingMediumWords(text || ""))));
   if (!source || isLooseLineOnlyDrawingText(source)) return false;
+  if (hasShortBladeVisualEvidenceText(source) || hasPolearmVisualEvidenceText(source) || hasBowArrowVisualEvidenceText(source)) return false;
   if (/(?:棒棒糖|糖棒|lollipop)/i.test(source)) return true;
   const candyHead = /(?:圆形|圆圈|圆盘|糖头|糖面|糖球|糖果头|round|circle|disc|candy\s+head)/i.test(source);
   const spiralOrColor = /(?:螺旋|回旋|同心圆|彩虹|彩色|多色|红黄蓝绿|红.*黄.*蓝|spiral|swirl|concentric|rainbow|multicolor)/i.test(source);
@@ -11700,6 +11720,7 @@ function inferFlagDrawingName(text = "") {
 function inferDiagnosticDrawingNameFromVisualFeatures(text = "") {
   const source = normalizeDrawingVisualEvidenceForRules(text || "");
   if (!source || isLooseLineOnlyDrawingText(source)) return "";
+  if (hasShortBladeVisualEvidenceText(source)) return inferShortBladeDrawingName(source);
   if (hasLollipopVisualEvidenceText(source)) return "彩虹棒棒糖";
   if (hasWatermelonVisualEvidenceText(source)) return "西瓜切片";
   if (hasBowArrowVisualEvidenceText(source)) return inferBowArrowDrawingName(source);
@@ -11896,6 +11917,9 @@ function objectEvidenceSupportsNameCategory(name, evidence) {
   if (hasPolearmVisualEvidenceText(evidenceText)) {
     return !isGenericDrawingName(nameText) && (hasPolearmNameText(nameText) || !/(?:风筝|叉子|叉|生菜|叶子|叶片|新芽|徽记|护符|宝石|水晶|旗|kite|fork|leaf|emblem|amulet|gem|flag|banner|pennant)/i.test(nameText));
   }
+  if (hasShortBladeVisualEvidenceText(evidenceText)) {
+    return /(?:剑|短剑|长剑|刀|短刀|匕首|刃|sword|dagger|knife|blade)/i.test(nameText);
+  }
   if (hasLollipopVisualEvidenceText(evidenceText)) {
     return /(?:棒棒糖|糖|糖果|lollipop|candy)/i.test(nameText);
   }
@@ -11945,6 +11969,7 @@ function inferDrawingNameFromVisualEvidence(text = "") {
   if (hasShieldVisualEvidenceText(source)) return /圆|环|circle|round/i.test(source) ? "守护圆盾" : "守护盾牌";
   if (hasMagicWandVisualEvidenceText(source)) return /星|star/i.test(source) ? "星纹魔杖" : "符石法杖";
   if (hasPolearmVisualEvidenceText(source)) return inferPolearmDrawingName(source);
+  if (hasShortBladeVisualEvidenceText(source)) return inferShortBladeDrawingName(source);
   if (/剑身|剑尖|短剑|长剑|握柄|sword/i.test(source)) return "短剑";
   if (/刀身|刀刃|刃口|blade|knife/i.test(source)) return "锋刃短刀";
   if (/弓弦|弓|箭头|箭羽|bow|arrow/i.test(source)) return "风箭徽记";
@@ -13765,6 +13790,7 @@ function getSpecialEffectDefinitions(effectKeys) {
 
 function inferPreferredStats(name) {
   const text = stripNegatedSemanticText(name || "");
+  if (hasShortBladeVisualEvidenceText(text)) return ["attack", "speed", "lifesteal"];
   if (/雨伞|伞面|伞柄|伞骨|umbrella/i.test(text)) return ["shield", "defense"];
   if (/中性笔|圆珠笔|签字笔|铅笔|钢笔|马克笔|水笔|笔杆|笔尖|笔帽|\bpen\b|pencil/i.test(text)) return ["attack", "speed"];
   if (isTablewareSemanticText(text) && !hasEdibleContentSemanticText(text)) return ["attack", "defense", "shield"];
