@@ -848,7 +848,10 @@ const floorNarratives = {
   5: "细小火星在空气里游走。法师的火不会问你防御有多高。",
   8: "楼道尽头传来石块滚动声。打不穿外壳，就会被它们拖进漫长缠斗。",
   11: "寒气从更高处落下来。熟悉的弱怪还在游荡，真正麻烦的东西也混了进来。",
+  15: "半山的塔身开始透风，墙上的火把换成了一盏盏幽幽的冷光。",
   21: "墙上的爪痕一层比一层深。想多收胶卷，就要把每一次战损都算清楚。",
+  28: "再往上，骑士守门的传闻顺着楼梯飘下来，台阶上的灰也踩得格外实。",
+  33: "离塔顶不远了，空气里全是铁锈和旧符纸的味道，每一步都更沉。",
   37: "塔顶的风从门缝灌下来，火把被吹得几乎贴住墙面。最后几层不会给勇者太多喘息。",
 };
 
@@ -1083,10 +1086,13 @@ async function preloadBootResources() {
   setBootProgress("预加载冒险图像...", 0, bootPreloadState.expected || 1);
 
   const jobs = [
-    ...imageUrls.map((url) => () => preloadImageAsset(url, bootImagePreloadTimeoutMs)),
-    ...sfxKeys.map((key) => () => preloadSoundEffectAsset(key, bootSfxPreloadTimeoutMs)),
-    ...criticalBgmKeys.map((key) => () => preloadBgmTrackAsset(key, bootBgmPreloadTimeoutMs)),
+    ...imageUrls.map((url) => ({ weight: 1, run: () => preloadImageAsset(url, bootImagePreloadTimeoutMs) })),
+    ...sfxKeys.map((key) => ({ weight: 1, run: () => preloadSoundEffectAsset(key, bootSfxPreloadTimeoutMs) })),
+    ...criticalBgmKeys.map((key) => ({ weight: 8, run: () => preloadBgmTrackAsset(key, bootBgmPreloadTimeoutMs) })),
   ];
+  // BGM 文件远大于图标/音效，按权重计进度，避免末尾几个大文件让百分比卡在 96%/98%。
+  bootPreloadState.expectedWeight = jobs.reduce((sum, job) => sum + job.weight, 0);
+  bootPreloadState.completedWeight = 0;
 
   await runBootPreloadJobs(jobs, 4);
 }
@@ -1129,12 +1135,13 @@ async function runBootPreloadJobs(jobs, concurrency = 4) {
       const job = jobs[index];
       index += 1;
       try {
-        await job();
+        await job.run();
       } catch (error) {
         bootPreloadState.failures.push({ type: "asset", detail: formatPreloadError(error) });
       } finally {
         bootPreloadState.completed += 1;
-        setBootProgress(getBootProgressLabel(), bootPreloadState.completed, bootPreloadState.expected || 1);
+        bootPreloadState.completedWeight += job.weight;
+        setBootProgress(getBootProgressLabel(), bootPreloadState.completedWeight, bootPreloadState.expectedWeight || 1);
       }
     }
   });
@@ -3459,9 +3466,9 @@ function getBestiaryPageSize(group) {
   const viewportWidth = typeof window !== "undefined" && Number.isFinite(window.innerWidth)
     ? window.innerWidth
     : 1024;
-  if (viewportWidth <= 620) return target === "affix" ? 3 : 2;
-  if (viewportWidth <= 980) return target === "affix" ? 4 : 3;
-  return target === "affix" ? 6 : 4;
+  if (viewportWidth <= 620) return target === "affix" ? 6 : 2;
+  if (viewportWidth <= 980) return target === "affix" ? 8 : 3;
+  return target === "affix" ? 10 : 4;
 }
 
 function getBestiaryPageState(group = selectedBestiaryGroup) {
@@ -3639,7 +3646,7 @@ function renderAffixBestiary(entries, page) {
     <section class="affix-bestiary" aria-label="属性与词条图鉴" data-selected-group="affix">
       <div class="affix-bestiary-head">
         <strong>属性与词条</strong>
-        <span>基础属性看每点分值；史诗和传说装备才可能带特殊词条。带倒计时的词条每场重新计数。</span>
+        <span>基础属性按每点分值结算；只有史诗、传说装备才可能带上特殊词条，带倒计时的词条每场战斗都会重新计数。</span>
       </div>
       <div class="affix-card-grid">${rows}</div>
     </section>
@@ -8013,15 +8020,15 @@ function buildLocalCareerSummary(outcome = state.gameClear ? "clear" : isPlayerD
     const floor = Math.max(introFloor, snapshot.defeatFloor || snapshot.floor || state.floor || introFloor);
     const defeatLine = snapshot.defeatSummary
       ? `最后一页战报写着：${snapshot.defeatSummary}`
-      : `最后一页停在第${floor}层，墨迹没有再向塔顶延伸。`;
+      : `最后一页停在第${floor}层，墨迹再没往塔顶延伸过去。`;
     return {
       status: "local",
       outcome: "defeat",
       title: "止步旧塔",
       text: [
-        `多年以后，塔底的旧账仍夹着一张未烧尽的胶片。${snapshot.formLabel}把照片装备带到第${floor}层，生命停在${snapshot.hp}，攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}也被一并记下。`,
-        `这次登塔击退了${snapshot.killCount}只怪物，${snapshot.bossKillCount}位Boss的名字曾被划去。${itemText}留在记录里，像几件从现实落进塔缝的遗物。`,
-        `${defeatLine}守塔人没有把它写成笑话，只在边角补了一句：倒下的那一刻，照片勇者仍握着下一次重开的影子。`,
+        `塔底的旧账里夹着一张没烧尽的胶片。${snapshot.formLabel}带着满身照片装备走到第${floor}层，最后的生命停在${snapshot.hp}，攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}，都被一并记了下来。`,
+        `这一趟打退了${snapshot.killCount}只怪物，划去了${snapshot.bossKillCount}个Boss的名字。${itemText}也留在了册子里，像几件从现实掉进塔缝的旧物。`,
+        `${defeatLine}守塔人没把这事当笑话，只在边角添了一句：倒下的那一刻，他手里还攥着重来一次的念头。`,
       ].map((line) => modeText(line)).join("\n\n"),
       snapshot,
       createdAt: Date.now(),
@@ -8034,12 +8041,12 @@ function buildLocalCareerSummary(outcome = state.gameClear ? "clear" : isPlayerD
     title: trueEnding ? "真结局旧闻" : "未竟旧闻",
     text: [
       trueEnding
-        ? `多年以后，塔底的石碑仍记着一位${snapshot.formLabel}。他带着鉴定出的器物登上第${maxFloor}层，也把隐藏4里失踪的公主带回了塔顶晨光中。`
-        : `多年以后，塔底的石碑仍记着一位${snapshot.formLabel}。他带着鉴定出的器物登上第${maxFloor}层，却没能解开隐藏4里那段仍旧空白的传闻。`,
-      `旧塔账册记下了${snapshot.killCount}场怪物败退，其中${snapshot.bossKillCount}位Boss被刻进封门名录。${itemText}被列为代表装备，像几件从日常里醒来的奇物。`,
+        ? `塔底的石碑上，至今留着一位${snapshot.formLabel}的名字。他带着一路鉴定来的器物登上第${maxFloor}层，还把困在隐藏第四层的公主，一起带回了塔顶的晨光里。`
+        : `塔底的石碑上，至今留着一位${snapshot.formLabel}的名字。他带着一路鉴定来的器物登上第${maxFloor}层，只是隐藏第四层那段空白的传闻，始终没能解开。`,
+      `账册上记着${snapshot.killCount}场怪物败退，其中${snapshot.bossKillCount}个Boss被刻进了封门名录。${itemText}被列作代表装备，像几件从日常里忽然醒来的奇物。`,
       trueEnding
-        ? `后来的人说，照片勇者并非只靠一柄名剑通关，而是把手边万物都变成了登塔的台阶。魔王倒下、公主获救之后，这段冒险才被写成真正的塔顶传说。`
-        : `后来的人说，照片勇者确实击败了魔王，却只完成了旧塔明面上的结局。没有公主归来的那一页，守塔人只能把它记作未竟旧闻。`,
+        ? `后来的人说，他靠的从不是某一柄名剑，而是把手边的寻常东西，一件件都变成了登塔的台阶。魔王倒下、公主获救，这段冒险才算真正写成了塔顶的传说。`
+        : `后来的人说，他确实打倒了魔王，却只走完了旧塔明面上的结局。少了公主归来的那一页，守塔人只能把它记作一桩未竟的旧闻。`,
     ].map((line) => modeText(line)).join("\n\n"),
     snapshot,
     createdAt: Date.now(),
@@ -8313,14 +8320,14 @@ function hasRecentFloorNarrative(floor, text) {
 function getFloorNarrative(floor) {
   if (isHiddenLayerActive()) return getHiddenLayerNarrative();
   if (floor <= introFloor) {
-    return modeText("塔门前的石台亮着三道卷轴槽。收齐三卷胶卷，第一层才会现身。");
+    return modeText("塔门前的石台上，三道卷轴槽还空着。集齐三卷胶卷，第一层才会显形。");
   }
   const safeFloor = getPlayableFloor(floor);
   if (bossFloorNarratives[safeFloor]) return bossFloorNarratives[safeFloor];
   if (rewardBossFloorNarratives[safeFloor]) return rewardBossFloorNarratives[safeFloor];
   if (floorNarratives[safeFloor]) return floorNarratives[safeFloor];
   if (safeFloor > 1 && safeFloor % 10 === 1) {
-    return `第${safeFloor}层的石门带着新气味打开，旧影子还没散去，陌生脚步已经混进走廊。`;
+    return `第${safeFloor}层的石门吱呀推开，上一段路的影子还没散尽，新的脚步声已经从走廊深处逼近。`;
   }
   return "";
 }
@@ -14677,32 +14684,32 @@ function makeSettledItemDescription(item) {
   const effects = getItemSpecialKeys(item || {});
   const identityText = `${item?.itemName || ""} ${item?.subjectName || ""} ${item?.objectType || ""} ${item?.identityDescription || ""} ${normalizeStringList(item?.tags).join(" ")}`;
   if (isLowRealityToyOrMascotImageText(identityText, item?.photoQuality || {}) || isToyMascotSemanticText(identityText)) {
-    if (stats.defense > 0 || stats.shield > 0) return `塔把${name}记成一枚守门小印，外表轻巧，却能替勇者稳住最先落下的攻势。`;
-    if (stats.hp > 0 || stats.regen > 0) return `${name}被塔灯照出柔和余温，像一只随身护符，把疲惫慢慢收回掌心。`;
-    if (stats.attack > 0) return `${name}的轮廓被塔影磨亮，原本玩笑般的棱角也能在战斗里划开空隙。`;
-    return `${name}被塔收作一件小小纪念，力量不张扬，却仍愿意跟着勇者上楼。`;
+    if (stats.defense > 0 || stats.shield > 0) return `${name}看着不起眼，真挡起攻势来却很靠得住。`;
+    if (stats.hp > 0 || stats.regen > 0) return `${name}像个温吞的小护符，揣在身上，受的伤会慢慢缓过来。`;
+    if (stats.attack > 0) return `${name}看着像个玩具，棱角却意外地能在战斗里划开口子。`;
+    return `${name}算不上什么利器，倒也乐意陪勇者往上闯。`;
   }
-  if (effects.includes("doubleStrikeSpeedDown")) return `塔把${name}压得沉重，却也把每一次进攻折成连续回声，慢一步，换来更密的出手。`;
-  if (effects.includes("shieldCrashAttackDown")) return `${name}把护盾推到锋线前端，勇者出手时，盾面的旧光也会一起撞向敌人。`;
-  if (effects.includes("sweep")) return `${name}被塔赋予横扫的名义，主目标被击中时，余劲会沿着阵列甩向左右。`;
-  if (effects.includes("peerless")) return `${name}像一枚胜利刻痕，敌人倒下时，它会把本场战斗的攻防再往上推。`;
-  if (effects.includes("dealDamageAttack")) return `${name}越用越顺，每两次进攻后塔纹加深，让下一次出手更狠。`;
-  if (effects.includes("takeDamageDefense")) return `${name}每挨过三次撞击就会变得更硬，像把受击都铆进了临时甲片。`;
-  if (effects.includes("killMaxHp")) return `${name}会收起倒下怪物留下的热气，把它们一点点写进生命上限。`;
-  if (effects.includes("killHpBoost")) return `${name}懂得在胜利后回收余温，敌人倒下时，会替勇者补上一口气。`;
-  if (stats.attack > 0 && stats.lifesteal > 0) return `塔把${name}认作一件贪利兵器，既能撕开敌人的影子，也能从进攻里追回生命。`;
-  if (stats.attack > 0 && stats.speed > 0) return `${name}在掌心里变得顺手，塔风绕着它走，让勇者更快把力量送出去。`;
-  if (stats.defense > 0 && stats.shield > 0) return `${name}被塔影镀成临时护板，先挡住冲击，再替勇者稳住防线。`;
-  if (stats.hp > 0 && stats.regen > 0) return `${name}像一枚清爽的补给符，能扩宽生命，也能把挨打后的余痛慢慢压下。`;
-  if (stats.speed > 0) return `${name}沾上了楼梯间的风声，带着勇者抢在怪物节拍之前行动。`;
-  if (stats.attack > 0) return `塔把${name}的棱角磨成可用的锋面，原本普通的物件也能在出手时留下伤口。`;
-  if (stats.defense > 0) return `${name}被塔墙承认了硬度，贴身带着时，落下来的伤害会先被它挡去一截。`;
-  if (stats.shield > 0) return `${name}像被塔临时封成一面小盾，每场战斗开始时都会先亮起一层护光。`;
-  if (stats.lifesteal > 0) return `${name}带着一点不讲理的夺回感，勇者进攻后，会从攻势里抽回生命。`;
-  if (stats.regen > 0) return `${name}藏着修补的意味，被攻击后，塔会借它把生命缓缓拉回。`;
-  if (stats.hp > 0) return `${name}被塔写成一枚耐久符，把勇者能承受的极限往上垫高。`;
-  if (item?.tooLarge) return "主体太大，只适合留作照片，无法随身上阵。";
-  return `${name}带着一点塔光，气息还很轻，先当作小物带上。`;
+  if (effects.includes("doubleStrikeSpeedDown")) return `${name}使起来沉手，慢是慢了点，可一次挥动能砸出两下。`;
+  if (effects.includes("shieldCrashAttackDown")) return `${name}让护盾跟着出拳，挡下的力道会顺势砸回敌人身上。`;
+  if (effects.includes("sweep")) return `${name}挥起来带风，打中一个，旁边的也跟着遭殃。`;
+  if (effects.includes("peerless")) return `${name}越战越勇，每放倒一个敌人，这一场的攻防就再涨一截。`;
+  if (effects.includes("dealDamageAttack")) return `${name}越打越顺手，连攻几下之后，下一击会更狠。`;
+  if (effects.includes("takeDamageDefense")) return `${name}挨打反而越挨越硬，几下撞击过后就更扛揍了。`;
+  if (effects.includes("killMaxHp")) return `${name}会把倒下敌人的气力收进身体，生命上限一点点往上长。`;
+  if (effects.includes("killHpBoost")) return `${name}懂得趁胜喘息，敌人一倒，就替勇者补回一口气。`;
+  if (stats.attack > 0 && stats.lifesteal > 0) return `${name}开起刃来不留情，伤敌的同时也替你回一口血。`;
+  if (stats.attack > 0 && stats.speed > 0) return `${name}握着趁手，出手又快又利落。`;
+  if (stats.defense > 0 && stats.shield > 0) return `${name}像块结实的护板，硬扛冲击，守得很稳。`;
+  if (stats.hp > 0 && stats.regen > 0) return `${name}像随身的补给，撑大了血量，挨了打也缓得快。`;
+  if (stats.speed > 0) return `${name}轻快得很，常常抢在怪物前头出手。`;
+  if (stats.attack > 0) return `${name}的棱角够利，普通物件也能在出手时留下伤口。`;
+  if (stats.defense > 0) return `${name}够结实，贴身带着，落下来的伤害先替你削去一截。`;
+  if (stats.shield > 0) return `${name}像面小盾，每场战斗一开始就先撑起一层护罩。`;
+  if (stats.lifesteal > 0) return `${name}有股不讲理的劲，每次进攻都顺手夺回一点生命。`;
+  if (stats.regen > 0) return `${name}带着点修复的气息，挨打之后，生命会慢慢回拢。`;
+  if (stats.hp > 0) return `${name}是件耐扛的物件，能把勇者的生命上限再垫高些。`;
+  if (item?.tooLarge) return "这东西太大，只能留个影像，带不上阵。";
+  return `${name}气息还轻，先当个随身小物带着吧。`;
 }
 
 function isGenericItemDescription(text) {
@@ -14752,13 +14759,18 @@ function renderSpecialEffectPills(item) {
 function getVisibleItemSpecialInstances(item) {
   const instances = getItemSpecialInstances(item);
   if (!instances.length) return [];
+  let activeKeys = null;
   if (item?.id) {
-    const activeKeys = new Set(getEquippedPhotoEffectInstances()
+    activeKeys = new Set(getEquippedPhotoEffectInstances()
       .filter((instance) => instance.item?.id === item.id)
       .map((instance) => instance.key));
-    return instances.filter((instance) => activeKeys.has(instance.key));
   }
-  return [];
+  // 显示这件装备拥有的所有词条：已激活的正常显示，未激活（被同名词条择优顶替等）的标注出来，
+  // 不再整条隐藏，避免出现“史诗装备却只见单一属性、看不到词条”的困惑。
+  return instances.map((instance) => ({
+    ...instance,
+    state: { ...instance.state, inactive: activeKeys ? !activeKeys.has(instance.key) : false },
+  }));
 }
 
 function formatSpecialEffectText(effect, data = {}) {

@@ -2,6 +2,7 @@ node_modules/
 output/
 tests/
 backup/
+.claude/
 figure/QQ*
 .env
 npm-debug.log*
