@@ -92,6 +92,44 @@ const cases = [
     expect: ({ item, score }) => item.tooLarge === false && score > 0 && score <= 10 && /旗/.test(item.itemName),
   },
   {
+    label: "drawing: blade evidence prevents flag overclassification",
+    input: {
+      sourceMode: "drawing",
+      name: "赤纹战旗",
+      subject: "旗帜",
+      recognizedSubject: "旗帜",
+      recognition: "clear_equipment",
+      clarity: 2,
+      appeal: 1,
+      craft: 1,
+      confidence: 0.7,
+      stats: ["attack"],
+      visualEvidence: ["红色三角刃", "黄色内刃", "黑色握柄", "没有旗面和杆的一侧连接"],
+      objectiveAssessment: "能看见刃部和握柄，更像武器，不是挂在旗杆一侧的布面。",
+      diagnosticFeatures: "三角形是刃尖，黄色是内刃，黑色部分是握柄；缺少旗杆侧边连接关系。",
+    },
+    expect: ({ item, score }) => item.tooLarge === false && score > 0 && !/旗/.test(item.itemName),
+  },
+  {
+    label: "drawing: bow evidence does not stay generic",
+    input: {
+      sourceMode: "drawing",
+      name: "神秘小物",
+      subject: "神秘小物",
+      recognizedSubject: "弓箭",
+      recognition: "clear_equipment",
+      clarity: 2,
+      appeal: 2,
+      craft: 2,
+      confidence: 0.78,
+      stats: ["attack", "speed"],
+      visualEvidence: ["黑色粗线条弓身", "蓝色弓弦", "紫色和绿色握把", "黑色箭头"],
+      objectiveAssessment: "主体有弓身、弓弦、握把和箭头，结构可以辨认为弓箭。",
+      diagnosticFeatures: "弓弦连接弓身，箭头在前方；星星月亮只是装饰背景。",
+    },
+    expect: ({ item, score }) => item.tooLarge === false && score > 0 && /弓|箭/.test(item.itemName) && !/神秘小物|奇怪小物/.test(item.itemName),
+  },
+  {
     label: "drawing: polished shield can score high but stays below photo ceiling",
     input: {
       sourceMode: "drawing",
@@ -231,12 +269,21 @@ const cases = [
   },
 ];
 
+async function waitForGameReady(page) {
+  await page.waitForFunction(() => (
+    Boolean(window.__photoHeroTestHooks)
+    && !document.body.classList.contains("is-booting")
+    && document.getElementById("bootLoader")?.hidden !== false
+  ), null, { timeout: 30000 });
+}
+
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("http://127.0.0.1:3000/", { waitUntil: "networkidle" });
+  await page.goto("http://127.0.0.1:3000/", { waitUntil: "domcontentloaded" });
+  await waitForGameReady(page);
   await page.evaluate(() => window.__photoHeroTestHooks.setRunRewards?.({ photoValueMin: 5, photoValueMax: 22 }));
   const results = await page.evaluate((inputs) => inputs.map((input) => {
     const hooks = window.__photoHeroTestHooks;
