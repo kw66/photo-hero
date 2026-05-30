@@ -11554,7 +11554,9 @@ function inferShortBladeDrawingName(text = "") {
   if (/冰|蓝|霜|雪|ice|blue|frost/i.test(source)) return "霜纹短剑";
   if (/红|火|炎|flame|fire/i.test(source)) return "赤纹短剑";
   if (/弯|曲|curved/i.test(source)) return "弯刃短刀";
-  return "短剑";
+  if (/匕首|dagger/i.test(source)) return "锋刃匕首";
+  if (/刀|knife|blade/i.test(source) && !/剑|sword/i.test(source)) return "锋刃短刀";
+  return "旧塔短剑";
 }
 
 function hasPolearmVisualEvidenceText(text = "") {
@@ -11945,6 +11947,20 @@ function objectEvidenceSupportsNameCategory(name, evidence) {
   if (hasShieldNameText(nameText)) return hasShieldVisualEvidenceText(evidenceText);
   if (hasMagicWandNameText(nameText)) return hasMagicWandVisualEvidenceText(evidenceText);
   return true;
+}
+
+function isPlainShortBladeNameText(name = "") {
+  const text = String(name || "").trim().replace(/\s+/g, "");
+  return /^(剑|刀|刃|短剑|短刀|匕首|小剑|小刀|长剑|剑刃|刀刃|锋刃|利刃|sword|dagger|knife|blade)$/i.test(text);
+}
+
+function refineShortBladeDrawingDisplayName(name, evidence = "") {
+  const cleanName = cleanDrawingName(name, "", 18);
+  if (!hasShortBladeVisualEvidenceText(evidence)) return cleanName;
+  if (!cleanName || isPlainShortBladeNameText(cleanName) || isGenericDrawingName(cleanName)) {
+    return cleanText(inferShortBladeDrawingName(evidence), inferShortBladeDrawingName(evidence), 18);
+  }
+  return cleanName;
 }
 
 function refinePhotoNameWithObjectEvidence(name, subjectName, objectType, identityDescription) {
@@ -12686,9 +12702,31 @@ function enrichLiteDrawingStatText(text = "", gate = null) {
   const extras = [];
   if (hasFlagVisualEvidenceText(source)) extras.push("旗帜 迎风 展开 醒目 速度 防御");
   if (hasPolearmVisualEvidenceText(source)) extras.push("长柄武器 枪尖 矛尖 戟刃 攻击");
+  if (hasShortBladeVisualEvidenceText(source)) extras.push("短刃 武器 剑身 握柄 出手利落 攻击 速度");
   if (hasArmorVisualEvidenceText(source)) extras.push("护甲 铠甲 甲片 胸甲 防御 护盾");
   if (gate?.level === "clear_equipment") extras.push("结构完整 装备");
   return [source, ...extras].filter(Boolean).join(" ");
+}
+
+function rebalanceLiteShortBladeStats(stats, valueBudget, text = "") {
+  if (!hasShortBladeVisualEvidenceText(text)) return stats;
+  const budget = Math.max(0, Math.round(valueBudget));
+  if (budget < statValueWeights.attack) return normalizeStats({}, 20);
+  const result = normalizeStats({}, 20);
+  let remaining = budget;
+  if (remaining >= statValueWeights.attack) {
+    result.attack += 1;
+    remaining -= statValueWeights.attack;
+  }
+  if (remaining >= statValueWeights.speed) {
+    result.speed += 1;
+    remaining -= statValueWeights.speed;
+  }
+  while (remaining >= statValueWeights.attack && result.attack < getPhotoStatSoftCap("attack", text, budget)) {
+    result.attack += 1;
+    remaining -= statValueWeights.attack;
+  }
+  return result;
 }
 
 function calculateLiteDrawingQualityScore({ photoQuality, evidenceText, gate, confidence, recognition }) {
@@ -12808,6 +12846,7 @@ function balanceItemLite(item, image = "") {
   if (sourceMode === "drawing") {
     subjectName = pickLiteDrawingSubjectName({ itemName, subjectName, objectType, recognizedSubject, evidenceText, gate: drawingGate });
     itemName = makeLiteDrawingItemName(itemName, subjectName, evidenceText, drawingGate);
+    itemName = refineShortBladeDrawingDisplayName(itemName, evidenceText);
   }
 
   const noEffect = sourceMode === "drawing"
@@ -12838,6 +12877,12 @@ function balanceItemLite(item, image = "") {
   const statAffinity = sourceMode === "drawing"
     ? sanitizeDrawingStatAffinityForGate(rawStatAffinity, drawingGate, statSemanticText)
     : rawStatAffinity;
+  if (!noEffect && sourceMode === "drawing" && requestedValue > 0 && requestedValue < statValueWeights.attack + statValueWeights.speed && qualityScore >= 11 && hasShortBladeVisualEvidenceText(statSemanticText)) {
+    const wantsSpeed = statNames.includes("speed") || statAffinity.some((item) => item.stat === "speed") || hasSpeedSemanticText(statSemanticText);
+    if (wantsSpeed && requestedValue >= statValueWeights.attack + statValueWeights.speed - 1 && getPhotoValueMax() >= statValueWeights.attack + statValueWeights.speed) {
+      requestedValue = statValueWeights.attack + statValueWeights.speed;
+    }
+  }
 
   let specialEffects = [];
   let stats = normalizeStats({}, 20);
@@ -12863,6 +12908,9 @@ function balanceItemLite(item, image = "") {
         ? clampStatsToValue(allocateStatsForItem({}, statSemanticText, statBudget, statAffinity), statBudget)
         : allocateStatsLite(allocationKeys, statBudget);
     if (sourceMode === "drawing") {
+      stats = rebalanceLiteShortBladeStats(stats, statBudget, statSemanticText);
+    }
+    if (sourceMode === "drawing") {
       stats = filterDrawingStatsForGate(stats, drawingGate, statSemanticText);
     }
   }
@@ -12873,6 +12921,9 @@ function balanceItemLite(item, image = "") {
     stats = sourceMode === "drawing"
       ? clampStatsToValue(allocateStatsForItem({}, statSemanticText, requestedValue, statAffinity), requestedValue)
       : allocateStatsLite(statNames.length ? statNames : statAffinity.map((a) => a.stat), requestedValue);
+    if (sourceMode === "drawing") {
+      stats = rebalanceLiteShortBladeStats(stats, requestedValue, statSemanticText);
+    }
     if (sourceMode === "drawing") {
       stats = filterDrawingStatsForGate(stats, drawingGate, statSemanticText);
     }
@@ -12885,9 +12936,13 @@ function balanceItemLite(item, image = "") {
       ? (sourceMode === "drawing" ? "整张画是背景，没有可带走的主体。" : "画面主要是场景，没有可带走的主体。")
       : "主体太大，只适合留作影像，无法随身上阵。";
   const baseDesc = cleanText(safe.description || safe.desc || reason, "", 72);
+  const descriptionItem = { itemName, subjectName, objectType, stats, specialEffects, identityDescription, reason, tags, sourceMode, tooLarge: false };
+  const settledDescription = makeSettledItemDescription(descriptionItem);
   const displayDescription = noEffect
     ? failDescription
-    : (baseDesc || makeSettledItemDescription({ itemName, subjectName, stats, tooLarge: false }) || (sourceMode === "drawing" ? "由想象凝成的装备。" : "由照片鉴定出的装备。"));
+    : (!isGenericItemDescription(baseDesc) && isItemDescriptionConsistent(descriptionItem, baseDesc)
+        ? baseDesc
+        : (settledDescription || (sourceMode === "drawing" ? "由想象凝成的装备。" : "由照片鉴定出的装备。")));
 
   const balanced = {
     itemName,
@@ -13034,15 +13089,26 @@ function getItemQuality(value) {
   return { key: "common", label: "普通" };
 }
 
+function getItemVisibleQuality(item) {
+  const score = scoreItem(item);
+  const quality = getItemQuality(score);
+  if (!item || item.tooLarge || item.sourceMode !== "drawing" || quality.key !== "epic" || getItemSpecialKeys(item).length) return quality;
+  const stats = normalizeStats(item.stats || {}, 99);
+  const totalPoints = statOrder.reduce((sum, key) => sum + Math.max(0, stats[key] || 0), 0);
+  const visibleStats = statOrder.reduce((sum, key) => sum + ((stats[key] || 0) > 0 ? 1 : 0), 0);
+  if (score <= 17 && totalPoints <= 2 && visibleStats <= 2) return getItemQuality(13);
+  return quality;
+}
+
 function getItemQualityKey(item) {
-  return getItemQuality(scoreItem(item)).key;
+  return getItemVisibleQuality(item).key;
 }
 
 function getDismantleFilmReturn(item) {
   if (!item) return 0;
   if (isInvalidAppraisalItem(item)) return 1;
   if (scoreItem(item) <= 0) return 0;
-  const quality = getItemQuality(scoreItem(item));
+  const quality = getItemVisibleQuality(item);
   return itemQualityRefunds[quality.key] || 0;
 }
 
@@ -14682,7 +14748,7 @@ function renderEquipmentGrid() {
     });
 
     if (item) {
-      const quality = getItemQuality(scoreItem(item));
+      const quality = getItemVisibleQuality(item);
       button.innerHTML = `
         <span class="slot-image"><img src="${item.image || makePlaceholderImage()}" alt=""></span>
         ${renderEquipmentSlotBattleBadges(item)}
@@ -14876,7 +14942,7 @@ function renderEquipmentDetail() {
     return;
   }
 
-  const quality = getItemQuality(scoreItem(selected));
+  const quality = getItemVisibleQuality(selected);
   setEquipmentDetailQuality(quality);
   els.equipmentDetailName.textContent = formatBalancedItemDisplayName(selected);
   els.equipmentDetailName.dataset.quality = quality.label;
@@ -15287,7 +15353,13 @@ function makeSettledItemDescription(item) {
 }
 
 function isGenericItemDescription(text) {
-  return /^(由照片鉴定出的装备|测试用拍照特殊装备|按模型文字保守鉴定|主体过大或主要是场景|装备|物品)/.test(String(text || "").trim())
+  const value = String(text || "").trim();
+  const compact = value.replace(/\s+/g, "");
+  if (!compact) return true;
+  if (/^(一把|一件|一个|一只|一条|一枚|一块|一张|一种|这是一把|这是一件|这是一只|这是一条|这是一枚)(剑|刀|短剑|短刀|匕首|武器|装备|物品|道具|东西|小物件)?[。.!！]?$/i.test(compact)) return true;
+  if (/^(剑|刀|短剑|短刀|匕首|武器|装备|物品|道具|东西|小物件)[。.!！]?$/i.test(compact)) return true;
+  if (Array.from(compact.replace(/[。.!！,，、；;：:]/g, "")).length <= 3) return true;
+  return /^(由照片鉴定出的装备|测试用拍照特殊装备|按模型文字保守鉴定|主体过大或主要是场景|装备|物品)/.test(value)
     || /(?:可以被带进|可被带进|能被带进|能够带进|可以带进|可以带入|可带入|能带入|带进魔塔|带入魔塔|带到魔塔|带进塔|带入塔|带到塔|带进塔中|带入塔中|装备轮廓|主体轮廓|清晰轮廓)/.test(String(text || ""));
 }
 
@@ -16530,6 +16602,9 @@ window.__photoHeroTestHooks = {
   },
   getItemQualityForTest(value) {
     return getItemQuality(value);
+  },
+  getItemVisibleQualityForTest(item) {
+    return getItemVisibleQuality(item);
   },
   formatBalancedItemDisplayNameForTest(item, maxSingleLineLength) {
     return formatBalancedItemDisplayName(item, maxSingleLineLength);
