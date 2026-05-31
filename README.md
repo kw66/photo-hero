@@ -1,4 +1,8 @@
-# 🖼️ 用 AI 把照片和简笔画鉴定成装备的爬塔 RPG 小游戏
+# 图片勇者
+
+<p align="center">
+  🖼️ 用 AI 把照片和简笔画鉴定成装备的爬塔 RPG 小游戏
+</p>
 
 <p align="center">
   📸 拍下一个小物，或者亲手画出一个道具。<br>
@@ -8,7 +12,7 @@
 <p align="center">
   <a href="https://kw66.github.io/photo-hero/"><strong>🎮 点击即玩</strong></a>
   ·
-  <a href="https://xhslink.com/m/A2DFslJF4mb"><strong>👤 作者主页：落星峦</strong></a>
+  <a href="https://github.com/kw66/PhD_Simulator"><strong>👤 作者主页：PhD_Simulator</strong></a>
 </p>
 
 <p align="center">
