@@ -19,11 +19,8 @@
   <img src="assets/readme/drawing-appraisal.jpg" width="45%" alt="画图鉴定装备界面">
 </p>
 <p align="center">
-  <img src="assets/readme/tower-battle.jpg" width="45%" alt="魔塔战斗与战报界面">
   <img src="assets/readme/hero-forms.jpg" width="45%" alt="勇者形态图鉴">
-</p>
-<p align="center">
-  <img src="assets/readme/affix-bestiary.jpg" width="70%" alt="装备词条图鉴">
+  <img src="assets/readme/affix-bestiary.jpg" width="45%" alt="装备词条图鉴">
 </p>
 
 ---
