@@ -21,6 +21,7 @@
   --green: #75d58a;
   --amber: #e58a20;
   --amber-soft: #553717;
+  --link: #65b8ff;
   --violet: #b5a0ff;
   --button-top: #343a37;
   --button-bottom: #171b19;
@@ -4419,14 +4420,16 @@ dd {
 }
 
 .author-inline a {
-  color: var(--ink);
+  color: var(--link);
   font-size: 0.86rem;
   font-weight: 900;
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
 .author-inline a:hover {
-  color: var(--amber);
+  color: color-mix(in srgb, var(--link) 78%, white 22%);
 }
 
 .project-social-card p {
@@ -4434,18 +4437,25 @@ dd {
 }
 
 .project-social-card a {
+  color: var(--ink-soft);
   text-decoration: none;
 }
 
 .project-social-card a span {
+  color: var(--link);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
 }
 
 .project-social-card a em {
+  color: var(--ink-soft);
   font-style: normal;
   text-decoration: none;
+}
+
+.project-social-card a:hover span {
+  color: color-mix(in srgb, var(--link) 78%, white 22%);
 }
 
 .group-qr {

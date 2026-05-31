@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   statsLastAppraisalDate: "photoHero.stats.lastAppraisalDate",
 };
 
+const GAME_BRAND_TITLE = "图片勇者";
 const pendingDuplicatePhotoKey = "pending";
 const reappraisalPhotoKeyPrefix = "reroll:";
 const STATS_COUNTER_RPC_URL = "https://ypefmpeekfucmarbbdov.supabase.co";
@@ -1412,7 +1413,7 @@ function modeText(text, mode = state.playMode) {
 function renderGameMode() {
   const mode = getHeroMode();
   document.body.dataset.playMode = mode.id === "drawing" ? "drawing" : "photo";
-  document.title = mode.title;
+  document.title = GAME_BRAND_TITLE;
   if (els.gameModeBtn) {
     const nextTitle = isDrawingMode() ? "照片勇者" : "画图勇者";
     els.gameModeBtn.textContent = mode.title;
