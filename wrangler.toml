@@ -1,4 +1,0 @@
-name = "photo-hero-experience"
-main = "workers/experience-proxy.js"
-compatibility_date = "2026-05-26"
-workers_dev = true
