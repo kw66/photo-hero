@@ -14748,7 +14748,9 @@ function renderEquipmentGrid() {
         openImageViewer(item.fullImage || item.image, formatItemDisplayName(item), getItemQuality(scoreItem(item)));
       }
       saveGame();
-      render();
+      renderEquipmentGrid();
+      renderEquipmentDetail();
+      renderGameTextOnly();
     });
 
     if (item) {
