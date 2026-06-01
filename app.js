@@ -342,8 +342,8 @@ const photoSpecialEffects = [
 
 const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
 
-const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|弓箭|弓|箭|旗|旗帜|旗子|旗杆|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|袋|钱包|卡包|鞋|拖鞋|滑板|风扇|音箱|音响|喇叭|橡皮|橡皮擦|胶带|刷|梳|钥匙|钥匙扣|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物|毛巾|纸巾|湿巾|电池|灯|勺|叉|筷|盘|碗|玩偶|娃娃|徽章|挂件|棒棒糖|糖果|flag|banner|pennant/i;
-const everydayDrawingObjectPattern = /旗帜|旗子|旗杆|旗面|三角旗|彩旗|风旗|飘带|雨伞|伞面|伞柄|伞骨|折伞|中性笔|圆珠笔|签字笔|铅笔|钢笔|马克笔|水笔|笔杆|笔尖|笔帽|汤勺|勺子|勺头|勺柄|汤匙|叉子|筷子|筷|碗|盘子|盘|杯子|水杯|矿泉水|水瓶|饮料瓶|瓶子|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|西瓜|瓜果|水果|果实|棒棒糖|糖果棒|糖果|面包|糖果|饼干|饭团|钥匙|锁|手机|笔记本电脑|笔记本|电脑|平板|屏幕|相机|眼镜|橡皮|尺子|书包|背包|话筒|麦克风|麦|书本|书|本子|记事本|笔记本|毛巾|纸巾|电池|灯泡|遥控器|耳机|鼠标|键盘|风扇|玩具|模型|摆件|挂件|flag|banner|pennant|umbrella|pen|pencil|spoon|fork|chopstick|bowl|plate|mineral water|water bottle|cup|bottle|apple|banana|orange|pear|watermelon|fruit|lollipop|candy|bread|cookie|key|phone|laptop|computer|tablet|screen|camera|glasses|eraser|ruler|backpack|bag|microphone|mic|notebook|book|towel|battery|lamp|remote|mouse|keyboard|fan|toy|model/i;
+const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|弓箭|弓|箭|旗|旗帜|旗子|旗杆|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|袋|钱包|卡包|鞋|拖鞋|滑板|风扇|音箱|音响|喇叭|橡皮|橡皮擦|胶带|刷|梳|钥匙|钥匙扣|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物|毛巾|纸巾|湿巾|棉签|棉棒|电池|灯|勺|叉|筷|盘|碗|玩偶|娃娃|徽章|挂件|棒棒糖|糖果|flag|banner|pennant|cotton swab/i;
+const everydayDrawingObjectPattern = /旗帜|旗子|旗杆|旗面|三角旗|彩旗|风旗|飘带|雨伞|伞面|伞柄|伞骨|折伞|中性笔|圆珠笔|签字笔|铅笔|钢笔|马克笔|水笔|笔杆|笔尖|笔帽|汤勺|勺子|勺头|勺柄|汤匙|叉子|筷子|筷|碗|盘子|盘|杯子|水杯|矿泉水|水瓶|饮料瓶|瓶子|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|西瓜|瓜果|水果|果实|棒棒糖|糖果棒|糖果|面包|糖果|饼干|饭团|钥匙|锁|手机|笔记本电脑|笔记本|电脑|平板|屏幕|相机|眼镜|橡皮|尺子|书包|背包|话筒|麦克风|麦|书本|书|本子|记事本|笔记本|毛巾|纸巾|湿巾|棉签|棉棒|电池|灯泡|遥控器|耳机|鼠标|键盘|风扇|玩具|模型|摆件|挂件|flag|banner|pennant|umbrella|pen|pencil|spoon|fork|chopstick|bowl|plate|mineral water|water bottle|cup|bottle|apple|banana|orange|pear|watermelon|fruit|lollipop|candy|bread|cookie|key|phone|laptop|computer|tablet|screen|camera|glasses|eraser|ruler|backpack|bag|microphone|mic|notebook|book|towel|tissue|cotton swab|battery|lamp|remote|mouse|keyboard|fan|toy|model/i;
 const oversizedScenePattern = /汽车|车辆|公交|火车|飞机|船|房|楼|建筑|天空|风景|街道|道路|公路|山|海|河|湖|森林|荒原|全景|远景|大型家具|床|沙发|衣柜|冰箱|洗衣机|大面积背景/i;
 const explicitOversizePattern = /比人.{0,8}(大|高)|比一个人.{0,8}(大|高)|尺寸.{0,8}(超过|大于|高于).{0,4}人|人.{0,4}(还要)?大|巨大|无法搬动|不能搬动|主要是.{0,6}(场景|背景)|大面积背景/i;
 
@@ -506,14 +506,14 @@ const liteIdentificationUserPromptPhoto = [
   "鉴定照片里最清楚的一个主体，输出装备素材 JSON。",
   "",
   "输出结构（字段名用英文）：",
-  '{"name":"装备名","subject":"主体","objectType":"类型","equipable":true,"scene":false,"tooLarge":false,"authentic":"real","clarity":0,"appeal":0,"craft":0,"stats":["attack"],"special":false,"desc":"一句话装备描述","identityDescription":"颜色/材质/形状等可区分细节","confidence":0.0}',
+  '{"name":"装备名","subject":"主体","objectType":"类型","equipable":true,"scene":false,"tooLarge":false,"authentic":"real","clarity":0,"subjectArea":0,"backgroundClean":0,"realPhoto":0,"focusLight":0,"interesting":0,"appeal":0,"craft":0,"stats":["attack"],"special":false,"desc":"一句话装备描述","identityDescription":"颜色/材质/形状等可区分细节","confidence":0.0}',
   "",
   "规则：",
-  "1. 认出画面里最大最清楚的单个主体，按它本来是什么命名，例如 蓝柄剪刀、旧陶瓷杯、黑色键盘；不要叫 照片装备、神秘物品。",
+  "1. 认出画面里最大最清楚的单个主体，按它本来是什么命名，例如 蓝柄剪刀、旧陶瓷杯、黑色键盘；不能叫 照片装备、神秘物品、普通物品。",
   "2. equipable=能拿在手里或随身携带的小物为 true；比人明显大、搬不动的（汽车、家具、冰箱、房子、整张床沙发）equipable=false 且 tooLarge=true。",
   "3. scene=true 只在主体是风景、天空、街道、整个房间这类场景、没有明确小主体时。",
   "4. authentic 判断来源：真实拍摄的实物=real；网络图/搜图=web；屏幕截图=screenshot；AI 生成图=ai；电商白底/精修宣传图=product。纸卡、贴纸、屏幕里的武器或角色图案，按载体本身（纸、屏幕）判断，不要把图案当真武器。",
-  "5. clarity=主体清晰可辨 0-3；appeal=有趣、让人想装备 0-3；craft=对焦光线构图等拍摄质量 0-3。主动拉开差距，别都给中间分。",
+  "5. 质量分要像旧版照片鉴定一样主动拉开差距：clarity=主体清晰可辨 0-3；subjectArea=主体占图面积 0-3；backgroundClean=背景不抢主体 0-2；realPhoto=真实实拍感 0-3；focusLight=对焦光线 0-2；interesting=有趣/适合装备 0-2；appeal=有趣程度 0-3；craft=综合拍摄质量 0-3。清楚的真实日常物不要压低，模糊、主体太小、网图和电商图不要虚高。",
   "6. stats=1-3 个属性倾向，从 hp/attack/defense/speed/shield/lifesteal/regen 里选，贴合物品功能或形态。special=true 只在主体很清楚、质量高且属性语义非常强时，否则 false。",
   "6a. speed 只给鞋、轮子、滑板、风扇、气流、旋转、飞行、箭头、遥控器/车模、闪电等明确运动证据；小巧、轻便、加快吃饭/书写/处理都不能算 speed。",
   "6b. 餐具本体不是食物，空杯空瓶空碗空盘也不是食物；汤匙/勺/叉/筷优先 attack/defense/shield。削皮刀、剪刀、针、钩、指甲刀优先 attack/lifesteal。笔、铅笔、签字笔优先 attack/lifesteal。",
@@ -11969,11 +11969,27 @@ function refineShortBladeDrawingDisplayName(name, evidence = "") {
 function refinePhotoNameWithObjectEvidence(name, subjectName, objectType, identityDescription) {
   const cleanName = cleanText(name, "照片装备", 18);
   const rawIdentity = String(identityDescription || "");
-  if (!hasImageTextMarkerText(rawIdentity)) return cleanName;
   const evidenceText = [subjectName, objectType, stripImageTextSemantics(rawIdentity)].filter(Boolean).join(" ");
+  if (isGenericPhotoName(cleanName)) {
+    return inferPhotoNameFromEvidence(evidenceText) || cleanText(subjectName || objectType || cleanName, cleanName, 18);
+  }
+  if (!hasImageTextMarkerText(rawIdentity)) return cleanName;
   if (objectEvidenceSupportsNameCategory(cleanName, evidenceText)) return cleanName;
   const fallback = cleanText(subjectName || objectType || cleanName, cleanName, 18);
   return fallback || cleanName;
+}
+
+function isGenericPhotoName(text = "") {
+  const value = String(text || "").trim();
+  return !value || /^(?:照片装备|照片道具|神秘物品|神秘装备|普通物品|物品|道具|装备|小物|小物件|主体|清晰主体|未知物品|unknown)$/i.test(value);
+}
+
+function inferPhotoNameFromEvidence(text = "") {
+  const source = stripImageTextSemantics(String(text || ""));
+  if (!source) return "";
+  if (/医用棉签|棉签|棉棒|cotton\s*swab/i.test(source)) return /包装|包装袋|袋|package|packaging/i.test(source) ? "医用棉签" : "棉签";
+  if (/包装袋|包装|袋|package|packaging/i.test(source)) return "包装袋";
+  return inferEverydayDrawingNameFromText(source);
 }
 
 function inferDrawingNameFromVisualEvidence(text = "") {
@@ -12580,15 +12596,43 @@ function allocateStatsLite(statNames, budget) {
   return result;
 }
 
-// 把 lite 的 clarity/appeal/craft 近似映射进旧 6 维 photoQuality，便于存档/重平衡/旧 UI 复用。
-function liteToPhotoQuality(clarity, appeal, craft, sourceMode) {
+function readLiteQualityDimension(value, max) {
+  const numeric = Number.parseInt(value, 10);
+  if (!Number.isFinite(numeric)) return null;
+  return Math.max(0, Math.min(max, numeric));
+}
+
+// 把 lite 的质量字段映射进旧 6 维 photoQuality，便于复用旧版照片端的分数校准。
+function liteToPhotoQuality(input = {}) {
+  const clarity = readLiteQualityDimension(input.clarity, 3) ?? 0;
+  const appeal = readLiteQualityDimension(input.appeal, 3) ?? 0;
+  const craft = readLiteQualityDimension(input.craft, 3) ?? 0;
+  const sourceMode = normalizeHeroMode(input.sourceMode || "photo");
+  const authentic = sourceMode === "drawing" ? "real" : normalizeLiteAuthentic(input.authentic);
+  const providedSubjectArea = readLiteQualityDimension(input.subjectArea ?? input.subject_area, 3);
+  const providedBackgroundClean = readLiteQualityDimension(input.backgroundClean ?? input.background_clean, 2);
+  const providedRealPhoto = readLiteQualityDimension(input.realPhoto ?? input.real_photo, 3);
+  const providedFocusLight = readLiteQualityDimension(input.focusLight ?? input.focus_light, 2);
+  const providedInteresting = readLiteQualityDimension(input.interesting, 2);
+  const inferredSubjectArea = sourceMode === "drawing"
+    ? clarity
+    : clarity >= 3
+      ? (craft >= 2 || appeal >= 2 ? 3 : 2)
+      : clarity >= 2 ? 2 : clarity;
+  const inferredRealPhoto = sourceMode === "drawing"
+    ? craft
+    : authentic === "real"
+      ? Math.min(3, Math.max(clarity, craft >= 2 ? 2 : 0))
+      : authentic === "web"
+        ? Math.min(2, clarity)
+        : Math.min(1, Math.max(clarity, craft));
   return normalizePhotoQuality({
     clarity,
-    subjectArea: clarity,
-    backgroundClean: Math.min(2, craft),
-    realPhoto: sourceMode === "drawing" ? craft : clarity,
-    focusLight: Math.min(2, craft),
-    interesting: Math.min(2, appeal),
+    subjectArea: providedSubjectArea ?? inferredSubjectArea,
+    backgroundClean: providedBackgroundClean ?? Math.min(2, craft),
+    realPhoto: providedRealPhoto ?? inferredRealPhoto,
+    focusLight: providedFocusLight ?? Math.min(2, craft),
+    interesting: providedInteresting ?? Math.min(2, appeal),
   });
 }
 
@@ -12786,6 +12830,38 @@ function calculateLiteDrawingQualityScore({ photoQuality, evidenceText, gate, co
   return clampInt(score, 0, 13);
 }
 
+function calculateLitePhotoQualityScore({ photoQuality, clarity, appeal, craft, authentic, semanticText, confidence, structuredQuality }) {
+  const quality = normalizePhotoQuality(photoQuality);
+  const text = String(semanticText || "");
+  const realSource = normalizeLiteAuthentic(authentic) === "real";
+  const adjustedScore = calculateAdjustedPhotoQualityScore(quality, text);
+  const simpleScore = clampNumber(
+    (clampInt(clarity, 0, 3) * 2.7)
+      + (clampInt(craft, 0, 3) * 1.7)
+      + (clampInt(appeal, 0, 3) * 1.2),
+    0,
+    15,
+  );
+  const strongSubject = isPortableEquipmentText(text) || isSmallEquipableNaturalText(text) || hasPhotoStatSemanticText(text);
+  let score = structuredQuality ? adjustedScore : Math.max(simpleScore, adjustedScore - 2);
+
+  if (realSource && quality.realPhoto >= 2 && quality.clarity >= 2 && strongSubject) score = Math.max(score, 10);
+  if (realSource && quality.realPhoto >= 2 && quality.clarity >= 3 && quality.subjectArea >= 2 && quality.focusLight >= 1) score = Math.max(score, 12);
+  if (realSource && quality.clarity >= 3 && quality.focusLight >= 2 && quality.interesting >= 1 && strongSubject) score = Math.max(score, 13);
+
+  if (!realSource) score = Math.min(score, normalizeLiteAuthentic(authentic) === "web" ? 12 : 11);
+  if (quality.clarity <= 0 || quality.subjectArea <= 0) score = Math.min(score, 4);
+  else if (quality.clarity <= 1) score = Math.min(score, realSource ? 8 : 7);
+  else if (quality.subjectArea <= 1) score = Math.min(score, realSource ? 10 : 8);
+  if (quality.realPhoto <= 1) score = Math.min(score, 12);
+  if (quality.focusLight <= 0 && quality.backgroundClean <= 0) score = Math.min(score, 11);
+  if (Number.isFinite(confidence) && confidence > 0) {
+    if (confidence < 0.45) score = Math.min(score, 9);
+    else if (confidence < 0.65) score = Math.min(score, 12);
+  }
+  return clampInt(Math.round(score), 0, 15);
+}
+
 function balanceItemLite(item, image = "") {
   const safe = item && typeof item === "object" ? item : {};
   const sourceMode = normalizeHeroMode(safe.sourceMode || safe.source_mode || "photo");
@@ -12825,9 +12901,21 @@ function balanceItemLite(item, image = "") {
   const appeal = clampInt(safe.appeal, 0, 3);
   const craft = clampInt(safe.craft, 0, 3);
   const modelPhotoQuality = normalizePhotoQuality(safe.photoQuality || safe.photo_quality || {});
-  const photoQuality = sourceMode === "drawing" && calculatePhotoQualityTotal(modelPhotoQuality) > 0
+  const hasStructuredPhotoQuality = calculatePhotoQualityTotal(modelPhotoQuality) > 0;
+  const photoQuality = hasStructuredPhotoQuality
     ? modelPhotoQuality
-    : liteToPhotoQuality(clarity, appeal, craft, sourceMode);
+    : liteToPhotoQuality({
+        clarity,
+        appeal,
+        craft,
+        sourceMode,
+        authentic,
+        subjectArea: safe.subjectArea ?? safe.subject_area,
+        backgroundClean: safe.backgroundClean ?? safe.background_clean,
+        realPhoto: safe.realPhoto ?? safe.real_photo,
+        focusLight: safe.focusLight ?? safe.focus_light,
+        interesting: safe.interesting,
+      });
 
   const recognition = sourceMode === "drawing" ? normalizeLiteDrawingRecognition(safe.recognition || safe.drawingRecognition, safe.recognizable) : "";
   const evidenceText = sourceMode === "drawing"
@@ -12851,29 +12939,15 @@ function balanceItemLite(item, image = "") {
     subjectName = pickLiteDrawingSubjectName({ itemName, subjectName, objectType, recognizedSubject, evidenceText, gate: drawingGate });
     itemName = makeLiteDrawingItemName(itemName, subjectName, evidenceText, drawingGate);
     itemName = refineShortBladeDrawingDisplayName(itemName, evidenceText);
-  }
-
-  const noEffect = sourceMode === "drawing"
-    ? scene || equipable === false || drawingGate?.level === "unformed" || isUnformedDrawingSubjectText(`${itemName} ${subjectName}`)
-    : scene || tooLargeFlag || equipable === false;
-
-  const qualityScore = sourceMode === "drawing"
-    ? calculateLiteDrawingQualityScore({ photoQuality, evidenceText, gate: drawingGate, confidence, recognition })
-    : clampNumber(clarity * 2.5 + appeal * 1.5 + craft * 1, 0, 15);
-  let requestedValue;
-  if (noEffect) {
-    requestedValue = 0;
-  } else if (preserveSettled && Number.isFinite(safe.value)) {
-    requestedValue = Math.max(0, safe.value);
   } else {
-    requestedValue = mapPhotoQualityScoreToValue(qualityScore);
-    if (sourceMode !== "drawing" && authentic !== "real") {
-      requestedValue = Math.min(requestedValue, liteNonAuthenticCap());
-    }
+    const photoNameEvidence = [subjectName, objectType, identityDescription, safe.desc || safe.description || "", reason, tags.join(" ")].filter(Boolean).join(" ");
+    itemName = refinePhotoNameWithObjectEvidence(itemName, subjectName, objectType, photoNameEvidence);
+    subjectName = refinePhotoNameWithObjectEvidence(subjectName, itemName, objectType, photoNameEvidence);
   }
 
   const statNames = normalizeLiteStatNames(safe.stats);
-  const wantSpecial = parseBooleanMaybe(safe.special) === true;
+  const providedSpecialAffinity = normalizeSpecialEffects(safe.specialAffinity || safe.special_affinity || safe.specialCandidates || safe.special_candidates);
+  const wantSpecial = parseBooleanMaybe(safe.special) === true || providedSpecialAffinity.length > 0;
   const rawStatAffinity = statNames.length ? liteStatAffinity(statNames) : normalizeStatAffinity(safe.statAffinity || safe.stat_affinity || []);
   const statSemanticText = sourceMode === "drawing"
     ? enrichLiteDrawingStatText(getDrawingGateStatText(drawingGate, [itemName, subjectName, objectType, evidenceText].filter(Boolean).join(" ")), drawingGate)
@@ -12881,6 +12955,38 @@ function balanceItemLite(item, image = "") {
   const statAffinity = sourceMode === "drawing"
     ? sanitizeDrawingStatAffinityForGate(rawStatAffinity, drawingGate, statSemanticText)
     : sanitizeStatAffinityForSemantics(rawStatAffinity, statSemanticText);
+  const photoScoreSemanticText = sourceMode === "drawing"
+    ? statSemanticText
+    : stripImageTextSemantics([
+        statSemanticText,
+        identityDescription,
+        reason,
+        safe.description || safe.desc || "",
+        tags.join(" "),
+      ].filter(Boolean).join(" "));
+
+  const noEffect = sourceMode === "drawing"
+    ? scene || equipable === false || drawingGate?.level === "unformed" || isUnformedDrawingSubjectText(`${itemName} ${subjectName}`)
+    : scene || tooLargeFlag || equipable === false;
+
+  const qualityScore = sourceMode === "drawing"
+    ? calculateLiteDrawingQualityScore({ photoQuality, evidenceText, gate: drawingGate, confidence, recognition })
+    : calculateLitePhotoQualityScore({ photoQuality, clarity, appeal, craft, authentic, semanticText: photoScoreSemanticText, confidence, structuredQuality: hasStructuredPhotoQuality });
+  let requestedValue;
+  if (noEffect) {
+    requestedValue = 0;
+  } else if (preserveSettled && Number.isFinite(safe.value)) {
+    requestedValue = Math.max(0, safe.value);
+  } else {
+    requestedValue = mapPhotoQualityScoreToValue(qualityScore);
+    if (sourceMode !== "drawing") {
+      const photoValueCap = getPhotoValueCapFromQuality(photoQuality, photoScoreSemanticText);
+      if (photoValueCap > 0) requestedValue = Math.min(requestedValue, photoValueCap);
+      if (authentic !== "real") {
+        requestedValue = Math.min(requestedValue, liteNonAuthenticCap());
+      }
+    }
+  }
   if (!noEffect && sourceMode === "drawing" && requestedValue > 0 && requestedValue < statValueWeights.attack + statValueWeights.speed && qualityScore >= 11 && hasShortBladeVisualEvidenceText(statSemanticText)) {
     const wantsSpeed = statNames.includes("speed") || statAffinity.some((item) => item.stat === "speed") || hasSpeedSemanticText(statSemanticText);
     if (wantsSpeed && requestedValue >= statValueWeights.attack + statValueWeights.speed - 1 && getPhotoValueMax() >= statValueWeights.attack + statValueWeights.speed) {
@@ -12896,9 +13002,9 @@ function balanceItemLite(item, image = "") {
     specialEffects = preserveSettled
       ? normalizeSpecialEffects(safe.specialEffects).filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue)
       : specialAllowed
-        ? choosePhotoSpecialEffects({
+          ? choosePhotoSpecialEffects({
             itemName, subjectName, objectType, reason, tags, description: sourceMode === "drawing" ? statSemanticText : safe.description || reason,
-            sourceMode, specialAffinity: wantSpecial ? statNames : [],
+            sourceMode, specialAffinity: providedSpecialAffinity.length ? providedSpecialAffinity : (wantSpecial ? statNames : []),
             semanticTextOverride: statSemanticText,
           }, image, requestedValue).filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue)
         : [];
@@ -12974,7 +13080,7 @@ function balanceItemLite(item, image = "") {
     photoQuality,
     photoQualityScore: noEffect ? 0 : Math.round(qualityScore),
     statAffinity,
-    specialAffinity: normalizeSpecialEffects(wantSpecial ? statNames : (safe.specialAffinity || [])),
+    specialAffinity: normalizeSpecialEffects(providedSpecialAffinity.length ? providedSpecialAffinity : (wantSpecial ? statNames : (safe.specialAffinity || []))),
     semanticAppraisal: true,
     drawingRecognition: sourceMode === "drawing" ? drawingGate?.level || "unformed" : "",
     liteAuthentic: authentic,
@@ -13015,12 +13121,18 @@ function normalizeModelItemLite(raw) {
     recognizable: safe.recognizable ?? safe.recognition,
     recognition: safe.recognition ?? safe.recognizable,
     clarity: safe.clarity,
+    subjectArea: safe.subjectArea ?? safe.subject_area,
+    backgroundClean: safe.backgroundClean ?? safe.background_clean,
+    realPhoto: safe.realPhoto ?? safe.real_photo,
+    focusLight: safe.focusLight ?? safe.focus_light,
+    interesting: safe.interesting,
     appeal: safe.appeal,
     craft: safe.craft,
     photoQuality: safe.photoQuality || safe.photo_quality,
     stats: safe.stats,
     statAffinity: safe.statAffinity || safe.stat_affinity,
     special: safe.special,
+    specialAffinity: safe.specialAffinity || safe.special_affinity || safe.specialCandidates || safe.special_candidates,
     description: cleanText(safe.desc || safe.description, "", 96),
     identityDescription: cleanText(safe.identityDescription || safe.identity_description, "", 160),
     objectiveAssessment: cleanText(safe.objectiveAssessment || safe.objective_assessment || safe.visualAssessment || safe.visual_assessment, "", 160),
