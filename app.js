@@ -398,7 +398,7 @@ const photoIdentificationUserPrompt = [
   "生命恢复、回血、被打后恢复都属于 regen，不属于 hp；只有明确增加生命上限/耐久上限时才倾向 hp。",
   "attack=攻击：工具、硬物、敲击物、键盘鼠标、笔、砖石、运动器材、音响/喇叭等有冲击感的发声物、尖锐或能主动施力的物品。",
   "defense=防御：厚重、坚硬、支撑、抗压、保护、外壳、锁具、电子设备外壳、金属/硬塑料物品。",
-  "speed=速度：鞋、轮子、滑板、风扇、空气流动、轻便快速、旋转、遥控器；没有运动/气流/轮/鞋含义时不要给高 speed。",
+  "speed=速度：鞋、轮子、滑板、风扇、空气流动、旋转、遥控器/车模、飞行/箭头/闪电等明确运动证据；轻便、小巧、加快吃饭/书写/处理这类功能联想不能给 speed。",
   "shield=护盾：容器、盒、包、锅盖、伞、镜子、壳、套、罩、防护用品、能挡在身前的物品。",
   "lifesteal=吸血：刀、剪刀、针、钩、指甲刀、尖锐小工具、吸附/抽取/红色血感物品；没有尖锐/吸附/夺取含义时不要给。",
   "regen=回复：水、咖啡、药品、清洁用品、空气净化器/过滤器、毛巾纸巾、灯、充电器、电池、修复/补能/清洁感物品。杯瓶更偏 regen/shield，餐具更偏 attack/defense/shield，不要只因为名称里有汤就当成食物。",
@@ -479,7 +479,7 @@ const drawingIdentificationUserPrompt = [
   "",
   "属性语义：",
   "statAffinity 只输出属性倾向，score 用 1-3，最大 3 项。可选 stat：hp、attack、defense、speed、shield、lifesteal、regen。",
-  "属性必须跟画出来的主体强相关，不要为了让装备变强而乱配。attack=剑刃、刀、斧、长柄武器、弓箭、尖刺、爪牙、火焰、雷电、爆炸、笔尖/硬工具等进攻证据；defense=铠甲、墙、龟壳、厚重外壳、金属/硬塑料日用品；shield=盾牌、圆环屏障、保护罩、雨伞、锅盖、盒包；speed=翅膀、风、闪电、轮子、飞行、箭头、靴子、轻快小物；lifesteal=吸血、尖牙、血滴、黑暗抽取；regen=水、草、药、光、治愈、泉水、清洁/充电/补给物；hp=生命、食物、果实、瓜果、糖果、爱心、能量核心。",
+  "属性必须跟画出来的主体强相关，不要为了让装备变强而乱配。attack=剑刃、刀、斧、长柄武器、弓箭、尖刺、爪牙、火焰、雷电、爆炸、笔尖/硬工具等进攻证据；defense=铠甲、墙、龟壳、厚重外壳、金属/硬塑料日用品；shield=盾牌、圆环屏障、保护罩、雨伞、锅盖、盒包；speed=翅膀、风扇、闪电、轮子、飞行、箭头、靴子等明确运动证据；lifesteal=吸血、尖牙、血滴、黑暗抽取；regen=水、草、药、光、治愈、泉水、清洁/充电/补给物；hp=生命、食物、果实、瓜果、糖果、爱心、能量核心。",
   "餐具要看内容：汤勺、叉子、筷子、空碗空盘本身不是食物，只能偏轻攻击/防御/护盾；只有清楚画出里面有汤、水、食物或药水，才可以给 hp/regen 倾向。",
   "圆形/星形/笑脸/普通符号不要默认 attack；更常见是护符、徽记、圆环、屏障、生命或回复倾向。红色本身不等于吸血、血怒或武器；必须画出血滴、伤口、尖牙、刀刃、燃烧等更明确证据才给相关倾向。魔杖/法杖只有在长柄和杖头明确时才能给 attack 或特殊效果。",
   `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}：${effect.detail || effect.label}(价值${effect.value})`).join("；")}。`,
@@ -515,6 +515,8 @@ const liteIdentificationUserPromptPhoto = [
   "4. authentic 判断来源：真实拍摄的实物=real；网络图/搜图=web；屏幕截图=screenshot；AI 生成图=ai；电商白底/精修宣传图=product。纸卡、贴纸、屏幕里的武器或角色图案，按载体本身（纸、屏幕）判断，不要把图案当真武器。",
   "5. clarity=主体清晰可辨 0-3；appeal=有趣、让人想装备 0-3；craft=对焦光线构图等拍摄质量 0-3。主动拉开差距，别都给中间分。",
   "6. stats=1-3 个属性倾向，从 hp/attack/defense/speed/shield/lifesteal/regen 里选，贴合物品功能或形态。special=true 只在主体很清楚、质量高且属性语义非常强时，否则 false。",
+  "6a. speed 只给鞋、轮子、滑板、风扇、气流、旋转、飞行、箭头、遥控器/车模、闪电等明确运动证据；小巧、轻便、加快吃饭/书写/处理都不能算 speed。",
+  "6b. 餐具本体不是食物，空杯空瓶空碗空盘也不是食物；汤匙/勺/叉/筷优先 attack/defense/shield。削皮刀、剪刀、针、钩、指甲刀优先 attack/lifesteal。笔、铅笔、签字笔优先 attack/lifesteal。",
   "7. 物体上的文字含义不作为命名或属性依据。desc 写一句中文装备味道，不承诺具体数值；identityDescription 写颜色、材质、形状、磨损等可区分细节，供查重用。",
 ].join("\n");
 
@@ -5973,8 +5975,8 @@ function hasStrongHpSemanticText(text) {
 }
 
 function hasStrongSpeedSemanticText(text) {
-  const source = String(text || "");
-  return /(?:风扇|小风扇|桌面小风扇|空气动力|气流|旋转|扇叶|电扇|闪电|雷电|疾风|飞行|fan|airflow|rotate|blade|lightning|fly)/i.test(source)
+  const source = stripNegatedSemanticText(stripImageTextSemantics(text || ""));
+  return /(?:鞋|靴|鞋底|鞋帮|滑板|车轮|滚轮|轮子|轮胎|滑轮|风扇|小风扇|桌面小风扇|空气动力|气流|旋转|扇叶|电扇|风车|陀螺|闪电|雷电|飞行|箭头|遥控器|车模|小车|跑车|车辆|翅膀|羽翼|shoe|boot|wheel|skateboard|fan|airflow|rotate|spinning|lightning|fly|arrow|remote|vehicle|wing)/i.test(source)
     || hasWingVisualEvidenceText(source);
 }
 
@@ -5984,7 +5986,7 @@ function hasShieldSemanticText(text) {
 
 function hasDefenseSemanticText(text) {
   const source = String(text || "");
-  return hasAirPurifierSemanticText(source) || /(?:厚|重|硬|坚|金属|石|木|壳|骨|甲|板|锁|支撑|抗压|防御|防护|保护|过滤|防尘|框|架|陶瓷|玻璃|橡胶|岩|盾|音箱|音响|喇叭|电子设备|hard|solid|metal|stone|wood|shell|armor|lock|support|ceramic|glass|rubber|filter|speaker)/i.test(source);
+  return hasAirPurifierSemanticText(source) || isTablewareSemanticText(source) || /(?:厚|重|硬|坚|金属|石|木|壳|骨|甲|板|锁|支撑|抗压|防御|防护|保护|过滤|防尘|框|架|陶瓷|玻璃|橡胶|岩|盾|音箱|音响|喇叭|电子设备|hard|solid|metal|stone|wood|shell|armor|lock|support|ceramic|glass|rubber|filter|speaker)/i.test(source);
 }
 
 function hasAttackSemanticText(text) {
@@ -6010,7 +6012,7 @@ function hasSpeedSemanticText(text) {
 }
 
 function hasLifestealSemanticText(text) {
-  return /(?:吸血|吸附|抽取|血|剑|短剑|长剑|剑刃|刀|剪|针|钩|尖刺|尖牙|尖锐|刃|指甲刀|夹|钳|牙|爪|leech|blood|absorb|sword|dagger|knife|scissor|needle|hook|sharp|blade|claw|tooth|plier)/i.test(stripNegatedSemanticText(text || ""));
+  return /(?:吸血|吸附|抽取|血|剑|短剑|长剑|剑刃|刀|剪|针|钩|尖刺|尖牙|尖锐|刃|指甲刀|夹|钳|牙|爪|笔尖|中性笔|圆珠笔|签字笔|铅笔|钢笔|马克笔|水笔|pen|pencil|leech|blood|absorb|sword|dagger|knife|scissor|needle|hook|sharp|blade|claw|tooth|plier)/i.test(stripNegatedSemanticText(text || ""));
 }
 
 function hasRegenSemanticText(text) {
@@ -12793,6 +12795,7 @@ function balanceItemLite(item, image = "") {
   let itemName = cleanText(stripLiteMediumWords(safe.itemName || safe.name || safe.subjectName || safe.subject, sourceMode), fallbackName, 18);
   let subjectName = cleanText(stripLiteMediumWords(safe.subjectName || safe.subject || itemName, sourceMode), itemName, 18);
   const objectType = cleanText(safe.objectType || safe.object_type || safe.type, "", 18);
+  const sizeClass = cleanText(safe.sizeClass || safe.size_class, "", 18);
   const tags = normalizeStringList(safe.tags);
   const reason = cleanText(safe.reason, "", 72);
   const identityDescription = sourceMode === "drawing"
@@ -12874,10 +12877,10 @@ function balanceItemLite(item, image = "") {
   const rawStatAffinity = statNames.length ? liteStatAffinity(statNames) : normalizeStatAffinity(safe.statAffinity || safe.stat_affinity || []);
   const statSemanticText = sourceMode === "drawing"
     ? enrichLiteDrawingStatText(getDrawingGateStatText(drawingGate, [itemName, subjectName, objectType, evidenceText].filter(Boolean).join(" ")), drawingGate)
-    : `${itemName} ${subjectName} ${objectType}`;
+    : makePhotoStatEvidenceText({ itemName, subjectName, objectType, sizeClass, identityDescription }) || `${itemName} ${subjectName} ${objectType}`;
   const statAffinity = sourceMode === "drawing"
     ? sanitizeDrawingStatAffinityForGate(rawStatAffinity, drawingGate, statSemanticText)
-    : rawStatAffinity;
+    : sanitizeStatAffinityForSemantics(rawStatAffinity, statSemanticText);
   if (!noEffect && sourceMode === "drawing" && requestedValue > 0 && requestedValue < statValueWeights.attack + statValueWeights.speed && qualityScore >= 11 && hasShortBladeVisualEvidenceText(statSemanticText)) {
     const wantsSpeed = statNames.includes("speed") || statAffinity.some((item) => item.stat === "speed") || hasSpeedSemanticText(statSemanticText);
     if (wantsSpeed && requestedValue >= statValueWeights.attack + statValueWeights.speed - 1 && getPhotoValueMax() >= statValueWeights.attack + statValueWeights.speed) {
@@ -12902,12 +12905,12 @@ function balanceItemLite(item, image = "") {
     const specialValue = calculateSpecialEffectsValue(specialEffects);
     const statBudget = Math.max(0, requestedValue - specialValue);
     const seedStats = preserveSettled && safe.stats && typeof safe.stats === "object" && !Array.isArray(safe.stats) ? safe.stats : null;
-    const allocationKeys = statNames.length ? statNames : statAffinity.map((a) => a.stat);
+    const allocationKeys = statAffinity.map((a) => a.stat);
     stats = seedStats && calculateStatsValue(normalizeStats(seedStats, 20)) > 0
       ? clampStatsToValue(seedStats, statBudget)
       : sourceMode === "drawing"
         ? clampStatsToValue(allocateStatsForItem({}, statSemanticText, statBudget, statAffinity), statBudget)
-        : allocateStatsLite(allocationKeys, statBudget);
+        : clampStatsToValue(allocateStatsForItem({}, statSemanticText, statBudget, liteStatAffinity(allocationKeys)), statBudget);
     if (sourceMode === "drawing") {
       stats = rebalanceLiteShortBladeStats(stats, statBudget, statSemanticText);
     }
@@ -12921,7 +12924,7 @@ function balanceItemLite(item, image = "") {
     specialEffects = [];
     stats = sourceMode === "drawing"
       ? clampStatsToValue(allocateStatsForItem({}, statSemanticText, requestedValue, statAffinity), requestedValue)
-      : allocateStatsLite(statNames.length ? statNames : statAffinity.map((a) => a.stat), requestedValue);
+      : clampStatsToValue(allocateStatsForItem({}, statSemanticText, requestedValue, liteStatAffinity(statAffinity.map((a) => a.stat))), requestedValue);
     if (sourceMode === "drawing") {
       stats = rebalanceLiteShortBladeStats(stats, requestedValue, statSemanticText);
     }
@@ -12949,7 +12952,7 @@ function balanceItemLite(item, image = "") {
     itemName,
     subjectName,
     objectType,
-    sizeClass: cleanText(safe.sizeClass, "", 18),
+    sizeClass,
     isScene: scene,
     isEquipable: !noEffect && equipable !== false,
     rarity: ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common",
@@ -13305,7 +13308,7 @@ function hasStrongStatEvidence(key, text) {
     case "attack": return hasAttackSemanticText(text);
     case "lifesteal": return hasLifestealSemanticText(text);
     case "defense": return hasDefenseSemanticText(text);
-    case "speed": return hasSpeedSemanticText(text);
+    case "speed": return hasStrongSpeedSemanticText(text);
     default: return false;
   }
 }
@@ -13599,7 +13602,7 @@ function hasSemanticForPhotoStat(key, text) {
     case "hp": return hasHpSemanticText(text);
     case "attack": return hasAttackSemanticText(text);
     case "defense": return hasDefenseSemanticText(text);
-    case "speed": return hasSpeedSemanticText(text);
+    case "speed": return hasStrongSpeedSemanticText(text);
     case "shield": return hasShieldSemanticText(text);
     case "lifesteal": return hasLifestealSemanticText(text);
     case "regen": return hasRegenSemanticText(text);
@@ -13628,7 +13631,6 @@ function getAffordableFallbackStatKeys(text, budget) {
   if (hasRegenSemanticText(text)) add("regen");
   if (hasHpSemanticText(text)) add("hp");
   if (hasLifestealSemanticText(text)) add("lifesteal");
-  if (hasSpeedSemanticText(text)) add("speed");
   return keys;
 }
 
@@ -13649,6 +13651,7 @@ function getPhotoStatSoftCap(key, text, valueBudget) {
 
 function shouldConvertRemainingBudgetToHp(text, preferredKeys, currentStats, remaining) {
   if (remaining <= 0) return false;
+  if (isTablewareSemanticText(text) && !hasEdibleContentSemanticText(text)) return false;
   const hpSemantic = hasStrongHpSemanticText(text);
   if (preferredKeys.includes("hp") && hpSemantic && (currentStats.hp > 0 || remaining >= statValueWeights.hp)) return true;
   if (hpSemantic) return true;
@@ -13857,16 +13860,16 @@ function getSpecialEffectDefinitions(effectKeys) {
 
 function inferPreferredStats(name) {
   const text = stripNegatedSemanticText(name || "");
-  if (hasShortBladeVisualEvidenceText(text)) return ["attack", "speed", "lifesteal"];
+  if (hasShortBladeVisualEvidenceText(text)) return ["attack", "lifesteal"];
   if (/雨伞|伞面|伞柄|伞骨|umbrella/i.test(text)) return ["shield", "defense"];
-  if (/中性笔|圆珠笔|签字笔|铅笔|钢笔|马克笔|水笔|笔杆|笔尖|笔帽|\bpen\b|pencil/i.test(text)) return ["attack", "speed"];
+  if (/中性笔|圆珠笔|签字笔|铅笔|钢笔|马克笔|水笔|笔杆|笔尖|笔帽|\bpen\b|pencil/i.test(text)) return ["attack", "lifesteal"];
   if (isTablewareSemanticText(text) && !hasEdibleContentSemanticText(text)) return ["attack", "defense", "shield"];
   if (/笔记本电脑|笔记本|电脑|平板|手机|屏幕|laptop|computer|tablet|phone|screen/i.test(text)) return ["defense", "shield", "attack"];
   if (/矿泉水|水瓶|mineral water|water bottle/i.test(text)) return ["regen", "hp"];
   if (/风扇|扇叶|fan/i.test(text)) return ["speed"];
   if (/水果|瓜果|果实|西瓜|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|西红柿|番茄|面包|糖果|棒棒糖|饼干|饭团|fruit|watermelon|apple|banana|orange|pear|bread|candy|lollipop|cookie|rice ball/i.test(text)) return ["hp"];
   if (/爱心|心形|生命核心|能量核心|heart|life core/i.test(text)) return ["hp", "regen", "shield"];
-  if (hasMagicWandVisualEvidenceText(text) || /火焰|星火|雷电|闪电|爆炸|剑|短剑|长剑|斧|弓|箭|爪|牙|fire|lightning|explosion|sword|axe|bow|arrow|claw|fang/i.test(text)) return ["attack", "speed", "lifesteal"];
+  if (hasMagicWandVisualEvidenceText(text) || /火焰|星火|雷电|闪电|爆炸|剑|短剑|长剑|斧|弓|箭|爪|牙|fire|lightning|explosion|sword|axe|bow|arrow|claw|fang/i.test(text)) return hasStrongSpeedSemanticText(text) ? ["attack", "speed", "lifesteal"] : ["attack", "lifesteal"];
   if (/盾|护盾|铠|甲|堡垒|屏障|结界|龟壳|龙鳞|shield|armor|barrier|shell|scale/i.test(text)) return ["shield", "defense", "hp"];
   if (/风|疾风|羽|羽翼|翅|靴|轮|飞|箭头|wind|feather|wing|boot|wheel|fly|arrow/i.test(text)) return ["speed", "attack", "regen"];
   if (/泉|水|草|药|光|治愈|净化|spring|water|grass|medicine|light|heal/i.test(text)) return ["regen", "hp", "defense"];
@@ -13874,11 +13877,11 @@ function inferPreferredStats(name) {
   if (hasAirPurifierSemanticText(text)) return ["regen", "defense", "shield"];
   if (/咖啡|水|饮|药|汤(?!勺)|茶|奶|果汁|杯|瓶|喷雾|清洁|纸巾|毛巾|湿巾|coffee|water|drink|medicine|tea|milk|juice|cup|bottle|clean|tissue|towel/i.test(text)) return ["regen", "shield", "hp"];
   if (/番茄|西红柿|西瓜|苹果|香蕉|饭|面|糖|糖果|棒棒糖|饼|肉|菜|水果|瓜果|食|能量|零食|植物|花|叶|种子|tomato|watermelon|apple|banana|rice|bread|candy|lollipop|meat|vegetable|fruit|food|energy|snack|plant|flower|leaf|seed/i.test(text)) return ["hp", "regen"];
-  if (/刀|剪|针|钉|锥|刃|指甲刀|钩|夹|钳|锯|尖锐|knife|scissor|needle|nail|blade|clipper|hook|pliers|saw|sharp/i.test(text)) return ["lifesteal", "attack", "speed"];
+  if (/刀|剪|针|钉|锥|刃|指甲刀|钩|夹|钳|锯|尖锐|knife|scissor|needle|nail|blade|clipper|hook|pliers|saw|sharp/i.test(text)) return ["attack", "lifesteal"];
   if (/键盘|鼠标|锤|棍|棒|扳手|螺丝刀|砖|石|球拍|拍子|遥控器|手机|相机|keyboard|mouse|hammer|club|tool|wrench|screwdriver|brick|stone|racket|remote|phone|camera/i.test(text)) return ["attack", "defense", "shield"];
   if (/锅盖|镜|盾|伞|盔|盒|箱|包|壳|套|口罩|眼镜|锁|钥匙|防护|保护|容器|lid|mirror|shield|umbrella|helmet|box|case|bag|shell|mask|glasses|lock|key|protect|container/i.test(text)) return ["shield", "defense", "hp"];
   if (/音箱|音响|喇叭|speaker/i.test(text)) return ["attack", "defense", "regen"];
-  if (/鞋|拖鞋|滑板|风扇|轮|轻|羽|飞|跑|车模|陀螺|旋转|气流|线缆|shoe|slipper|skateboard|fan|wheel|lightweight|feather|fly|run|toy car|spinning|airflow|cable/i.test(text)) return ["speed", "attack", "regen"];
+  if (/鞋|拖鞋|滑板|风扇|车轮|滚轮|轮子|轮胎|滑轮|羽|飞|跑|车模|陀螺|旋转|气流|shoe|slipper|skateboard|fan|wheel|feather|fly|run|toy car|spinning|airflow/i.test(text)) return ["speed", "attack", "regen"];
   if (/书|本|笔记|book|notebook/i.test(text)) return ["regen", "defense", "hp"];
   if (/卡片|贴纸|图案|card|sticker|pattern/i.test(text)) return ["regen", "hp", "defense"];
   if (/玩具|模型|摆件|公仔|手办|青蛙|卡通|toy|model|figure|cartoon/i.test(text)) return ["hp", "defense", "attack"];
