@@ -199,9 +199,9 @@ const equipmentSlotLimit = 10;
 const battleReportLimit = 18;
 const modelMaxTokens = 512;
 const modelImageDetail = "low";
-const defaultPhotoValueMin = 5;
+const defaultPhotoValueMin = 8;
 const defaultPhotoValueMax = 20;
-const basePhotoScoreMin = 5;
+const basePhotoScoreMin = 8;
 const basePhotoScoreMax = 15;
 const battleSpeedOptions = [1, 2, 4];
 const battleRoundBaseMs = 1000;
@@ -320,24 +320,40 @@ const itemQualityRefunds = {
   legendary: 0.9,
 };
 
+const itemQualityScoreBands = {
+  common: { min: 8, label: "普通" },
+  rare: { min: 12, label: "稀有" },
+  epic: { min: 16, label: "史诗" },
+  legendary: { min: 20, label: "传说" },
+};
+
+const specialEffectChances = {
+  common: 0,
+  rare: 20,
+  epic: 40,
+  legendary: 100,
+};
+
+const photoSpecialEffectValue = 12;
+
 const photoSpecialEffects = [
-  { key: "killAttack", label: "磨锋", detail: "每击杀7怪攻击+1", value: 15, kind: "killThreshold", threshold: 7, stat: "attack", amount: 1, displayStat: "attack" },
-  { key: "killDefense", label: "淬甲", detail: "每击杀7怪防御+1", value: 16, kind: "killThreshold", threshold: 7, stat: "defense", amount: 1, displayStat: "defense" },
-  { key: "killShield", label: "叠盾", detail: "每击杀3怪护盾+1", value: 14, kind: "killThreshold", threshold: 3, stat: "shield", amount: 1, displayStat: "shield" },
-  { key: "killSpeed", label: "疾行", detail: "每击杀10怪速度+1", value: 16, kind: "killThreshold", threshold: 10, stat: "speed", amount: 1, displayStat: "speed" },
-  { key: "dealDamageAttack", label: "战意", detail: "每2次进攻临时攻击+1，最多+5", value: 15, kind: "cooldownStack", cooldownTrigger: "attack", cooldown: 2, stat: "attack", amount: 1, cap: 5, displayStat: "attack" },
-  { key: "takeDamageDefense", label: "固守", detail: "每3次受击临时防御+1，最多+5", value: 15, kind: "cooldownStack", cooldownTrigger: "hit", cooldown: 3, stat: "defense", amount: 1, cap: 5, displayStat: "defense" },
-  { key: "killMaxHp", label: "铸命", detail: "每击杀1怪生命上限+3", value: 14, kind: "killPermanent", stat: "hp", amount: 3, displayStat: "hp" },
-  { key: "killHpBoost", label: "回春", detail: "每击杀1怪生命+10", value: 14, kind: "killHeal", amount: 10, displayStat: "hp" },
-  { key: "sweep", label: "横扫", detail: "每3次进攻触发100%伤害扩散", value: 15, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 3, spreadRatio: 1, displayStat: "attack", hideBattleValue: true },
-  { key: "peerless", label: "无双", detail: "击杀后本场攻防+3", value: 15, kind: "killBattleTemp", amount: 3, displayStat: "attackDefense" },
-  { key: "doubleStrikeSpeedDown", label: "连击", detail: "每2次进攻触发一次二连击", value: 16, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 2, strikeCount: 2, displayStat: "attack", hideBattleValue: true },
-  { key: "shieldCrashAttackDown", label: "盾击", detail: "每2次进攻附带当前护盾伤害", value: 16, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 2, shieldDamageRatio: 1, displayStat: "shield" },
-  { key: "shieldReflect", label: "反伤", detail: "护盾减少时对怪物造成等量伤害", value: 16, kind: "shieldReflect", displayStat: "shield" },
-  { key: "regenMultiplier", label: "焕发", detail: "每2次受击触发3倍回复", value: 15, kind: "hitSkill", cooldownTrigger: "hit", cooldown: 2, stat: "regen", multiplier: 3, displayStat: "hp" },
-  { key: "lifestealMultiplier", label: "泣血", detail: "每2次进攻触发3倍吸血", value: 15, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 2, stat: "lifesteal", multiplier: 3, displayStat: "hp" },
-  { key: "heavyStrike", label: "重击", detail: "每3次进攻造成一次3倍攻击", value: 14, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 3, attackMultiplier: 3, displayStat: "attack" },
-  { key: "bloodrage", label: "血怒", detail: "每损失20点生命攻击+1", value: 12, kind: "missingHpAttack", stat: "attack", threshold: 20, amount: 1, displayStat: "attack" },
+  { key: "killAttack", label: "磨锋", detail: "每击杀7怪攻击+1", value: photoSpecialEffectValue, kind: "killThreshold", threshold: 7, stat: "attack", amount: 1, displayStat: "attack" },
+  { key: "killDefense", label: "淬甲", detail: "每击杀7怪防御+1", value: photoSpecialEffectValue, kind: "killThreshold", threshold: 7, stat: "defense", amount: 1, displayStat: "defense" },
+  { key: "killShield", label: "叠盾", detail: "每击杀3怪护盾+1", value: photoSpecialEffectValue, kind: "killThreshold", threshold: 3, stat: "shield", amount: 1, displayStat: "shield" },
+  { key: "killSpeed", label: "疾行", detail: "每击杀10怪速度+1", value: photoSpecialEffectValue, kind: "killThreshold", threshold: 10, stat: "speed", amount: 1, displayStat: "speed" },
+  { key: "dealDamageAttack", label: "战意", detail: "每2次进攻临时攻击+1，最多+5", value: photoSpecialEffectValue, kind: "cooldownStack", cooldownTrigger: "attack", cooldown: 2, stat: "attack", amount: 1, cap: 5, displayStat: "attack" },
+  { key: "takeDamageDefense", label: "固守", detail: "每3次受击临时防御+1，最多+5", value: photoSpecialEffectValue, kind: "cooldownStack", cooldownTrigger: "hit", cooldown: 3, stat: "defense", amount: 1, cap: 5, displayStat: "defense" },
+  { key: "killMaxHp", label: "铸命", detail: "每击杀1怪生命上限+3", value: photoSpecialEffectValue, kind: "killPermanent", stat: "hp", amount: 3, displayStat: "hp" },
+  { key: "killHpBoost", label: "回春", detail: "每击杀1怪生命+10", value: photoSpecialEffectValue, kind: "killHeal", amount: 10, displayStat: "hp" },
+  { key: "sweep", label: "横扫", detail: "每3次进攻触发100%伤害扩散", value: photoSpecialEffectValue, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 3, spreadRatio: 1, displayStat: "attack", hideBattleValue: true },
+  { key: "peerless", label: "无双", detail: "击杀后本场攻防+3", value: photoSpecialEffectValue, kind: "killBattleTemp", amount: 3, displayStat: "attackDefense" },
+  { key: "doubleStrikeSpeedDown", label: "连击", detail: "每2次进攻触发一次二连击", value: photoSpecialEffectValue, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 2, strikeCount: 2, displayStat: "attack", hideBattleValue: true },
+  { key: "shieldCrashAttackDown", label: "盾击", detail: "每2次进攻附带当前护盾伤害", value: photoSpecialEffectValue, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 2, shieldDamageRatio: 1, displayStat: "shield" },
+  { key: "shieldReflect", label: "反伤", detail: "护盾减少时对怪物造成等量伤害", value: photoSpecialEffectValue, kind: "shieldReflect", displayStat: "shield" },
+  { key: "regenMultiplier", label: "焕发", detail: "每2次受击触发3倍回复", value: photoSpecialEffectValue, kind: "hitSkill", cooldownTrigger: "hit", cooldown: 2, stat: "regen", multiplier: 3, displayStat: "hp" },
+  { key: "lifestealMultiplier", label: "泣血", detail: "每2次进攻触发3倍吸血", value: photoSpecialEffectValue, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 2, stat: "lifesteal", multiplier: 3, displayStat: "hp" },
+  { key: "heavyStrike", label: "重击", detail: "每3次进攻造成一次3倍攻击", value: photoSpecialEffectValue, kind: "attackSkill", cooldownTrigger: "attack", cooldown: 3, attackMultiplier: 3, displayStat: "attack" },
+  { key: "bloodrage", label: "血怒", detail: "每损失20点生命攻击+1", value: photoSpecialEffectValue, kind: "missingHpAttack", stat: "attack", threshold: 20, amount: 1, displayStat: "attack" },
 ];
 
 const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
@@ -407,7 +423,7 @@ const photoIdentificationUserPrompt = [
   "",
   `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}：${effect.detail || effect.label}(价值${effect.value})`).join("；")}。`,
   "特殊效果只给语义很强的候选，普通物品可以 specialAffinity=[]；不要为了显得厉害乱给特殊效果。",
-  "只有史诗或传说装备才可能出现特殊效果；史诗只在约三分之一情况下出特殊效果，传说必出一个特殊效果。",
+  "稀有及以上装备才可能出现特殊效果；稀有约20%，史诗约40%，传说必出一个特殊效果。",
   "宽、长、扫帚、扇面、拍子、刷子等有横向扫开联想的实物可选 sweep；奖杯、徽章、冠军感、英雄感、强烈战斗胜利联想的实物可选 peerless。",
   "工具、现实玩具/模型武器、越打越顺手的现实物品可选 dealDamageAttack 或 heavyStrike；盾牌、外壳、硬保护物可选 takeDamageDefense、shieldCrashAttackDown 或 shieldReflect；奖杯、种子、书、训练器、成长感物品可选 killAttack/killDefense/killShield/killSpeed/killMaxHp/killHpBoost；鞋、风扇、滑板、成对/双件/高速物品可选 doubleStrikeSpeedDown；宽面、扫帚、刷子、拍子、扇面等横向扫开联想可选 sweep；喝的、补给、净化、回复感物品可选 regenMultiplier；带尖锐、抽取、血感、锋利联想的物品可选 lifestealMultiplier；红色、受伤、怒气、破损、燃烧或越危险越强的物品可选 bloodrage。",
   "不要给游戏装备图、AI 渲染图、动画、插画、精修素材、卡牌素材 specialAffinity；普通拍摄的现实实物网图/截图可以有正常属性，但不应因为来源是网图而额外变强。现实卡片/贴纸/包装上的幻想武器也不要因为图案像武器就给强攻击或特殊效果。",
@@ -443,7 +459,7 @@ const drawingIdentificationSystemPrompt = [
   "命名和玩家描述里要抛开“手绘/涂鸦/画布/纸面”这层媒介，直接写它在魔塔里会是什么装备。只有 identityDescription 和 reason 可以提到线条、颜色和画面判断。",
   "description、reason、itemName、subjectName 里严禁复述系统要求、prompt、JSON、字段名、让我观察、图片显示的是、按模型生成等过程文字；这些字段只写最终装备本身。",
   "主体能否被看出是什么是第一门槛：只有一两笔、红色折线、随意线段、勉强猜测的形状，即使颜色醒目也必须低分、低信心、specialAffinity=[]。",
-  "只有主体明确、结构完整、线条和配色较好，并且语义非常贴合装备时，才允许给高分或 specialAffinity；稀有级别不要给特殊词条倾向，特殊词条只留给史诗/传说级画作。",
+  "只有主体明确、结构完整、线条和配色较好，并且语义非常贴合装备时，才允许给高分或 specialAffinity；稀有及以上装备才可能出现特殊效果，稀有约20%，史诗约40%，传说必出一个特殊效果。",
   "只在画面几乎空白、纯随机线条、没有可识别主体、纯场景背景或明显无法转成装备概念时，才把 isEquipable 设为 false 或给很低分。",
 ].join("\n");
 
@@ -483,7 +499,7 @@ const drawingIdentificationUserPrompt = [
   "餐具要看内容：汤勺、叉子、筷子、空碗空盘本身不是食物，只能偏轻攻击/防御/护盾；只有清楚画出里面有汤、水、食物或药水，才可以给 hp/regen 倾向。",
   "圆形/星形/笑脸/普通符号不要默认 attack；更常见是护符、徽记、圆环、屏障、生命或回复倾向。红色本身不等于吸血、血怒或武器；必须画出血滴、伤口、尖牙、刀刃、燃烧等更明确证据才给相关倾向。魔杖/法杖只有在长柄和杖头明确时才能给 attack 或特殊效果。",
   `特殊效果倾向 specialAffinity 只能从这些 key 里选，最多 2 个候选：${photoSpecialEffects.map((effect) => `${effect.key}=${effect.label}：${effect.detail || effect.label}(价值${effect.value})`).join("；")}。`,
-  "specialAffinity 只在 photoQuality 接近 13、主体一眼可认、结构完整且属性语义非常强时输出；普通、勉强、简单线条或只有颜色/字面联想时必须输出 []。",
+  "specialAffinity 只在 photoQuality 接近 12、主体一眼可认、结构完整且属性语义非常强时输出；普通、勉强、简单线条或只有颜色/字面联想时必须输出 []。",
   "",
   "命名和描述：",
   "itemName 要具体、短、有画面感，像是在给装备命名，例如 雷纹鼠标、星火短剑、青锋偃月刀、赤缨蛇矛、旧铁汤勺、寒风雨伞、彩纹旗帜、风羽靴、尖牙项链。日常用品必须保留主体类别词；只有确实画出长柄杖形，才可以叫星纹魔杖或法杖；不要叫 画作装备、神秘涂鸦、手绘短剑、万能魔杖、幻想武器或泛泛形状名。",
@@ -3759,7 +3775,7 @@ function renderAffixBestiary(entries, page) {
     <section class="affix-bestiary" aria-label="属性与词条图鉴" data-selected-group="affix">
       <div class="affix-bestiary-head">
         <strong>属性与词条</strong>
-        <span>基础属性按每点分值结算；只有史诗、传说装备才可能带上特殊词条，带倒计时的词条每场战斗都会重新计数。</span>
+        <span>基础属性按每点分值结算；稀有及以上装备才可能带上特殊词条，带倒计时的词条每场战斗都会重新计数。</span>
       </div>
       <div class="affix-card-grid">${rows}</div>
     </section>
@@ -12248,14 +12264,14 @@ function normalizeDrawingSubjectCandidates(input) {
 function getDrawingGateValueCap(gate) {
   if (!gate) return getPhotoValueMax();
   if (gate.level === "unformed") return 0;
-  if (gate.level === "simple_symbol") return Math.min(getPhotoValueMax(), 9);
+  if (gate.level === "simple_symbol") return Math.min(getPhotoValueMax(), 11);
   return getPhotoValueMax();
 }
 
 function getDrawingGateScoreCap(gate) {
   if (!gate) return 15;
   if (gate.level === "unformed") return 3;
-  if (gate.level === "simple_symbol") return gate.formedAbstract ? 9 : 8;
+  if (gate.level === "simple_symbol") return gate.formedAbstract ? 11 : 10;
   return 15;
 }
 
@@ -12459,9 +12475,12 @@ function balanceItem(item, image = "") {
   if (sourceMode === "drawing") {
     stats = filterDrawingStatsForGate(stats, drawingGate, statSemanticText);
   }
+  if (!noEffect) {
+    stats = normalizeStatsForMinimumItemScore(stats, specialEffects, statSemanticText, statBudget);
+  }
 
   let actualScore = calculateItemScore(stats, specialEffects);
-  if (!preserveSettledOutput && specialEffects.length && getItemQuality(actualScore).key !== "epic" && getItemQuality(actualScore).key !== "legendary") {
+  if (!preserveSettledOutput && specialEffects.length && getItemQuality(actualScore).key === "common") {
     specialEffects = [];
     specialValue = 0;
     statBudget = Math.max(0, requestedValue - specialValue);
@@ -12473,6 +12492,9 @@ function balanceItem(item, image = "") {
     }
     if (sourceMode === "drawing") {
       stats = filterDrawingStatsForGate(stats, drawingGate, statSemanticText);
+    }
+    if (!noEffect) {
+      stats = normalizeStatsForMinimumItemScore(stats, specialEffects, statSemanticText, statBudget);
     }
     actualScore = calculateItemScore(stats, specialEffects);
   }
@@ -12998,7 +13020,7 @@ function balanceItemLite(item, image = "") {
   let stats = normalizeStats({}, 20);
   if (!noEffect) {
     const specialAllowed = sourceMode !== "drawing"
-      || (isDrawingGateSpecialAllowed(drawingGate) && drawingGate?.level === "clear_equipment" && qualityScore >= 13);
+      || (isDrawingGateSpecialAllowed(drawingGate) && drawingGate?.level === "clear_equipment" && qualityScore >= 12);
     specialEffects = preserveSettled
       ? normalizeSpecialEffects(safe.specialEffects).filter((key) => (photoSpecialEffectMap.get(key)?.value || Infinity) <= requestedValue)
       : specialAllowed
@@ -13023,10 +13045,11 @@ function balanceItemLite(item, image = "") {
     if (sourceMode === "drawing") {
       stats = filterDrawingStatsForGate(stats, drawingGate, statSemanticText);
     }
+    stats = normalizeStatsForMinimumItemScore(stats, specialEffects, statSemanticText, statBudget);
   }
 
   let actualScore = calculateItemScore(stats, specialEffects);
-  if (!preserveSettled && specialEffects.length && !["epic", "legendary"].includes(getItemQuality(actualScore).key)) {
+  if (!preserveSettled && specialEffects.length && getItemQuality(actualScore).key === "common") {
     specialEffects = [];
     stats = sourceMode === "drawing"
       ? clampStatsToValue(allocateStatsForItem({}, statSemanticText, requestedValue, statAffinity), requestedValue)
@@ -13037,6 +13060,7 @@ function balanceItemLite(item, image = "") {
     if (sourceMode === "drawing") {
       stats = filterDrawingStatsForGate(stats, drawingGate, statSemanticText);
     }
+    stats = normalizeStatsForMinimumItemScore(stats, specialEffects, statSemanticText, requestedValue);
     actualScore = calculateItemScore(stats, specialEffects);
   }
 
@@ -13199,10 +13223,10 @@ function calculateItemScore(stats, effectKeys = []) {
 
 function getItemQuality(value) {
   const score = Number.isFinite(value) ? value : 0;
-  if (score >= 21) return { key: "legendary", label: "传说" };
-  if (score >= 17) return { key: "epic", label: "史诗" };
-  if (score >= 13) return { key: "rare", label: "稀有" };
-  return { key: "common", label: "普通" };
+  if (score >= itemQualityScoreBands.legendary.min) return { key: "legendary", label: itemQualityScoreBands.legendary.label };
+  if (score >= itemQualityScoreBands.epic.min) return { key: "epic", label: itemQualityScoreBands.epic.label };
+  if (score >= itemQualityScoreBands.rare.min) return { key: "rare", label: itemQualityScoreBands.rare.label };
+  return { key: "common", label: itemQualityScoreBands.common.label };
 }
 
 function getItemVisibleQuality(item) {
@@ -13212,7 +13236,7 @@ function getItemVisibleQuality(item) {
   const stats = normalizeStats(item.stats || {}, 99);
   const totalPoints = statOrder.reduce((sum, key) => sum + Math.max(0, stats[key] || 0), 0);
   const visibleStats = statOrder.reduce((sum, key) => sum + ((stats[key] || 0) > 0 ? 1 : 0), 0);
-  if (score <= 17 && totalPoints <= 2 && visibleStats <= 2) return getItemQuality(13);
+  if (score <= itemQualityScoreBands.epic.min && totalPoints <= 2 && visibleStats <= 2) return getItemQuality(itemQualityScoreBands.rare.min);
   return quality;
 }
 
@@ -13278,6 +13302,63 @@ function clampStatsToValue(stats, valueBudget) {
     remaining -= maxPoints * weight;
   }
   return result;
+}
+
+function topUpStatsToMinimumScore(stats, semanticText = "", targetScore = itemQualityScoreBands.common.min, valueBudget = getPhotoValueMax()) {
+  const result = normalizeStats(stats || {}, 20);
+  if (calculateStatsValue(result) >= targetScore) return result;
+  let remaining = Math.max(0, Math.round(valueBudget) - calculateStatsValue(result));
+  const addStat = (key, amount = 1) => {
+    const weight = statValueWeights[key];
+    if (!weight || remaining < weight || result[key] >= 20) return false;
+    const gain = Math.min(amount, Math.floor(remaining / weight), 20 - result[key]);
+    if (gain <= 0) return false;
+    result[key] += gain;
+    remaining -= gain * weight;
+    return true;
+  };
+  const preferred = [
+    ...getAffordableFallbackStatKeys(semanticText, Math.max(remaining, valueBudget)),
+    ...getPreferredStatKeys(semanticText, []),
+  ].filter((key, index, list) => statOrder.includes(key) && list.indexOf(key) === index);
+  let safety = 0;
+  while (calculateStatsValue(result) < targetScore && remaining > 0 && safety < 80) {
+    safety += 1;
+    let spent = false;
+    for (const key of preferred) {
+      if (calculateStatsValue(result) >= targetScore) break;
+      spent = addStat(key) || spent;
+    }
+    if (!spent) break;
+  }
+  if (calculateStatsValue(result) < targetScore && remaining > 0 && shouldConvertRemainingBudgetToHp(semanticText, preferred, result, remaining)) {
+    const gain = Math.min(remaining, 20 - result.hp);
+    if (gain > 0) {
+      result.hp += gain;
+      remaining -= gain;
+    }
+  }
+  if (calculateStatsValue(result) < targetScore && remaining > 0 && !isTablewareSemanticText(semanticText)) {
+    const gain = Math.min(remaining, 20 - result.hp);
+    if (gain > 0) result.hp += gain;
+  }
+  return clampStatsToValue(result, valueBudget);
+}
+
+function normalizeEffectiveStatsForValue(stats, semanticText = "", valueBudget = getPhotoValueMax()) {
+  return topUpStatsToMinimumScore(
+    clampStatsToValue(stats, valueBudget),
+    semanticText,
+    Math.min(Math.max(0, Math.round(valueBudget)), itemQualityScoreBands.common.min),
+    valueBudget,
+  );
+}
+
+function normalizeStatsForMinimumItemScore(stats, effectKeys = [], semanticText = "", statBudget = getPhotoValueMax()) {
+  const specialValue = calculateSpecialEffectsValue(effectKeys);
+  const targetStatScore = Math.max(0, itemQualityScoreBands.common.min - specialValue);
+  if (targetStatScore <= 0) return clampStatsToValue(stats, statBudget);
+  return topUpStatsToMinimumScore(stats, semanticText, Math.min(targetStatScore, Math.max(0, Math.round(statBudget))), statBudget);
 }
 
 function calculatePhotoItemValue(item, semanticText = "") {
@@ -13773,14 +13854,14 @@ function shouldConvertRemainingBudgetToHp(text, preferredKeys, currentStats, rem
 function canSpecialEffectReachEpicQuality(effectKey, valueBudget, item = {}) {
   const effect = photoSpecialEffectMap.get(effectKey);
   if (!effect || item.skipSpecialRoll) return true;
-  if (valueBudget < 17) return false;
-  if (effect.value >= 17) return true;
+  if (valueBudget < itemQualityScoreBands.rare.min) return false;
+  if (effect.value >= itemQualityScoreBands.rare.min) return true;
   const semanticText = stripImageTextSemantics(item.semanticTextOverride || `${item.itemName || ""} ${item.subjectName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`);
   const remaining = Math.max(0, valueBudget - effect.value);
   if (remaining <= 0) return false;
   const statAffinity = sanitizeStatAffinityForSemantics(item.statAffinity || item.stat_affinity || [], semanticText);
   const potentialStats = allocateStatsForItem({}, semanticText, remaining, statAffinity);
-  return calculateItemScore(potentialStats, [effectKey]) >= 17;
+  return calculateItemScore(potentialStats, [effectKey]) >= itemQualityScoreBands.rare.min;
 }
 
 function choosePhotoSpecialEffects(item, image, valueBudget) {
@@ -13792,7 +13873,8 @@ function choosePhotoSpecialEffects(item, image, valueBudget) {
   if (item.skipSpecialRoll && provided.length) return provided;
   if (item.skipSpecialRoll) return [];
   const qualityKey = getItemQuality(valueBudget).key;
-  if (qualityKey !== "epic" && qualityKey !== "legendary") return [];
+  const chance = specialEffectChances[qualityKey] || 0;
+  if (chance <= 0) return [];
 
   const seed = `${item.itemName || ""}:${item.description || ""}:${image ? image.slice(0, 96) : ""}:${item.value || ""}`;
   const semanticText = stripImageTextSemantics(item.semanticTextOverride || `${item.itemName || ""} ${item.objectType || ""} ${item.description || ""} ${item.reason || ""} ${normalizeStringList(item.tags).join(" ")}`);
@@ -13808,9 +13890,9 @@ function choosePhotoSpecialEffects(item, image, valueBudget) {
   const eligible = directEligible.length ? directEligible : makeEligible(inferredAffinity);
   if (!eligible.length) return [];
 
-  if (qualityKey === "epic") {
+  if (chance < 100) {
     const roll = hashIndex(`${seed}:special-roll`, 100);
-    if (roll >= 33) return [];
+    if (roll >= chance) return [];
   }
 
   const picked = eligible[hashIndex(`${seed}:special-pick`, eligible.length)];
@@ -16636,6 +16718,9 @@ window.__photoHeroTestHooks = {
   },
   getSpecialEffectValueForTest(key) {
     return photoSpecialEffectMap.get(key)?.value || 0;
+  },
+  getSpecialEffectChanceForTest(qualityKey) {
+    return specialEffectChances[qualityKey] || 0;
   },
   getBattleStatsForTest(ids = state.activeEnemyIds) {
     return getBattleStats(ids);
