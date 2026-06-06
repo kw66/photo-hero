@@ -595,7 +595,7 @@ const heroForms = [
     image: "form-regen.png",
     levels: {
       1: { stats: { regen: 2, attack: -1 }, effects: ["回复 +2", "攻击 -1"] },
-      2: { stats: {}, effects: ["受击前每损失15%生命，回复+1"], missingHpRegenStep: 0.15 },
+      2: { stats: {}, effects: ["每损失15%生命，回复+1"], missingHpRegenStep: 0.15 },
     },
   },
   {
