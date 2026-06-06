@@ -568,7 +568,7 @@ const heroForms = [
     image: "form-hp.png",
     levels: {
       1: { stats: { hp: 30 }, effects: ["生命上限 +30", "每击杀1怪，生命+6"], killHeal: 6 },
-      2: { stats: { hp: 40 }, effects: ["生命上限 +40", "每击杀1怪，生命上限+3且生命+6"], killMaxHp: 3, killHeal: 6 },
+      2: { stats: { hp: 40 }, effects: ["生命上限 +40", "每击杀1怪，生命上限+3且按最大生命8%回血"], killMaxHp: 3, killHealMaxHpPercent: 0.08 },
     },
   },
   {
@@ -595,7 +595,7 @@ const heroForms = [
     image: "form-regen.png",
     levels: {
       1: { stats: { regen: 2, attack: -1 }, effects: ["回复 +2", "攻击 -1"] },
-      2: { stats: { regen: 2 }, effects: ["回复 +2", "回复也补护盾"], regenAffectsShield: true },
+      2: { stats: {}, effects: ["受击前每损失15%生命，回复+1"], missingHpRegenStep: 0.15 },
     },
   },
   {
@@ -622,7 +622,7 @@ const heroForms = [
     image: "form-shield.png",
     levels: {
       1: { stats: { shield: 12 }, effects: ["护盾 +12"] },
-      2: { stats: { shield: 18 }, effects: ["护盾 +18", "护盾减少转为治疗"], shieldLossToHeal: true },
+      2: { stats: { shield: 15 }, effects: ["护盾 +15", "吸血与回复也补护盾"], recoveryAffectsShield: true },
     },
   },
   {
@@ -869,15 +869,19 @@ const floorNarratives = {
   3: "旧骨头的敲击声从远处传来，真正挡路的硬骨还藏在更深的楼梯后。",
   5: "细小火星在空气里游走。法师的火不会问你防御有多高。",
   8: "楼道尽头传来石块滚动声。先别急着追响动，塔会把耐打的家伙留到后面。",
+  9: "守关门前的风忽然放轻。这里像一处短暂补给层，挡路的怪物也没有平时那么凶。",
   10: "卫兵的盾牌声第一次在走廊里合拢。越往后，单挑会越来越少。",
   13: "兽人的脚步重得像敲门，回复和厚血会把短战拖长。",
   15: "石头人在阴影里翻身。打不穿外壳，就会被它们拖进漫长缠斗。",
+  19: "第二道守关门就在前方。塔像是故意留了一口气，怪物的压迫感稍微松了些。",
   20: "巫师站上更高的台阶，开局的防线会被它们先削掉一截。",
   22: "半山的塔身开始透风，骑士的红莲让回复不再可靠。",
   28: "警卫从门侧现身，旧护盾会在开战时被一口气敲碎。",
+  29: "骑士队长的号角隔着石门发闷。门前这一层还算宽容，适合把状态整理好。",
   30: "墙上的爪痕一层比一层深。战士与剑士同时露面，想多收胶卷，就要把每一次战损都算清楚。",
   33: "离塔顶不远了，空气里全是铁锈和旧符纸的味道，每一步都更沉。",
   37: "塔顶的风从门缝灌下来，火把被吹得几乎贴住墙面。最后几层不会给勇者太多喘息。",
+  39: "魔王门前反而安静得异常。最后的补给层只给一点余地，之后就没有退路了。",
 };
 
 const bossFloorNarratives = {
@@ -7178,7 +7182,11 @@ function resolveHeroStrike(stats, round) {
     }
     if (shieldLoss > 0) parts.push(`破盾 ${shieldLoss}`);
     if (shieldCrashDamage > 0) parts.push(`护盾追加 ${shieldCrashDamage}`);
-    if (hitResult.healed > 0 || hitResult.lifesteal > 0) parts.push(`吸取${hitResult.healed}血量`);
+    if (hitResult.healed > 0 || hitResult.lifesteal > 0 || hitResult.shieldRecovered > 0) {
+      const recoveryParts = [`吸取${hitResult.healed}血量`];
+      if (hitResult.shieldRecovered > 0) recoveryParts.push(`护盾+${hitResult.shieldRecovered}`);
+      parts.push(recoveryParts.join("，"));
+    }
     if (hitResult.strikeCount > 1) parts.push(`连击${hitResult.strikeIndex + 1}/${hitResult.strikeCount}`);
     if (hitResult.sweepResults?.length) {
       parts.push(`横扫 ${hitResult.sweepResults.map((result) => `${result.enemyName}${result.totalDamage}`).join("、")}`);
@@ -7207,12 +7215,13 @@ function resolveHeroStrikeAgainstEnemy(initialEnemy = getHeroTargetEnemy(), sour
     addBattleValueToInstances(strikeContext.heavyStrikeInstances, hitResult.totalDamage);
     const sweepResults = triggerSweepDamage(enemy, totalDamage, source, strikeContext.sweepRatio);
     let healed = 0;
+    let shieldRecovered = 0;
     const lifesteal = currentStats.lifesteal || 0;
     if (lifesteal > 0) {
-      const beforeHp = state.player.hp;
-      state.player.hp = Math.min(currentStats.maxHp, state.player.hp + Math.max(0, Math.trunc(lifesteal * Math.max(1, strikeContext.lifestealMultiplier || 1))));
-      healed = state.player.hp - beforeHp;
-      addBattleValueToInstances(strikeContext.lifestealInstances, healed);
+      const recovery = applyHeroLifestealAfterStrike(currentStats, Math.max(0, Math.trunc(lifesteal * Math.max(1, strikeContext.lifestealMultiplier || 1))));
+      healed = recovery.hp;
+      shieldRecovered = recovery.shield;
+      addBattleValueToInstances(strikeContext.lifestealInstances, healed + shieldRecovered);
     }
 
     const defeated = enemy.hp <= 0;
@@ -7226,6 +7235,7 @@ function resolveHeroStrikeAgainstEnemy(initialEnemy = getHeroTargetEnemy(), sour
       strikeCount,
       sweepResults,
       defeated,
+      shieldRecovered,
     });
 
     if (defeated) {
@@ -7392,6 +7402,7 @@ function resolveMonsterStrike(enemy, stats, round) {
   let totalHpLoss = 0;
   let totalShieldLoss = 0;
   let totalRegen = 0;
+  let totalShieldRecovery = 0;
   let totalReflect = 0;
   let monsterStealTotal = 0;
   let immuneCount = 0;
@@ -7422,11 +7433,6 @@ function resolveMonsterStrike(enemy, stats, round) {
     totalHpLoss += hpLoss;
     totalShieldLoss += shieldLoss;
     markHeroHit();
-    if (shieldLoss > 0 && getHeroFormLevelConfig().shieldLossToHeal) {
-      const beforeHp = state.player.hp;
-      state.player.hp = Math.min(currentStatsBeforeHit.maxHp, state.player.hp + shieldLoss);
-      totalRegen += state.player.hp - beforeHp;
-    }
     if (shieldLoss > 0) {
       const reflectResult = applyShieldReflectDamageToEnemy(enemy, shieldLoss);
       totalReflect += reflectResult.totalDamage || 0;
@@ -7434,12 +7440,15 @@ function resolveMonsterStrike(enemy, stats, round) {
     const hitContext = buildHeroHitActionContext();
     if (hitContext.triggeredLabels.length) traitChanges.push(`触发${hitContext.triggeredLabels.join("、")}`);
 
-    const currentStats = getBattleStats(state.activeEnemyIds);
+    const currentStats = getHeroFormLevelConfig().missingHpRegenStep
+      ? currentStatsBeforeHit
+      : getBattleStats(state.activeEnemyIds);
     if (state.player.hp > 0 && currentStats.regen > 0) {
       const regenResult = applyHeroRegenAfterHit(currentStats, hitContext.regenMultiplier);
       totalRegen += regenResult.hp;
+      totalShieldRecovery += regenResult.shield;
       totalShieldLoss -= regenResult.shield;
-      addBattleValueToInstances(hitContext.regenInstances, regenResult.hp);
+      addBattleValueToInstances(hitContext.regenInstances, regenResult.hp + regenResult.shield);
     }
 
     if (enemy.hp <= 0 || !state.activeEnemyIds.includes(enemy.id)) break;
@@ -7470,6 +7479,7 @@ function resolveMonsterStrike(enemy, stats, round) {
   if (totalShieldLoss > 0) parts.push(`护盾承受 ${totalShieldLoss}`);
   if (totalReflect > 0) parts.push(`反伤 ${totalReflect}`);
   if (totalRegen > 0) parts.push(`回复 ${totalRegen}`);
+  if (totalShieldRecovery > 0) parts.push(`护盾回复 ${totalShieldRecovery}`);
   if (monsterHealed > 0) parts.push(`${enemy.name}回复 ${monsterHealed}`);
   if (monsterStealTotal > 0) parts.push(`${enemy.name}吸取 ${monsterStealTotal}`);
   parts.push(...traitChanges);
@@ -7542,13 +7552,39 @@ function applyHeroRegenAfterHit(stats, multiplier = 1) {
   state.player.hp = Math.min(stats.maxHp, state.player.hp + amount);
   result.hp = state.player.hp - beforeHp;
 
-  if (getHeroFormLevelConfig().regenAffectsShield && stats.shield > 0) {
+  if (shouldRegenAffectShield() && stats.shield > 0) {
     const beforeShield = state.player.shield;
     state.player.shield = Math.min(stats.shield, state.player.shield + amount);
     result.shield = state.player.shield - beforeShield;
   }
 
   return result;
+}
+
+function applyHeroLifestealAfterStrike(stats, amount) {
+  const recovery = Math.max(0, Math.trunc(Number(amount) || 0));
+  const result = { hp: 0, shield: 0 };
+  if (recovery <= 0) return result;
+
+  const beforeHp = state.player.hp;
+  state.player.hp = Math.min(stats.maxHp, state.player.hp + recovery);
+  result.hp = state.player.hp - beforeHp;
+
+  if (shouldLifestealAffectShield() && stats.shield > 0) {
+    const beforeShield = state.player.shield;
+    state.player.shield = Math.min(stats.shield, state.player.shield + recovery);
+    result.shield = state.player.shield - beforeShield;
+  }
+
+  return result;
+}
+
+function shouldRegenAffectShield(config = getHeroFormLevelConfig()) {
+  return Boolean(config.regenAffectsShield || config.recoveryAffectsShield);
+}
+
+function shouldLifestealAffectShield(config = getHeroFormLevelConfig()) {
+  return Boolean(config.lifestealAffectsShield || config.recoveryAffectsShield);
 }
 
 function defeatEnemy(enemy) {
@@ -7582,8 +7618,9 @@ function defeatEnemy(enemy) {
 function applyFormKillEffects() {
   const config = getHeroFormLevelConfig();
   const maxHpGain = Math.max(0, config.killMaxHp || 0);
-  const heal = Math.max(0, config.killHeal || 0);
-  if (maxHpGain <= 0 && heal <= 0) return;
+  const fixedHeal = Math.max(0, config.killHeal || 0);
+  const percent = Math.max(0, Number(config.killHealMaxHpPercent) || 0);
+  if (maxHpGain <= 0 && fixedHeal <= 0 && percent <= 0) return;
   const stats = getBattleStats(state.activeEnemyIds);
   if (maxHpGain > 0) {
     state.player.baseHp += maxHpGain;
@@ -7591,6 +7628,7 @@ function applyFormKillEffects() {
   }
   const beforeHp = state.player.hp;
   const nextMaxHp = stats.maxHp + maxHpGain;
+  const heal = fixedHeal + getPercentHealAmount(nextMaxHp, percent);
   state.player.hp = Math.min(nextMaxHp, state.player.hp + heal);
   const healed = state.player.hp - beforeHp;
   state.battleSpecial.formHeal = (state.battleSpecial.formHeal || 0) + healed;
@@ -7598,6 +7636,13 @@ function applyFormKillEffects() {
   if (maxHpGain > 0) parts.push(`生命上限+${maxHpGain}`);
   if (healed > 0) parts.push(`回复${healed}`);
   if (parts.length) addBattleDetail(`${getHeroFormDisplayName()}击杀触发：${parts.join("，")}。`);
+}
+
+function getPercentHealAmount(maxHp, percent) {
+  const safeMaxHp = Math.max(0, Math.trunc(Number(maxHp) || 0));
+  const safePercent = Math.max(0, Number(percent) || 0);
+  if (safeMaxHp <= 0 || safePercent <= 0) return 0;
+  return Math.max(1, Math.ceil(safeMaxHp * safePercent));
 }
 
 function markEnemyHit(enemyId) {
@@ -8977,6 +9022,10 @@ function getFloorMonsterTypes(floor) {
   return types;
 }
 
+function isBossSupplyFloor(floor) {
+  return bossFloors.has(floor + 1);
+}
+
 function pickGuaranteedWeakMonster(floor) {
   const pool = getGuaranteedWeakMonsterPool(floor);
   return pool[hashIndex(`${state.runSeed || "default"}:${floor}:weak-anchor`, pool.length)] || "slime";
@@ -9055,7 +9104,7 @@ function makeEnemy(typeKey, floor, slot) {
   const traits = cloneTraits(type.traits);
   const maxHp = Math.max(1, type.hp);
   const maxShield = Math.max(0, shield);
-  return {
+  const enemy = {
     id: `${floor}-${slot}-${typeKey}`,
     floor,
     slot,
@@ -9070,6 +9119,27 @@ function makeEnemy(typeKey, floor, slot) {
     maxShield,
     shield: maxShield,
     traits,
+  };
+  return isBossSupplyFloor(floor) && !isHiddenLayerActive()
+    ? applySupplyFloorEnemyWeakening(enemy)
+    : enemy;
+}
+
+function applySupplyFloorEnemyWeakening(enemy) {
+  const maxHp = Math.max(1, Math.floor((enemy.maxHp || 1) * 0.85));
+  const maxShield = Math.max(0, Math.floor((enemy.maxShield || 0) * 0.85));
+  return {
+    ...enemy,
+    maxHp,
+    hp: maxHp,
+    atk: Math.max(0, Math.floor((enemy.atk || 0) * 0.85)),
+    def: Math.max(0, Math.floor((enemy.def || 0) * 0.75)),
+    maxShield,
+    shield: maxShield,
+    traits: [
+      ...cloneTraits(enemy.traits || []),
+      { type: "supplyWeakened", text: "补给层：属性降低" },
+    ],
   };
 }
 
@@ -10309,9 +10379,13 @@ function regenSimHeroAfterHit(sim, stats, multiplier = 1) {
   const regen = Math.max(0, Math.trunc((stats?.regen || 0) * Math.max(1, multiplier || 1)));
   if (regen <= 0) return;
   healSimHero(sim, stats, regen);
-  if (getHeroFormLevelConfig().regenAffectsShield) {
-    sim.shield = Math.min(stats.shield || 0, sim.shield + regen);
-  }
+  if (shouldRegenAffectShield()) recoverSimHeroShield(sim, stats, regen);
+}
+
+function recoverSimHeroShield(sim, stats, amount) {
+  const recovery = Math.max(0, Math.trunc(Number(amount) || 0));
+  if (recovery <= 0 || (stats?.shield || 0) <= 0) return;
+  sim.shield = Math.min(stats.shield || 0, sim.shield + recovery);
 }
 
 function damageSimHero(sim, amount) {
@@ -10345,7 +10419,7 @@ function getSimBattleStats(sim, enemies) {
   const stats = getPlayerBaseStats();
   stats.maxHp += getSimMaxHpBonus(sim);
   stats.realMaxHp = getSimActualMaxHp(stats, sim);
-  const delta = getPlayerBattleStatDelta(sim.battleSpecial, sim.hp, stats.maxHp);
+  const delta = getPlayerBattleStatDelta(sim.battleSpecial, sim.actualHp, stats.realMaxHp);
   stats.atk += delta.atk;
   stats.def += delta.def;
   stats.speed += delta.speed;
@@ -10397,7 +10471,9 @@ function simulateHeroStrikeTarget(sim, enemies, initialEnemy = null, source = "a
     const sweepResults = triggerSimSweepDamage(sim, enemies, enemy, shieldLoss + hpDamage, strikeContext.sweepRatio);
 
     if (currentStats.lifesteal > 0) {
-      healSimHero(sim, currentStats, Math.trunc(currentStats.lifesteal * Math.max(1, strikeContext.lifestealMultiplier || 1)));
+      const lifestealAmount = Math.trunc(currentStats.lifesteal * Math.max(1, strikeContext.lifestealMultiplier || 1));
+      healSimHero(sim, currentStats, lifestealAmount);
+      if (shouldLifestealAffectShield()) recoverSimHeroShield(sim, currentStats, lifestealAmount);
     }
 
     const defeatedThisStrike = [];
@@ -10436,15 +10512,14 @@ function simulateMonsterStrike(sim, enemy, enemies, stats) {
     const hpLoss = effectiveDamage - shieldLoss;
     sim.shield -= shieldLoss;
     damageSimHero(sim, hpLoss);
-    if (shieldLoss > 0 && getHeroFormLevelConfig().shieldLossToHeal) {
-      healSimHero(sim, currentStatsBeforeHit, shieldLoss);
-    }
     if (shieldLoss > 0) {
       applySimShieldReflectDamageToEnemy(sim, enemy, shieldLoss, enemies);
     }
     const hitContext = buildSimHeroHitActionContext(sim);
 
-    const currentStats = getSimBattleStats(sim, enemies);
+    const currentStats = getHeroFormLevelConfig().missingHpRegenStep
+      ? currentStatsBeforeHit
+      : getSimBattleStats(sim, enemies);
     if (sim.actualHp > 0 && currentStats.regen > 0) {
       regenSimHeroAfterHit(sim, currentStats, hitContext.regenMultiplier);
     }
@@ -10634,7 +10709,7 @@ function applySimPreBattleFormEffects(sim, enemies) {
 function simulateFormKillEffects(sim, stats) {
   const config = getHeroFormLevelConfig();
   const maxHpGain = Math.max(0, config.killMaxHp || 0);
-  const heal = Math.max(0, config.killHeal || 0);
+  const fixedHeal = Math.max(0, config.killHeal || 0);
   if (maxHpGain > 0) sim.formMaxHpGain = (sim.formMaxHpGain || 0) + maxHpGain;
   if (maxHpGain > 0) sim.battleSpecial.formHp = (sim.battleSpecial.formHp || 0) + maxHpGain;
   const nextStats = {
@@ -10642,6 +10717,7 @@ function simulateFormKillEffects(sim, stats) {
     maxHp: (stats.maxHp || 0) + maxHpGain,
     realMaxHp: (stats.realMaxHp || getSimActualMaxHp(stats, sim)) + maxHpGain,
   };
+  const heal = fixedHeal + getPercentHealAmount(nextStats.maxHp, config.killHealMaxHpPercent);
   healSimHero(sim, nextStats, heal);
 }
 
@@ -10994,9 +11070,18 @@ function getPlayerBattleStatDelta(battleSpecial = state.battleSpecial, hp = stat
     atk: (battleSpecial?.attack || 0) + (battleSpecial?.peerlessAttack || 0) + getBloodrageAttackBonus(hp, maxHp),
     def: (battleSpecial?.defense || 0) + (battleSpecial?.peerlessDefense || 0),
     speed: 0,
-    regen: 0,
+    regen: getMissingHpRegenBonus(hp, maxHp),
     lifesteal: 0,
   };
+}
+
+function getMissingHpRegenBonus(hp = state.player.hp, maxHp = getPlayerBaseStats().maxHp, config = getHeroFormLevelConfig()) {
+  const step = Math.max(0, Number(config.missingHpRegenStep) || 0);
+  const safeMaxHp = Math.max(1, Math.trunc(Number(maxHp) || 0));
+  if (step <= 0) return 0;
+  const missing = Math.max(0, safeMaxHp - Math.max(0, Math.trunc(Number(hp) || 0)));
+  if (missing <= 0) return 0;
+  return Math.floor((missing / safeMaxHp) / step);
 }
 
 function getPlayerBattleStats(battleSpecial = state.battleSpecial, hp = state.player.hp) {
