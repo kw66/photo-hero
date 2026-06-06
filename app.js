@@ -586,7 +586,7 @@ const heroForms = [
     image: "form-lifesteal.png",
     levels: {
       1: { stats: { lifesteal: 2, defense: -1 }, effects: ["吸血 +2", "防御 -1"] },
-      2: { stats: { lifesteal: 4, defense: -2 }, effects: ["吸血 +4", "防御 -2"] },
+      2: { stats: { lifesteal: 3, speed: 1 }, effects: ["吸血 +3", "速度 +1"] },
     },
   },
   {
@@ -595,7 +595,7 @@ const heroForms = [
     image: "form-regen.png",
     levels: {
       1: { stats: { regen: 2, attack: -1 }, effects: ["回复 +2", "攻击 -1"] },
-      2: { stats: {}, effects: ["每损失15%生命，回复+1"], missingHpRegenStep: 0.15 },
+      2: { stats: {}, effects: ["每损失20%生命，回复+1"], missingHpRegenStep: 0.2 },
     },
   },
   {
@@ -604,7 +604,7 @@ const heroForms = [
     image: "form-speed.png",
     levels: {
       1: { stats: { speed: 2, attack: -1 }, effects: ["速度 +2", "攻击 -1"] },
-      2: { stats: { speed: 3 }, effects: ["速度 +3", "战前先攻击每个怪1次"], preBattleStrike: true },
+      2: { stats: { speed: 3 }, effects: ["速度 +3", "根据速度差先攻1号怪"], preBattleStrikeBySpeedDiff: true },
     },
   },
   {
@@ -622,7 +622,7 @@ const heroForms = [
     image: "form-shield.png",
     levels: {
       1: { stats: { shield: 12 }, effects: ["护盾 +12"] },
-      2: { stats: { shield: 15 }, effects: ["护盾 +15", "吸血与回复也补护盾"], recoveryAffectsShield: true },
+      2: { stats: { shield: 15 }, effects: ["护盾 +15", "回复和击杀回血也补护盾"], regenAffectsShield: true, killHealAffectsShield: true },
     },
   },
   {
@@ -640,7 +640,7 @@ const heroForms = [
     image: "form-angry.png",
     levels: {
       1: { stats: { attack: 5, defense: 5 }, effects: ["攻防 +5", "不获得胶卷"], noFilmDrop: true },
-      2: { stats: { attack: 6, defense: 6 }, effects: ["攻防 +6", "不获得胶卷"], noFilmDrop: true },
+      2: { stats: { attack: 7, defense: 7 }, effects: ["攻防 +7", "不获得胶卷"], noFilmDrop: true },
     },
   },
 ];
@@ -869,7 +869,7 @@ const floorNarratives = {
   3: "旧骨头的敲击声从远处传来，真正挡路的硬骨还藏在更深的楼梯后。",
   5: "细小火星在空气里游走。法师的火不会问你防御有多高。",
   8: "楼道尽头传来石块滚动声。先别急着追响动，塔会把耐打的家伙留到后面。",
-  9: "守关门前的风忽然放轻。这里像一处短暂补给层，挡路的怪物也没有平时那么凶。",
+  9: "守关门前的风忽然放轻。这里像一处短暂补给层，更容易遇见弱一些的怪物。",
   10: "卫兵的盾牌声第一次在走廊里合拢。越往后，单挑会越来越少。",
   13: "兽人的脚步重得像敲门，回复和厚血会把短战拖长。",
   15: "石头人在阴影里翻身。打不穿外壳，就会被它们拖进漫长缠斗。",
@@ -7360,11 +7360,26 @@ function applyShieldReflectDamageToEnemy(enemy, shieldLoss = 0) {
 
 function applyPreBattleFormEffects() {
   const config = getHeroFormLevelConfig();
-  if (!config.preBattleStrike || state.battleSpecial.preBattleStruck) return;
+  if ((!config.preBattleStrike && !config.preBattleStrikeBySpeedDiff) || state.battleSpecial.preBattleStruck) return;
   state.battleSpecial.preBattleStruck = true;
   const targets = getActiveBattleEnemies();
   if (!targets.length) return;
   const hitNames = [];
+  if (config.preBattleStrikeBySpeedDiff) {
+    const enemy = targets.find((item) => getEnemyVisualIndex(item) === 0) || targets[0];
+    if (!enemy || enemy.hp <= 0) return;
+    const stats = getBattleStats(state.activeEnemyIds);
+    const strikeCount = Math.max(0, Math.trunc((stats.speed || 0) - getEffectiveEnemySpeed(enemy, targets)));
+    for (let i = 0; i < strikeCount; i += 1) {
+      if (enemy.hp <= 0 || !state.activeEnemyIds.includes(enemy.id)) break;
+      const results = resolveHeroStrikeAgainstEnemy(enemy, "prebattle");
+      if (!results.length) break;
+      const totalDamage = results.reduce((sum, result) => sum + result.hpDamage, 0);
+      hitNames.push(`${enemy.name}${totalDamage}`);
+    }
+    if (hitNames.length) addBattleDetail(`速度形态先攻：${hitNames.join("，")}。`);
+    return;
+  }
   for (const enemy of targets) {
     if (enemy.hp <= 0) continue;
     const results = resolveHeroStrikeAgainstEnemy(enemy, "prebattle");
@@ -7587,6 +7602,10 @@ function shouldLifestealAffectShield(config = getHeroFormLevelConfig()) {
   return Boolean(config.lifestealAffectsShield || config.recoveryAffectsShield);
 }
 
+function shouldKillHealAffectShield(config = getHeroFormLevelConfig()) {
+  return Boolean(config.killHealAffectsShield || config.recoveryAffectsShield);
+}
+
 function defeatEnemy(enemy) {
   const drops = getEnemyDrops(enemy);
   const defeatedIds = state.currentBattle?.defeatedIds;
@@ -7631,10 +7650,17 @@ function applyFormKillEffects() {
   const heal = fixedHeal + getPercentHealAmount(nextMaxHp, percent);
   state.player.hp = Math.min(nextMaxHp, state.player.hp + heal);
   const healed = state.player.hp - beforeHp;
+  let shieldRecovered = 0;
+  if (heal > 0 && shouldKillHealAffectShield() && stats.shield > 0) {
+    const beforeShield = state.player.shield;
+    state.player.shield = Math.min(stats.shield, state.player.shield + heal);
+    shieldRecovered = state.player.shield - beforeShield;
+  }
   state.battleSpecial.formHeal = (state.battleSpecial.formHeal || 0) + healed;
   const parts = [];
   if (maxHpGain > 0) parts.push(`生命上限+${maxHpGain}`);
   if (healed > 0) parts.push(`回复${healed}`);
+  if (shieldRecovered > 0) parts.push(`护盾+${shieldRecovered}`);
   if (parts.length) addBattleDetail(`${getHeroFormDisplayName()}击杀触发：${parts.join("，")}。`);
 }
 
@@ -9043,9 +9069,11 @@ function buildMonsterSlotPools(floor) {
   const entries = getUnlockedNormalMonsterEntries(floor);
   if (!entries.length) return [["slime"], ["slime"], ["slime"]];
   const maxTier = Math.max(...entries.map((entry) => entry.tier || 1));
+  const supplyFloor = isBossSupplyFloor(floor);
   const nonSlimeEntries = entries.filter((entry) => entry.key !== "slime");
   const earlyEntries = entries.filter((entry) => entry.floor <= 3);
   const weakEntries = entries.filter((entry) => (entry.tier || 1) <= Math.max(1, maxTier - 2));
+  const supplyWeakEntries = entries.filter((entry) => (entry.tier || 1) <= Math.max(1, maxTier - 1));
   const midEntries = entries.filter((entry) => (entry.tier || 1) >= Math.max(1, maxTier - 1));
   const strongEntries = entries.filter((entry) => (entry.tier || 1) >= maxTier);
   const pressureEntries = entries.filter((entry) => (entry.tier || 1) >= Math.max(1, maxTier - 1));
@@ -9062,6 +9090,22 @@ function buildMonsterSlotPools(floor) {
   const strongPool = buildWeightedMonsterPool(floor, strongSource, { pressure: 1.05, unlockRamp: true });
   if (earlyEntries.length) {
     weakPool.push(...buildWeightedMonsterPool(floor, earlyEntries, { weakRetention: true, pressure: 0.8 }));
+  }
+  if (supplyFloor) {
+    const supplyWeakPool = buildWeightedMonsterPool(floor, supplyWeakEntries.length ? supplyWeakEntries : entries, { weakRetention: true, pressure: 0.45, unlockRamp: true });
+    const supplyMidPool = [
+      ...buildWeightedMonsterPool(floor, supplyWeakEntries.length ? supplyWeakEntries : entries, { weakRetention: true, pressure: 0.6, unlockRamp: true }),
+      ...weakPool,
+    ];
+    const supplyStrongPool = [
+      ...buildWeightedMonsterPool(floor, supplyWeakEntries.length ? supplyWeakEntries : entries, { weakRetention: true, pressure: 0.7, unlockRamp: true }),
+      ...buildWeightedMonsterPool(floor, strongEntries.length ? strongEntries : entries, { pressure: 0.22, unlockRamp: true, minimumPerEntry: 1 }),
+    ];
+    if (earlyEntries.length) {
+      supplyWeakPool.push(...buildWeightedMonsterPool(floor, earlyEntries, { weakRetention: true, pressure: 1.1 }));
+      supplyMidPool.push(...buildWeightedMonsterPool(floor, earlyEntries, { weakRetention: true, pressure: 1.0 }));
+    }
+    return [supplyWeakPool, supplyMidPool, supplyStrongPool];
   }
   return [weakPool, midPool, strongPool];
 }
@@ -9104,7 +9148,7 @@ function makeEnemy(typeKey, floor, slot) {
   const traits = cloneTraits(type.traits);
   const maxHp = Math.max(1, type.hp);
   const maxShield = Math.max(0, shield);
-  const enemy = {
+  return {
     id: `${floor}-${slot}-${typeKey}`,
     floor,
     slot,
@@ -9119,27 +9163,6 @@ function makeEnemy(typeKey, floor, slot) {
     maxShield,
     shield: maxShield,
     traits,
-  };
-  return isBossSupplyFloor(floor) && !isHiddenLayerActive()
-    ? applySupplyFloorEnemyWeakening(enemy)
-    : enemy;
-}
-
-function applySupplyFloorEnemyWeakening(enemy) {
-  const maxHp = Math.max(1, Math.floor((enemy.maxHp || 1) * 0.85));
-  const maxShield = Math.max(0, Math.floor((enemy.maxShield || 0) * 0.85));
-  return {
-    ...enemy,
-    maxHp,
-    hp: maxHp,
-    atk: Math.max(0, Math.floor((enemy.atk || 0) * 0.85)),
-    def: Math.max(0, Math.floor((enemy.def || 0) * 0.75)),
-    maxShield,
-    shield: maxShield,
-    traits: [
-      ...cloneTraits(enemy.traits || []),
-      { type: "supplyWeakened", text: "补给层：属性降低" },
-    ],
   };
 }
 
@@ -10698,8 +10721,22 @@ function applySimShieldReflectDamageToEnemy(sim, enemy, shieldLoss = 0, enemies 
 }
 
 function applySimPreBattleFormEffects(sim, enemies) {
-  if (!getHeroFormLevelConfig().preBattleStrike || sim.battleSpecial.preBattleStruck) return;
+  const config = getHeroFormLevelConfig();
+  if ((!config.preBattleStrike && !config.preBattleStrikeBySpeedDiff) || sim.battleSpecial.preBattleStruck) return;
   sim.battleSpecial.preBattleStruck = true;
+  if (config.preBattleStrikeBySpeedDiff) {
+    const target = enemies
+      .filter((item) => sim.activeIds.includes(item.id))
+      .sort((a, b) => getEnemyVisualIndex(a) - getEnemyVisualIndex(b))[0];
+    if (!target || target.hp <= 0) return;
+    const stats = getSimBattleStats(sim, enemies);
+    const strikeCount = Math.max(0, Math.trunc((stats.speed || 0) - getEffectiveEnemySpeed(target, getSimActiveEnemies(sim, enemies))));
+    for (let i = 0; i < strikeCount; i += 1) {
+      if (target.hp <= 0 || !sim.activeIds.includes(target.id)) break;
+      simulateHeroStrikeTarget(sim, enemies, target, "prebattle");
+    }
+    return;
+  }
   for (const enemy of enemies.filter((item) => sim.activeIds.includes(item.id))) {
     if (enemy.hp <= 0) continue;
     simulateHeroStrikeTarget(sim, enemies, enemy, "prebattle");
@@ -10719,6 +10756,7 @@ function simulateFormKillEffects(sim, stats) {
   };
   const heal = fixedHeal + getPercentHealAmount(nextStats.maxHp, config.killHealMaxHpPercent);
   healSimHero(sim, nextStats, heal);
+  if (shouldKillHealAffectShield()) recoverSimHeroShield(sim, nextStats, heal);
 }
 
 function simulateKillSpecial(sim, stats) {
@@ -10741,6 +10779,7 @@ function simulateKillSpecial(sim, stats) {
     }
     : stats;
   healSimHero(sim, nextStats, healGain);
+  if (shouldKillHealAffectShield()) recoverSimHeroShield(sim, nextStats, healGain);
 }
 
 function hasAnyActiveTrait(type) {
@@ -11353,8 +11392,17 @@ function triggerKillSpecial(enemy) {
       const beforeHp = state.player.hp;
       state.player.hp = Math.min(stats.maxHp, state.player.hp + effect.amount);
       const healed = state.player.hp - beforeHp;
-      data.battleValue = (data.battleValue || 0) + healed;
-      if (healed > 0) changes.push(`${formatItemDisplayName(item)} 生命+${healed}`);
+      let shieldRecovered = 0;
+      if (effect.amount > 0 && shouldKillHealAffectShield() && stats.shield > 0) {
+        const beforeShield = state.player.shield;
+        state.player.shield = Math.min(stats.shield, state.player.shield + effect.amount);
+        shieldRecovered = state.player.shield - beforeShield;
+      }
+      data.battleValue = (data.battleValue || 0) + healed + shieldRecovered;
+      const parts = [];
+      if (healed > 0) parts.push(`生命+${healed}`);
+      if (shieldRecovered > 0) parts.push(`护盾+${shieldRecovered}`);
+      if (parts.length) changes.push(`${formatItemDisplayName(item)} ${parts.join("，")}`);
     } else if (effect.kind === "killBattleTemp") {
       data.kills += 1;
       state.battleSpecial.peerlessAttack = (state.battleSpecial.peerlessAttack || 0) + effect.amount;
