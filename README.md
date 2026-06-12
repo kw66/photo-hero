@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://kw66.github.io/photo-hero/"><strong>🎮 点击即玩</strong></a>
   ·
-  <a href="https://github.com/kw66/PhD_Simulator"><strong>👤 作者主页：PhD_Simulator</strong></a>
+  <a href="https://kw66.github.io/"><strong>👤 作者主页</strong></a>
 </p>
 
 <p align="center">
