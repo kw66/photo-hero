@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://kw66.github.io/photo-hero/"><strong>🎮 点击即玩</strong></a>
   ·
-  <a href="https://kw66.github.io/"><strong>👤 作者主页</strong></a>
+  <a href="https://kw66.github.io/games/"><strong>👤 作者游戏合集</strong></a>
 </p>
 
 <p align="center">
