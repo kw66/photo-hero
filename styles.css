@@ -1171,6 +1171,14 @@ dd {
   min-width: 0;
 }
 
+.form-resource-count {
+  margin-left: 6px;
+  color: var(--amber);
+  font-family: var(--font-number);
+  font-size: 0.72em;
+  white-space: nowrap;
+}
+
 .secondary-head .ghost-button {
   flex: 0 0 auto;
   white-space: nowrap;
@@ -1740,6 +1748,26 @@ dd {
   stroke-linejoin: round;
 }
 
+.wish-empty-icon {
+  color: #ffd76b;
+  font-family: var(--font-title);
+  font-size: 2.4rem;
+  line-height: 1;
+  text-shadow: 0 0 10px rgb(255 215 107 / 44%);
+}
+
+.reward-icon-glyph {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #ffd76b;
+  font-family: var(--font-title);
+  font-size: 2.5rem;
+  line-height: 1;
+  text-shadow: 0 0 12px rgb(255 215 107 / 46%);
+}
+
 .film-badge {
   position: static;
   z-index: 2;
@@ -2111,7 +2139,7 @@ dd {
 
 .career-card-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 5px;
 }
 
@@ -2126,6 +2154,25 @@ dd {
   font-size: 0.66rem;
   font-weight: 950;
   text-align: center;
+}
+
+.career-card-stats span[data-perfect="true"] {
+  border-color: color-mix(in srgb, var(--green) 60%, var(--line));
+  color: var(--green);
+}
+
+.career-card-milestone {
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, var(--career-accent) 30%, var(--line));
+  border-radius: 6px;
+  color: var(--muted);
+  font-weight: 900;
+  text-align: center;
+}
+
+.career-card-milestone[data-perfect="true"] {
+  border-color: color-mix(in srgb, var(--green) 60%, var(--line));
+  color: var(--green);
 }
 
 .career-card-ability {
@@ -5197,6 +5244,7 @@ textarea {
   }
 
   .career-card-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px;
   }
 

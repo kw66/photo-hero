@@ -196,8 +196,19 @@ const heroModes = {
     equipment: "画作装备",
     sourceMode: "drawing",
   },
+  random: {
+    id: "random",
+    title: "随机勇者",
+    resource: "祈愿星",
+    resourceShard: "星尘",
+    action: "祈愿",
+    pending: "星愿",
+    equipment: "祈愿装备",
+    sourceMode: "random",
+  },
 };
 const defaultHeroMode = "photo";
+const heroModeOrder = ["photo", "drawing", "random"];
 const drawingCanvasSize = 768;
 const defaultDrawingState = {
   open: false,
@@ -243,6 +254,12 @@ const rewardBossFloors = new Set([25, 35, 38]);
 const bossRewardChoiceFloors = [10, 20, 25, 30, 35, 38];
 const bossRewardChoiceCount = bossRewardChoiceFloors.length;
 const hiddenLayerCount = 4;
+const careerMilestoneTargets = {
+  legendary: equipmentSlotLimit,
+  npc: hiddenLayerCount,
+  boss: 7,
+  superForm: 9,
+};
 const bossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
 const highFilmBossMonsterKeys = new Set(["skeletonCaptain", "vampire", "knightCaptain", "demon", "octopus", "dragon", "archmage"]);
 const bossBestiaryEntries = [
@@ -372,6 +389,63 @@ const photoSpecialEffects = [
 ];
 
 const photoSpecialEffectMap = new Map(photoSpecialEffects.map((effect) => [effect.key, effect]));
+
+const randomEquipmentArchetypes = [
+  {
+    nouns: ["长剑", "弯刀", "短刃", "斩铁剑"],
+    prefixes: ["赤纹", "霜锋", "风痕", "暮光", "星火"],
+    stats: ["attack", "attack", "speed", "lifesteal"],
+    specials: ["killAttack", "dealDamageAttack", "sweep", "doubleStrikeSpeedDown", "heavyStrike", "bloodrage"],
+  },
+  {
+    nouns: ["战锤", "铁槌", "破阵锤", "岩心锤"],
+    prefixes: ["沉铁", "雷鸣", "赤铜", "山脊", "裂岩"],
+    stats: ["attack", "attack", "defense", "shield"],
+    specials: ["killAttack", "dealDamageAttack", "shieldCrashAttackDown", "heavyStrike", "bloodrage"],
+  },
+  {
+    nouns: ["猎弓", "长枪", "飞刃", "投枪"],
+    prefixes: ["逐风", "银羽", "流星", "疾影", "破晓"],
+    stats: ["attack", "speed", "speed", "shield"],
+    specials: ["killSpeed", "killAttack", "sweep", "doubleStrikeSpeedDown", "heavyStrike"],
+  },
+  {
+    nouns: ["铠甲", "胸甲", "锁甲", "护心甲"],
+    prefixes: ["塔卫", "黑钢", "古铜", "岩壁", "银鳞"],
+    stats: ["defense", "defense", "shield"],
+    specials: ["killDefense", "takeDamageDefense", "killShield", "shieldReflect", "regenMultiplier"],
+  },
+  {
+    nouns: ["塔盾", "圆盾", "镜盾", "护卫盾"],
+    prefixes: ["白壁", "铁脊", "月纹", "磐石", "守望"],
+    stats: ["shield", "shield", "defense"],
+    specials: ["killShield", "takeDamageDefense", "shieldCrashAttackDown", "shieldReflect"],
+  },
+  {
+    nouns: ["战靴", "轻履", "风行靴", "踏影鞋"],
+    prefixes: ["追风", "青羽", "轻云", "迅影", "飞星"],
+    stats: ["speed", "speed", "shield", "attack"],
+    specials: ["killSpeed", "dealDamageAttack", "doubleStrikeSpeedDown", "sweep"],
+  },
+  {
+    nouns: ["护符", "戒指", "徽章", "吊坠"],
+    prefixes: ["月泪", "晨辉", "红晶", "青藤", "夜星"],
+    stats: ["regen", "lifesteal", "shield", "defense"],
+    specials: ["killHpBoost", "regenMultiplier", "lifestealMultiplier", "bloodrage", "peerless"],
+  },
+  {
+    nouns: ["药瓶", "圣杯", "水晶瓶", "生命壶"],
+    prefixes: ["回春", "赤露", "青叶", "晨露", "暖阳"],
+    stats: ["regen", "regen", "shield"],
+    specials: ["killMaxHp", "killHpBoost", "regenMultiplier", "lifestealMultiplier"],
+  },
+  {
+    nouns: ["提灯", "罗盘", "号角", "秘钥"],
+    prefixes: ["引路", "星轨", "远行", "回声", "寻塔"],
+    stats: ["attack", "defense", "speed", "shield", "regen"],
+    specials: ["peerless", "killSpeed", "killDefense", "killShield", "sweep"],
+  },
+];
 
 const portableEquipmentPattern = /锤|锤子|榔头|工具|扳手|螺丝刀|钳|剪刀|刀|指甲刀|弓箭|弓|箭|旗|旗帜|旗子|旗杆|键盘|鼠标|笔|尺子|直尺|卷尺|书|本|杯|瓶|伞|雨伞|镜|锅盖|盒|包|袋|钱包|卡包|鞋|拖鞋|滑板|风扇|音箱|音响|喇叭|橡皮|橡皮擦|胶带|刷|梳|钥匙|钥匙扣|锁|球|砖|石|玩具|摆件|模型|饰品|衣服|帽|手机|耳机|充电器|遥控器|凳|小桌|台灯|相机|眼镜|贴纸|卡片|纸|包装|图案|屏幕|车模|小车|乐高|公仔|手办|盆栽|小物件|桌面物|毛巾|纸巾|湿巾|棉签|棉棒|电池|灯|勺|叉|筷|盘|碗|玩偶|娃娃|徽章|挂件|棒棒糖|糖果|flag|banner|pennant|cotton swab/i;
 const everydayDrawingObjectPattern = /旗帜|旗子|旗杆|旗面|三角旗|彩旗|风旗|飘带|雨伞|伞面|伞柄|伞骨|折伞|中性笔|圆珠笔|签字笔|铅笔|钢笔|马克笔|水笔|笔杆|笔尖|笔帽|汤勺|勺子|勺头|勺柄|汤匙|叉子|筷子|筷|碗|盘子|盘|杯子|水杯|矿泉水|水瓶|饮料瓶|瓶子|苹果|香蕉|橙子|梨|桃子|草莓|葡萄|西瓜|瓜果|水果|果实|棒棒糖|糖果棒|糖果|面包|糖果|饼干|饭团|钥匙|锁|手机|笔记本电脑|笔记本|电脑|平板|屏幕|相机|眼镜|橡皮|尺子|书包|背包|话筒|麦克风|麦|书本|书|本子|记事本|笔记本|毛巾|纸巾|湿巾|棉签|棉棒|电池|灯泡|遥控器|耳机|鼠标|键盘|风扇|玩具|模型|摆件|挂件|flag|banner|pennant|umbrella|pen|pencil|spoon|fork|chopstick|bowl|plate|mineral water|water bottle|cup|bottle|apple|banana|orange|pear|watermelon|fruit|lollipop|candy|bread|cookie|key|phone|laptop|computer|tablet|screen|camera|glasses|eraser|ruler|backpack|bag|microphone|mic|notebook|book|towel|tissue|cotton swab|battery|lamp|remote|mouse|keyboard|fan|toy|model/i;
@@ -852,13 +926,13 @@ const monsterTypes = {
   golem: { name: "石头人", atk: 15, def: 18, hp: 8, speed: 1, traits: [{ type: "sturdy", text: "坚固：防御至少为敌方攻击-1" }] },
   patrol: { name: "警卫", atk: 16, def: 6, hp: 50, speed: 4, traits: [{ type: "breakShield", text: "破盾：开局护盾清0" }] },
   octopus: { name: "章鱼", atk: 1, def: 0, hp: 120, speed: 2, traits: [{ type: "giant", value: 120, text: "巨物：攻击增加与勇者的生命上限差" }] },
-  dragon: { name: "魔龙", atk: 24, def: 10, hp: 80, speed: 3, traits: [{ type: "speedUpOnAttack", value: 1, text: "龙威：每次攻击速度+1" }] },
+  dragon: { name: "魔龙", atk: 24, def: 10, hp: 88, speed: 3, traits: [{ type: "speedUpOnAttack", value: 1, text: "龙威：每次攻击速度+1" }] },
   vampire: { name: "吸血鬼", atk: 15, def: 0, hp: 66, speed: 6, traits: [{ type: "lifesteal", value: 6, text: "吸血6" }] },
-  demon: { name: "魔王", atk: 18, def: 8, hp: 100, speed: 4, traits: [{ type: "promotion", text: "晋升：攻击涨防，被攻击涨攻" }] },
+  demon: { name: "魔王", atk: 20, def: 10, hp: 100, speed: 6, traits: [{ type: "promotion", text: "晋升：攻击涨防，被攻击涨攻" }] },
   orc: { name: "兽人", atk: 12, def: 7, hp: 60, speed: 2, traits: [{ type: "regen", value: 5, text: "回复5" }] },
   swordsman: { name: "剑士", atk: 30, def: 0, hp: 20, speed: 5, traits: [{ type: "multiHit", value: 2, text: "连击2" }] },
-  warrior: { name: "战士", atk: 12, def: 5, hp: 30, speed: 2, traits: [{ type: "teamWarcry", atk: 3, def: 3, speed: 1, text: "战意：全体攻防+3，速+1" }] },
-  archmage: { name: "大法师", atk: 10, def: 5, hp: 72, speed: 3, traits: [{ type: "magic", text: "魔攻：无视防御" }, { type: "summonMageOnAttack", text: "召唤：有空位则召唤法师" }] },
+  warrior: { name: "战士", atk: 12, def: 5, hp: 30, speed: 2, traits: [{ type: "heroSpeedDown", value: 2, text: "压制：勇者速度-2" }] },
+  archmage: { name: "大法师", atk: 10, def: 6, hp: 80, speed: 4, traits: [{ type: "magic", text: "魔攻：无视防御" }, { type: "summonMageOnAttack", text: "召唤：有空位则召唤法师" }] },
   skeletonCaptain: { name: "骷髅队长", atk: 12, def: 5, hp: 44, speed: 3, traits: [{ type: "noLifesteal", text: "制裁：无法吸血" }] },
   knightCaptain: { name: "骑士队长", atk: 15, def: 3, hp: 40, speed: 4, traits: [{ type: "summonGuards", text: "群殴：开战召唤2个卫兵" }] },
 };
@@ -924,6 +998,7 @@ const els = {
   playerLifesteal: byId("playerLifesteal"),
   heroAvatarImage: byId("heroAvatarImage"),
   formGrid: byId("formGrid"),
+  formResourceCount: byId("formResourceCount"),
   floorText: byId("floorText"),
   enemyField: byId("enemyField"),
   battleSpeedBtn: byId("battleSpeedBtn"),
@@ -1088,9 +1163,10 @@ let careerSummaryRenderedKey = "";
 const bootTips = [
   "点空装备格，拍下身边小物，它会变成随身装备。",
   "画图勇者只看线条、轮廓和颜色，写字不会替你作证。",
+  "随机勇者不用鉴定台，点空装备格就能向祈愿星许愿。",
   "普通楼层可以只挑一只怪，也可以多选怪物换更多胶卷。",
   "牌上写着会倒下，就先别硬冲。",
-  "胶卷和画布随时等价切换，已经生成的装备不会改变。",
+  "照片、画图、随机三种勇者随时切换，已经生成的装备不会改变。",
   "隐藏层要三张牌都点亮，战斗才会开始。",
   "救出公主后打败最终强敌，结局会不同。",
 ];
@@ -1409,6 +1485,10 @@ function isDrawingMode(mode = state.playMode) {
   return normalizeHeroMode(mode) === "drawing";
 }
 
+function isRandomMode(mode = state.playMode) {
+  return normalizeHeroMode(mode) === "random";
+}
+
 function getPendingSourceMode() {
   return normalizeHeroMode(state.pendingSourceMode || state.playMode);
 }
@@ -1438,23 +1518,41 @@ function getEquipmentSourceLabel(mode = state.playMode) {
 }
 
 function modeText(text, mode = state.playMode) {
-  if (!isDrawingMode(mode)) return String(text || "");
-  return String(text || "")
-    .replace(/照片勇者/g, "画图勇者")
-    .replace(/照片装备/g, "画作装备")
-    .replace(/照片/g, "画作")
-    .replace(/拍照/g, "画图")
-    .replace(/胶卷碎片/g, "画布碎片")
-    .replace(/胶卷/g, "画布")
-    .replace(/胶片/g, "画纸");
+  const normalizedMode = normalizeHeroMode(mode);
+  const source = String(text || "");
+  if (normalizedMode === "drawing") {
+    return source
+      .replace(/照片勇者/g, "画图勇者")
+      .replace(/照片装备/g, "画作装备")
+      .replace(/照片/g, "画作")
+      .replace(/拍照/g, "画图")
+      .replace(/胶卷碎片/g, "画布碎片")
+      .replace(/胶卷/g, "画布")
+      .replace(/胶片/g, "画纸");
+  }
+  if (normalizedMode === "random") {
+    return source
+      .replace(/照片勇者/g, "随机勇者")
+      .replace(/照片最低价值/g, "祈愿装备最低价值")
+      .replace(/照片最高价值/g, "祈愿装备最高价值")
+      .replace(/照片装备/g, "祈愿装备")
+      .replace(/照片/g, "星愿")
+      .replace(/拍照/g, "祈愿")
+      .replace(/胶卷碎片/g, "星尘")
+      .replace(/胶卷/g, "祈愿星")
+      .replace(/胶片/g, "星光");
+  }
+  return source;
 }
 
 function renderGameMode() {
   const mode = getHeroMode();
-  document.body.dataset.playMode = mode.id === "drawing" ? "drawing" : "photo";
+  document.body.dataset.playMode = mode.id;
   document.title = GAME_BRAND_TITLE;
   if (els.gameModeBtn) {
-    const nextTitle = isDrawingMode() ? "照片勇者" : "画图勇者";
+    const modeIndex = heroModeOrder.indexOf(mode.id);
+    const nextMode = getHeroMode(heroModeOrder[(modeIndex + 1) % heroModeOrder.length]);
+    const nextTitle = nextMode.title;
     els.gameModeBtn.textContent = mode.title;
     els.gameModeBtn.title = `切换为${nextTitle}`;
     els.gameModeBtn.setAttribute("aria-label", `当前是${mode.title}，点击切换为${nextTitle}`);
@@ -1462,12 +1560,16 @@ function renderGameMode() {
   if (els.desktopInputHint) {
     els.desktopInputHint.textContent = isDrawingMode()
       ? "桌面端点击画图打开画布；画完后放入装备格，再交给鉴定台。"
-      : "桌面端可把图片拖到这里，或点击信息框后按 Ctrl+V 粘贴图片。";
+      : isRandomMode()
+        ? "点亮空装备格，消耗一颗祈愿星唤来随机装备。"
+        : "桌面端可把图片拖到这里，或点击信息框后按 Ctrl+V 粘贴图片。";
   }
 }
 
 function toggleHeroMode() {
-  state.playMode = isDrawingMode() ? "photo" : "drawing";
+  const currentIndex = heroModeOrder.indexOf(normalizeHeroMode(state.playMode));
+  state.playMode = heroModeOrder[(currentIndex + 1) % heroModeOrder.length];
+  if (!hasPendingPhoto()) state.pendingSourceMode = state.playMode;
   closeDrawingModal();
   saveConfig(false);
   saveGame();
@@ -2683,6 +2785,10 @@ function openPhotoPicker() {
 }
 
 function openPhotoPickerForSelectedSlot() {
+  if (isRandomMode()) {
+    wishForRandomEquipment();
+    return;
+  }
   if (isDrawingMode()) {
     openDrawingCanvasForSelectedSlot();
     return;
@@ -2964,7 +3070,7 @@ function handleViewerCropPointerUp(event) {
 }
 
 function canPreparePhotoInDetail() {
-  if (isDrawingMode()) return false;
+  if (normalizeHeroMode(state.playMode) !== "photo") return false;
   if (isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || state.bossReward || state.gameClear) return false;
   return !getInventoryItemAt(getSelectedSlotIndex());
 }
@@ -3029,7 +3135,7 @@ async function handleEquipmentDetailDrop(event) {
 
 function handleDocumentClickForInfoMode(event) {
   if (event.target.closest("#fileInput")) return;
-  if (event.target.closest(".equipment-slot, .equipment-detail, .image-viewer, .drawing-modal, .secondary-area, .floor-action-row, [data-panel-target], .preset-button")) {
+  if (event.target.closest("#gameModeBtn, .equipment-slot, .equipment-detail, .image-viewer, .drawing-modal, .secondary-area, .floor-action-row, [data-panel-target], .preset-button")) {
     return;
   }
   if (hasPendingPhoto()) return;
@@ -3246,9 +3352,8 @@ async function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
   const subtitle = isDefeat
     ? `${getCareerSummaryStatusText(summary)} · 止步第${floor}层`
     : `${getCareerSummaryStatusText(summary)} · 第${maxFloor}层通关`;
-  const statRows = isDefeat
-    ? [["层数", floor], ["击败", snapshot.killCount], ["装备", snapshot.equipmentCount]]
-    : [["怪物", snapshot.killCount], ["Boss", snapshot.bossKillCount], ["装备", snapshot.equipmentCount]];
+  const milestones = getCareerMilestoneStats(snapshot);
+  const statRows = milestones.entries.map((entry) => [entry.label, `${entry.count}/${entry.target}`]);
 
   ctx.fillStyle = accent;
   ctx.font = "900 46px sans-serif";
@@ -3258,7 +3363,7 @@ async function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
   ctx.fillText(subtitle, margin + 36, margin + 118);
 
   const statY = margin + 168;
-  const statWidth = (width - margin * 2 - 88) / 3;
+  const statWidth = (width - margin * 2 - 98) / 4;
   statRows.forEach(([label, value], index) => {
     const x = margin + 34 + index * (statWidth + 10);
     roundRect(ctx, x, statY, statWidth, 74, 12);
@@ -3268,13 +3373,13 @@ async function drawCareerSummaryCanvas(ctx, width, height, summary, snapshot) {
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.fillStyle = "#f4ead2";
-    ctx.font = "900 26px sans-serif";
+    ctx.font = "900 23px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(`${label} ${value}`, x + statWidth / 2, statY + 47);
     ctx.textAlign = "left";
   });
 
-  const ability = `形态 ${snapshot.formLabel}  生命${snapshot.stats.maxHp}  攻击${snapshot.stats.atk}  防御${snapshot.stats.def}  速度${snapshot.stats.speed}  护盾${snapshot.stats.shield}  回复${snapshot.stats.regen}  吸血${snapshot.stats.lifesteal}`;
+  const ability = `${milestones.allPerfect ? "四项圆满" : "尚有未竟"}  形态 ${snapshot.formLabel}  生命${snapshot.stats.maxHp}  攻击${snapshot.stats.atk}  防御${snapshot.stats.def}  速度${snapshot.stats.speed}  护盾${snapshot.stats.shield}  回复${snapshot.stats.regen}  吸血${snapshot.stats.lifesteal}`;
   ctx.fillStyle = "#d8dfd2";
   ctx.font = "900 23px sans-serif";
   wrapCanvasText(ctx, ability, margin + 36, statY + 124, width - margin * 2 - 72, 32, 2);
@@ -3746,7 +3851,7 @@ function renderNpcBestiaryCard(entry, page) {
         <p><span>${escapeHtml(getNpcBestiaryAppearText(config))}</span></p>
         <ul>
           <li><b>看守</b><span>${escapeHtml(config.monsterLabel)} ×2，三张卡牌全部点亮后开战。</span></li>
-          <li><b>奖励</b><span>${escapeHtml(config.rewardText)}</span></li>
+          <li><b>奖励</b><span>${escapeHtml(getHiddenLayerRewardText(config))}</span></li>
         </ul>
       </div>
     </article>
@@ -4053,6 +4158,7 @@ function getMonsterTraitDetail(trait) {
     case "promotion": return "它攻击后涨防御，被打后涨攻击。";
     case "multiHit": return `每次行动连续攻击 ${value || 2} 下。`;
     case "teamWarcry": return `同场怪物攻击 +${trait.atk || 0}、防御 +${trait.def || 0}、速度 +${trait.speed || 0}。`;
+    case "heroSpeedDown": return `在场时压低勇者 ${value || 2} 点速度，最低降至 1。`;
     case "summonMageOnAttack": return "攻击时若场上有空位，会叫来一名法师。";
     case "summonGuards": return "开战时叫来 2 名卫兵一起上场。";
     case "shield": return `自带 ${value} 点护盾。`;
@@ -4449,6 +4555,7 @@ function getMissingConfigFields(config) {
 }
 
 function getPhotoApiConfigHint() {
+  if (isRandomMode() || isRandomMode(getPendingSourceMode())) return "";
   const missing = getMissingConfigFields(getConfigFromInputs());
   if (!missing.length) return "";
   return `先点右上角鉴定，配置 API，点亮${getPendingSourceMode() === "drawing" ? "画作" : "照片"}鉴定。`;
@@ -4488,7 +4595,7 @@ async function getReappraisalAnalysisImage(item) {
 function isPlayerCreatedEquipment(item) {
   if (!item || item.tooLarge) return false;
   const mode = normalizeHeroMode(item.sourceMode || "photo");
-  return (mode === "photo" || mode === "drawing") && Boolean(item.fullImage || item.appraisalImage);
+  return (mode === "photo" || mode === "drawing" || mode === "random") && Boolean(item.fullImage || item.appraisalImage || item.image);
 }
 
 function canReappraiseSelectedItem() {
@@ -4645,6 +4752,10 @@ async function reappraiseSelectedItem() {
     showLootError(message);
     addLog(message);
     render();
+    return;
+  }
+  if (normalizeHeroMode(originalItem.sourceMode) === "random") {
+    reappraiseRandomEquipment(slotIndex, originalItem, reappraisalCost);
     return;
   }
   const prepared = prepareAppraisalConfig();
@@ -6270,8 +6381,9 @@ function receiveItem(item, message) {
     : `${message} 获得 ${fullItem.itemName}。`;
   if (addInventoryItem(fullItem, rewardText, targetSlot)) {
     if (!fullItem.tooLarge) {
-      recordGlobalGameMetric(getEquipmentStatsMetric(fullItem), 1);
-      recordGlobalAppraisalPlayer();
+      const metric = getEquipmentStatsMetric(fullItem);
+      if (metric) recordGlobalGameMetric(metric, 1);
+      if (normalizeHeroMode(fullItem.sourceMode) !== "random") recordGlobalAppraisalPlayer();
     }
     state.tutorial.photoStarted = true;
     state.tutorial.battleHintSeen = false;
@@ -6304,15 +6416,19 @@ function replaceInventoryItemAt(slotIndex, item, message) {
   addLog(message);
   addBattleEvent(message, "item");
   playSoundEffect("appraisalSuccess");
-  recordGlobalGameMetric(getEquipmentStatsMetric(fullItem), 1);
-  recordGlobalAppraisalPlayer();
+  const metric = getEquipmentStatsMetric(fullItem);
+  if (metric) recordGlobalGameMetric(metric, 1);
+  if (normalizeHeroMode(fullItem.sourceMode) !== "random") recordGlobalAppraisalPlayer();
   saveGame();
   render();
   return true;
 }
 
 function getEquipmentStatsMetric(item) {
-  return normalizeHeroMode(item?.sourceMode || "photo") === "drawing" ? "DrawingEquipment" : "PhotoEquipment";
+  const mode = normalizeHeroMode(item?.sourceMode || "photo");
+  if (mode === "drawing") return "DrawingEquipment";
+  if (mode === "photo") return "PhotoEquipment";
+  return "";
 }
 
 async function findDuplicateIdentifiedItem(item, config = null, signal = null) {
@@ -6604,6 +6720,171 @@ function formatBalancedItemDisplayName(item, maxSingleLineLength = 5.5) {
   return `${chars.slice(0, bestIndex).join("").trim()}\n${chars.slice(bestIndex).join("").trim()}`;
 }
 
+function pickRandomEntry(list) {
+  if (!Array.isArray(list) || !list.length) return null;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function randomIntInclusive(min, max) {
+  const lower = Math.ceil(Math.min(min, max));
+  const upper = Math.floor(Math.max(min, max));
+  return lower + Math.floor(Math.random() * (upper - lower + 1));
+}
+
+function getRandomSpecialRequiredStat(effectKey) {
+  if (effectKey === "lifestealMultiplier") return "lifesteal";
+  if (effectKey === "regenMultiplier") return "regen";
+  if (effectKey === "shieldCrashAttackDown" || effectKey === "shieldReflect") return "shield";
+  return "";
+}
+
+function allocateRandomEquipmentStats(valueBudget, statPool = [], requiredStat = "") {
+  const stats = normalizeStats({}, 20);
+  const caps = { attack: 4, defense: 4, speed: 2, shield: 8, lifesteal: 3, regen: 3 };
+  let remaining = Math.max(0, Math.trunc(valueBudget || 0));
+  const requiredWeight = statValueWeights[requiredStat] || 0;
+  if (requiredWeight > 0 && requiredWeight <= remaining) {
+    stats[requiredStat] = 1;
+    remaining -= requiredWeight;
+  }
+  let guard = 0;
+  while (remaining > 0 && guard < 40) {
+    guard += 1;
+    const candidates = statPool.filter((key) => {
+      const weight = statValueWeights[key];
+      return key !== "hp" && weight > 0 && weight <= remaining && (stats[key] || 0) < (caps[key] || 20);
+    });
+    if (!candidates.length) break;
+    const stat = pickRandomEntry(candidates);
+    stats[stat] += 1;
+    remaining -= statValueWeights[stat];
+  }
+  if (remaining > 0) stats.hp += remaining;
+  return normalizeStats(stats, 20);
+}
+
+function makeRandomEquipmentImage(itemName, qualityKey = "common") {
+  const colors = getQualityCanvasColor(qualityKey);
+  const lines = formatBalancedItemDisplayName({ itemName }, 4.5).split("\n").slice(0, 2);
+  const textMarkup = lines.length > 1
+    ? `<text x="120" y="111" text-anchor="middle">${escapeHtml(lines[0])}</text><text x="120" y="151" text-anchor="middle">${escapeHtml(lines[1])}</text>`
+    : `<text x="120" y="132" text-anchor="middle">${escapeHtml(lines[0] || itemName)}</text>`;
+  return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+      <rect width="240" height="240" rx="8" fill="${colors.bg}"/>
+      <path d="M26 44h188M26 196h188M44 26v188M196 26v188" stroke="${colors.border}" stroke-opacity=".28" stroke-width="2"/>
+      <path d="M120 36l5 13 13 5-13 5-5 13-5-13-13-5 13-5z" fill="${colors.border}"/>
+      <g fill="${colors.text}" font-family="Microsoft YaHei UI, sans-serif" font-size="30" font-weight="900">${textMarkup}</g>
+      <text x="120" y="211" text-anchor="middle" fill="${colors.border}" font-family="Microsoft YaHei UI, sans-serif" font-size="15" font-weight="700">祈愿装备</text>
+      <rect x="8" y="8" width="224" height="224" rx="6" fill="none" stroke="${colors.border}" stroke-width="5"/>
+    </svg>
+  `);
+}
+
+function balanceRandomEquipmentItem(item, image = "") {
+  const safe = item && typeof item === "object" ? item : {};
+  const itemName = cleanText(safe.itemName, "无名星具", 18);
+  const stats = normalizeStats(safe.stats || {}, 20);
+  const specialEffects = normalizeSpecialEffects(safe.specialEffects || []);
+  const score = calculateItemScore(stats, specialEffects);
+  const quality = getItemQuality(score);
+  const resolvedImage = image || safe.image || makeRandomEquipmentImage(itemName, quality.key);
+  return {
+    ...safe,
+    itemName,
+    subjectName: cleanText(safe.subjectName, itemName, 18),
+    objectType: cleanText(safe.objectType, "祈愿装备", 18),
+    sizeClass: "handheld",
+    isScene: false,
+    isEquipable: true,
+    tooLarge: false,
+    value: score,
+    quality,
+    stats,
+    specialEffects,
+    specialState: normalizeSpecialState(safe.specialState, specialEffects),
+    description: cleanText(safe.description, "星光在掌中凝成了一件装备。", 72),
+    identityDescription: cleanText(safe.identityDescription, `${itemName}由祈愿星随机凝成。`, 160),
+    sourceMode: "random",
+    image: resolvedImage,
+    fullImage: safe.fullImage || resolvedImage,
+    appraisalImage: safe.appraisalImage || resolvedImage,
+    photoKey: cleanText(safe.photoKey, `img:random-${fnv1aHash(`${itemName}-${Date.now()}-${Math.random()}`)}`, 48),
+    sourcePhotoKey: cleanText(safe.sourcePhotoKey, "", 48),
+    objectKey: cleanText(safe.objectKey, `obj:exact:random-${fnv1aHash(`${itemName}-${Date.now()}-${Math.random()}`)}`, 80),
+    forceSpecialEffects: true,
+    skipSpecialRoll: true,
+    confidence: 1,
+  };
+}
+
+function makeRandomEquipment() {
+  const archetype = pickRandomEntry(randomEquipmentArchetypes) || randomEquipmentArchetypes[0];
+  const noun = pickRandomEntry(archetype.nouns) || "星具";
+  const prefix = pickRandomEntry(archetype.prefixes) || "无名";
+  const itemName = `${prefix}${noun}`;
+  const targetValue = randomIntInclusive(getPhotoValueMin(), getPhotoValueMax());
+  const targetQuality = getItemQuality(targetValue);
+  const specialChance = specialEffectChances[targetQuality.key] || 0;
+  const specialStatBudget = Math.max(0, targetValue - photoSpecialEffectValue);
+  const eligibleSpecials = archetype.specials.filter((key) => {
+    const requiredStat = getRandomSpecialRequiredStat(key);
+    return !requiredStat || (statValueWeights[requiredStat] || Infinity) <= specialStatBudget;
+  });
+  const specialEffects = targetValue >= photoSpecialEffectValue && Math.random() * 100 < specialChance
+    ? [pickRandomEntry(eligibleSpecials)].filter(Boolean)
+    : [];
+  const statBudget = Math.max(0, targetValue - calculateSpecialEffectsValue(specialEffects));
+  const stats = allocateRandomEquipmentStats(statBudget, archetype.stats, getRandomSpecialRequiredStat(specialEffects[0]));
+  const statText = statOrder.filter((key) => stats[key] > 0).map((key) => `${statLabels[key]}+${stats[key]}`);
+  const effectText = specialEffects.map((key) => photoSpecialEffectMap.get(key)?.label).filter(Boolean);
+  const gains = [...statText, ...effectText].join("、") || "微弱星力";
+  const image = makeRandomEquipmentImage(itemName, getItemQuality(calculateItemScore(stats, specialEffects)).key);
+  return balanceRandomEquipmentItem({
+    itemName,
+    subjectName: noun,
+    objectType: noun,
+    stats,
+    specialEffects,
+    description: `${itemName}从星光中落入掌心，带来${gains}。`,
+    identityDescription: `${prefix}纹路覆盖的${noun}，由本次祈愿随机生成。`,
+  }, image);
+}
+
+function wishForRandomEquipment() {
+  if (isCareerSummaryOpen() || isEquipmentLocked() || hasPendingPhoto() || isPlayerDefeated() || state.bossReward) {
+    showInputNotice(getPhotoInputBlockedMessage());
+    render();
+    return false;
+  }
+  const slotIndex = getSelectedSlotIndex();
+  if (getInventoryItemAt(slotIndex)) {
+    showInputNotice("当前装备格已有装备，请选择空格。");
+    render();
+    return false;
+  }
+  if (!consumeFilm()) {
+    const message = `${getResourceName()}不足，先击败怪物积攒新的祈愿机会。`;
+    showInputNotice(message);
+    addLog(message);
+    render();
+    return false;
+  }
+  state.pendingPhotoSlotIndex = slotIndex;
+  state.pendingSourceMode = "random";
+  state.tutorial.photoStarted = true;
+  receiveItem(makeRandomEquipment(), "祈愿完成。");
+  return true;
+}
+
+function reappraiseRandomEquipment(slotIndex, originalItem, cost) {
+  if (!consumeFilmAmount(cost)) return false;
+  const nextItem = makeRandomEquipment();
+  nextItem.reappraisedFromId = originalItem.id || "";
+  nextItem.reappraisedAt = Date.now();
+  return replaceInventoryItemAt(slotIndex, nextItem, `重鉴定完成。${formatItemDisplayName(originalItem)} 变为 ${formatItemDisplayName(nextItem)}。`);
+}
+
 function createEmptyInventorySlots() {
   return Array.from({ length: equipmentVisibleSlots }, () => null);
 }
@@ -6734,7 +7015,8 @@ function canFleeCurrentFloor() {
 function canBypassCurrentFloor() {
   if (state.gameClear || state.bossReward || isCareerSummaryOpen()) return false;
   if (isPlayerDefeated() || state.currentBattle || state.autoBattleTimer || state.battleStartTimer || state.pendingFloorAdvance) return false;
-  if (isEquipmentLocked() || hasBlockingPendingPhoto()) return false;
+  if (isAnalyzingPhoto()) return false;
+  if (!isRewardBossFloor(state.floor) && (isEquipmentLocked() || hasBlockingPendingPhoto())) return false;
   if (isIntroFloor()) return false;
   if (isHiddenLayerActive()) return true;
   return !isBossFloor(state.floor);
@@ -8339,7 +8621,28 @@ function isIntroFloor() {
   return state.floor === introFloor && !state.gameClear;
 }
 
+function getIntroResourceBundleText(mode = state.playMode) {
+  const normalizedMode = normalizeHeroMode(mode);
+  if (normalizedMode === "random") return "三颗祈愿星";
+  if (normalizedMode === "drawing") return "三张画布";
+  return "三卷胶卷";
+}
+
 function getIntroRewards() {
+  if (isRandomMode()) {
+    return introRewardOptions.map((option, index) => ({
+      ...option,
+      title: "祈愿星",
+      effect: "+1.0 祈愿星",
+      icon: "",
+      glyph: "★",
+      desc: [
+        "点亮空装备格，消耗祈愿星，唤来一件随机装备。",
+        "祈愿不需要鉴定台，装备名称、属性和词条都由星光决定。",
+        "入塔后点击怪物卡选定目标，按战斗夺回新的祈愿星。",
+      ][index] || option.desc,
+    }));
+  }
   if (!isDrawingMode()) return introRewardOptions.map((option) => ({ ...option }));
   return introRewardOptions.map((option, index) => ({
     ...option,
@@ -8385,7 +8688,7 @@ function confirmIntroRewards() {
   if (!isIntroFloor()) return;
   if (!hasSelectedAllIntroRewards()) {
     state.infoMode = "item";
-    addBattleEvent(modeText("塔门纹路尚未闭合。把三卷胶卷一并放上石台，门锁才会转动。"), "item");
+    addBattleEvent(`塔门纹路尚未闭合。把${getIntroResourceBundleText()}一并放上石台，门锁才会转动。`, "item");
     saveGame();
     render();
     return;
@@ -8413,7 +8716,7 @@ function enterTowerFromIntro() {
   state.enemyFlipEncounterId = state.encounterId;
   applyFloorShield();
   focusInitialPhotoSlotAfterTowerEntry();
-  addBattleEvent(modeText("三卷胶卷在石台上亮起，塔门缓缓向内打开。照片勇者踏上第 1 层。"), "item");
+  addBattleEvent(`${getIntroResourceBundleText()}在石台上亮起，塔门缓缓向内打开。${getGameTitle()}踏上第 1 层。`, "item");
   addFloorNarrative(state.floor);
   playSoundEffect("nextFloor");
   ensureBgmForGameState(true);
@@ -8445,8 +8748,9 @@ function buildLocalCareerSummary(outcome = state.gameClear ? "clear" : isPlayerD
       outcome: "defeat",
       title: "止步旧塔",
       text: [
-        `塔底的旧账里夹着一张没烧尽的胶片。${snapshot.formLabel}带着满身照片装备走到第${floor}层，最后的生命停在${snapshot.hp}，攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}，都被一并记了下来。`,
-        `这一趟打退了${snapshot.killCount}只怪物，划去了${snapshot.bossKillCount}个Boss的名字。${itemText}也留在了册子里，像几件从现实掉进塔缝的旧物。`,
+        `塔底旧账的最后一页，记着${snapshot.formLabel}带着一路收集的装备走到第${floor}层。最后的生命停在${snapshot.hp}，攻击${snapshot.stats.atk}、防御${snapshot.stats.def}、速度${snapshot.stats.speed}，也被一并记了下来。`,
+        `这一趟打退了${snapshot.killCount}只怪物，划去了${snapshot.bossKillCount}个Boss的名字。${itemText}也留在了册子里，记着勇者走到这里的痕迹。`,
+        formatCareerMilestoneNarration(snapshot),
         `${defeatLine}守塔人没把这事当笑话，只在边角添了一句：倒下的那一刻，他手里还攥着重来一次的念头。`,
       ].map((line) => modeText(line)).join("\n\n"),
       snapshot,
@@ -8460,11 +8764,12 @@ function buildLocalCareerSummary(outcome = state.gameClear ? "clear" : isPlayerD
     title: trueEnding ? "真结局旧闻" : "未竟旧闻",
     text: [
       trueEnding
-        ? `塔底的石碑上，至今留着一位${snapshot.formLabel}的名字。他带着一路鉴定来的器物登上第${maxFloor}层，还把困在隐藏第四层的公主，一起带回了塔顶的晨光里。`
-        : `塔底的石碑上，至今留着一位${snapshot.formLabel}的名字。他带着一路鉴定来的器物登上第${maxFloor}层，只是隐藏第四层那段空白的传闻，始终没能解开。`,
+        ? `塔底的石碑上，至今留着一位${snapshot.formLabel}的名字。他带着一路收集的装备登上第${maxFloor}层，还把困在隐藏第四层的公主，一起带回了塔顶的晨光里。`
+        : `塔底的石碑上，至今留着一位${snapshot.formLabel}的名字。他带着一路收集的装备登上第${maxFloor}层，只是隐藏第四层那段空白的传闻，始终没能解开。`,
       `账册上记着${snapshot.killCount}场怪物败退，其中${snapshot.bossKillCount}个Boss被刻进了封门名录。${itemText}被列作代表装备，像几件从日常里忽然醒来的奇物。`,
+      formatCareerMilestoneNarration(snapshot),
       trueEnding
-        ? `后来的人说，他靠的从不是某一柄名剑，而是把手边的寻常东西，一件件都变成了登塔的台阶。魔王倒下、公主获救，这段冒险才算真正写成了塔顶的传说。`
+        ? `后来的人说，他靠的从不是某一柄名剑，而是一路得到的每件装备。魔王倒下、公主获救，这段冒险才算真正写成了塔顶的传说。`
         : `后来的人说，他确实打倒了魔王，却只走完了旧塔明面上的结局。少了公主归来的那一页，守塔人只能把它记作一桩未竟的旧闻。`,
     ].map((line) => modeText(line)).join("\n\n"),
     snapshot,
@@ -8512,6 +8817,14 @@ function buildCareerSnapshot(outcome = state.gameClear ? "clear" : isPlayerDefea
       effects: getItemSpecialKeys(item).map((key) => photoSpecialEffectMap.get(key)?.label || key),
     }))
     .sort((a, b) => b.score - a.score);
+  const hiddenRescues = Object.fromEntries(hiddenLayerConfigs.map((config) => [config.index, isHiddenLayerRescued(config.index)]));
+  const legendaryCount = items.filter((item) => item.qualityKey === "legendary").length;
+  const rescuedNpcCount = Object.values(hiddenRescues).filter(Boolean).length;
+  const superFormCount = getUnlockedSuperFormCount();
+  const allMilestonesPerfect = legendaryCount >= careerMilestoneTargets.legendary
+    && rescuedNpcCount >= careerMilestoneTargets.npc
+    && bossKillCount >= careerMilestoneTargets.boss
+    && superFormCount >= careerMilestoneTargets.superForm;
   return {
     outcome: outcome === "defeat" ? "defeat" : "clear",
     floor: state.floor,
@@ -8522,9 +8835,13 @@ function buildCareerSnapshot(outcome = state.gameClear ? "clear" : isPlayerDefea
     film: formatFilmCount(),
     killCount,
     bossKillCount,
+    legendaryCount,
+    rescuedNpcCount,
+    superFormCount,
+    allMilestonesPerfect,
     equipmentCount: items.length,
     trueEnding: hasRescuedPrincess(),
-    hiddenRescues: Object.fromEntries(hiddenLayerConfigs.map((config) => [config.index, isHiddenLayerRescued(config.index)])),
+    hiddenRescues,
     topItems: items.slice(0, 5),
     allItems: items,
     battleHighlights: reports.slice(0, 5).map((report) => report.summary).filter(Boolean),
@@ -8532,6 +8849,41 @@ function buildCareerSnapshot(outcome = state.gameClear ? "clear" : isPlayerDefea
     defeatMonsterName: defeatReport?.monsterName || "",
     defeatFloor: defeatReport?.floor || state.floor,
   };
+}
+
+function getCareerMilestoneStats(snapshot = {}) {
+  const allItems = Array.isArray(snapshot.allItems) ? snapshot.allItems : [];
+  const hiddenRescues = snapshot.hiddenRescues && typeof snapshot.hiddenRescues === "object" ? snapshot.hiddenRescues : {};
+  const legendaryCount = Number.isFinite(snapshot.legendaryCount)
+    ? snapshot.legendaryCount
+    : allItems.filter((item) => item?.qualityKey === "legendary" || item?.quality === "传说").length;
+  const rescuedNpcCount = Number.isFinite(snapshot.rescuedNpcCount)
+    ? snapshot.rescuedNpcCount
+    : Object.values(hiddenRescues).filter(Boolean).length;
+  const bossKillCount = Math.max(0, Number(snapshot.bossKillCount) || 0);
+  const superFormCount = Number.isFinite(snapshot.superFormCount)
+    ? snapshot.superFormCount
+    : getUnlockedSuperFormCount();
+  const entries = [
+    { key: "legendary", label: "传说", count: legendaryCount, target: careerMilestoneTargets.legendary },
+    { key: "npc", label: "解救", count: rescuedNpcCount, target: careerMilestoneTargets.npc },
+    { key: "boss", label: "Boss", count: bossKillCount, target: careerMilestoneTargets.boss },
+    { key: "superForm", label: "超级", count: superFormCount, target: careerMilestoneTargets.superForm },
+  ].map((entry) => ({
+    ...entry,
+    count: Math.max(0, Math.trunc(entry.count || 0)),
+    perfect: entry.count >= entry.target,
+  }));
+  return {
+    entries,
+    allPerfect: entries.every((entry) => entry.perfect),
+  };
+}
+
+function formatCareerMilestoneNarration(snapshot) {
+  const milestones = getCareerMilestoneStats(snapshot);
+  const counts = milestones.entries.map((entry) => `${entry.label}${entry.count}/${entry.target}`).join("、");
+  return `旧账另列四项：${counts}。${milestones.allPerfect ? "四项皆已圆满。" : "四项尚未全部圆满。"}`;
 }
 
 async function requestCareerSummary(force = false) {
@@ -8602,6 +8954,7 @@ async function requestCareerSummary(force = false) {
 }
 
 function buildCareerSummaryPrompt(snapshot, outcome = snapshot?.outcome || "clear") {
+  const milestoneLine = formatCareerMilestoneNarration(snapshot);
   const itemLines = snapshot.topItems.length
     ? snapshot.allItems.slice(0, 10).map((item, index) => `${index + 1}. ${item.quality} ${item.name}，分数${item.score}，属性${formatSnapshotStats(item.stats)}${item.effects.length ? `，词条${item.effects.join("、")}` : ""}`).join("\n")
     : modeText("无照片装备");
@@ -8626,6 +8979,7 @@ function buildCareerSummaryPrompt(snapshot, outcome = snapshot?.outcome || "clea
       `击败Boss：${snapshot.bossKillCount}只`,
       `剩余胶卷：${snapshot.film}`,
       `装备数量：${snapshot.equipmentCount}`,
+      milestoneLine,
       "代表装备：",
       itemLines,
       "最后战斗：",
@@ -8651,6 +9005,7 @@ function buildCareerSummaryPrompt(snapshot, outcome = snapshot?.outcome || "clea
     `击败Boss：${snapshot.bossKillCount}只`,
     `剩余胶卷：${snapshot.film}`,
     `装备数量：${snapshot.equipmentCount}`,
+    milestoneLine,
     "代表装备：",
     itemLines,
     "最近战斗：",
@@ -8739,7 +9094,7 @@ function hasRecentFloorNarrative(floor, text) {
 function getFloorNarrative(floor) {
   if (isHiddenLayerActive()) return getHiddenLayerNarrative();
   if (floor <= introFloor) {
-    return modeText("塔门前的石台上，三道卷轴槽还空着。集齐三卷胶卷，第一层才会显形。");
+    return `塔门前的石台上，三处凹槽还空着。集齐${getIntroResourceBundleText()}，第一层才会显形。`;
   }
   const safeFloor = getPlayableFloor(floor);
   if (bossFloorNarratives[safeFloor]) return bossFloorNarratives[safeFloor];
@@ -9552,6 +9907,16 @@ function getHiddenLayerConfig(indexOrLayer = getCurrentHiddenLayer()) {
   return hiddenLayerConfigMap.get(normalizeHiddenLayerIndex(index)) || null;
 }
 
+function getHiddenLayerRewardTitle(config) {
+  if (config?.index === 2) return `${getResourceName()} +2.0`;
+  return config?.rewardTitle || "救援奖励";
+}
+
+function getHiddenLayerRewardText(config) {
+  if (config?.index === 2) return `救出商人后，立刻获得 2.0 ${getResourceName()}。`;
+  return config?.rewardText || "救援完成。";
+}
+
 function isHiddenLayerResolved(index) {
   return Boolean(ensureHiddenLayerState().resolved?.[index]);
 }
@@ -9814,7 +10179,7 @@ function applyHiddenLayerReward(layer = getCurrentHiddenLayer(), battle = state.
     battle.hiddenLayer = { index: config.index, label: config.label, npcName: config.npcName };
     battle.hiddenRewardText = rewardText;
     battle.lootNames = Array.isArray(battle.lootNames) ? battle.lootNames : [];
-    battle.lootNames.push(config.rewardTitle);
+    battle.lootNames.push(getHiddenLayerRewardTitle(config));
   }
   addBattleDetail(rewardText);
   markHiddenLayerResolved(config.index, true);
@@ -10308,6 +10673,8 @@ function applyEnemyBattleModifiers(stats, enemies, battleSpecial = createDefault
   });
   const defenseBreakPenalty = getEnemyDefenseBreakPenalty(aliveEnemies, battleSpecial, stats.def);
   if (defenseBreakPenalty > 0) stats.def -= defenseBreakPenalty;
+  const speedPenalty = sumEnemyTraitValues(aliveEnemies, "heroSpeedDown", 0);
+  if (speedPenalty > 0) stats.speed = Math.max(1, stats.speed - speedPenalty);
   if (aliveEnemies.some((enemy) => hasTrait(enemy, "noRegen")) && stats.regen > 0) stats.regen = 0;
   if (aliveEnemies.some((enemy) => hasTrait(enemy, "noLifesteal")) && stats.lifesteal > 0) stats.lifesteal = 0;
   return stats;
@@ -12570,9 +12937,10 @@ function isUnformedDrawingSubjectText(text = "") {
 }
 
 function balanceItem(item, image = "") {
+  const sourceMode = normalizeHeroMode(item?.sourceMode || item?.source_mode || "photo");
+  if (sourceMode === "random") return balanceRandomEquipmentItem(item, image);
   if (USE_LITE_APPRAISAL) return balanceItemLite(item, image);
   const safe = item && typeof item === "object" ? item : {};
-  const sourceMode = normalizeHeroMode(safe.sourceMode || safe.source_mode || "photo");
   const rarity = ["common", "uncommon", "rare"].includes(safe.rarity) ? safe.rarity : "common";
   const rawItemName = cleanText(safe.itemName, sourceMode === "drawing" ? "幻想装备" : "照片装备", 30);
   const rawSubjectName = cleanText(safe.subjectName, rawItemName, 30);
@@ -14559,7 +14927,7 @@ function render(options = {}) {
   els.attackBtn.classList.toggle("is-choice-prompt", primaryNeedsSelection);
   els.attackBtn.setAttribute("aria-pressed", String(Boolean(state.autoBattleTimer)));
   els.attackBtn.setAttribute("aria-label", state.gameClear ? "查看塔史结局" : defeated && state.careerSummary ? "查看战败结局" : bossRewardPending ? "确认奖励牌" : "开始战斗");
-  if (isIntroFloor()) els.attackBtn.setAttribute("aria-label", introReady ? "进入魔塔第一层" : `全部选择三张${getResourceName()}`);
+  if (isIntroFloor()) els.attackBtn.setAttribute("aria-label", introReady ? "进入魔塔第一层" : `全部选择${getIntroResourceBundleText()}`);
   else if (primaryNeedsSelection) els.attackBtn.setAttribute("aria-label", isHiddenLayerActive() ? "全部选择隐藏层三张卡牌" : "选择怪物后开始战斗");
   els.battleSpeedBtn.hidden = bossRewardPending || state.gameClear || defeated || isIntroFloor();
   els.battleSpeedBtn.textContent = bossRewardPending ? "" : `×${getBattleSpeed()}`;
@@ -14618,6 +14986,9 @@ function renderApiStatus() {
 
 function renderCameraStatus() {
   els.filmCountBadge.textContent = `${getResourceName()} ${formatFilmCount()}`;
+  if (els.formResourceCount) {
+    els.formResourceCount.textContent = `（${getResourceName()} ${formatFilmCount()}）`;
+  }
 }
 
 function renderEnemyField(enemyDamageEstimates = null) {
@@ -14673,7 +15044,7 @@ function renderEnemyField(enemyDamageEstimates = null) {
 
     if (isNonCombatEnemy(enemy)) {
       const config = getHiddenLayerConfig(enemy.hiddenLayerIndex);
-      const rewardTitle = config?.rewardTitle || "救援奖励";
+      const rewardTitle = getHiddenLayerRewardTitle(config);
       button.classList.add("is-npc-card");
       button.innerHTML = `
         ${selectionOrder ? `<span class="selection-badge">${selectionOrder}</span>` : ""}
@@ -14754,7 +15125,9 @@ function renderIntroRewardCards() {
       ${selectionOrder ? `<span class="selection-badge">${selectionOrder}</span>` : ""}
       <div class="reward-card-main">
         <div class="monster-portrait reward-portrait">
-          <img src="${rewardIconBase}${escapeHtml(option.icon)}" alt="" aria-hidden="true">
+          ${option.glyph
+            ? `<span class="reward-icon-glyph" aria-hidden="true">${escapeHtml(option.glyph)}</span>`
+            : `<img src="${rewardIconBase}${escapeHtml(option.icon)}" alt="" aria-hidden="true">`}
         </div>
         <div class="enemy-name-block">
           <strong>${escapeHtml(option.title)}</strong>
@@ -15242,8 +15615,12 @@ function renderEquipmentDetail() {
     els.equipmentDetailStats.innerHTML = "";
     els.equipmentDetailStats.hidden = true;
     els.equipmentDetailDesc.textContent = hasSelectedAllIntroRewards()
-      ? modeText("三卷胶卷已经嵌进石台。推开塔门后，第一层的怪物会立刻现身。")
-      : modeText("石台上放着三卷胶卷：一卷教你点亮装备格拍照，一卷教你启用鉴定台，一卷教你入塔选怪战斗。");
+      ? `${getIntroResourceBundleText()}已经嵌进石台。推开塔门后，第一层的怪物会立刻现身。`
+      : isRandomMode()
+        ? "石台上放着三颗祈愿星：点亮装备格即可祈愿，不必启用鉴定台；入塔后选怪战斗，还能继续收集星光。"
+        : isDrawingMode()
+          ? "石台上放着三张画布：一张教你点亮装备格画图，一张教你启用鉴定台，一张教你入塔选怪战斗。"
+          : "石台上放着三卷胶卷：一卷教你点亮装备格拍照，一卷教你启用鉴定台，一卷教你入塔选怪战斗。";
     els.filmCountBadge.hidden = false;
     return;
   }
@@ -15352,13 +15729,17 @@ function renderEquipmentDetail() {
           ? "先确认一张 Boss 奖励牌。"
           : "战斗中不能拍照鉴定。"
       : firstPhotoHint
-        ? isDrawingMode()
-          ? "先画一件能变成装备的简笔画。"
-          : "先拍一件身边的小物品。"
+        ? isRandomMode()
+          ? "先用一颗祈愿星唤来随机装备。"
+          : isDrawingMode()
+            ? "先画一件能变成装备的简笔画。"
+            : "先拍一件身边的小物品。"
       : state.filmRolls >= 1
-        ? isDrawingMode()
-          ? "打开画布，画一件能被鉴定成装备的简笔画。"
-          : "拍下身边物品，鉴定成照片装备。"
+        ? isRandomMode()
+          ? "向祈愿星许愿，随机唤来一件装备。"
+          : isDrawingMode()
+            ? "打开画布，画一件能被鉴定成装备的简笔画。"
+            : "拍下身边物品，鉴定成照片装备。"
         : `${getResourceName()}不足，先击败怪物攒到新的${getInputActionName()}机会。`;
     els.filmCountBadge.hidden = state.gameClear;
     els.equipmentActions.hidden = state.gameClear;
@@ -15398,7 +15779,7 @@ function renderEquipmentDetail() {
   els.savePhotoBtn.hidden = false;
   els.savePhotoBtn.disabled = locked || !(selected.fullImage || selected.image);
   els.savePhotoBtn.textContent = "保存";
-  els.savePhotoBtn.setAttribute("aria-label", `保存${selected.sourceMode === "drawing" ? "画作" : "照片"}`);
+  els.savePhotoBtn.setAttribute("aria-label", `保存${getHeroMode(selected.sourceMode || "photo").equipment}`);
   els.discardItemBtn.hidden = false;
   els.discardItemBtn.disabled = locked;
   els.discardItemBtn.classList.add("danger-button");
@@ -15504,17 +15885,7 @@ function renderCareerSummaryCard(summary, snapshot) {
   const subline = isDefeat
     ? `${snapshot.formLabel} · 倒在第${floor}层`
     : `${snapshot.formLabel} · 剩余${getResourceName()} ${snapshot.film}`;
-  const stats = isDefeat
-    ? [
-        ["层数", floor],
-        ["击败", snapshot.killCount],
-        ["装备", snapshot.equipmentCount],
-      ]
-    : [
-        ["怪物", snapshot.killCount],
-        ["Boss", snapshot.bossKillCount],
-        ["装备", snapshot.equipmentCount],
-      ];
+  const milestones = getCareerMilestoneStats(snapshot);
   return `
     <section class="career-card is-${escapeHtml(outcome)}" aria-label="${isDefeat ? "战败结局卡" : "通关结局卡"}">
       <div class="career-card-head">
@@ -15523,8 +15894,9 @@ function renderCareerSummaryCard(summary, snapshot) {
         <em>${escapeHtml(subline)}</em>
       </div>
       <div class="career-card-stats">
-        ${stats.map(([label, value]) => `<span>${escapeHtml(label)} ${escapeHtml(value)}</span>`).join("")}
+        ${milestones.entries.map((entry) => `<span data-perfect="${entry.perfect}">${escapeHtml(entry.label)} ${entry.count}/${entry.target}</span>`).join("")}
       </div>
+      <div class="career-card-milestone" data-perfect="${milestones.allPerfect}">${milestones.allPerfect ? "四项圆满" : "四项尚未全部圆满"}</div>
       <div class="career-card-ability">${escapeHtml(formatCareerAbilityLine(snapshot))}</div>
       <div class="career-card-body">${paragraphs || (isDefeat ? `<p>${escapeHtml(modeText("旧账停在这一页，塔里仍记得照片勇者倒下前留下的影子。"))}</p>` : `<p>${escapeHtml(modeText("多年以后，塔中仍流传着照片勇者登顶的旧闻。"))}</p>`)}</div>
       <h4>${isDefeat ? "遗落在塔中的装备" : "塔史记名装备"}</h4>
@@ -15585,7 +15957,12 @@ function getDrawingIconMarkup() {
   `;
 }
 
+function getWishIconMarkup() {
+  return `<span class="wish-empty-icon" aria-hidden="true">★</span>`;
+}
+
 function getEmptySlotIconMarkup() {
+  if (isRandomMode()) return getWishIconMarkup();
   return isDrawingMode() ? getDrawingIconMarkup() : getCameraIconMarkup();
 }
 
@@ -17030,6 +17407,7 @@ window.__photoHeroTestHooks = {
   },
   chooseBossReward,
   balanceItem,
+  makeRandomEquipmentForTest: makeRandomEquipment,
   async identifyImageForTest(config, image) {
     const item = await analyzeDirectly(config, image);
     return balanceItem(item, makePlaceholderImage());

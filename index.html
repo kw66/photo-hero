@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>图片勇者</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📷</text></svg>">
-    <link rel="stylesheet" href="./styles.css?v=20260805-form-fixes">
+    <link rel="stylesheet" href="./styles.css?v=20260805-random-hero">
   </head>
   <body class="is-booting">
     <div class="boot-loader" id="bootLoader" role="status" aria-live="polite" aria-label="资源加载中">
@@ -15,7 +15,7 @@
         <p id="bootProgressText">检查图像、音效和前段音乐...</p>
         <div class="boot-tip" aria-live="polite">
           <span class="boot-tip-label">勇者贴士</span>
-          <span class="boot-tip-text is-visible" id="bootTipText">点亮空装备格，拍下或画出身边小物，它会变成随身装备。</span>
+          <span class="boot-tip-text is-visible" id="bootTipText">点亮空装备格，拍下、画出或祈愿一件随身装备。</span>
         </div>
         <div class="boot-progress" aria-hidden="true">
           <span id="bootProgressBar"></span>
@@ -102,7 +102,7 @@
                   <div class="info-head-actions">
                     <div class="info-tabs" role="tablist" aria-label="冒险手册分类">
                       <button class="info-tab-button" type="button" data-info-tab="about" role="tab" aria-selected="true">作者</button>
-                      <button class="info-tab-button" type="button" data-info-tab="photo" role="tab" aria-selected="false">拍照/画图</button>
+                      <button class="info-tab-button" type="button" data-info-tab="photo" role="tab" aria-selected="false">装备</button>
                       <button class="info-tab-button" type="button" data-info-tab="battle" role="tab" aria-selected="false">战斗</button>
                       <button class="info-tab-button" type="button" data-info-tab="bestiary" role="tab" aria-selected="false">图鉴</button>
                     </div>
@@ -140,8 +140,8 @@
                   <div class="info-page" data-info-page="photo" hidden>
                     <div class="info-grid">
                       <article class="info-block wide-info hero-info-block">
-                        <h3>带一件东西进塔</h3>
-                        <p>选一个空装备格，花 1 张胶卷或画布，拍下身边的小东西，或者自己画一个。鉴定通过，它就成了这一格的装备。</p>
+                        <h3>带一件装备进塔</h3>
+                        <p>照片勇者拍下身边小物，画图勇者亲手画出主体，随机勇者则向祈愿星许愿。三种方式共用装备格和消耗数量，随时切换也不会改变已经获得的装备。</p>
                       </article>
                       <article class="info-block wide-info">
                         <h3>拍清主角</h3>
@@ -153,7 +153,11 @@
                       </article>
                       <article class="info-block wide-info">
                         <h3>点亮鉴定台</h3>
-                        <p>右上角的鉴定台亮了，照片和画才能被塔读懂。按钮要是没亮，先回鉴定台把设置补上。</p>
+                        <p>右上角的鉴定台亮了，照片和画才能被塔读懂。随机勇者不需要鉴定台，祈愿会直接生成装备。</p>
+                      </article>
+                      <article class="info-block wide-info">
+                        <h3>向星光祈愿</h3>
+                        <p>随机勇者每次消耗 1 颗祈愿星，从武器、防具、饰物和塔中奇物里随机唤来一件装备；名称、属性与词条会一起重抽。</p>
                       </article>
                     </div>
                   </div>
@@ -185,8 +189,8 @@
                         <p>每 10 层藏着一处暗门。第 5 层之后，普通楼层偶尔会有较强的怪守着门；打倒它，下一层就先拐进隐藏层。隐藏层要三张牌都点亮才开战，只要解决两边的看守即可；拖到上限会继续往上，但这次救援就失败了。救出公主，再打倒魔王，才是真结局。</p>
                       </article>
                       <article class="info-block wide-info">
-                        <h3>胶卷、形态、奖励</h3>
-                        <p>胶卷和画布都是换下一件装备的机会。普通怪通常掉 0.1，单体 Boss 掉 0.3；有些 Boss 倒下后还会翻出奖励牌。形态攒满 10 点经验，会在战斗后进化。</p>
+                        <h3>补给、形态、奖励</h3>
+                        <p>胶卷、画布和祈愿星都是换下一件装备的机会。普通怪通常掉 0.1，单体 Boss 掉 0.3；有些 Boss 倒下后还会翻出奖励牌。形态攒满 10 点经验，会在战斗后进化。</p>
                       </article>
                     </div>
                   </div>
@@ -200,7 +204,7 @@
               <section class="forms-panel secondary-content" data-secondary-panel="forms" aria-label="角色形态" hidden>
                 <div class="secondary-head">
                   <div>
-                    <h2>角色形态</h2>
+                    <h2>角色形态<span class="form-resource-count" id="formResourceCount">（胶卷 0.0）</span></h2>
                   </div>
                   <button class="ghost-button" type="button" data-panel-target="none">收起</button>
                 </div>
@@ -374,6 +378,6 @@
       </section>
     </div>
 
-    <script defer src="./app.js?v=20260805-form-fixes"></script>
+    <script defer src="./app.js?v=20260805-random-hero"></script>
   </body>
 </html>
