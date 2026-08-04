@@ -5013,6 +5013,26 @@ textarea {
     overflow: visible;
   }
 
+  #secondaryArea {
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 48px);
+    right: max(6px, env(safe-area-inset-right));
+    bottom: max(6px, env(safe-area-inset-bottom));
+    left: max(6px, env(safe-area-inset-left));
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  #secondaryArea > .secondary-content {
+    width: 100%;
+    min-height: min-content;
+  }
+
   .game-board {
     grid-template-columns: 1fr;
   }

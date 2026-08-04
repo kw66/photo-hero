@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>图片勇者</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📷</text></svg>">
-    <link rel="stylesheet" href="./styles.css?v=20260531-brand-readme">
+    <link rel="stylesheet" href="./styles.css?v=20260805-mobile-config">
   </head>
   <body class="is-booting">
     <div class="boot-loader" id="bootLoader" role="status" aria-live="polite" aria-label="资源加载中">
@@ -271,6 +271,18 @@
                     <span>Model</span>
                     <input id="customModelInput" type="text" autocomplete="off" placeholder="例如 Qwen/Qwen3.6-35B-A3B">
                   </label>
+                  <label id="reasoningEffortField" hidden>
+                    <span>推理强度（仅 GPT）</span>
+                    <select id="reasoningEffortInput">
+                      <option value="">默认（不发送）</option>
+                      <option value="low">low（低）</option>
+                      <option value="medium">medium（中）</option>
+                      <option value="high">high（高）</option>
+                      <option value="xhigh">xhigh（极高）</option>
+                      <option value="max">max（最大）</option>
+                      <option value="ultra">ultra（超高）</option>
+                    </select>
+                  </label>
                   <label class="wide-field">
                     <span>API Key</span>
                     <div class="secret-field">
@@ -362,6 +374,6 @@
       </section>
     </div>
 
-    <script defer src="./app.js?v=20260531-brand-readme"></script>
+    <script defer src="./app.js?v=20260805-mobile-config"></script>
   </body>
 </html>

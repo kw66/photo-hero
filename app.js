@@ -75,6 +75,9 @@ const XIAOMI_MODELS = [
 ];
 
 const MICU_MODELS = [
+  { value: "gpt-5.6-sol" },
+  { value: "gpt-5.6-terra" },
+  { value: "gpt-5.6-luna" },
   { value: "gpt-5.5" },
   { value: "gpt-5.4" },
   { value: "kimi-k2.5" },
@@ -82,6 +85,17 @@ const MICU_MODELS = [
   { value: "qwen3.5-plus" },
   { value: "qwen3.6-plus" },
 ];
+
+const reasoningEffortLabels = {
+  "": "默认（不发送）",
+  low: "low（低）",
+  medium: "medium（中）",
+  high: "high（高）",
+  xhigh: "xhigh（极高）",
+  max: "max（最大）",
+  ultra: "ultra（超高）",
+};
+const reasoningEffortValues = new Set(Object.keys(reasoningEffortLabels));
 
 const API_PRESETS = {
   experience: {
@@ -160,6 +174,7 @@ const customDraft = {
 };
 
 const providerApiKeys = {};
+const providerModels = {};
 const heroModes = {
   photo: {
     id: "photo",
@@ -939,6 +954,8 @@ const els = {
   modelInput: byId("modelInput"),
   customModelField: byId("customModelField"),
   customModelInput: byId("customModelInput"),
+  reasoningEffortField: byId("reasoningEffortField"),
+  reasoningEffortInput: byId("reasoningEffortInput"),
   saveConfigBtn: byId("saveConfigBtn"),
   testChatBtn: byId("testChatBtn"),
   chatResult: byId("chatResult"),
@@ -2367,12 +2384,13 @@ function bindEvents() {
     turnBestiaryPage(actionButton.dataset.bestiaryAction === "prev" ? -1 : 1);
   });
 
-  [els.baseUrlInput, els.modelInput, els.customModelInput, els.apiKeyInput].forEach((input) => {
+  [els.baseUrlInput, els.modelInput, els.customModelInput, els.apiKeyInput, els.reasoningEffortInput].forEach((input) => {
     input.addEventListener("input", () => {
       if (getActivePresetId() === "custom") {
         rememberCustomDraft();
       }
 
+      updateReasoningEffortVisibility();
       renderApiStatus();
       renderEquipmentDetail();
 
@@ -2387,6 +2405,7 @@ function bindEvents() {
       if (getActivePresetId() === "custom") {
         rememberCustomDraft();
       }
+      updateReasoningEffortVisibility();
       renderApiStatus();
       renderEquipmentDetail();
     });
@@ -4043,6 +4062,7 @@ function getMonsterTraitDetail(trait) {
 
 function applyPreset(presetId, persist = false) {
   rememberCurrentApiKey();
+  rememberCurrentApiModel();
   const targetPresetId = API_PRESETS[presetId] ? presetId : defaultApiPresetId;
   if (persist && getActivePresetId() === "custom" && targetPresetId !== "custom") {
     rememberCustomDraft();
@@ -4052,7 +4072,7 @@ function applyPreset(presetId, persist = false) {
   const isCustom = targetPresetId === "custom";
   const isExperience = targetPresetId === "experience";
   const isLockedKey = Boolean(preset.lockedKey);
-  const selectedModel = isCustom ? customDraft.model : preset.model;
+  const selectedModel = isCustom ? customDraft.model : providerModels[targetPresetId] || preset.model;
 
   if (isCustom) {
     els.baseUrlInput.value = customDraft.baseUrl;
@@ -4083,6 +4103,7 @@ function applyPreset(presetId, persist = false) {
   if (preset.editableModel) {
     els.customModelInput.value = selectedModel || customDraft.model;
   }
+  updateReasoningEffortVisibility(selectedModel);
   els.presetNote.textContent = preset.note;
   els.presetNote.hidden = !preset.note;
   renderProviderLinks(preset);
@@ -4118,6 +4139,52 @@ function renderModelOptions(preset, selectedModel) {
 
   const values = new Set(options.map((model) => model.value));
   els.modelInput.value = values.has(selectedModel) ? selectedModel : options[0]?.value || "";
+}
+
+function normalizeReasoningEffort(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return reasoningEffortValues.has(normalized) ? normalized : "";
+}
+
+function isGptModelName(model) {
+  return /(?:^|\/)gpt(?:[-_.]?\d|$)/i.test(String(model || "").trim());
+}
+
+function getReasoningEffortOptions(model) {
+  const normalized = String(model || "").trim().toLowerCase();
+  const options = ["", "low", "medium", "high", "xhigh"];
+  if (/gpt[-_.]?5\.6[-_.](?:sol|terra|luna)(?:$|[-_.\/])/.test(normalized)) {
+    options.push("max");
+  }
+  if (/gpt[-_.]?5\.6[-_.](?:sol|terra)(?:$|[-_.\/])/.test(normalized)) {
+    options.push("ultra");
+  }
+  return options;
+}
+
+function getSelectedModelForReasoning() {
+  const activePresetId = getActivePresetId();
+  const preset = API_PRESETS[activePresetId] || API_PRESETS.custom;
+  return activePresetId === "custom" || preset.editableModel
+    ? (els.customModelInput.value.trim() || els.modelInput.value.trim())
+    : els.modelInput.value.trim();
+}
+
+function updateReasoningEffortVisibility(model = getSelectedModelForReasoning()) {
+  const visible = isGptModelName(model);
+  if (visible) {
+    const previousValue = normalizeReasoningEffort(els.reasoningEffortInput.value);
+    const allowedValues = getReasoningEffortOptions(model);
+    els.reasoningEffortInput.replaceChildren(...allowedValues.map((value) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = reasoningEffortLabels[value];
+      return option;
+    }));
+    els.reasoningEffortInput.value = allowedValues.includes(previousValue) ? previousValue : "";
+  }
+  els.reasoningEffortField.hidden = !visible;
+  els.reasoningEffortInput.disabled = !visible;
 }
 
 function renderProviderLinks(preset) {
@@ -4160,6 +4227,13 @@ function rememberCurrentApiKey() {
   if (!API_PRESETS[activePreset]) return;
   if (API_PRESETS[activePreset].lockedKey) return;
   providerApiKeys[activePreset] = els.apiKeyInput.value.trim();
+}
+
+function rememberCurrentApiModel() {
+  const activePreset = document.querySelector(".preset-button.is-active")?.dataset.preset;
+  if (!API_PRESETS[activePreset] || activePreset === "custom") return;
+  const model = els.modelInput.value.trim();
+  if (model) providerModels[activePreset] = model;
 }
 
 function rememberCustomDraft() {
@@ -4939,6 +5013,12 @@ function makeVisionUserContent(config, text, images = []) {
 
 function withProviderRequestOptions(config, body) {
   const next = { ...body };
+  const reasoningEffort = normalizeReasoningEffort(config?.reasoningEffort);
+  if (isGptModelName(config?.model) && reasoningEffort) {
+    next.reasoning_effort = reasoningEffort;
+  } else {
+    delete next.reasoning_effort;
+  }
   if (isXiaomiConfig(config)) {
     if (next.max_tokens != null && next.max_completion_tokens == null) {
       next.max_completion_tokens = next.max_tokens;
@@ -15943,6 +16023,7 @@ function renderGameTextOnly(enemyDamageEstimates = null) {
       presetId: apiConfig.presetId,
       baseUrl: apiConfig.baseUrl,
       model: apiConfig.model,
+      reasoningEffort: isGptModelName(apiConfig.model) ? apiConfig.reasoningEffort : "",
       hasApiKey: Boolean(apiConfig.apiKey) || isExperienceConfig(apiConfig),
       keyLocked: isExperienceConfig(apiConfig),
     },
@@ -16110,10 +16191,15 @@ function loadConfig() {
   customDraft.baseUrl = presetId === "custom" ? config.baseUrl || "" : config.customBaseUrl || "";
   customDraft.model = presetId === "custom" ? config.model || "" : config.customModel || "";
   Object.assign(providerApiKeys, config.apiKeys || {});
+  Object.assign(providerModels, config.models || {});
+  if (presetId !== "custom" && config.model) {
+    providerModels[presetId] = config.model;
+  }
   if (config.apiKey && !API_PRESETS[presetId]?.lockedKey && !providerApiKeys[presetId]) {
     providerApiKeys[presetId] = config.apiKey;
   }
   els.apiKeyInput.value = providerApiKeys[presetId] || "";
+  els.reasoningEffortInput.value = normalizeReasoningEffort(config.reasoningEffort);
   applyPreset(presetId, false);
 }
 
@@ -16125,16 +16211,22 @@ function getConfigFromInputs() {
     ? (els.customModelInput.value.trim() || els.modelInput.value.trim())
     : els.modelInput.value.trim();
   const apiKey = activePresetConfig.lockedKey ? "" : els.apiKeyInput.value.trim();
+  const reasoningEffort = normalizeReasoningEffort(els.reasoningEffortInput.value);
   const apiKeys = activePresetConfig.lockedKey
     ? { ...providerApiKeys }
     : { ...providerApiKeys, [activePreset]: apiKey };
+  const models = activePreset === "custom"
+    ? { ...providerModels }
+    : { ...providerModels, [activePreset]: model };
 
   return {
     presetId: activePreset,
     baseUrl,
     apiKey,
     apiKeys,
+    models,
     model,
+    reasoningEffort,
     playMode: state.playMode,
     customBaseUrl: activePreset === "custom" ? baseUrl : customDraft.baseUrl.trim(),
     customModel: activePreset === "custom" ? model : customDraft.model.trim(),
