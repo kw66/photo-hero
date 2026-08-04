@@ -655,7 +655,7 @@ const heroForms = [
     image: "form-angry.png",
     levels: {
       1: { stats: { attack: 5, defense: 5 }, effects: ["攻防 +5", "不获得胶卷"], noFilmDrop: true },
-      2: { stats: { attack: 7, defense: 7 }, effects: ["攻防 +7", "不获得胶卷"], noFilmDrop: true },
+      2: { stats: {}, effects: ["不获得胶卷"], noFilmDrop: true, superFormUnlockScaling: true },
     },
   },
 ];
@@ -9688,8 +9688,23 @@ function getHeroFormLevel(form = getHeroForm()) {
   return progress.level >= 2 ? 2 : 1;
 }
 
+function getUnlockedSuperFormCount(progress = state.formProgress) {
+  const source = progress && typeof progress === "object" ? progress : {};
+  return heroForms.reduce((count, form) => {
+    const item = source[form.id];
+    return count + (item?.level >= 2 || item?.kills >= heroFormUpgradeKills ? 1 : 0);
+  }, 0);
+}
+
 function getHeroFormLevelConfig(form = getHeroForm(), level = getHeroFormLevel(form)) {
-  return form?.levels?.[level] || form?.levels?.[1] || { stats: {}, effects: [] };
+  const config = form?.levels?.[level] || form?.levels?.[1] || { stats: {}, effects: [] };
+  if (!config.superFormUnlockScaling) return config;
+  const bonus = 5 + getUnlockedSuperFormCount();
+  return {
+    ...config,
+    stats: { ...(config.stats || {}), attack: bonus, defense: bonus },
+    effects: [`攻防 +${bonus}（5+已解锁超级形态数）`, ...(config.effects || [])],
+  };
 }
 
 function getHeroFormEffectLines(form = getHeroForm(), level = getHeroFormLevel(form)) {
@@ -10834,7 +10849,7 @@ function simulateFormKillEffects(sim, stats) {
     maxHp: (stats.maxHp || 0) + maxHpGain,
     realMaxHp: (stats.realMaxHp || getSimActualMaxHp(stats, sim)) + maxHpGain,
   };
-  const heal = fixedHeal + getPercentHealAmount(nextStats.maxHp, config.killHealMaxHpPercent);
+  const heal = fixedHeal + getPercentHealAmount(nextStats.realMaxHp, config.killHealMaxHpPercent);
   healSimHero(sim, nextStats, heal);
   if (shouldKillHealAffectShield()) recoverSimHeroShield(sim, nextStats, heal);
 }

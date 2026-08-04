@@ -5033,6 +5033,15 @@ textarea {
     min-height: min-content;
   }
 
+  #secondaryArea:has([data-secondary-panel="forms"]:not([hidden])) {
+    bottom: auto;
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 54px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+  }
+
   .game-board {
     grid-template-columns: 1fr;
   }
