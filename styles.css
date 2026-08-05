@@ -2424,7 +2424,7 @@ dd {
   gap: 8px;
 }
 
-.viewer-action-button {
+.image-viewer .viewer-action-button {
   min-width: 72px;
   min-height: 34px;
   display: inline-flex;
@@ -2434,15 +2434,26 @@ dd {
   border: 2px solid rgb(255 250 240 / 72%);
   border-radius: var(--radius);
   background: #fffaf0;
-  color: var(--ink);
+  color: #211b14;
   font-size: 0.86rem;
   font-weight: 900;
+  text-shadow: none;
   box-shadow: 0 2px 0 rgb(0 0 0 / 28%);
 }
 
-.viewer-action-button.is-primary {
+.image-viewer .viewer-action-button.is-primary {
   border-color: #2f281e;
   background: linear-gradient(180deg, #ffe17b, #e4a93d);
+}
+
+.image-viewer .viewer-action-button:focus-visible {
+  outline: 3px solid #75b8ff;
+  outline-offset: 2px;
+}
+
+.image-viewer .viewer-action-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 rgb(0 0 0 / 34%);
 }
 
 .image-viewer[data-quality="common"] {
