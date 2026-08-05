@@ -346,10 +346,10 @@ const statValueWeights = {
 };
 
 const itemQualityRefunds = {
-  common: 0.3,
+  common: 0.4,
   rare: 0.5,
-  epic: 0.7,
-  legendary: 0.9,
+  epic: 0.6,
+  legendary: 0.7,
 };
 
 const itemQualityScoreBands = {
