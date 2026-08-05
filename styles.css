@@ -1203,6 +1203,7 @@ dd {
 }
 
 .info-tab-button {
+  min-width: calc(4em + 18px);
   min-height: 28px;
   padding: 0 9px;
   border: 1px solid color-mix(in srgb, var(--line-strong) 56%, var(--line));
@@ -1221,12 +1222,6 @@ dd {
 .info-tab-button:focus-visible {
   border-color: color-mix(in srgb, var(--hero) 48%, var(--line-strong));
   color: var(--ink);
-}
-
-.info-tab-button[data-info-tab="about"],
-.info-tab-button[data-info-tab="battle"],
-.info-tab-button[data-info-tab="bestiary"] {
-  min-width: calc(4em + 18px);
 }
 
 .info-tab-button[aria-selected="true"] {
@@ -5331,15 +5326,10 @@ textarea {
   }
 
   .info-tab-button {
+    min-width: calc(4em + 12px);
     min-height: 27px;
     padding-inline: 6px;
     font-size: 0.65rem;
-  }
-
-  .info-tab-button[data-info-tab="about"],
-  .info-tab-button[data-info-tab="battle"],
-  .info-tab-button[data-info-tab="bestiary"] {
-    min-width: calc(4em + 12px);
   }
 
   .info-panel .secondary-head .ghost-button {

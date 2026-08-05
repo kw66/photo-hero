@@ -198,7 +198,7 @@ const heroModes = {
   },
   random: {
     id: "random",
-    title: "随机勇者",
+    title: "祈愿勇者",
     resource: "祈愿星",
     resourceShard: "星尘",
     action: "祈愿",
@@ -1163,10 +1163,10 @@ let careerSummaryRenderedKey = "";
 const bootTips = [
   "点空装备格，拍下身边小物，它会变成随身装备。",
   "画图勇者只看线条、轮廓和颜色，写字不会替你作证。",
-  "随机勇者不用鉴定台，点空装备格就能向祈愿星许愿。",
+  "祈愿勇者不用鉴定台，点空装备格就能向祈愿星许愿。",
   "普通楼层可以只挑一只怪，也可以多选怪物换更多胶卷。",
   "牌上写着会倒下，就先别硬冲。",
-  "照片、画图、随机三种勇者随时切换，已经生成的装备不会改变。",
+  "照片、画图、祈愿三种勇者随时切换，已经生成的装备不会改变。",
   "隐藏层要三张牌都点亮，战斗才会开始。",
   "救出公主后打败最终强敌，结局会不同。",
 ];
@@ -1532,7 +1532,7 @@ function modeText(text, mode = state.playMode) {
   }
   if (normalizedMode === "random") {
     return source
-      .replace(/照片勇者/g, "随机勇者")
+      .replace(/照片勇者/g, "祈愿勇者")
       .replace(/照片最低价值/g, "祈愿装备最低价值")
       .replace(/照片最高价值/g, "祈愿装备最高价值")
       .replace(/照片装备/g, "祈愿装备")
@@ -2462,7 +2462,7 @@ function bindEvents() {
   });
 
   document.querySelectorAll("[data-info-tab]").forEach((button) => {
-    button.addEventListener("click", () => setInfoTab(button.dataset.infoTab || "about"));
+    button.addEventListener("click", () => setInfoTab(button.dataset.infoTab || "bestiary"));
   });
 
   document.querySelectorAll(".info-page[data-info-page='photo'] .info-block, .info-page[data-info-page='battle'] .info-block").forEach((card) => {
@@ -2538,7 +2538,7 @@ function bindEvents() {
   els.attackBtn.addEventListener("click", handlePrimaryAction);
   els.fleeBtn.addEventListener("click", fleeCurrentFloor);
   els.battleSpeedBtn.addEventListener("click", cycleBattleSpeed);
-  els.resetGameBtn.addEventListener("click", resetGame);
+  els.resetGameBtn.addEventListener("click", requestResetGame);
   els.photoActionBtn.addEventListener("click", handlePhotoActionButtonClick);
   els.savePhotoBtn.addEventListener("click", handleSavePhotoButtonClick);
   els.analyzePhotoBtn.addEventListener("click", () => {
@@ -3594,7 +3594,7 @@ function toggleSecondaryPanel(panelId) {
 }
 
 function getActiveInfoTab() {
-  return document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "about";
+  return document.querySelector("[data-info-tab][aria-selected='true']")?.dataset.infoTab || "bestiary";
 }
 
 function initializeInfoCardSelection() {
@@ -3635,7 +3635,7 @@ function ensureInfoPageSelection(tabId) {
 }
 
 function setInfoTab(tabId) {
-  const target = ["about", "photo", "battle", "bestiary"].includes(tabId) ? tabId : "about";
+  const target = ["about", "photo", "battle", "bestiary"].includes(tabId) ? tabId : "bestiary";
   document.querySelectorAll("[data-info-tab]").forEach((button) => {
     const active = button.dataset.infoTab === target;
     button.setAttribute("aria-selected", String(active));
@@ -11460,6 +11460,11 @@ function getPlayerShieldFromRaw(player) {
   return (Number.isFinite(player?.baseShield) ? player.baseShield : 0)
     + (formStats.shield || 0)
     + (equipmentStats.shield || 0);
+}
+
+function requestResetGame() {
+  if (!window.confirm("确定要重开吗？当前冒险进度将被清空。")) return;
+  resetGame();
 }
 
 function resetGame() {

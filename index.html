@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>图片勇者</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📷</text></svg>">
-    <link rel="stylesheet" href="./styles.css?v=20260805-random-hero">
+    <link rel="stylesheet" href="./styles.css?v=20260805-wish-hero">
   </head>
   <body class="is-booting">
     <div class="boot-loader" id="bootLoader" role="status" aria-live="polite" aria-label="资源加载中">
@@ -101,17 +101,17 @@
                 <div class="secondary-head">
                   <div class="info-head-actions">
                     <div class="info-tabs" role="tablist" aria-label="冒险手册分类">
-                      <button class="info-tab-button" type="button" data-info-tab="about" role="tab" aria-selected="true">作者</button>
+                      <button class="info-tab-button" type="button" data-info-tab="bestiary" role="tab" aria-selected="true">图鉴</button>
                       <button class="info-tab-button" type="button" data-info-tab="photo" role="tab" aria-selected="false">装备</button>
                       <button class="info-tab-button" type="button" data-info-tab="battle" role="tab" aria-selected="false">战斗</button>
-                      <button class="info-tab-button" type="button" data-info-tab="bestiary" role="tab" aria-selected="false">图鉴</button>
+                      <button class="info-tab-button" type="button" data-info-tab="about" role="tab" aria-selected="false">作者</button>
                     </div>
                     <button class="ghost-button" type="button" data-panel-target="none">收起</button>
                   </div>
                 </div>
 
                 <div class="info-pages">
-                  <div class="info-page" data-info-page="about">
+                  <div class="info-page" data-info-page="about" hidden>
                     <div class="info-grid about-info-grid">
                       <article class="info-block wide-info author-qr-card">
                         <div class="author-links">
@@ -141,7 +141,7 @@
                     <div class="info-grid">
                       <article class="info-block wide-info hero-info-block">
                         <h3>带一件装备进塔</h3>
-                        <p>照片勇者拍下身边小物，画图勇者亲手画出主体，随机勇者则向祈愿星许愿。三种方式共用装备格和消耗数量，随时切换也不会改变已经获得的装备。</p>
+                        <p>照片勇者拍下身边小物，画图勇者亲手画出主体，祈愿勇者则向祈愿星许愿。三种方式共用装备格和消耗数量，随时切换也不会改变已经获得的装备。</p>
                       </article>
                       <article class="info-block wide-info">
                         <h3>拍清主角</h3>
@@ -153,11 +153,11 @@
                       </article>
                       <article class="info-block wide-info">
                         <h3>点亮鉴定台</h3>
-                        <p>右上角的鉴定台亮了，照片和画才能被塔读懂。随机勇者不需要鉴定台，祈愿会直接生成装备。</p>
+                        <p>右上角的鉴定台亮了，照片和画才能被塔读懂。祈愿勇者不需要鉴定台，祈愿会直接生成装备。</p>
                       </article>
                       <article class="info-block wide-info">
                         <h3>向星光祈愿</h3>
-                        <p>随机勇者每次消耗 1 颗祈愿星，从武器、防具、饰物和塔中奇物里随机唤来一件装备；名称、属性与词条会一起重抽。</p>
+                        <p>祈愿勇者每次消耗 1 颗祈愿星，从武器、防具、饰物和塔中奇物里随机唤来一件装备；名称、属性与词条会一起重抽。</p>
                       </article>
                     </div>
                   </div>
@@ -195,7 +195,7 @@
                     </div>
                   </div>
 
-                  <div class="info-page" data-info-page="bestiary" hidden>
+                  <div class="info-page" data-info-page="bestiary">
                     <div class="monster-bestiary" id="monsterBestiaryContent"></div>
                   </div>
                 </div>
@@ -378,6 +378,6 @@
       </section>
     </div>
 
-    <script defer src="./app.js?v=20260805-random-hero"></script>
+    <script defer src="./app.js?v=20260805-wish-hero"></script>
   </body>
 </html>
