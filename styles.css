@@ -1757,9 +1757,10 @@ dd {
   width: 100%;
   height: 100%;
   color: #ffd76b;
-  font-family: var(--font-title);
-  font-size: 2.5rem;
+  font-family: "Segoe UI Symbol", "Arial Unicode MS", sans-serif;
+  font-size: 2rem;
   line-height: 1;
+  transform: translateY(-1px);
   text-shadow: 0 0 12px rgb(255 215 107 / 46%);
 }
 
@@ -3209,6 +3210,12 @@ dd {
 .intro-reward-card {
   min-height: 158px;
   height: 158px;
+  border-color: #68685d;
+  background: linear-gradient(180deg, #303632 0%, #252a27 48%, #1d211f 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 10%),
+    inset 0 -14px 22px rgb(0 0 0 / 24%),
+    0 2px 0 rgb(0 0 0 / 48%);
 }
 
 .reward-card .reward-card-desc {
@@ -3224,6 +3231,10 @@ dd {
     linear-gradient(180deg, color-mix(in srgb, var(--amber) 12%, var(--panel-2) 88%), var(--panel));
 }
 
+.intro-reward-card:hover:not(:disabled) {
+  background: linear-gradient(180deg, #343a36 0%, #282e2a 48%, #202422 100%);
+}
+
 .reward-card::before {
   display: none;
 }
@@ -3231,6 +3242,11 @@ dd {
 .reward-card.is-selected:hover:not(:disabled) {
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--amber) 24%, var(--panel-2) 76%), var(--panel));
+}
+
+.intro-reward-card.is-selected,
+.intro-reward-card.is-selected:hover:not(:disabled) {
+  background: linear-gradient(180deg, #453c29 0%, #302d24 50%, #22231f 100%);
 }
 
 .reward-card.is-selected {
@@ -3293,6 +3309,18 @@ dd {
 
 .reward-portrait {
   background: var(--field);
+}
+
+.intro-reward-card .reward-portrait {
+  border-color: #81724d;
+  background: #141816;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 5%),
+    0 2px 0 rgb(0 0 0 / 42%);
+}
+
+.intro-reward-card .reward-portrait::after {
+  display: none;
 }
 
 .reward-portrait img {
@@ -5884,6 +5912,10 @@ textarea {
   .reward-portrait img {
     width: 34px;
     height: 34px;
+  }
+
+  .reward-icon-glyph {
+    font-size: 1.5rem;
   }
 
   .reward-card {
